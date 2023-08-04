@@ -17,6 +17,8 @@
   </div>
 </template>
 <script>
+//import axios from 'axios';
+import router from '@/router';
 
 export default {
   name: 'HomeAcariTex',
@@ -25,11 +27,16 @@ export default {
       email: "",
       password: ""
     }
+  },
+  methods:{
+    async getlogin(){
+      router.push('/Dashboard')
+      //axios.get('')
+    }
   }
-
 }
 </script>
-<style>
+<style scoped>
   .login-container {
     display: flex;
     justify-content: center;
@@ -79,7 +86,7 @@ export default {
   }
 
   img {
-    max-width: 50%;
+    max-width: 40%;
     height: auto;
     margin-right: 20px;
   }
