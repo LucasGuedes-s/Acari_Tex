@@ -1,13 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 prisma = new PrismaClient()
 
-async function getEstoque(id) {
-    const id_tecido = parseInt(id)
+async function getEstoque() {
+    const id_tecido = parseInt()
 
-    const produtos = await prisma.estoque.findFirst({
-        where: {
-            id_do_tecido: id_tecido,
-        }
+    const produtos = await prisma.estoque.findMany({
     });
 
     if (!produtos) {

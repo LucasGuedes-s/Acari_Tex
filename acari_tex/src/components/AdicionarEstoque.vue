@@ -1,7 +1,14 @@
 <template>
     <div>
-        <div>
-            <button class="botao" type="submit" @click="showModal = true">Adicionar Tecido</button>
+        <div class="conteiner-icons">
+            <div class="button-container" @click="showModal = true">
+                <span class="tooltip" >Adicionar Tecido</span>
+                <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
+            </div>
+            <div class="button-container" @click="showModal = true">
+                <span class="tooltip" >Gerar relatório</span>
+                <img src="@/assets/relatorio.png" alt="Adicionar" class="add-button">
+            </div>
         </div>
         <div v-if="showModal" class="modal-background">
             <img class = "img-close" @click="showModal = false" src="@/assets/close.png" />
@@ -27,6 +34,7 @@
         data(){
             return{
                 showModal: false,
+                showTooltip: false
             }
         },
         methods:{
@@ -38,15 +46,36 @@
     
 </script>
 <style scoped>
-    .botao{
-        padding: auto;
-        margin: auto;
-        background-color: #00692b;
-        color: #fff;
-        height: 40px;
-        box-sizing: border-box;
-        border-radius: 25px;
-        border: none;
+    .conteiner-icons{
+        margin-top: 10%;
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-end;
+        float: right;
+    }
+    .button-container {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        float: right;
+        padding: 10px;
+    }
+
+    .add-button {
+        margin-right: 10px; /* Ajuste a margem conforme necessário */
+    }
+
+    .button-container img{
+        width: 60px;
+    }
+    .tooltip{
+        display: none;
+    }
+    .button-container:hover{
+        .tooltip{
+            display: block;
+
+        }
     }
     .modal-background {
       position: fixed;

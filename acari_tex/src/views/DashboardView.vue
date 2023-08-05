@@ -4,9 +4,16 @@
       <div>
         <SidebarNav />
       </div>
-
       <div>
         <AdicionarEstoque />
+      </div>
+      <div class="conteiner-produtos" v-for="item in estoque" :key="item.id_do_tecido">
+        <div class="produtos">Tecido: {{ item.nome_do_tecido }}</div>
+        <div class="produtos">Valor: R${{ item.nome_do_tecido }}</div>
+        <div class="produtos">Fornecedor: {{ item.fornecedor }}</div>
+        <div class="produtos">Composição: {{ item.composicao }}</div>
+        <div class="produtos">Estoque: {{ item.estoque }}</div>
+        <div class="produtos">Notas: {{ item.notas }}</div>
       </div>
     </div>
 </template>
@@ -20,19 +27,16 @@
     data(){
       return{
         id: 1,
-        estoque: ""
+        estoque: null
       }
     },
     methods:{
       async getEstoque(){
-        const id = this.id;
-
-        Axios.get(`http://localhost:3333/Estoque/${id}`)
+        Axios.get(`http://localhost:3333/Estoque`)
         .then(response => {
             console.log(response.status)
             console.log(response.data.produtos)
             this.estoque = response.data.produtos
-
         })
         .catch(error => {
             console.error(error);
@@ -55,6 +59,21 @@
     display: flex;
     text-align: center;
     justify-content: center;
+  }
+  .conteiner-produtos{
+    width: 25%;
+    display: inline-grid;
+    margin: 30px 10px auto;
+    background-color: #f2f2f2;
+    padding: 10px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  .produtos{
+    display: flex;
+    justify-content: left;
+    padding: 10px;
   }
 </style>
 

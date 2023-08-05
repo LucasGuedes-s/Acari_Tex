@@ -14,8 +14,14 @@
               <router-link to="/">
                 <img class="icon" src="@/assets/funcionarios.png"/><p>Funcionários</p>
               </router-link>
+            </div>
+
+            <div class="item" @click="toggleSidebar">
+              <router-link to="/">
+                <img class="icon" src="@/assets/pedidos.png"/><p>Pedidos</p>
+              </router-link>
             </div> 
-  
+
             <div class="item" @click="toggleSidebar">
               <router-link to="/">
                 <img class="icon" src="@/assets/eficiencia.png"/><p>Eficiencia</p>
@@ -80,7 +86,7 @@
       text-decoration: none;
       display: flex; 
       align-items: center;
-      line-height: 70px;
+      line-height: 50px;
     }
     .menu .item{
       margin-top: 50px;
@@ -95,7 +101,7 @@
     }
     /*Diminuindo o sideBar */
     .arrasta img{
-      margin-left: 20px;
+      margin-left: 10px;
       margin-top: 70px;
       width: 50px;
     } 
@@ -105,6 +111,11 @@
             width: 50px;
             padding: 5px;
         }
+        .arrasta img{
+          margin-left: 0px;
+          margin-top: 20px;
+          width: 50px;
+        } 
     }
 </style>
   
