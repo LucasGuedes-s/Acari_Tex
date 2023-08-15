@@ -1,0 +1,126 @@
+<template>
+    <div>
+      <h1>Estoque de Tecidos</h1>
+      <div>
+        <SidebarNav />
+      </div>
+      <div>
+        <AdicionarEstoque />
+      </div>
+      <div class="conteiner-produtos" v-for="item in estoque" :key="item.id_do_tecido">
+        <div class="produtos">Tecido: {{ item.nome_do_tecido }}</div>
+        <div class="produtos">Valor: R${{ item.valor }}</div>
+        <div class="produtos">Fornecedor: {{ item.fornecedor }}</div>
+        <div class="produtos">Estoque: {{ item.estoque }}</div>
+        <div>
+          <div class="button-container" @click="showModalProduto = true">
+            <span class="tooltip" >Detalhar</span>
+          </div>
+          <div v-if="showModalProduto" class="modal-background">
+            <div class="modal-content">
+              <div class="produtos">Tecido: {{ item.nome_do_tecido }}</div>
+              <div class="produtos">Valor: R${{ item.valor }}</div>
+              <div class="produtos">Fornecedor: {{ item.fornecedor }}</div>
+              <div class="produtos">Estoque: {{ item.estoque }}</div>
+              <div class="produtos">Composição: {{ item.composicao }}</div>
+              <div class="produtos">Notas: {{ item.notas }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+</template>
+<script>
+    import SidebarNav from '@/components/Sidebar.vue';
+    import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
+    import Axios from 'axios'
+
+    export default {
+    name: 'Dashbboard-tecidos',
+    data(){
+      return{
+        id: 1,
+        estoque: null,
+        showModalProduto: false
+      }
+    },
+    methods:{
+      async getEstoque(){
+        Axios.get(`http://localhost:3333/Estoque`)
+        .then(response => {
+            console.log(response.status)
+            console.log(response.data.produtos)
+            this.estoque = response.data.produtos
+
+        })
+        .catch(error => {
+            console.error(error);
+        });
+      }
+    },
+    mounted() {
+      this.getEstoque();
+    },
+    components:{
+        SidebarNav,
+        AdicionarEstoque
+    }
+
+    }
+</script>
+
+<style scoped>
+  .conteiner-produtos{
+    display: flex;
+    margin-left: 15%;
+    margin-right: 10%;
+    background-color: #f2f2f2;
+    padding: 10px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    flex-wrap: nowrap;
+    align-content: space-between;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .button-container {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      float: right;
+      padding: 10px;
+      background-color: #00692b;
+      color: #fff;
+    }
+  .produtos{
+    display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  }
+  .modal-background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    /* Estilo para a div de conteúdo do modal */
+    .modal-content {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+      max-width: 500px;
+      width: 100%;
+    }
+</style>
+
+  

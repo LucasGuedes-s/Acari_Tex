@@ -5,14 +5,14 @@
           <div class="menu">
   
             <div class="item" @click="toggleSidebar">
-              <router-link to="/">
+              <router-link to="/Dashboard">
                 <img class="icon" src="@/assets/Dashboard.png"/><p>Dashboard</p>
               </router-link>
             </div>
   
             <div class="item" @click="toggleSidebar">
               <router-link to="/">
-                <img class="icon" src="@/assets/funcionarios.png"/><p>Funcionários</p>
+                <img class="icon" src="@/assets/funcionarios.png"/><p>Minha equipe</p>
               </router-link>
             </div>
 

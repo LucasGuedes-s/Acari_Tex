@@ -1,25 +1,39 @@
 <template>
-    <div>
-      <h1>Estoque</h1>
+    <div >
       <div>
         <SidebarNav />
       </div>
+      <div class="conteiner-dashboard">
+        <div class="conteiner-principal">
+          <h1>Seja bem vindo</h1>
+          <img src="@/assets/trabalho.png">
+        </div>
+      </div>
       <div>
-        <AdicionarEstoque />
-      </div>
-      <div class="conteiner-produtos" v-for="item in estoque" :key="item.id_do_tecido">
-        <div class="produtos">Tecido: {{ item.nome_do_tecido }}</div>
-        <div class="produtos">Valor: R${{ item.nome_do_tecido }}</div>
-        <div class="produtos">Fornecedor: {{ item.fornecedor }}</div>
-        <div class="produtos">Composição: {{ item.composicao }}</div>
-        <div class="produtos">Estoque: {{ item.estoque }}</div>
-        <div class="produtos">Notas: {{ item.notas }}</div>
-      </div>
+        <div class="conteiner">
+          <div class="conteiner-quantidade"> 
+            <h1>Estoque de Tecidos</h1>
+            <h2>Quantidade: 01</h2>
+            <div class="button-container">
+              <RouterLink to="/EstoqueTecidos"><a class="tooltip">Adicionar</a></RouterLink>
+              <RouterLink to="/EstoqueTecidos"><a class="tooltip">Detalhar</a></RouterLink>
+            </div>
+          </div>
+            <div class="conteiner-quantidade"> 
+              <h1>Estoque de Agulhas</h1>
+              <h2>Quantidade: 01</h2>
+              <div class="button-container">
+                <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Adicionar</a></RouterLink>
+                <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Detalhar</a></RouterLink>
+              </div>
+            </div>
+          </div>
+        </div>
     </div>
 </template>
 <script>
     import SidebarNav from '@/components/Sidebar.vue';
-    import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
+    //import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
     import Axios from 'axios'
 
     export default {
@@ -27,7 +41,8 @@
     data(){
       return{
         id: 1,
-        estoque: null
+        estoque: null,
+        showModalProduto: false
       }
     },
     methods:{
@@ -37,6 +52,7 @@
             console.log(response.status)
             console.log(response.data.produtos)
             this.estoque = response.data.produtos
+
         })
         .catch(error => {
             console.error(error);
@@ -48,32 +64,70 @@
     },
     components:{
         SidebarNav,
-        AdicionarEstoque
+        //AdicionarEstoque
     }
 
     }
 </script>
 
 <style scoped>
-  h1{
+  .conteiner-dashboard{
+    background-color: #f2f2f2;
+    padding: 20px;
+    margin: 10px auto;
+    width: 50%;
+    border-radius: 20px;
+  }
+  .conteiner-principal img{
+    width: 250px;
+  }
+  .conteiner-principal{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .conteiner h1{
     display: flex;
     text-align: center;
     justify-content: center;
   }
-  .conteiner-produtos{
-    width: 25%;
-    display: inline-grid;
-    margin: 30px 10px auto;
-    background-color: #f2f2f2;
-    padding: 10px;
-    text-align: center;
-    border-radius: 10px;
-    margin-bottom: 20px;
-  }
-  .produtos{
+  .conteiner{
     display: flex;
-    justify-content: left;
+    justify-content: center;
+  }
+  .conteiner-quantidade{
+    background-color: #f2f2f2;
+    padding: 20px;
+    margin: 10px;
+    border-radius: 20px;
+
+  }
+  .conteiner-quantidade img{
+    width: 50px;
+  }
+  .tooltip {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    float: right;
     padding: 10px;
+    background-color: #00692b;
+    text-decoration: none;
+    margin: 10px;
+    border-radius: 10px;
+  }
+  .button-container{
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    justify-content: space-evenly;
+  }
+  .button-container a {
+    color: #ffff;
+    text-decoration: none;
+  }
+  .tooltip{
+    align-items: center;
   }
 </style>
 
