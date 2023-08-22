@@ -5,8 +5,8 @@
                 <span class="tooltip" >Adicionar Tecido</span>
                 <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
             </div>
-            <div class="button-container">
-                <span class="tooltip" >Gerar relatório</span>
+            <div class="button-container" @click="gerarPDF">
+                <span class="tooltip">Gerar relatório</span>
                 <img src="@/assets/relatorio.png" alt="Adicionar" class="add-button">
             </div>
         </div>
@@ -58,7 +58,7 @@
     </div>
 </template>
 <script>
-import axios from 'axios';
+    import axios from 'axios';
     export default{
         data(){
             return{
@@ -82,7 +82,7 @@ import axios from 'axios';
                 await axios.post("http://localhost:3333/AdicionarProduto", {   
                     produto: {
                         nome: this.produto,
-                        preco: this.valor,
+                        valor: this.valor,
                         fornecedor: this.fornecedor,
                         composicao: this.composicao,
                         estoque: this.estoque,
@@ -92,8 +92,12 @@ import axios from 'axios';
                     }
                 }).then(
                     this.$emit('getEstoque'),
+                    
                     this.showModal = false,
                 )
+            },
+            async gerarPDF() {
+                this.$emit('gerarPDF')
             }
         }
     }

@@ -10,10 +10,18 @@ datasource db {
 model estoque {
   id_do_tecido       Int     @id @default(autoincrement())
   nome_do_tecido     String
+  valor              Float
   fornecedor         String
   composicao         String
   largura            Float
   peso               Float
   estoque            Int
   notas              String
+}
+model Funcionarios {
+  id           Int     @id @default(autoincrement())
+  nome_do_funcionario String
+  idade               String
+  funcoes             String
+  notas               String
 }

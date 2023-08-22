@@ -19,9 +19,11 @@ app.use(function(req, res, next) {
 app.set('trust proxy', 1);
 
 const routerEstoque = require('./Routes/Estoque.router.js');
+const routerFuncionarios = require('./Routes/Funcionarios.router.js');
+
 //const router = require('./routers/routerAdmin');
 
-app.use(routerEstoque);
+app.use(routerEstoque, routerFuncionarios);
 
 const hostname = 'localhost';
 const port = 3333;

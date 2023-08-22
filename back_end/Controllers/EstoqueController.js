@@ -11,6 +11,19 @@ async function getEstoque(req, res, next){
         next(err);
     }
 }
+
+async function getTecido(req, res, next){
+
+    try {
+
+        const produto = await Getproduto.getTecido(req.params.id);
+        res.status(200).json({produto: produto});
+    } catch (err) {
+        console.error(`Erro ao obter produto de id {produto} no estoque.`, err.message);
+        next(err);
+    }
+}
+
 async function postProduto(req, res, next){      
 
     try {
@@ -27,5 +40,6 @@ async function postProduto(req, res, next){
 }
 module.exports = { 
     getEstoque,
+    getTecido,
     postProduto
 };

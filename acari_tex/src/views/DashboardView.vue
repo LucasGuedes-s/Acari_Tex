@@ -15,7 +15,7 @@
             <h1>Estoque de Tecidos</h1>
             <h2>Quantidade: 01</h2>
             <div class="button-container">
-              <RouterLink to="/EstoqueTecidos"><a class="tooltip">Adicionar</a></RouterLink>
+              <!-- <RouterLink to="/EstoqueTecidos"><a class="tooltip">Adicionar</a></RouterLink>-->
               <RouterLink to="/EstoqueTecidos"><a class="tooltip">Detalhar</a></RouterLink>
             </div>
           </div>
@@ -23,7 +23,7 @@
               <h1>Estoque de Agulhas</h1>
               <h2>Quantidade: 01</h2>
               <div class="button-container">
-                <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Adicionar</a></RouterLink>
+                <!-- <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Adicionar</a></RouterLink>-->
                 <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Detalhar</a></RouterLink>
               </div>
             </div>
@@ -33,7 +33,6 @@
 </template>
 <script>
     import SidebarNav from '@/components/Sidebar.vue';
-    //import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
     import Axios from 'axios'
 
     export default {
@@ -64,7 +63,6 @@
     },
     components:{
         SidebarNav,
-        //AdicionarEstoque
     }
 
     }
@@ -72,7 +70,7 @@
 
 <style scoped>
   .conteiner-dashboard{
-    background-color: #f2f2f2;
+    background-color: #ffff;
     padding: 20px;
     margin: 10px auto;
     width: 50%;
@@ -96,7 +94,7 @@
     justify-content: center;
   }
   .conteiner-quantidade{
-    background-color: #f2f2f2;
+    background-color: #ffff;
     padding: 20px;
     margin: 10px;
     border-radius: 20px;
