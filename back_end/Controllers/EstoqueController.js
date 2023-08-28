@@ -1,7 +1,9 @@
 const Getproduto = require('../Services/Estoque.services');
-const Cadproduto = require('../Services/Estoque.services')
+const Cadproduto = require('../Services/Estoque.services');
+const DeleteProduto = require('../Services/Estoque.services');
 
-async function getEstoque(req, res, next){      
+async function getEstoque(req, res, next){  
+
     console.log('Estou chegando aqui')
     try {
         const produtos = await Getproduto.getEstoque();
@@ -15,11 +17,25 @@ async function getEstoque(req, res, next){
 async function getTecido(req, res, next){
 
     try {
-
         const produto = await Getproduto.getTecido(req.params.id);
         res.status(200).json({produto: produto});
     } catch (err) {
         console.error(`Erro ao obter produto de id {produto} no estoque.`, err.message);
+        next(err);
+    }
+}
+async function deletarTecido(req, res, next){
+    console.log('CHEGUIHJG')
+    try {
+        const id = req.params.id;
+        console.log(id)
+
+        const produtos = await DeleteProduto.DeleteProduto(id);
+        res.status(200).send({
+            message: `Produto deletado: ${produtos}`,
+        });
+    } catch (err) {
+        console.error(`Erro ao deletar produto do estoque.`, err.message);
         next(err);
     }
 }
@@ -41,5 +57,6 @@ async function postProduto(req, res, next){
 module.exports = { 
     getEstoque,
     getTecido,
-    postProduto
+    postProduto,
+    deletarTecido
 };

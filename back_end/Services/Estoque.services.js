@@ -13,7 +13,7 @@ async function getEstoque() {
 async function getTecido(id) {
     const id_tecido = parseInt(id);
 
-    console.log('ESTOU AQUI')
+    //console.log('ESTOU AQUI')
     const produto = await prisma.estoque.findUnique({
         where: {
             id_do_tecido: id_tecido,
@@ -27,10 +27,28 @@ async function getTecido(id) {
     console.log(produto)
     return produto;
 }
+async function DeleteProduto(id){
+    console.log(id);
+    const id_tecido = parseInt(id);
+
+    console.log('Oiiii, lindo')
+    try {
+        const produtoDeletado = await prisma.estoque.delete({
+          where: {
+            id_do_tecido: id_tecido
+          }
+        });
+        console.log('Produto deletado:', produtoDeletado);
+    }catch (error) {
+        console.error('Erro ao deletar o produto:', error);
+    }
+}
 async function postEstoque(produto){
     
     console.log(produto);
     console.log(produto.valor);
+    const dataAtual = new Date()
+    const data = dataAtual.toISOString();
 
     //valor = produto.valor
     const produtos = await prisma.estoque.create({
@@ -42,6 +60,7 @@ async function postEstoque(produto){
             estoque: produto.estoque,
             largura: produto.largura,
             peso: produto.peso,
+            data: data,
             notas: produto.notas
         }
     });
@@ -51,4 +70,5 @@ module.exports = {
     getEstoque,
     getTecido,
     postEstoque,
+    DeleteProduto
 }

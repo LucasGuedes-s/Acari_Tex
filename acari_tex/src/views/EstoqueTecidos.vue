@@ -5,7 +5,7 @@
         <SidebarNav />
       </div>
       <div>
-        <AdicionarEstoque @getEstoque="getEstoque" @gerarPDF="gerarPDF"/>
+        <AdicionarEstoque @getEstoque="getEstoque" />
       </div>
       <div class="conteiner-produtos" v-for="item in estoque" :key="item.id_do_tecido">
         <div class="produtos">Tecido: {{ item.nome_do_tecido }}</div>
@@ -23,11 +23,21 @@
             <div class="produtos-modal">Valor: R$ {{ produto.valor }}</div>
             <div class="produtos-modal">Fornecedor: {{ produto.fornecedor }}</div>
             <div class="produtos-modal">Estoque: {{ produto.estoque }}</div>
-            <div class="produtos-modal">Composição: {{ produto.composicao }}</div>
-            <div class="produtos-modal">Notas: {{ produto.notas }}</div>
-            <div class="button">
-              <span class="tooltip" >Gerar Relatório</span>
+            <div v-if="produto.largura != null" class="produtos-modal">Largura: {{ produto.largura }} metros</div>
+            <div v-if="produto.largura != null" class="produtos-modal">Peso: {{ produto.peso }} Kg</div>
+            <div v-if="produto.largura != null" class="produtos-modal">Composição: {{ produto.composicao }}</div>
+            <div v-if="produto.largura != null" class="produtos-modal">Notas: {{ produto.notas }}</div>
+          <div class="buttons"> 
+            <div class="button-deletar" @click="deletarProduto(produto.id_do_tecido)">
+              <span class="tooltip" >Deletar Tecido</span>
             </div>
+            <div class="button-tecido">
+              <span class="tooltip" >Usar tecido</span>
+            </div>
+            <div class="button" @click="gerarPDFdoTecido(produto.id_do_tecido)">
+              <span class="tooltip">Gerar Relatório</span>
+            </div>
+          </div>
           </div>
         </div>
       </div>
@@ -36,8 +46,10 @@
 <script>
     import SidebarNav from '@/components/Sidebar.vue';
     import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
+    import imagem from '@/assets/LogoAcariTex.png';
     import Axios from 'axios'
     import { jsPDF } from "jspdf";
+    import 'jspdf-autotable';
 
     export default {
     name: 'Dashbboard-tecidos',
@@ -46,11 +58,14 @@
         id: null,
         estoque: null,
         produto: null,
+        pdf: null,
         showModalProduto: false
       }
     },
     methods:{
       async getEstoque(){
+        this.showModalProduto = false
+        
         Axios.get(`http://localhost:3333/Estoque`)
         .then(response => {
             console.log(response.status)
@@ -70,6 +85,18 @@
           this.showModalProduto = true
         })
       },
+      async deletarProduto(id_do_tecido){
+        try{
+          Axios.get(`http://localhost:3333/Deletar/${id_do_tecido}`)
+          .then( response =>{
+            console.log(response.status)
+            this.getEstoque();
+          })
+        } catch (error) {
+          console.error('Erro ao deletar o produto:', error.response.data);
+        }
+      },
+
       async gerarPDF() {
         console.log('Só cheguei aqui')
 
@@ -78,17 +105,63 @@
           unit: "mm",
           format: 'a4'
         });
-
-        doc.text("Hello world!", 10, 10);
-              // Cabeçalho da tabela
-        const headers = [["Tecido", "Estoque", "Fornecedor"]];
-
-        // Dados da lista de estoque
-        //const data = this.estoque.map(item => [item.nome_do_tecido, item.estoque, item.fornecedor]);
-
-        doc.table(headers)
         doc.save("Relatório de estoque.pdf");
-      }
+      },
+      async gerarPDFdoTecido(id_do_tecido){
+        Axios.get(`http://localhost:3333/Estoque/${id_do_tecido}`)
+        .then(response => {
+          console.log(response.data.produto)
+          this.pdf = response.data.produto
+
+          const doc = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: 'a4'
+          });
+          const width = 30;
+          const x = (doc.internal.pageSize.width - width) / 2;
+          const y = 10;
+          const height = 30;
+          
+          //image.src = '/home/gabriel/Acari_Tex/acari_tex/src/assets/LogoAcariTex.png';
+          doc.addImage(imagem, 'PNG', x, y, width, height);
+
+          //doc.addImage(imagem, "PNG", 15, 40, 180, 180);
+
+          // Cria o título
+          doc.text("Relatório do tecido", 15, 60);
+
+          const tableData = [
+              ['Nome', 'Preço', 'Fornecedor', 'Estoque', 'largura (metros)', 'peso (Kg)'], [this.pdf.nome_do_tecido, `R$: ${this.pdf.valor}`, this.pdf.fornecedor, this.pdf.estoque, this.pdf.largura, this.pdf.peso]
+            ];
+          doc.autoTable({
+              head: tableData.slice(0, 1), // Cabeçalho
+              body: tableData.slice(1), // Conteúdo do corpo
+              startY: 70, // Posição inicial da tabela
+          });
+          const text = `
+          
+          Este relatório apresenta a quantidade atual de estoque do tecido ${this.pdf.nome_do_tecido} sob o código de ${this.pdf.id_do_tecido}. 
+
+
+          O objetivo é fornecer uma visão geral da disponibilidade do tecido para fins de referência e
+          planejamento.
+
+          Quantidade em Estoque:
+          A quantidade total de tecido composto de ${this.pdf.composicao} disponível em estoque é e ${this.pdf.estoque} unidades.
+
+          Observações:
+          Não há observações adicionais a serem relatadas neste momento`;
+
+          const fontSize = 12
+
+          // Centralizar verticalmente
+          doc.setFontSize(fontSize);
+          doc.text(text, 5, 100);
+          
+          doc.save("Relatório de estoque.pdf");
+          })
+      },
     },
     mounted() {
       this.getEstoque();
@@ -153,13 +226,36 @@
     max-width: 500px;
     width: 100%;
   }
-  .produtos-modal{
-    font-size: 20px;
-    display: table;
+  .produtos-modal {
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 4px;
     padding: 10px;
-    margin-left: 15px;
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #333;
+  }
+
+  .produtos-modal:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+  .button-deletar{
+    margin-left: 30px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    float: right;
+    padding: 10px;
+    background-color: #b80000;
+    color: #fff;
+    margin-top: 30px;
+  }
+  .buttons{
+    display: inline-block;
   }
   .button{
+    border-radius: 10px;
     display: flex;
     align-items: center;
     cursor: pointer;
@@ -167,7 +263,20 @@
     padding: 10px;
     background-color: #00692b;
     color: #fff;
-    margin-top: 10px;
+    margin-top: 30px;
+  }
+
+  .button-tecido{
+    margin-left: 30px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    float: right;
+    padding: 10px;
+    background-color: #00692b;
+    color: #fff;
+    margin-top: 30px;
   }
   .img-close {
     position: absolute;

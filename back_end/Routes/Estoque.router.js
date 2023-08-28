@@ -4,6 +4,7 @@ const ControllerEstoque = require('../Controllers/EstoqueController')
 
 router.get('/Estoque', ControllerEstoque.getEstoque);
 router.get('/Estoque/:id', ControllerEstoque.getTecido);
+router.get('/Deletar/:id', ControllerEstoque.deletarTecido);
 
 router.post('/AdicionarProduto', ControllerEstoque.postProduto)
 

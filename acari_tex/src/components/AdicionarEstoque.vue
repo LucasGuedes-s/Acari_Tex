@@ -5,7 +5,7 @@
                 <span class="tooltip" >Adicionar Tecido</span>
                 <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
             </div>
-            <div class="button-container" @click="gerarPDF">
+            <div class="button-container" >
                 <span class="tooltip">Gerar relatório</span>
                 <img src="@/assets/relatorio.png" alt="Adicionar" class="add-button">
             </div>
@@ -35,15 +35,15 @@
                     </div>
                     <div class="form-item">
                         <label>Estoque:  </label>
-                        <input type="number" v-model="estoque">
+                        <input type="number" placeholder="Ex: 15" v-model="estoque">
                     </div>
                     <div class="form-item">
                         <label>Largura:  </label>
-                        <input type="number" placeholder="Ex: 4,99" v-model="largura">
+                        <input type="number" placeholder="Ex: 4,99 (Largura em Metros)" v-model="largura">
                     </div>
                     <div class="form-item">
                         <label>Peso:  </label>
-                        <input type="number" v-model="peso">
+                        <input type="number" placeholder="Ex: 4,99 (Peso em Kilos)" v-model="peso">
                     </div>
                     <div class="form-item">
                         <label>Notas:  </label>
@@ -76,6 +76,7 @@
         },
         methods:{
             async emitFunction() {
+                console.log('Cheguei aqui')
                 this.$emit('getEstoque');
             },
             async submitForm(){
@@ -91,13 +92,10 @@
                         notas: this.notas,                   
                     }
                 }).then(
-                    this.$emit('getEstoque'),
-                    
                     this.showModal = false,
+                    this.emitFunction(),
+                    //this.$emit('getEstoque'),
                 )
-            },
-            async gerarPDF() {
-                this.$emit('gerarPDF')
             }
         }
     }
@@ -126,7 +124,6 @@
         float: right;
         padding: 10px;
     }
-
     .add-button {
         margin-right: 10px; /* Ajuste a margem conforme necessário */
     }
@@ -140,7 +137,7 @@
     .button-container:hover{
         .tooltip{
             display: block;
-
+            background-color: #ffffff;
         }
     }
     .modal-background {

@@ -13,7 +13,7 @@
         <div class="conteiner">
           <div class="conteiner-quantidade"> 
             <h1>Estoque de Tecidos</h1>
-            <h2>Quantidade: 01</h2>
+            <h2>Quantidade: {{ quantidadeDeTecidos }}</h2>
             <div class="button-container">
               <!-- <RouterLink to="/EstoqueTecidos"><a class="tooltip">Adicionar</a></RouterLink>-->
               <RouterLink to="/EstoqueTecidos"><a class="tooltip">Detalhar</a></RouterLink>
@@ -24,7 +24,7 @@
               <h2>Quantidade: 01</h2>
               <div class="button-container">
                 <!-- <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Adicionar</a></RouterLink>-->
-                <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Detalhar</a></RouterLink>
+                <RouterLink to="/EstoqueAgulhas"><a class="tooltip" >Detalhar</a></RouterLink>
               </div>
             </div>
           </div>
@@ -41,6 +41,7 @@
       return{
         id: 1,
         estoque: null,
+        quantidadeDeTecidos: null,
         showModalProduto: false
       }
     },
@@ -51,7 +52,8 @@
             console.log(response.status)
             console.log(response.data.produtos)
             this.estoque = response.data.produtos
-
+            this.quantidadeDeTecidos = this.estoque.length;
+            //console.log(`Quantidade de tecidos: ${quantidadeDeTecidos}`);
         })
         .catch(error => {
             console.error(error);

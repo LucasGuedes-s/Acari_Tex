@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const cors = require('cors');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -35,8 +36,13 @@ app.use(
         extended: true,
     })
 );*/
+app.use(cors({
+    origin: 'http://localhost:8080'
+}));
 
-//Inicia o servidor
-app.listen(port, hostname, ()=>{
+app.listen(3333, () => {
     console.log(`Servidor iniciado em http://${hostname}:${port} (Clique Ctrl+C)`);
 });
+//Inicia o servidor
+//app.listen(port, hostname, ()=>{
+//});
