@@ -13,14 +13,12 @@
         <div v-if="showModal" class="modal-background">
             <img class = "img-close" @click="showModal = false" src="@/assets/close.png" />
             <div class="modal-content">
-                <h1>Adicionar tecido</h1>
+                <h1>Adicionar produto</h1>
                 <form class="form-container" method="POST"> <!-- Formulário de cadastro de produto-->
-                    <!-- O usuário define o produto-->
                     <div class="form-item">
                         <label>Produto:</label>
                         <input type="text" placeholder="Produto" v-model="produto">
                     </div>
-                    <!-- O usuário define o valor do produto -->
                     <div class="form-item">
                         <label>Valor:  </label>
                         <input type="number" placeholder="Ex: 4,99" v-model="valor">
@@ -58,48 +56,57 @@
     </div>
 </template>
 <script>
-    import axios from 'axios';
-    export default{
-        data(){
-            return{
-                showModal: false,
-                showTooltip: false,
-                produto: '',
-                valor: null,
-                fornecedor: '',
-                composicao: '',
-                estoque: null,
-                largura: null,
-                peso: null,
-                notas: ''
-            }
-        },
-        methods:{
-            async emitFunction() {
-                console.log('Cheguei aqui')
-                this.$emit('getEstoque');
-            },
-            async submitForm(){
-                await axios.post("http://localhost:3333/AdicionarProduto", {   
-                    produto: {
-                        nome: this.produto,
-                        valor: this.valor,
-                        fornecedor: this.fornecedor,
-                        composicao: this.composicao,
-                        estoque: this.estoque,
-                        largura: this.largura,
-                        peso: this.peso,
-                        notas: this.notas,                   
-                    }
-                }).then(
-                    this.showModal = false,
-                    this.emitFunction(),
-                    //this.$emit('getEstoque'),
-                )
-            }
+import axios from 'axios';
+import Swal from 'sweetalert2'
+
+export default{
+    data(){
+        return{
+            showModal: false,
+            showTooltip: false,
+            produto: '',
+            valor: null,
+            fornecedor: '',
+            composicao: '',
+            estoque: null,
+            largura: null,
+            peso: null,
+            notas: ''
+        }
+    },
+    methods:{
+        async submitForm(){
+            await axios.post("http://localhost:3333/AdicionarProduto", {   
+                produto: {
+                    nome: this.produto,
+                    valor: this.valor,
+                    fornecedor: this.fornecedor,
+                    composicao: this.composicao,
+                    estoque: this.estoque,
+                    largura: this.largura,
+                    peso: this.peso,
+                    notas: this.notas,                   
+                }
+            }).then(                     
+                this.showModal = false,
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Tecido Adicionado!',
+                    text: 'Seu produto foi adicionado com sucesso.',
+                    timer: 2000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                }).then(() => {
+                    // Executa este código após a janela de alerta ter sido fechada
+                    this.$emit('getEstoque'),
+                    this.showModal = false;
+                    //console.log('SweetAlert2 fechado após 2 segundos.');
+                })
+            )
         }
     }
-    
+}
+
 </script>
 <style scoped>
     .img-close {

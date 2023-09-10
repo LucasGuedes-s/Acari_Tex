@@ -45,8 +45,10 @@
 </template>
 <script>
     import SidebarNav from '@/components/Sidebar.vue';
-    import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
+    import AdicionarEstoque from '@/components/AdicionarTecido.vue';
     import imagem from '@/assets/LogoAcariTex.png';
+    import Swal from 'sweetalert2'
+
     import Axios from 'axios'
     import { jsPDF } from "jspdf";
     import 'jspdf-autotable';
@@ -64,7 +66,7 @@
     },
     methods:{
       async getEstoque(){
-        this.showModalProduto = false
+        //this.showModalProduto = false
         
         Axios.get(`http://localhost:3333/Estoque`)
         .then(response => {
@@ -86,17 +88,31 @@
         })
       },
       async deletarProduto(id_do_tecido){
-        try{
-          Axios.get(`http://localhost:3333/Deletar/${id_do_tecido}`)
-          .then( response =>{
-            console.log(response.status)
-            this.getEstoque();
-          })
-        } catch (error) {
-          console.error('Erro ao deletar o produto:', error.response.data);
-        }
-      },
+        Swal.fire({
+          title: 'Tem certeza?',
+          text: "Você deseja mesmo excluir este item?",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, excluir',
+          cancelButtonText: 'Cancelar'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Fazer a requisição Axios aqui
+            Axios.get(`http://localhost:3333/Deletar/${id_do_tecido}`)
+            .then( response =>{
+              console.log(response.status)
+              this.showModalProduto = true
 
+              Swal.fire(
+                'Excluído!',
+                'O item foi excluído com sucesso.',
+                'success'
+              );
+              this.getEstoque();
+            })
+          }})
+    //console.error('Erro ao deletar o produto:', error.response.data);
+      },
       async gerarPDF() {
         console.log('Só cheguei aqui')
 
@@ -170,8 +186,7 @@
         SidebarNav,
         AdicionarEstoque
     }
-
-    }
+  }
 </script>
 
 <style scoped>
@@ -191,6 +206,7 @@
   }
 
   .button-container {
+    border-radius: 30px;
     display: flex;
     align-items: center;
     cursor: pointer;
@@ -201,7 +217,8 @@
   }
   .produtos{
     display: flex;
-    flex-direction: column;
+    width: 200px;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
   }

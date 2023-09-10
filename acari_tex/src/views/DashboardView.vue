@@ -15,7 +15,6 @@
             <h1>Estoque de Tecidos</h1>
             <h2>Quantidade: {{ quantidadeDeTecidos }}</h2>
             <div class="button-container">
-              <!-- <RouterLink to="/EstoqueTecidos"><a class="tooltip">Adicionar</a></RouterLink>-->
               <RouterLink to="/EstoqueTecidos"><a class="tooltip">Detalhar</a></RouterLink>
             </div>
           </div>
@@ -23,16 +22,32 @@
               <h1>Estoque de Agulhas</h1>
               <h2>Quantidade: 01</h2>
               <div class="button-container">
-                <!-- <RouterLink to="/EstoqueTecidos"><a class="tooltip" >Adicionar</a></RouterLink>-->
                 <RouterLink to="/EstoqueAgulhas"><a class="tooltip" >Detalhar</a></RouterLink>
               </div>
             </div>
           </div>
+          <div class="conteiner-dashboard">
+            <div>
+              <h1>Tarefas</h1>
+              <div class="conteiner-tarefas" v-for="item in tarefas" :key="item.id ">
+                <div class="tarefa">Tarefa: {{ item.tarefa }}</div>
+                <div class="tarefa">Status: {{ item.status }}</div>
+                <div class="tarefa">Data: {{ item.data }}</div>
+                <div class="button-container">
+                  <RouterLink to="/"><a class="tooltip" >Concluída</a></RouterLink>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <Calendario />
         </div>
     </div>
 </template>
 <script>
     import SidebarNav from '@/components/Sidebar.vue';
+    import Calendario from '@/components/Calendario.vue';
     import Axios from 'axios'
 
     export default {
@@ -42,7 +57,21 @@
         id: 1,
         estoque: null,
         quantidadeDeTecidos: null,
-        showModalProduto: false
+        showModalProduto: false,
+        tarefas: [
+          {
+            "id": 1,
+            "tarefa": "Entregar calções",
+            "status": "Solicitado",
+            "data": "12/02/2024"
+          },
+          {
+            "id": 1,
+            "tarefa": "Entregar camisas em Santa Cruz",
+            "status": "Solicitado",
+            "data": "12/02/2024"
+          },
+        ]
       }
     },
     methods:{
@@ -53,7 +82,6 @@
             console.log(response.data.produtos)
             this.estoque = response.data.produtos
             this.quantidadeDeTecidos = this.estoque.length;
-            //console.log(`Quantidade de tecidos: ${quantidadeDeTecidos}`);
         })
         .catch(error => {
             console.error(error);
@@ -65,12 +93,28 @@
     },
     components:{
         SidebarNav,
+        Calendario
     }
 
     }
 </script>
 
 <style scoped>
+  .conteiner-tarefas{
+    display: flex;
+    margin: auto;
+    background-color: #e0e0e0;
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tarefa{
+    width: 200px;
+  }
   .conteiner-dashboard{
     background-color: #ffff;
     padding: 20px;
@@ -100,7 +144,6 @@
     padding: 20px;
     margin: 10px;
     border-radius: 20px;
-
   }
   .conteiner-quantidade img{
     width: 50px;
@@ -128,6 +171,30 @@
   }
   .tooltip{
     align-items: center;
+  }
+
+  @media screen and (max-width: 600px) {
+    .conteiner-principal{
+      display: block;
+    }
+    .conteiner-dashboard{
+      background-color: #ffff;
+      padding: 10px;
+      margin: 10px 85px auto;
+      width: 70%;
+      border-radius: 20px;
+    }
+    .conteiner{
+      display: flex;
+      margin-left: 80px;
+      justify-content: center;
+      flex-wrap: wrap;
+      flex-direction: row-reverse;
+    }
+    .conteiner-principal img{
+      display: none;
+      width: 150px;
+    }
   }
 </style>
 

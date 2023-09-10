@@ -33,7 +33,7 @@
   
           </div>
           <div class="arrasta" @click="toggleSidebar">
-            <img src="@/assets/Logo.png"/>
+            <img src="@/assets/setas.png"/>
           </div>
         </div>
       </div>

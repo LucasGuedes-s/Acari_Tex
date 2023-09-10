@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model estoque {
+model Estoque_Tecidos {
   id_do_tecido       Int     @id @default(autoincrement())
   nome_do_tecido     String
   valor              Float
@@ -36,4 +36,11 @@ model Funcionarios {
   data                DateTime
   notas               String?
 }
-
+model Tarefas {
+  id                  Int     @id @default(autoincrement())
+  tarefa              String
+  status              String
+  data_abertura       DateTime
+  data_conclusao      DateTime?
+  notas               String?
+}

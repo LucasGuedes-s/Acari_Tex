@@ -5,29 +5,56 @@
         <SidebarNav />
       </div>
       <div>
-        <AdicionarEstoque @getEstoque="getEstoque" />
+        <AdicionarEstoque/>
+      </div>
+      <div class="conteiner-produtos" v-for="item in agulhas" :key="item.id_da_agulha">
+        <div class="produtos">Valor: R$ {{ item.valor }}</div>
+        <div class="produtos">Estoque: {{ item.estoque }}</div>
+        <div class="produtos">Fornecedor: {{ item.fornecedor }}</div>
+        <div class="button-container" @click="getAgulha(item.id_da_agulha)">
+          <span class="tooltip" >Detalhar</span>
+        </div>
       </div>
     </div>
 </template>
 <script>
     import SidebarNav from '@/components/Sidebar.vue';
-    import AdicionarEstoque from '@/components/AdicionarEstoque.vue';
-    //import Axios from 'axios'
+    import AdicionarEstoque from '@/components/AdicionarTecido.vue';
+    import Axios from 'axios'
 
     export default {
     name: 'Dashbboard-tecidos',
     data(){
       return{
-        id: null,
-        estoque: null,
-        produto: null,
-        pdf: null,
-        showModalProduto: false
+        agulhas: null,
+        produto: null
+      }
+    },
+    methods:{
+      async getEstoqueAgulhas(){
+        Axios.get(`http://localhost:3333/EstoqueAgulhas`)
+        .then(response => {
+          console.log(response.status)
+          console.log(response.data.produtos)
+          this.agulhas = response.data.produtos
+        })
+      },
+      async getAgulha(id_da_agulha){
+        Axios.get(`http://localhost:3333/EstoqueAgulhas/${id_da_agulha}`)
+        .then(response => {
+          console.log(response.status)
+          console.log(response.data.produto)
+          this.produto = response.data.produto
+          this.showModalProduto = true
+        })
       }
     },
     components:{
         SidebarNav,
         AdicionarEstoque
+    },
+    mounted () {
+      this.getEstoqueAgulhas()
     }
 
     }
@@ -51,6 +78,7 @@
 
   .button-container {
     display: flex;
+    border-radius: 30px;
     align-items: center;
     cursor: pointer;
     float: right;
@@ -60,7 +88,8 @@
   }
   .produtos{
     display: flex;
-    flex-direction: column;
+    width: 200px;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
   }
