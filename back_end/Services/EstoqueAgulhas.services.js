@@ -10,6 +10,29 @@ async function getEstoque() {
     }
     return produtos;
 }
+
+async function postEstoque(produto){
+    
+    console.log(produto);
+    console.log(produto.valor);
+    const dataAtual = new Date()
+    const data = dataAtual.toISOString();
+
+    valor = produto.valor
+    const produtos = await prisma.Estoque_Agulhas.create({
+        data: {
+            valor: produto.valor,
+            fornecedor: produto.fornecedor,
+            numeracao: produto.numeracao,
+            estoque: produto.estoque,
+            data: data,
+            notas: produto.notas
+        }
+    });
+    //return data;
+    return produtos;
+}
 module.exports = {
     getEstoque,
+    postEstoque
 }

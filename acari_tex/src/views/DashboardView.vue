@@ -37,6 +37,9 @@
                   <RouterLink to="/"><a class="tooltip" >Concluída</a></RouterLink>
                 </div>
               </div>
+              <div class="button">
+                  <a class="adicionar" >Adicionar</a>
+                </div>
             </div>
           </div>
         </div>
@@ -159,8 +162,25 @@
     margin: 10px;
     border-radius: 10px;
   }
+  .adicionar{
+    display: flex;
+    width: 80px;
+    align-items: center;
+    cursor: pointer;
+    padding: 10px;
+    background-color: #00692b;
+    color: #ddd;
+    text-decoration: none;
+    border-radius: 10px;
+    justify-content: space-around;
+  }
   .button-container{
     display: flex;
+    align-items: center;
+    cursor: pointer;
+    justify-content: space-evenly;
+  }
+  .button{
     align-items: center;
     cursor: pointer;
     justify-content: space-evenly;

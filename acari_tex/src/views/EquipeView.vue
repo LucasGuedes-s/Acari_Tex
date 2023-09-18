@@ -8,6 +8,13 @@
           <div class="funcionario">Idade: {{ item.idade }}</div>
           <div class="funcionario">Funções: {{ item.funcoes }}</div>
           <div class="funcionario">Notas: {{ item.notas }}</div>
+          <div class="button-container">
+            <span class="tooltip-demitir" >Demitir</span>
+          </div>
+          <div class="button-container">
+            <span class="tooltip" >Registrar Falta  </span>
+          </div>
+
         </div>
       </div>
       <div>
@@ -54,6 +61,7 @@
 
 <style scoped>
 .conteiner{
+  display: inline-block;
   background-color: #ffff;
   padding: 30px;
   margin: 10px auto;
@@ -64,6 +72,28 @@
   width: 100px;
   float: left;
 }
+.tooltip {
+    display: flex;
+    margin: 10px 10px 0px 0;
+    border-radius: 30px;
+    align-items: center;
+    cursor: pointer;
+    float: right;
+    padding: 10px;
+    background-color: #00692b;
+    color: #fff;
+  }
+  .tooltip-demitir{
+    display: flex;
+    margin: 10px 10px 0px 0;
+    border-radius: 30px;
+    align-items: center;
+    cursor: pointer;
+    float: right;
+    padding: 10px;
+    background-color: #b80000;
+    color: #fff;
+  }
 .funcionario{
   font-size: 18px;
   display: flex;

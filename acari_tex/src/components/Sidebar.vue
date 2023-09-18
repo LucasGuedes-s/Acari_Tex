@@ -3,7 +3,6 @@
       <div class="list">
         <div :class="{ 'sidebar': true, 'minimized': isMinimized }">
           <div class="menu">
-            
             <div>
               <img class="icon-logo" src="@/assets/LogoAcariTex.png">
             </div>

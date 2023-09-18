@@ -17,6 +17,7 @@ model Estoque_Tecidos {
   peso               Float?
   estoque            Int
   data_              DateTime
+  tamanho            Float
   notas              String?
 }
 model Estoque_Agulhas {
@@ -33,7 +34,12 @@ model Funcionarios {
   nome_do_funcionario String
   idade               String
   funcoes             String
-  data                DateTime
+  aniversario         DateTime?
+  identidade          Int?
+  cpf                 String
+  pis                 Int?
+  pix                 String?     
+  data                DateTime @default(now())
   notas               String?
 }
 model Tarefas {
@@ -43,4 +49,11 @@ model Tarefas {
   data_abertura       DateTime
   data_conclusao      DateTime?
   notas               String?
+}
+model Pedidos {
+  id                  Int     @id @default(autoincrement())
+  Tipo_do_pedido      String
+  status              String
+  data_do_pedido      DateTime
+  data_de_entrega     DateTime?
 }
