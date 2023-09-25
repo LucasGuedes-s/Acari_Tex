@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE `estoque` (
+CREATE TABLE `Estoque_Tecidos` (
     `id_do_tecido` INTEGER NOT NULL AUTO_INCREMENT,
     `nome_do_tecido` VARCHAR(191) NOT NULL,
     `valor` DOUBLE NOT NULL,
@@ -8,7 +8,8 @@ CREATE TABLE `estoque` (
     `largura` DOUBLE NULL,
     `peso` DOUBLE NULL,
     `estoque` INTEGER NOT NULL,
-    `data` DATETIME(3) NOT NULL,
+    `data_` DATETIME(3) NOT NULL,
+    `tamanho` DOUBLE NOT NULL,
     `notas` VARCHAR(191) NULL,
 
     PRIMARY KEY (`id_do_tecido`)
@@ -33,8 +34,36 @@ CREATE TABLE `Funcionarios` (
     `nome_do_funcionario` VARCHAR(191) NOT NULL,
     `idade` VARCHAR(191) NOT NULL,
     `funcoes` VARCHAR(191) NOT NULL,
-    `data` DATETIME(3) NOT NULL,
+    `aniversario` DATETIME(3) NULL,
+    `identidade` INTEGER NULL,
+    `cpf` VARCHAR(191) NOT NULL,
+    `pis` INTEGER NULL,
+    `pix` VARCHAR(191) NULL,
+    `data` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `notas` VARCHAR(191) NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Tarefas` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `tarefa` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(191) NOT NULL,
+    `data_abertura` DATETIME(3) NOT NULL,
+    `data_conclusao` DATETIME(3) NULL,
+    `notas` VARCHAR(191) NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Pedidos` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `Tipo_do_pedido` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(191) NOT NULL,
+    `data_do_pedido` DATETIME(3) NOT NULL,
+    `data_de_entrega` DATETIME(3) NULL,
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

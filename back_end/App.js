@@ -22,10 +22,11 @@ app.set('trust proxy', 1);
 const routerEstoque = require('./Routes/EstoqueTecido.router.js');
 const routerEstoqueAgulhas = require('./Routes/EstoqueAgulhas.router.js');
 const routerFuncionarios = require('./Routes/Funcionarios.router.js');
+const routerDashboard = require('./Routes/Dashboard.router.js');
 
 //const router = require('./routers/routerAdmin');
 
-app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios);
+app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios, routerDashboard);
 
 const hostname = 'localhost';
 const port = 3333;

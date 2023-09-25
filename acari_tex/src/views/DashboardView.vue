@@ -61,20 +61,7 @@
         estoque: null,
         quantidadeDeTecidos: null,
         showModalProduto: false,
-        tarefas: [
-          {
-            "id": 1,
-            "tarefa": "Entregar calções",
-            "status": "Solicitado",
-            "data": "12/02/2024"
-          },
-          {
-            "id": 1,
-            "tarefa": "Entregar camisas em Santa Cruz",
-            "status": "Solicitado",
-            "data": "12/02/2024"
-          },
-        ]
+        tarefas: null,
       }
     },
     methods:{
@@ -89,10 +76,22 @@
         .catch(error => {
             console.error(error);
         });
-      }
+      },
+      async getTarefas(){
+        Axios.get(`http://localhost:3333/Tarefas`)
+        .then(response => {
+            console.log(response.status)
+            console.log(response.data.tarefas)
+            this.tarefas = response.data.tarefas
+        })
+        .catch(error => {
+            console.error(error);
+        });
+      },
     },
     mounted() {
       this.getEstoque();
+      this.getTarefas()
     },
     components:{
         SidebarNav,

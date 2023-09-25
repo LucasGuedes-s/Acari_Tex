@@ -17,7 +17,7 @@ model Estoque_Tecidos {
   peso               Float?
   estoque            Int
   data_              DateTime
-  tamanho            Float
+  tamanho            Float?
   notas              String?
 }
 model Estoque_Agulhas {
@@ -36,7 +36,7 @@ model Funcionarios {
   funcoes             String
   aniversario         DateTime?
   identidade          Int?
-  cpf                 String
+  cpf                 String?
   pis                 Int?
   pix                 String?     
   data                DateTime @default(now())

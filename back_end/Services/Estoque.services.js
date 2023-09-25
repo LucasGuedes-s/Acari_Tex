@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 prisma = new PrismaClient()
 
 async function getEstoque() {
-    const produtos = await prisma.estoque.findMany({
+    const produtos = await prisma.Estoque_Tecidos.findMany({
     });
     if (!produtos) {
         // Caso não exista nenhum produto com o ID especificado, você pode retornar uma resposta de erro
@@ -14,7 +14,7 @@ async function getTecido(id) {
     const id_tecido = parseInt(id);
 
     //console.log('ESTOU AQUI')
-    const produto = await prisma.estoque.findUnique({
+    const produto = await prisma.Estoque_Tecidos.findUnique({
         where: {
             id_do_tecido: id_tecido,
         },
@@ -33,7 +33,7 @@ async function DeleteProduto(id){
 
     console.log('Oiiii, lindo')
     try {
-        const produtoDeletado = await prisma.estoque.delete({
+        const produtoDeletado = await prisma.Estoque_Tecidos.delete({
           where: {
             id_do_tecido: id_tecido
           }
@@ -49,9 +49,9 @@ async function postEstoque(produto){
     console.log(produto.valor);
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
-
+    console.log('Estou aqui')
     //valor = produto.valor
-    const produtos = await prisma.estoque.create({
+    const produtos = await prisma.Estoque_Tecidos.create({
         data: {
             nome_do_tecido: produto.nome,
             valor: produto.valor,
@@ -60,7 +60,7 @@ async function postEstoque(produto){
             estoque: produto.estoque,
             largura: produto.largura,
             peso: produto.peso,
-            data: data,
+            data_: data,
             notas: produto.notas
         }
     });
