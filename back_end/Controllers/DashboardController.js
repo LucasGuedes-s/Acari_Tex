@@ -12,6 +12,20 @@ async function getTarefas(req, res, next){
     }
 }
 
+async function postTarefa(req, res, next){  
+    try {
+        console.log(req.body)
+
+        const tarefa = req.body.tarefa;
+        const Adicionar = await Tarefas.postTarefa(tarefa);
+        res.status(200).json({tarefa: Adicionar});
+    } catch (err) {
+        console.error(`Erro ao adicionar a tarefa.`, err.message);
+        next(err);
+    }
+}
+
 module.exports = { 
     getTarefas,
+    postTarefa
 };

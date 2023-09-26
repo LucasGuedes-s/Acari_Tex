@@ -11,6 +11,27 @@ async function getTarefas() {
     return tarefas;
 }
 
+async function postTarefa(tarefa) {
+    console.log(tarefa);
+
+    const dataAtual = new Date()
+    const data = dataAtual.toISOString();
+    console.log('Adicionando tarefa')
+
+    //valor = produto.valor
+    const tarefas = await prisma.Tarefas.create({
+        data: {
+            tarefa: tarefa.tarefa,
+            status: 'Em andamento',
+            data_abertura: data,
+            notas: tarefa.notas
+        }
+    });
+    
+    return tarefas;
+}
+
 module.exports = {
     getTarefas,
+    postTarefa
 }

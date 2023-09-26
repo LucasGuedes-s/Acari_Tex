@@ -15,7 +15,6 @@
           <span class="tooltip" >Detalhar</span>
         </div>
       </div>
-
       <section v-if="showModalProduto" class="modal-background">
         <div class="modal-content">
           <img class = "img-close" @click="showModalProduto = false" src="@/assets/close.png" />
@@ -31,8 +30,8 @@
                 <span class="tooltip">Gerar Relatório</span>
               </div>
             </div>
-        </div>
           </div>
+        </div>
       </section>
     </div>
 </template>

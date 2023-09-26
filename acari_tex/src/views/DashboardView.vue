@@ -37,7 +37,7 @@
                   <RouterLink to="/"><a class="tooltip" >Concluída</a></RouterLink>
                 </div>
               </div>
-              <div class="button">
+              <div class="button" @click="postTarefa()">
                   <a class="adicionar" >Adicionar</a>
                 </div>
             </div>
@@ -52,6 +52,7 @@
     import SidebarNav from '@/components/Sidebar.vue';
     import Calendario from '@/components/Calendario.vue';
     import Axios from 'axios'
+    import Swal from 'sweetalert2'
 
     export default {
     name: 'Dashbboard-home',
@@ -65,6 +66,23 @@
       }
     },
     methods:{
+      async postTarefa(){
+        await Axios.post("http://localhost:3333/AdicionarTarefa", {   
+                tarefa: {
+                  tarefa: 'Adicionar Linha',
+                  notas: 'Alguma coisa'                  
+                }
+            }).then(                     
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Tarefa Adicionado!',
+                    text: 'Sua tarefa foi adicionada com sucesso.',
+                    timer: 2000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                })
+            )
+      },
       async getEstoque(){
         Axios.get(`http://localhost:3333/Estoque`)
         .then(response => {
