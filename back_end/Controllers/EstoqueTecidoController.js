@@ -15,7 +15,6 @@ async function getEstoque(req, res, next){
 }
 
 async function getTecido(req, res, next){
-
     try {
         const produto = await Getproduto.getTecido(req.params.id);
         res.status(200).json({produto: produto});
@@ -44,7 +43,7 @@ async function postProduto(req, res, next){
 
     try {
         const produto = req.body.produto;
-        console.log(produto)
+        //console.log(produto)
         const produtos = await Cadproduto.postEstoque(produto);
         res.status(200).send({
             message: `Produto cadastrado: ${produtos}`,

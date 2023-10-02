@@ -2,46 +2,50 @@
     <div>
         <div class="conteiner-icons">
             <div class="button-container" @click="showModal = true">
-                <span class="tooltip">Adicionar Tecido</span>
+                <span class="tooltip">Adicionar Funcionario</span>
                 <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
             </div>
-            <div class="button-container">
-                <span class="tooltip">Gerar relatório</span>
+            <div class="button-container" @click="gerarRelatorio()">
+                <span class="tooltip">Relatório de pagamento</span>
                 <img src="@/assets/relatorio.png" alt="Adicionar" class="add-button">
             </div>
         </div>
         <div v-if="showModal" class="modal-background">
             <img class="img-close" @click="showModal = false" src="@/assets/close.png" />
             <div class="modal-content">
-                <h1>Adicionar produto</h1>
+                <h1>Adicionar Funcionario</h1>
                 <form class="form-container" method="POST"> <!-- Formulário de cadastro de produto-->
                     <div class="form-item">
-                        <label>Produto:</label>
-                        <input type="text" placeholder="Produto" v-model="produto">
+                        <label>Nome:</label>
+                        <input type="text" placeholder="Nome" v-model="nome">
                     </div>
                     <div class="form-item">
-                        <label>Valor: </label>
-                        <input type="number" placeholder="Ex: 4,99" v-model="valor">
+                        <label>Idade: </label>
+                        <input type="number" placeholder="Ex: 30" v-model="idade">
                     </div>
                     <div class="form-item">
-                        <label>Fornecedor: </label>
-                        <input type="text" placeholder="Ex: AcariTex" v-model="fornecedor">
+                        <label>Funções: </label>
+                        <input type="text" placeholder="Ex: Costureira, Gerente" v-model="funcoes">
                     </div>
                     <div class="form-item">
-                        <label>Composição: </label>
-                        <input type="text" placeholder="Ex: Algodão" v-model="composicao">
+                        <label>Aniversário: </label>
+                        <input type="date" v-model="aniversario">
                     </div>
                     <div class="form-item">
-                        <label>Estoque: </label>
-                        <input type="number" placeholder="Ex: 15" v-model="estoque">
+                        <label>Identidade: </label>
+                        <input type="number" placeholder="Ex: 15465364 (Sem pontos e traços)" v-model="identidade">
                     </div>
                     <div class="form-item">
-                        <label>Largura: </label>
-                        <input type="number" placeholder="Ex: 4,99 (Largura em Metros)" v-model="largura">
+                        <label>CPF: </label>
+                        <input type="number" placeholder="Ex: 15465364 (Sem pontos e traços)" v-model="cpf">
                     </div>
                     <div class="form-item">
-                        <label>Peso: </label>
-                        <input type="number" placeholder="Ex: 4,99 (Peso em Kilos)" v-model="peso">
+                        <label>Pis: </label>
+                        <input type="number" placeholder="Ex: 15465364 (Sem pontos e traços)" v-model="pis">
+                    </div>
+                    <div class="form-item">
+                        <label>PIX: </label>
+                        <input type="text" placeholder="PIX para pagamentos" v-model="pix">
                     </div>
                     <div class="form-item">
                         <label>Notas: </label>
@@ -56,51 +60,96 @@
     </div>
 </template>
 <script>
-import axios from 'axios';
+import Axios from 'axios';
 import Swal from 'sweetalert2'
+import imagem from '@/assets/LogoAcariTex.png';
+
+import { jsPDF } from "jspdf";
+import 'jspdf-autotable';
 
 export default {
     data() {
         return {
             showModal: false,
             showTooltip: false,
-            produto: '',
-            valor: null,
-            fornecedor: '',
-            composicao: '',
-            estoque: null,
-            largura: null,
-            peso: null,
-            notas: ''
+            nome: '',
+            idade: null,
+            funcoes: '',
+            aniversario: '',
+            identidade: null,
+            cpf: null,
+            pis: null,
+            pix: null,
+            notas: '',
+            pdf: []
         }
     },
     methods: {
+        async gerarRelatorio() {
+            try {
+                const response = await Axios.get("http://localhost:3333/Funcionarios");
+                this.pdf = response.data.funcionarios;
+                console.log(this.pdf);
+
+                // Crie o documento PDF
+                const doc = new jsPDF({
+                    orientation: "portrait",
+                    unit: "mm",
+                    format: "a4",
+                });
+                const width = 30;
+                const x = (doc.internal.pageSize.width - width) / 2;
+                const y = 10;
+                const height = 30;
+                // Adicione uma imagem, se necessário
+                doc.addImage(imagem, 'PNG', x, y, width, height);
+
+                // Crie o título
+                doc.text("Relatório de funcionários para pagamento", 50, 50);
+
+                const tableData = this.pdf.map((funcionario) => [
+                    funcionario.nome_do_funcionario,
+                    funcionario.funcoes,
+                    funcionario.pix,
+                    funcionario.pis,
+                ]);
+
+                // Crie a tabela de forma dinâmica
+                doc.autoTable({
+                    head: [["Nome", "Funções", "PIX", "Faltas"]],
+                    body: tableData,
+                    startY: 60,
+                });
+
+                // Salve ou abra o PDF
+                doc.save("relatorio_funcionarios.pdf");
+            } catch (error) {
+                console.error("Erro ao obter dados dos funcionários:", error);
+            }
+
+        },
         async submitForm() {
-            await axios.post("http://localhost:3333/AdicionarProduto", {
-                produto: {
-                    nome: this.produto,
-                    valor: this.valor,
-                    fornecedor: this.fornecedor,
-                    composicao: this.composicao,
-                    estoque: this.estoque,
-                    largura: this.largura,
-                    peso: this.peso,
-                    notas: this.notas,
+            await Axios.post("http://localhost:3333/AdicionarFuncionario", {
+                funcionario: {
+                    nome_do_funcionario: this.nome,
+                    idade: this.idade,
+                    funcoes: this.funcoes,
+                    aniversario: this.aniversario,
+                    identidade: this.identidade,
+                    cpf: this.cpf,
+                    pis: this.pis,
+                    pix: this.pix,
+                    notas: this.notas
                 }
             }).then(
                 this.showModal = false,
                 Swal.fire({
                     icon: 'success',
-                    title: 'Tecido Adicionado!',
-                    text: 'Seu produto foi adicionado com sucesso.',
+                    title: 'Funcionário Adicionado!',
+                    text: 'Seu funcionário foi adicionado com sucesso.',
                     timer: 2000,
                     timerProgressBar: true,
                     showConfirmButton: false
-                }).then(() => {
-                    // Executa este código após a janela de alerta ter sido fechada
-                    this.$emit('getEstoque'),
-                        this.showModal = false;
-                    //console.log('SweetAlert2 fechado após 2 segundos.');
                 })
             )
         }

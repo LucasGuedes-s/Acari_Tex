@@ -8,6 +8,7 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@popperjs/core": "^2.11.8",
     "axios": "^1.4.0",
     "core-js": "^3.8.3",
     "file-saver": "^2.0.5",
@@ -15,6 +16,7 @@
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.5.31",
     "sweetalert2": "^11.7.27",
+    "v-calendar": "^3.1.0",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3",
     "vue-simple-calendar": "^6.3.1"

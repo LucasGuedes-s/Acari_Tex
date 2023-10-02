@@ -32,14 +32,16 @@ model Estoque_Agulhas {
 model Funcionarios {
   id                  Int     @id @default(autoincrement())
   nome_do_funcionario String
-  idade               String
-  funcoes             String
+  idade               Int
+  funcoes             String?
   aniversario         DateTime?
-  identidade          Int?
+  identidade          String?
   cpf                 String?
-  pis                 Int?
+  pis                 String?
   pix                 String?     
   data                DateTime @default(now())
+  falta               String?
+  justificativa       String?
   notas               String?
 }
 model Tarefas {

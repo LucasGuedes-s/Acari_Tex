@@ -45,8 +45,9 @@ async function DeleteProduto(id){
 }
 async function postEstoque(produto){
     
-    console.log(produto);
-    console.log(produto.valor);
+    //console.log(produto);
+    //console.log(produto.valor);
+    
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
     console.log('Estou aqui')
