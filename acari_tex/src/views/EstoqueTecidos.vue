@@ -32,7 +32,7 @@
               <span class="tooltip">Deletar Tecido</span>
             </div>
             <div class="button-tecido">
-              <span class="tooltip">Usar tecido</span>
+              <span class="tooltip">Editar tecido</span>
             </div>
             <div class="button" @click="gerarPDFdoTecido(produto.id_do_tecido)">
               <span class="tooltip">Gerar Relatório</span>

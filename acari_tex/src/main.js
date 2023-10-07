@@ -1,6 +1,15 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
-import VCalendar from 'v-calendar';
+import VueGoogleCharts from 'vue-google-charts'
 
-createApp(App).use(router,VCalendar).mount('#app')
+const app = createApp(App);
+
+// Registre o Vue Router
+app.use(router);
+
+// Registre o VueGoogleCharts
+app.use(VueGoogleCharts);
+
+// Monte o aplicativo no elemento com o ID "app"
+app.mount('#app');

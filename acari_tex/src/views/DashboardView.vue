@@ -9,6 +9,10 @@
         <img src="@/assets/trabalho.png">
       </div>
     </div>
+    <!-- 
+    <div>
+      <Graficos />
+    </div>-->
     <div>
       <div class="conteiner">
         <div class="conteiner-quantidade">
@@ -50,7 +54,7 @@
 </template>
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import Calendario from '@/components/Calendario.vue';
+//import Graficos from '@/components/GraficosVue.vue';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
 
@@ -113,7 +117,8 @@ export default {
   },
   components: {
     SidebarNav,
-    Calendario
+    //Graficos,
+    //Calendario
   }
 
 }

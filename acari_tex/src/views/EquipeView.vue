@@ -16,13 +16,31 @@
         </div>
         <section class="buttons">
           <div class="button-container">
-            <span class="tooltip">Detalhar</span>
+            <span class="tooltip" @click="getFuncionario(item.id)">Detalhar</span>
           </div>
           <div class="button-container">
-            <span class="tooltip">Registrar Falta</span>
+            <span class="tooltip">Registro</span>
           </div>
         </section>
       </div>
+      
+      <conteiner>
+        <div v-if="showModalFuncionario" class="modal-background">
+          <div class="modal-content">
+            <img class="img-close" @click="showModalFuncionario = false" src="@/assets/close.png" />
+            <div class="funcionario-modal">
+              <h1>Funcionário: {{ funcionario.nome_do_funcionario  }}</h1>
+              <div class="funcionario-modal">ID: {{ funcionario.id }}</div>
+              <div class="funcionario-modal">Funções: {{ funcionario.funcoes }}</div>
+              <div class="funcionario-modal">aniversario: {{ funcionario.aniversario }}</div>
+              <div class="funcionario-modal">PIS: {{ funcionario.pis }}</div>
+              <div class="funcionario-modal">PIX: {{ funcionario.pix }}</div>
+              <div class="funcionario-modal">aniversario: {{ funcionario.aniversario }}</div>
+              <div class="funcionario-modal">Notas: {{ funcionario.estoque }}</div>
+            </div>
+          </div>
+        </div>
+      </conteiner>
     </div>
     <div>
       <SidebarNav />
@@ -42,6 +60,7 @@ export default {
   name: 'funcionarios-equipe',
   data() {
     return {
+      showModalFuncionario: false,
       nome: null,
       idade: null,
       funcoes: null,
@@ -51,7 +70,8 @@ export default {
       pis: null,
       pix: null,
       notas: null,
-      funcionarios: null
+      funcionarios: null,
+      funcionario: null
     }
   },
   components: {
@@ -59,6 +79,19 @@ export default {
     AdicionarFuncionario
   },
   methods: {
+    async getFuncionario(id) {
+      Axios.get(`http://localhost:3333/Funcionario/${id}`)
+        .then(response => {
+          console.log(response.status)
+          console.log(response.data.funcionario)
+          this.funcionario = response.data.funcionario
+          this.showModalFuncionario = true
+
+        })
+        .catch(error => {
+          console.error(error);
+        });
+    },
     async getFuncionarios() {
       Axios.get(`http://localhost:3333/Funcionarios`)
         .then(response => {
@@ -140,6 +173,50 @@ export default {
   padding-left: 25px;
   align-items: center;
 }
+
+.modal-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+/* Estilo para a div de conteúdo do modal */
+.modal-content {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  max-width: 500px;
+  width: 100%;
+}
+
+.funcionario-modal {
+  background-color: #f8f8f8;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #333;
+}
+
+.funcionario-modal:nth-child(even) {
+  background-color: #f2f2f2;
+}
+.img-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  cursor: pointer;
+}
+
 </style>
 
   

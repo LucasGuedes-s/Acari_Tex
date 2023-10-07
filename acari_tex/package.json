@@ -18,6 +18,7 @@
     "sweetalert2": "^11.7.27",
     "v-calendar": "^3.1.0",
     "vue": "^3.2.13",
+    "vue-google-charts": "^1.1.0",
     "vue-router": "^4.0.3",
     "vue-simple-calendar": "^6.3.1"
   },

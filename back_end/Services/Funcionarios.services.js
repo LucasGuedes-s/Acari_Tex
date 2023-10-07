@@ -10,6 +10,22 @@ async function getFuncionarios() {
     }
     return funcionarios;
 }
+async function getFuncionario(id) {
+
+    const id_do_funcionario = parseInt(id);
+
+    try {
+        const funcionario = await prisma.Funcionarios.findUnique({
+          where: {
+            id: id_do_funcionario
+          }
+        });
+        return funcionario
+    }catch (error) {
+        console.error('Funcionário não encontrado', error);
+    }
+}
+
 
 async function postFuncionario(funcionario) {
 
@@ -38,5 +54,6 @@ async function postFuncionario(funcionario) {
 
 module.exports = {
     getFuncionarios,
+    getFuncionario,
     postFuncionario
 }

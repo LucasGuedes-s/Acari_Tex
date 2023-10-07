@@ -10,6 +10,18 @@ async function getEquipe(req, res, next){
         next(err);
     }
 }
+async function getFuncionario(req, res, next){
+    try {
+        const id = req.params.id;
+        console.log(id)
+        const funcionario = await Funcionarios.getFuncionario(req.params.id);
+        res.status(200).json({funcionario:funcionario});
+
+    } catch (err) {
+        console.error(`Erro ao obter funcionário.`, err.message);
+        next(err);
+    }
+}
 async function postEquipe(req, res, next){
     try {
         const funcionario = req.body.funcionario;
@@ -25,5 +37,6 @@ async function postEquipe(req, res, next){
 }
 module.exports = {
     getEquipe,
+    getFuncionario,
     postEquipe
 }

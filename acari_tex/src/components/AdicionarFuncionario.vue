@@ -122,7 +122,7 @@ export default {
                 });
 
                 // Salve ou abra o PDF
-                doc.save("relatorio_funcionarios.pdf");
+                doc.save("Relatorio de pagamento.pdf");
             } catch (error) {
                 console.error("Erro ao obter dados dos funcionários:", error);
             }

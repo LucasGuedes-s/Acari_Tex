@@ -24,7 +24,6 @@ async function getTecido(req, res, next){
     }
 }
 async function deletarTecido(req, res, next){
-    console.log('CHEGUIHJG')
     try {
         const id = req.params.id;
         console.log(id)
