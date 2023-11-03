@@ -9,10 +9,6 @@
         <img src="@/assets/trabalho.png">
       </div>
     </div>
-    <!-- 
-    <div>
-      <Graficos />
-    </div>-->
     <div>
       <div class="conteiner">
         <div class="conteiner-quantidade">
@@ -38,11 +34,13 @@
             <div class="tarefa">Status: {{ item.status }}</div>
             <div class="tarefa">Data: {{ item.data }}</div>
             <div class="button-container">
-              <RouterLink to="/"><a class="tooltip">Concluída</a></RouterLink>
+              <a class="tooltip" @click="alterStaus(item.id)" >Concluída</a>
             </div>
           </div>
-          <div class="button" @click="postTarefa()">
-            <a class="adicionar">Adicionar</a>
+          <div class="button" >
+            <input type="text" placeholder="Tarefa: " v-model="tarefa"> 
+            <input type="text" placeholder="Notas: " v-model="notas"> 
+            <a class="adicionar" @click="postTarefa()">Adicionar</a>
           </div>
         </div>
       </div>
@@ -54,7 +52,6 @@
 </template>
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-//import Graficos from '@/components/GraficosVue.vue';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
 
@@ -67,14 +64,16 @@ export default {
       quantidadeDeTecidos: null,
       showModalProduto: false,
       tarefas: null,
+      tarefa: null,
+      notas: null,
     }
   },
   methods: {
     async postTarefa() {
       await Axios.post("http://localhost:3333/AdicionarTarefa", {
         tarefa: {
-          tarefa: 'Adicionar Linha',
-          notas: 'Alguma coisa'
+          tarefa: this.tarefa,
+          notas: this.notas,
         }
       }).then(
         Swal.fire({
@@ -84,8 +83,15 @@ export default {
           timer: 2000,
           timerProgressBar: true,
           showConfirmButton: false
-        })
+        }),
+        this.tarefa = '',
+        this.notas = '',
+        this.getTarefas(),
+
       )
+    },
+    async alterStaus(id_tarefa){
+      console.log(id_tarefa)
     },
     async getEstoque() {
       Axios.get(`http://localhost:3333/Estoque`)
@@ -94,6 +100,8 @@ export default {
           console.log(response.data.produtos)
           this.estoque = response.data.produtos
           this.quantidadeDeTecidos = this.estoque.length;
+          this.$emit(this.quantidadeDeTecidos)
+
         })
         .catch(error => {
           console.error(error);
@@ -117,7 +125,7 @@ export default {
   },
   components: {
     SidebarNav,
-    //Graficos,
+    //Dados,
     //Calendario
   }
 
@@ -144,14 +152,14 @@ export default {
 
 .conteiner-dashboard {
   background-color: #ffff;
-  padding: 20px;
+  padding: 10px;
   margin: 10px auto;
   width: 50%;
   border-radius: 20px;
 }
 
 .conteiner-principal img {
-  width: 250px;
+  width: 150px;
 }
 
 .conteiner-principal {
@@ -159,7 +167,6 @@ export default {
   justify-content: space-between;
   align-items: center;
 }
-
 .conteiner h1 {
   display: flex;
   text-align: center;
@@ -174,7 +181,7 @@ export default {
 .conteiner-quantidade {
   background-color: #ffff;
   padding: 20px;
-  margin: 10px;
+  margin: 5px;
   border-radius: 20px;
 }
 
@@ -217,9 +224,17 @@ export default {
 .button {
   align-items: center;
   cursor: pointer;
+  display: flex;
   justify-content: space-evenly;
 }
-
+.button input{
+  flex: 2;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  outline: none;
+  margin: 5px;
+}
 .button-container a {
   color: #ffff;
   text-decoration: none;
@@ -228,12 +243,14 @@ export default {
 .tooltip {
   align-items: center;
 }
-
 @media screen and (max-width: 600px) {
+  .tarefa{
+    padding: 10px;
+  }
   .conteiner-principal {
     display: block;
   }
-
+  
   .conteiner-dashboard {
     background-color: #ffff;
     padding: 10px;
@@ -249,7 +266,52 @@ export default {
     flex-wrap: wrap;
     flex-direction: row-reverse;
   }
+  .conteiner-tarefas {
+    display: block;
+    margin: auto;
+    background-color: #e0e0e0;
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  .conteiner-principal img {
+    display: none;
+    width: 150px;
+  }
+  .button{
+    display: inline-grid;
+    align-items: center;
+    justify-content: center;
+    align-content: space-around;
+    justify-items: end;
+  }
+}
 
+@media screen and (max-width: 900px){
+  .tarefa{
+    padding: 10px;
+  }
+  .conteiner-principal {
+    display: block;
+  }
+  
+  .conteiner-dashboard {
+    background-color: #ffff;
+    padding: 10px;
+    margin: 10px 85px auto;
+    width: 70%;
+    border-radius: 20px;
+  }
+
+  .conteiner {
+    display: flex;
+    margin-left: 80px;
+    justify-content: center;
+    flex-wrap: wrap;
+    flex-direction: row-reverse;
+  }
   .conteiner-principal img {
     display: none;
     width: 150px;

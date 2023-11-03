@@ -239,7 +239,6 @@ export default {
 
 .produtos-modal {
   background-color: #f8f8f8;
-  border: 1px solid #ddd;
   border-radius: 4px;
   padding: 10px;
   margin-bottom: 10px;

@@ -1,6 +1,16 @@
 const Agulhas = require('../Services/EstoqueAgulhas.services');
 
+async function getAgulha(req, res, next){  
 
+    console.log('Get Agulha')
+    try {
+        const produto = await Agulhas.getAgulha(req.params.id);
+        res.status(200).json({produto: produto});
+    } catch (err) {
+        console.error(`Erro ao obter produto de id {produto} no estoque.`, err.message);
+        next(err);
+    }
+}
 async function getEstoque(req, res, next){  
 
     console.log('Get Estoque')
@@ -28,6 +38,7 @@ async function postProduto(req, res, next){
 }
 
 module.exports = { 
+    getAgulha,
     getEstoque,
     postProduto
 };

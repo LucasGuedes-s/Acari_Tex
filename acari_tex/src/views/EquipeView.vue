@@ -18,12 +18,11 @@
           <div class="button-container">
             <span class="tooltip" @click="getFuncionario(item.id)">Detalhar</span>
           </div>
-          <div class="button-container">
+          <div class="button-container" @click="registro(item.id, item.nome_do_funcionario)">
             <span class="tooltip">Registro</span>
           </div>
         </section>
       </div>
-      
       <conteiner>
         <div v-if="showModalFuncionario" class="modal-background">
           <div class="modal-content">
@@ -40,6 +39,31 @@
             </div>
           </div>
         </div>
+      </conteiner >
+      <conteiner v-if="showModalRegistro" class="modal-background">
+        <div class="modal-content" >
+            <img class="img-close" @click="showModalRegistro = false" src="@/assets/close.png" />
+            <div class="funcionario-modal">
+              <h1>Registro de funcionário: {{ registroFuncionario }}</h1>
+              <div>
+                <label>Registro de funcionário: </label>
+                <select>
+                  <option>15 min</option>
+                  <option>1h</option>
+                  <option>2h</option>
+                  <option>3h</option>
+                  <option>Meio dia</option>
+                  <option>O dia inteiro</option>
+                </select>
+              </div>
+              <div class="button-container">
+                <span class="tooltip">Registrar Horas extras</span>
+              </div>
+              <div class="button-container">
+                <span class="tooltip">Registrar falta</span>
+              </div>
+            </div>
+          </div>
       </conteiner>
     </div>
     <div>
@@ -61,6 +85,8 @@ export default {
   data() {
     return {
       showModalFuncionario: false,
+      showModalRegistro: false,
+      registroFuncionario: null,
       nome: null,
       idade: null,
       funcoes: null,
@@ -79,6 +105,24 @@ export default {
     AdicionarFuncionario
   },
   methods: {
+    async registro(id, nome_do_funcionario) {
+      this.showModalRegistro = true
+      this.registroFuncionario = nome_do_funcionario
+      console.log(nome_do_funcionario)
+      console.log(id)
+      
+      /*Axios.get(`http://localhost:3333/Funcionario/${id}`)
+        .then(response => {
+          console.log(response.status)
+          console.log(response.data.funcionario)
+          this.funcionario = response.data.funcionario
+          this.showModalFuncionario = true
+
+        })
+        .catch(error => {
+          console.error(error);
+        });*/
+    },
     async getFuncionario(id) {
       Axios.get(`http://localhost:3333/Funcionario/${id}`)
         .then(response => {
@@ -172,6 +216,17 @@ export default {
   padding: 5px;
   padding-left: 25px;
   align-items: center;
+}
+label {
+  display: inline-block;
+  font-weight: bold;
+}
+select{
+  width: 370px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 14px;
 }
 
 .modal-background {

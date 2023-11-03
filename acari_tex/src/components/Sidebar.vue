@@ -21,14 +21,14 @@
           </div>
 
           <div class="item" @click="toggleSidebar">
-            <router-link to="/">
+            <router-link to="/Dashboard">
               <img class="icon" src="@/assets/pedidos1.png" />
               <p>Pedidos</p>
             </router-link>
           </div>
 
           <div class="item" @click="toggleSidebar">
-            <router-link to="/">
+            <router-link to="/Dashboard">
               <img class="icon" src="@/assets/eficiencia1.png" />
               <p>Eficiencia</p>
             </router-link>

@@ -36,6 +36,10 @@
                         <input type="number" placeholder="Ex: 15465364 (Sem pontos e traços)" v-model="identidade">
                     </div>
                     <div class="form-item">
+                        <label>Imagem: </label>
+                        <input type="file">
+                    </div>
+                    <div class="form-item">
                         <label>CPF: </label>
                         <input type="number" placeholder="Ex: 15465364 (Sem pontos e traços)" v-model="cpf">
                     </div>
@@ -81,6 +85,7 @@ export default {
             pis: null,
             pix: null,
             notas: '',
+            imagem: null,
             pdf: []
         }
     },
@@ -129,6 +134,7 @@ export default {
 
         },
         async submitForm() {
+
             await Axios.post("http://localhost:3333/AdicionarFuncionario", {
                 funcionario: {
                     nome_do_funcionario: this.nome,

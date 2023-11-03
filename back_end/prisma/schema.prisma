@@ -40,7 +40,8 @@ model Funcionarios {
   pis                 String?
   pix                 String?     
   data                DateTime @default(now())
-  falta               String?
+  Horas_faltas        Float?
+  Horas_extras        Float?
   justificativa       String?
   notas               String?
 }

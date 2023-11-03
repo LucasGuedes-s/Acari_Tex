@@ -15,24 +15,25 @@
         <span class="tooltip">Detalhar</span>
       </div>
     </div>
-    <section v-if="showModalProduto" class="modal-background">
+    <div v-if="showModalProduto" class="modal-background">
       <div class="modal-content">
         <img class="img-close" @click="showModalProduto = false" src="@/assets/close.png" />
         <div class="produtos-modal">
+          <div class="produtos-modal">Valor: {{ produto.valor }}</div>
+          <div class="produtos-modal">Estoque: {{ produto.estoque }}</div>
+          <div class="produtos-modal">Fornecedor: {{ produto.fornecedor }}</div>
+          <div class="produtos-modal">Numeração: {{ produto.numeração }}</div>
           <div class="buttons">
             <div class="button-deletar" @click="deletarProduto(produto.id_do_tecido)">
-              <span class="tooltip">Deletar Tecido</span>
+              <span class="tooltip">Deletar Agulha</span>
             </div>
             <div class="button-tecido">
-              <span class="tooltip">Usar tecido</span>
-            </div>
-            <div class="button" @click="gerarPDFdoTecido(produto.id_do_tecido)">
-              <span class="tooltip">Gerar Relatório</span>
+              <span class="tooltip">Editar Agulha</span>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 <script>
@@ -59,16 +60,14 @@ export default {
         })
     },
     async getAgulha(id_da_agulha) {
-      console.log(id_da_agulha)
-      this.showModalProduto = true
+      Axios.get(`http://localhost:3333/EstoqueAgulhas/${id_da_agulha}`)
+        .then(response => {
+          //console.log(response.status)
+          console.log(response.data.produto)
+          this.produto = response.data.produto
+          this.showModalProduto = true
 
-      /*Axios.get(`http://localhost:3333/EstoqueAgulhas/${id_da_agulha}`)
-      .then(response => {
-        console.log(response.status)
-        console.log(response.data.produto)
-        this.produto = response.data.produto
-        this.showModalProduto = true
-      })*/
+        })
     }
   },
   components: {
@@ -116,6 +115,19 @@ export default {
   align-items: center;
   justify-content: space-between;
 }
+.modal-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
 
 .modal-content {
   background-color: #fff;

@@ -5,10 +5,6 @@
                 <span class="tooltip">Adicionar Tecido</span>
                 <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
             </div>
-            <div class="button-container">
-                <span class="tooltip">Gerar relatório</span>
-                <img src="@/assets/relatorio.png" alt="Adicionar" class="add-button">
-            </div>
         </div>
         <div v-if="showModal" class="modal-background">
             <img class="img-close" @click="showModal = false" src="@/assets/close.png" />
