@@ -4,6 +4,6 @@ const ControllerTarefas = require('../Controllers/DashboardController')
 
 router.get('/Tarefas', ControllerTarefas.getTarefas);
 router.post('/AdicionarTarefa', ControllerTarefas.postTarefa);
-router.update('/Status/:id', ControllerTarefas.alterandoTarefa)
+router.put('/Tarefas/Status/:id', ControllerTarefas.updateTarefa)
 
 module.exports = router;

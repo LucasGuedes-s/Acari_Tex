@@ -5,13 +5,6 @@ const cors = require('cors');
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use(function(req, res, next) {
-    res.header("Access-Control-Allow-Headers", "Authorization, content-type");
-    res.header("Access-Control-Expose-Headers", "Authorization, content-type");
-    res.header("Access-Control-Allow-Origin", "*");
-    next();
-});
-
 //Primeira vez que o sistema é executado
 //const firstRun = require('./firstRun.util.js');
 //firstRun();
@@ -24,8 +17,6 @@ const routerEstoqueAgulhas = require('./Routes/EstoqueAgulhas.router.js');
 const routerFuncionarios = require('./Routes/Funcionarios.router.js');
 const routerDashboard = require('./Routes/Dashboard.router.js');
 
-//const router = require('./routers/routerAdmin');
-
 app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios, routerDashboard);
 
 const hostname = 'localhost';
@@ -37,11 +28,16 @@ app.use(
     bodyParser.urlencoded({
         extended: true,
     })
-);*/
+);
 app.use(cors({
     origin: 'http://localhost:8080'
 }));
-
+*/
+app.use(cors({
+    origin: 'http://localhost:8080',
+    methods: 'PUT',
+    optionsSuccessStatus: 200 // Algumas versões mais recentes do CORS exigem isso
+  }));
 app.listen(3333, () => {
     console.log(`Servidor iniciado em http://${hostname}:${port} (Clique Ctrl+C)`);
 });

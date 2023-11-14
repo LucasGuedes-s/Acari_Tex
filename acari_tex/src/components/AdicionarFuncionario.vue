@@ -134,7 +134,6 @@ export default {
 
         },
         async submitForm() {
-
             await Axios.post("http://localhost:3333/AdicionarFuncionario", {
                 funcionario: {
                     nome_do_funcionario: this.nome,

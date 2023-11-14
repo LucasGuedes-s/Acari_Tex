@@ -34,7 +34,7 @@
             <div class="tarefa">Status: {{ item.status }}</div>
             <div class="tarefa">Data: {{ item.data }}</div>
             <div class="button-container">
-              <a class="tooltip" @click="alterStaus(item.id)" >Concluída</a>
+              <a class="tooltip" @click="alterarStatus(item.id)" >Concluída</a>
             </div>
           </div>
           <div class="button" >
@@ -76,23 +76,54 @@ export default {
           notas: this.notas,
         }
       }).then(
+        this.getTarefas(),
         Swal.fire({
           icon: 'success',
           title: 'Tarefa Adicionado!',
           text: 'Sua tarefa foi adicionada com sucesso.',
-          timer: 2000,
+          timer: 3000,
           timerProgressBar: true,
           showConfirmButton: false
         }),
         this.tarefa = '',
         this.notas = '',
-        this.getTarefas(),
 
       )
     },
-    async alterStaus(id_tarefa){
-      console.log(id_tarefa)
+    async alterarStatus(id_tarefa){
+      const confirmResult = await Swal.fire({
+        title: 'Marcar como concluído?',
+        text: 'Tem certeza que deseja marcar como concluído?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sim',
+        cancelButtonText: 'Cancelar'
+      });
+      if (confirmResult.isConfirmed) {
+        console.log(id_tarefa)
+        Axios.put(`http://localhost:3333/Tarefas/Status/${id_tarefa}`)
+          .then(response => {
+            console.log(response.status)
+            this.getTarefas()
+
+            Swal.fire({
+              icon: 'success',
+              title: 'Tarefa Adicionado!',
+              text: 'Sua tarefa foi adicionada com sucesso.',
+              timer: 2000,
+              timerProgressBar: true,
+              showConfirmButton: false
+            })
+          })
+          .catch(error => {
+            console.error(error);
+          });
+      }
+      else if (confirmResult.dismiss === Swal.DismissReason.cancel){
+        console.log('Cancelado')
+      }
     },
+
     async getEstoque() {
       Axios.get(`http://localhost:3333/Estoque`)
         .then(response => {
@@ -101,7 +132,6 @@ export default {
           this.estoque = response.data.produtos
           this.quantidadeDeTecidos = this.estoque.length;
           this.$emit(this.quantidadeDeTecidos)
-
         })
         .catch(error => {
           console.error(error);

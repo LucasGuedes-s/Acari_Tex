@@ -32,7 +32,28 @@ async function postTarefa(tarefa) {
     return tarefas;
 }
 
+async function updateTarefa(id) {
+    const dataAtual = new Date()
+    const data = dataAtual.toISOString();
+    const id_da_tarefa = parseInt(id);
+
+   //console.log(`Adicionando tarefa, ${tarefa}`)
+
+    const tarefas = await prisma.Tarefas.update({
+        where:{
+            id: id_da_tarefa
+        },
+        data: {
+            status: 'Concluida',
+            data_conclusao: data,
+        }
+    });
+    console.log('tarefa alterada com sucesso')
+    
+    return tarefas;
+}
 module.exports = {
+    updateTarefa,
     getTarefas,
     postTarefa
 }

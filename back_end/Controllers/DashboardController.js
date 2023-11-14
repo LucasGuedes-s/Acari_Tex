@@ -23,8 +23,21 @@ async function postTarefa(req, res, next){
         next(err);
     }
 }
-
+async function updateTarefa(req, res, next){  
+    try {
+        const id = req.params.id;
+        
+        console.log(id)
+        console.log('CHEGANDO AQUI')
+        const atualizar = await Tarefas.updateTarefa(id);
+        res.status(200).json({tarefa: atualizar});
+    } catch (err) {
+        console.error(`Erro ao atualizar a tarefa.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
+    updateTarefa,
     getTarefas,
     postTarefa
 };
