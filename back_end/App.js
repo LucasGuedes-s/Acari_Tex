@@ -5,6 +5,13 @@ const cors = require('cors');
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Headers", "Authorization, content-type");
+    res.header("Access-Control-Expose-Headers", "Authorization, content-type");
+    res.header("Access-Control-Allow-Origin", "*");
+    next();
+});
+
 //Primeira vez que o sistema é executado
 //const firstRun = require('./firstRun.util.js');
 //firstRun();

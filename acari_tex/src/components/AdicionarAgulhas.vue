@@ -1,10 +1,8 @@
 <template>
     <div>
-        <div class="conteiner-icons">
-            <div class="button-container" @click="showModal = true">
-                <span class="tooltip">Adicionar Tecido</span>
-                <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
-            </div>
+        <div class="button-container" @click="showModal = true">
+            <span class="tooltip">Adicionar Tecido</span>
+            <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
         </div>
         <div v-if="showModal" class="modal-background">
             <img class="img-close" @click="showModal = false" src="@/assets/close.png" />
@@ -13,7 +11,7 @@
                 <form class="form-container" method="POST"> <!-- Formulário de cadastro de produto-->
                     <div class="form-item">
                         <label>Valor: </label>
-                        <input type="number" placeholder="Ex: 4,99" v-model="valor">
+                        <input type="number" placeholder="Ex: 4,99" min="0" v-model="valor">
                     </div>
                     <div class="form-item">
                         <label>Fornecedor: </label>
@@ -21,11 +19,11 @@
                     </div>
                     <div class="form-item">
                         <label>Numeração: </label>
-                        <input type="number" placeholder="Ex: 35" v-model="numeracao">
+                        <input type="number" placeholder="Ex: 35" min="0" v-model="numeracao">
                     </div>
                     <div class="form-item">
                         <label>Estoque: </label>
-                        <input type="number" placeholder="Ex: 15" v-model="estoque">
+                        <input type="number" placeholder="Ex: 15" min="0" v-model="estoque">
                     </div>
                     <div class="form-item">
                         <label>Notas: </label>
@@ -39,6 +37,7 @@
         </div>
     </div>
 </template>
+
 <script>
 import axios from 'axios';
 import Swal from 'sweetalert2'
@@ -92,16 +91,6 @@ export default {
     top: 20px;
     right: 20px;
     cursor: pointer;
-}
-
-.conteiner-icons {
-    margin-top: 10%;
-    position: absolute;
-    right: 5px;
-    display: flex;
-    flex-direction: column-reverse;
-    align-items: flex-end;
-    float: right;
 }
 
 .button-container {
@@ -211,5 +200,12 @@ export default {
     font-weight: bold;
     text-transform: uppercase;
     font-size: 14px;
+}
+@media screen and (max-width: 500px) {
+    .button-container {
+        position: absolute;
+        bottom: 10px;
+        right: 10px; /* Ou left: 10px; para colocar no canto inferior esquerdo */
+    }
 }
 </style>

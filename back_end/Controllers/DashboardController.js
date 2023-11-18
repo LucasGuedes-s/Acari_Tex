@@ -26,7 +26,7 @@ async function postTarefa(req, res, next){
 async function updateTarefa(req, res, next){  
     try {
         const id = req.params.id;
-        
+
         console.log(id)
         console.log('CHEGANDO AQUI')
         const atualizar = await Tarefas.updateTarefa(id);

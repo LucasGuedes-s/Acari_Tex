@@ -28,7 +28,6 @@ async function postTarefa(tarefa) {
             notas: tarefa.notas
         }
     });
-    
     return tarefas;
 }
 

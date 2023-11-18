@@ -17,21 +17,21 @@
     </div>
     <div v-if="showModalProduto" class="modal-background">
       <div class="modal-content">
-        <img class="img-close" @click="showModalProduto = false" src="@/assets/close.png" />
+        <img class="img-close" @click="showModalProduto = false, showModalEditarProduto = false" src="@/assets/close.png" />
         <div class="produtos-modal">
-          <div class="produtos-modal">Tecido: {{ produto.nome_do_tecido }}</div>
-          <div class="produtos-modal">Valor: R$ {{ produto.valor }}</div>
-          <div class="produtos-modal">Fornecedor: {{ produto.fornecedor }}</div>
-          <div class="produtos-modal">Estoque: {{ produto.estoque }}</div>
-          <div v-if="produto.largura != null" class="produtos-modal">Largura: {{ produto.largura }} metros</div>
-          <div v-if="produto.largura != null" class="produtos-modal">Peso: {{ produto.peso }} Kg</div>
-          <div v-if="produto.largura != null" class="produtos-modal">Composição: {{ produto.composicao }}</div>
-          <div v-if="produto.largura != null" class="produtos-modal">Notas: {{ produto.notas }}</div>
+          <div class="produtos-modal">Tecido: {{ produto.nome_do_tecido }} <div v-if="showModalEditarProduto"><input type="text" modal="nome_tecido"></div></div>
+          <div class="produtos-modal">Valor: R$ {{ produto.valor }} <div v-if="showModalEditarProduto"><input type="number" min="o" modal="valor_tecido"></div></div>
+          <div class="produtos-modal">Fornecedor: {{ produto.fornecedor }} <div v-if="showModalEditarProduto"><input type="text" modal="fornecedor_tecido"></div></div>
+          <div class="produtos-modal">Estoque: {{ produto.estoque }} <div v-if="showModalEditarProduto"><input type="number" min="0" modal="estoque_tecido"></div></div>
+          <div v-if="produto.largura != null" class="produtos-modal">Largura: {{ produto.largura }} metros <div v-if="showModalEditarProduto"><input type="number" min="0" modal="largura"></div></div>
+          <div v-if="produto.largura != null" class="produtos-modal">Peso: {{ produto.peso }} Kg <div v-if="showModalEditarProduto"><input type="number" min="0" modal="peso"></div></div>
+          <div v-if="produto.largura != null" class="produtos-modal">Composição: {{ produto.composicao }} <div v-if="showModalEditarProduto"><input type="text" modal="composicao"></div></div>
+          <div v-if="produto.largura != null" class="produtos-modal">Notas: {{ produto.notas }}<div v-if="showModalEditarProduto"><input type="text" modal="notas"></div></div>
           <div class="buttons">
             <div class="button-deletar" @click="deletarProduto(produto.id_do_tecido)">
               <span class="tooltip">Deletar Tecido</span>
             </div>
-            <div class="button-tecido">
+            <div class="button-tecido" @click="editar(produto.id_do_tecido)">
               <span class="tooltip">Editar tecido</span>
             </div>
             <div class="button" @click="gerarPDFdoTecido(produto.id_do_tecido)">
@@ -48,7 +48,6 @@ import SidebarNav from '@/components/Sidebar.vue';
 import AdicionarEstoque from '@/components/AdicionarTecido.vue';
 import imagem from '@/assets/LogoAcariTex.png';
 import Swal from 'sweetalert2'
-
 import Axios from 'axios'
 import { jsPDF } from "jspdf";
 import 'jspdf-autotable';
@@ -60,14 +59,22 @@ export default {
       id: null,
       estoque: null,
       produto: null,
+      nome_tecido: null,
+      valor_tecido: null,
+      fornecedor_tecido: null,
+      estoque_tecido: null,
+      largura: null,
+      peso: null,
+      notas: null,
       pdf: null,
-      showModalProduto: false
+      estoque_valor: null,
+      showModalProduto: false,
+      showModalEditarProduto: false,
     }
   },
   methods: {
     async getEstoque() {
       //this.showModalProduto = false
-
       Axios.get(`http://localhost:3333/Estoque`)
         .then(response => {
           console.log(response.status)
@@ -86,6 +93,10 @@ export default {
           this.produto = response.data.produto
           this.showModalProduto = true
         })
+    },
+    async editar(id){
+      this.showModalEditarProduto= true,
+      console.log(id)
     },
     async deletarProduto(id_do_tecido) {
       Swal.fire({
@@ -116,9 +127,9 @@ export default {
     async gerarPDFdoTecido(id_do_tecido) {
       Axios.get(`http://localhost:3333/Estoque/${id_do_tecido}`)
         .then(response => {
-          console.log(response.data.produto)
           this.pdf = response.data.produto
-
+          this.estoque_valor = this.estoque.estoque * this.estoque.valor
+          console.log(this.estoque_valor)
           const doc = new jsPDF({
             orientation: "portrait",
             unit: "mm",
@@ -129,16 +140,13 @@ export default {
           const y = 10;
           const height = 30;
 
-          //image.src = '/home/gabriel/Acari_Tex/acari_tex/src/assets/LogoAcariTex.png';
           doc.addImage(imagem, 'PNG', x, y, width, height);
-
-          //doc.addImage(imagem, "PNG", 15, 40, 180, 180);
 
           // Cria o título
           doc.text("Relatório do tecido", 15, 60);
 
           const tableData = [
-            ['Nome', 'Preço', 'Fornecedor', 'Estoque', 'largura (metros)', 'peso (Kg)'], [this.pdf.nome_do_tecido, `R$: ${this.pdf.valor}`, this.pdf.fornecedor, this.pdf.estoque, this.pdf.largura, this.pdf.peso]
+            ['Nome', 'Preço', 'Fornecedor', 'Estoque', 'Largura (metros)', 'Peso (Kg)', 'Valor do estoque'], [this.pdf.nome_do_tecido, `R$: ${this.pdf.valor}`, this.pdf.fornecedor, this.pdf.estoque, this.pdf.largura, this.pdf.peso, `R$: ${this.estoque_valor}`]
           ];
           doc.autoTable({
             head: tableData.slice(0, 1), // Cabeçalho
@@ -215,6 +223,7 @@ export default {
 }
 
 .modal-background {
+  overflow: overlay;
   position: fixed;
   top: 0;
   left: 0;
@@ -298,6 +307,61 @@ export default {
   right: 20px;
   cursor: pointer;
 }
+input {
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  outline: none;
+}
+@media screen and (max-width: 600px) {
+  h1{
+    margin: auto;
+    margin-left: 60px;
+    margin-bottom: 15px;
+    font-size: 26px;
+  }
+  .conteiner-produtos {
+    display: flex;
+    margin-left: 100px;
+    background-color: #ffff;
+    padding: 10px;
+    text-align: center;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    flex-direction: row;
+    align-items: center;
+  }
+  .produtos {
+    padding: 7px;
+    justify-content: center;
+  }
+
+}
+
+@media screen and (max-width: 900px){
+  h1{
+    margin: auto;
+    margin-left: 60px;
+    margin-bottom: 15px;
+    font-size: 26px;
+  }
+  .conteiner-produtos {
+    display: flex;
+    margin-left: 100px;
+    background-color: #ffff;
+    padding: 10px;
+    text-align: center;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    flex-direction: row;
+    align-items: center;
+  }
+  .produtos {
+    padding: 7px;
+    justify-content: center;
+  } 
+}
+
 </style>
 
   

@@ -32,7 +32,7 @@
           <div class="conteiner-tarefas" v-for="item in tarefas" :key="item.id">
             <div class="tarefa">Tarefa: {{ item.tarefa }}</div>
             <div class="tarefa">Status: {{ item.status }}</div>
-            <div class="tarefa">Data: {{ item.data }}</div>
+            <div class="tarefa">Data: {{ item.data_abertura }}</div>
             <div class="button-container">
               <a class="tooltip" @click="alterarStatus(item.id)" >Concluída</a>
             </div>
@@ -76,17 +76,17 @@ export default {
           notas: this.notas,
         }
       }).then(
-        this.getTarefas(),
         Swal.fire({
           icon: 'success',
           title: 'Tarefa Adicionado!',
           text: 'Sua tarefa foi adicionada com sucesso.',
-          timer: 3000,
+          timer: 4000,
           timerProgressBar: true,
           showConfirmButton: false
         }),
         this.tarefa = '',
         this.notas = '',
+        this.getTarefas(),
 
       )
     },
@@ -101,15 +101,14 @@ export default {
       });
       if (confirmResult.isConfirmed) {
         console.log(id_tarefa)
-        Axios.put(`http://localhost:3333/Tarefas/Status/${id_tarefa}`)
+        await Axios.post(`http://localhost:3333/Tarefas/Status/${id_tarefa}`)
           .then(response => {
             console.log(response.status)
-            this.getTarefas()
-
+            this.getTarefas(),
             Swal.fire({
               icon: 'success',
-              title: 'Tarefa Adicionado!',
-              text: 'Sua tarefa foi adicionada com sucesso.',
+              title: 'Tarefa Concluida!',
+              text: 'Sua tarefa foi concluida com sucesso.',
               timer: 2000,
               timerProgressBar: true,
               showConfirmButton: false
@@ -155,8 +154,6 @@ export default {
   },
   components: {
     SidebarNav,
-    //Dados,
-    //Calendario
   }
 
 }
@@ -273,6 +270,7 @@ export default {
 .tooltip {
   align-items: center;
 }
+
 @media screen and (max-width: 600px) {
   .tarefa{
     padding: 10px;
@@ -329,7 +327,7 @@ export default {
   
   .conteiner-dashboard {
     background-color: #ffff;
-    padding: 10px;
+    padding: 15px;
     margin: 10px 85px auto;
     width: 70%;
     border-radius: 20px;
@@ -345,6 +343,16 @@ export default {
   .conteiner-principal img {
     display: none;
     width: 150px;
+  }
+}
+
+@media screen and (min-width: 1400px){
+  .conteiner-quantidade {
+    width: 20%;
+    background-color: #ffff;
+    padding: 20px;
+    margin: 5px;
+    border-radius: 20px;
   }
 }
 </style>

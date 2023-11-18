@@ -200,6 +200,31 @@ export default {
   right: 20px;
   cursor: pointer;
 }
+
+@media screen and (max-width: 600px) {
+  h1{
+    margin: auto;
+    margin-left: 60px;
+    margin-bottom: 15px;
+    font-size: 26px;
+  }
+  .conteiner-produtos {
+    display: flex;
+    margin-left: 100px;
+    background-color: #ffff;
+    padding: 10px;
+    text-align: center;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    flex-direction: row;
+    align-items: center;
+  }
+  .produtos {
+    padding: 7px;
+    justify-content: center;
+  }
+}
+
 </style>
 
   
