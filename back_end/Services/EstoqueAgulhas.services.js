@@ -3,6 +3,10 @@ prisma = new PrismaClient()
 
 async function getEstoque() {
     const produtos = await prisma.Estoque_Agulhas.findMany({
+        where:{
+            id_estabelecimento: 12824001,
+
+        }
     });
     if (!produtos) {
         // Caso não exista nenhum produto com o ID especificado, você pode retornar uma resposta de erro
@@ -15,6 +19,7 @@ async function getAgulha(id) {
     const id_agulha = parseInt(id);
 
     //console.log('ESTOU AQUI')
+    
     const produto = await prisma.Estoque_Agulhas.findUnique({
         where: {
             id_da_agulha: id_agulha,
@@ -33,6 +38,7 @@ async function postEstoque(produto){
     console.log(produto.valor);
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
+    estabelecimentoId = 12824001
 
     valor = produto.valor
     const produtos = await prisma.Estoque_Agulhas.create({
@@ -42,7 +48,10 @@ async function postEstoque(produto){
             numeracao: produto.numeracao,
             estoque: produto.estoque,
             data: data,
-            notas: produto.notas
+            notas: produto.notas,
+            estabelecimento: {
+                connect: { cnpj: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
+            }
         }
     });
     //return data;

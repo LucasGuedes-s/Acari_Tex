@@ -4,7 +4,7 @@
       <h2>Login</h2>
       <div class="form-group">
         <label for="username">Usuário/E-mail:</label>
-        <input type="text" id="username" v-model="email" />
+        <input type="text" id="username" v-model="cnpj" />
       </div>
       <div class="form-group">
         <label for="password">Password:</label>
@@ -17,21 +17,37 @@
   </div>
 </template>
 <script>
-//import axios from 'axios';
 import router from '@/router';
+import Axios from 'axios'
+import Swal from 'sweetalert2'
 
 export default {
   name: 'HomeAcariTex',
   data() {
     return {
-      email: "",
+      cnpj: null,
       password: ""
     }
   },
   methods: {
     async getlogin() {
-      router.push('/Dashboard')
-      //axios.get('')
+      await Axios.post("http://localhost:3333/user/login", {
+        user: {
+          cnpj: this.cnpj,
+          senha: this.password,
+        }
+      }).then(response => {
+        console.log(response.status)
+        router.push('/Dashboard')
+
+    }).catch( error =>{
+      console.error(error);
+        Swal.fire({
+          icon: 'erro',
+          title: 'CNPJ ou senha incorretos',
+          timer: 4000,
+        })
+      })
     }
   }
 }

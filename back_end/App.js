@@ -13,8 +13,8 @@ app.use(function(req, res, next) {
 });
 
 //Primeira vez que o sistema é executado
-//const firstRun = require('./firstRun.util.js');
-//firstRun();
+const firstRun = require('./firstRun.util.js');
+firstRun();
 
 
 app.set('trust proxy', 1);
@@ -23,8 +23,9 @@ const routerEstoque = require('./Routes/EstoqueTecido.router.js');
 const routerEstoqueAgulhas = require('./Routes/EstoqueAgulhas.router.js');
 const routerFuncionarios = require('./Routes/Funcionarios.router.js');
 const routerDashboard = require('./Routes/Dashboard.router.js');
+const routerUser= require('./Routes/User.router.js');
 
-app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios, routerDashboard);
+app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios, routerDashboard, routerUser);
 
 const hostname = 'localhost';
 const port = 3333;

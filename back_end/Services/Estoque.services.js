@@ -3,6 +3,9 @@ prisma = new PrismaClient()
 
 async function getEstoque() {
     const produtos = await prisma.Estoque_Tecidos.findMany({
+        where:{
+            id_estabelecimento: 12824001,
+        }
     });
     if (!produtos) {
         // Caso não exista nenhum produto com o ID especificado, você pode retornar uma resposta de erro
@@ -51,7 +54,8 @@ async function postEstoque(produto){
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
     console.log('Estou aqui')
-    //valor = produto.valor
+    estabelecimentoId = 12824001
+
     const produtos = await prisma.Estoque_Tecidos.create({
         data: {
             nome_do_tecido: produto.nome,
@@ -62,7 +66,10 @@ async function postEstoque(produto){
             largura: produto.largura,
             peso: produto.peso,
             data_: data,
-            notas: produto.notas
+            notas: produto.notas,
+            estabelecimento: {
+                connect: { cnpj: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
+            }
         }
     });
     return produtos;

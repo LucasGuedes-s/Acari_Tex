@@ -6,9 +6,20 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+model Estabelecimento{
+  cnpj             Int @id
+  nome             String
+  email            String
+  senha            String
+  estoque_tecidos  Estoque_Tecidos[]
+  estoque_agulhas  Estoque_Agulhas[]
+  tarefas          Tarefas[]
+}
 
 model Estoque_Tecidos {
   id_do_tecido       Int     @id @default(autoincrement())
+  estabelecimento    Estabelecimento  @relation(fields: [id_estabelecimento], references: [cnpj])
+  id_estabelecimento Int
   nome_do_tecido     String
   valor              Float
   fornecedor         String
@@ -20,8 +31,11 @@ model Estoque_Tecidos {
   tamanho            Float?
   notas              String?
 }
+
 model Estoque_Agulhas {
   id_da_agulha       Int     @id @default(autoincrement())
+  estabelecimento    Estabelecimento  @relation(fields: [id_estabelecimento], references: [cnpj])
+  id_estabelecimento Int
   valor              Float
   fornecedor         String?
   numeracao          String?
@@ -47,6 +61,8 @@ model Funcionarios {
 }
 model Tarefas {
   id                  Int     @id @default(autoincrement())
+  estabelecimento     Estabelecimento  @relation(fields: [id_estabelecimento], references: [cnpj])
+  id_estabelecimento  Int
   tarefa              String
   status              String
   data_abertura       DateTime

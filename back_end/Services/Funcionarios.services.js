@@ -28,7 +28,6 @@ async function getFuncionario(id) {
 
 
 async function postFuncionario(funcionario) {
-
     //console.log(funcionario)
     /*const dataAtual = new Date()
     const data = dataAtual.toISOString();*/
