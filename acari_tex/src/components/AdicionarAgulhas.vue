@@ -1,7 +1,7 @@
 <template>
     <div>
         <div class="button-container" @click="showModal = true">
-            <span class="tooltip">Adicionar Tecido</span>
+            <span class="tooltip">Adicionar Agulha</span>
             <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
         </div>
         <div v-if="showModal" class="modal-background">
@@ -77,9 +77,22 @@ export default {
                     // Executa este código após a janela de alerta ter sido fechada
                     this.$emit('getEstoqueAgulhas'),
                         this.showModal = false;
-                    //console.log('SweetAlert2 fechado após 2 segundos.');
+                        this.valor = null
+                        this.fornecedor = null
+                        this.numeracao = null
+                        this.estoque = null
+                        this.notas = null
                 })
-            )
+                ).catch(error =>{
+                console.log(error)
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro ao adicionar agulha',
+                    timer: 2000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                })
+            })
         }
     }
 }

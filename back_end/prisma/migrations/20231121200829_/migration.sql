@@ -63,6 +63,7 @@ CREATE TABLE `Funcionarios` (
 -- CreateTable
 CREATE TABLE `Tarefas` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `id_estabelecimento` INTEGER NOT NULL,
     `tarefa` VARCHAR(191) NOT NULL,
     `status` VARCHAR(191) NOT NULL,
     `data_abertura` DATETIME(3) NOT NULL,
@@ -88,3 +89,6 @@ ALTER TABLE `Estoque_Tecidos` ADD CONSTRAINT `Estoque_Tecidos_id_estabelecimento
 
 -- AddForeignKey
 ALTER TABLE `Estoque_Agulhas` ADD CONSTRAINT `Estoque_Agulhas_id_estabelecimento_fkey` FOREIGN KEY (`id_estabelecimento`) REFERENCES `Estabelecimento`(`cnpj`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Tarefas` ADD CONSTRAINT `Tarefas_id_estabelecimento_fkey` FOREIGN KEY (`id_estabelecimento`) REFERENCES `Estabelecimento`(`cnpj`) ON DELETE RESTRICT ON UPDATE CASCADE;

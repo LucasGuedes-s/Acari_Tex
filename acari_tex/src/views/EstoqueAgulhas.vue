@@ -24,7 +24,7 @@
           <div class="produtos-modal">Fornecedor: {{ produto.fornecedor }}</div>
           <div class="produtos-modal">Numeração: {{ produto.numeração }}</div>
           <div class="buttons">
-            <div class="button-deletar" @click="deletarProduto(produto.id_do_tecido)">
+            <div class="button-deletar" @click="deletarAgulha(produto.id_da_agulha)">
               <span class="tooltip">Deletar Agulha</span>
             </div>
             <div class="button-tecido">
@@ -40,6 +40,7 @@
 import SidebarNav from '@/components/Sidebar.vue';
 import AdicionarEstoque from '@/components/AdicionarAgulhas.vue';
 import Axios from 'axios'
+import Swal from 'sweetalert2'
 
 export default {
   name: 'Dashbboard-tecidos',
@@ -60,15 +61,42 @@ export default {
         })
     },
     async getAgulha(id_da_agulha) {
+      console.log(id_da_agulha)
       Axios.get(`http://localhost:3333/EstoqueAgulhas/${id_da_agulha}`)
         .then(response => {
           //console.log(response.status)
           console.log(response.data.produto)
           this.produto = response.data.produto
           this.showModalProduto = true
-
         })
-    }
+    },
+    async deletarAgulha(id_da_agulha){
+      Swal.fire({
+        title: 'Tem certeza?',
+        text: "Você deseja mesmo excluir este item?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, excluir',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Fazer a requisição Axios aqui
+          Axios.get(`http://localhost:3333/agulha/deletar/${id_da_agulha}`)
+            .then(response => {
+              console.log(response.status)
+              this.showModalProduto = false
+              Swal.fire(
+                'Excluído!',
+                'O item foi excluído com sucesso.',
+                'success'
+              );
+              this.getEstoqueAgulhas();
+            }).catch(error =>{
+              console.error(error)
+            })
+        }
+      })
+    },
   },
   components: {
     SidebarNav,

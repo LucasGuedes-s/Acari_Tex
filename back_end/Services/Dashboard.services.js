@@ -5,6 +5,7 @@ async function getTarefas() {
     const status = 'Em andamento'
     const tarefas = await prisma.Tarefas.findMany({
         where:{
+            id_estabelecimento: 12824002,
             status: status
         }
     });
@@ -18,6 +19,8 @@ async function getTarefas() {
 async function postTarefa(tarefa) {
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
+    estabelecimentoId = 12824002
+
    //console.log(`Adicionando tarefa, ${tarefa}`)
 
     const tarefas = await prisma.Tarefas.create({
@@ -25,7 +28,10 @@ async function postTarefa(tarefa) {
             tarefa: tarefa.tarefa,
             status: 'Em andamento',
             data_abertura: data,
-            notas: tarefa.notas
+            notas: tarefa.notas,
+            estabelecimento: {
+                connect: { cnpj: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
+            }
         }
     });
     return tarefas;

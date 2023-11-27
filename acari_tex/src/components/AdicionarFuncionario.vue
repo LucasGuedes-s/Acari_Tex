@@ -156,6 +156,18 @@ export default {
                     timerProgressBar: true,
                     showConfirmButton: false
                 })
+            ).catch(error => {
+                console.log(error)
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Funcionário não adicionado!',
+                    text: 'Seu funcionário não foi adicionado',
+                    timer: 2000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                })
+            }
+
             )
         }
     }
@@ -190,7 +202,6 @@ export default {
 
 .add-button {
     margin-right: 10px;
-    /* Ajuste a margem conforme necessário */
 }
 
 .button-container img {

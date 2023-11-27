@@ -3,7 +3,7 @@
     <form class="login-form" @submit.prevent="getlogin">
       <h2>Login</h2>
       <div class="form-group">
-        <label for="username">Usuário/E-mail:</label>
+        <label for="username">CNPJ:</label>
         <input type="text" id="username" v-model="cnpj" />
       </div>
       <div class="form-group">
@@ -13,7 +13,7 @@
       <button type="submit" click="getlogin">Login</button>
       <p class="mb-5 pb-lg-2">Não tem acesso? <a href="/cadastro">Registre-se</a></p>
     </form>
-    <img src="@/assets/LogoAcariTex.png" alt="Login Image">
+    <img src="@/assets/imagem.png" alt="Login Image">
   </div>
 </template>
 <script>
@@ -53,6 +53,7 @@ export default {
 }
 </script>
 <style scoped>
+
 .login-container {
   display: flex;
   justify-content: center;

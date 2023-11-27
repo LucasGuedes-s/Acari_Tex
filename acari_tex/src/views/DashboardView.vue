@@ -87,8 +87,9 @@ export default {
         this.tarefa = '',
         this.notas = '',
         this.getTarefas(),
-
-      )
+      ).catch(error =>{
+            console.error(error)
+        })
     },
     async alterarStatus(id_tarefa){
       const confirmResult = await Swal.fire({
@@ -124,12 +125,13 @@ export default {
     },
 
     async getEstoque() {
-      Axios.get(`http://localhost:3333/Estoque`)
+      Axios.get(`http://localhost:3333/tecido/estoque`)
         .then(response => {
           console.log(response.status)
           console.log(response.data.produtos)
           this.estoque = response.data.produtos
           this.quantidadeDeTecidos = this.estoque.length;
+
           this.$emit(this.quantidadeDeTecidos)
         })
         .catch(error => {

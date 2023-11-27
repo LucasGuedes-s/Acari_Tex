@@ -28,7 +28,7 @@ async function deletarTecido(req, res, next){
         const id = req.params.id;
         console.log(id)
 
-        const produtos = await DeleteProduto.DeleteProduto(id);
+        const produtos = await DeleteProduto.deleteProduto(id);
         res.status(200).send({
             message: `Produto deletado: ${produtos}`,
         });
@@ -49,6 +49,22 @@ async function postProduto(req, res, next){
         });
     } catch (err) {
         console.error(`Erro ao cadastrar produto no estoque.`, err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}
+async function editarTecido(req, res, next){      
+
+    try {
+        const produto = req.body.produto;
+        //console.log(produto)
+        const produtos = await //Cadproduto.postEstoque(produto);
+        res.status(200).send({
+            message: `Produto Alterado: ${produtos}`,
+        });
+    } catch (err) {
+        console.error(`Erro ao alterar produto no estoque.`, err.message);
+        err.statusCode = 400;
         next(err);
     }
 }
@@ -56,5 +72,6 @@ module.exports = {
     getEstoque,
     getTecido,
     postProduto,
-    deletarTecido
+    deletarTecido,
+    editarTecido
 };

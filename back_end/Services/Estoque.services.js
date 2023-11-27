@@ -4,7 +4,7 @@ prisma = new PrismaClient()
 async function getEstoque() {
     const produtos = await prisma.Estoque_Tecidos.findMany({
         where:{
-            id_estabelecimento: 12824001,
+            id_estabelecimento: 12824002,
         }
     });
     if (!produtos) {
@@ -30,7 +30,7 @@ async function getTecido(id) {
     console.log(produto)
     return produto;
 }
-async function DeleteProduto(id){
+async function deleteProduto(id){
     console.log(id);
     const id_tecido = parseInt(id);
 
@@ -48,13 +48,36 @@ async function DeleteProduto(id){
 }
 async function postEstoque(produto){
     
-    //console.log(produto);
-    //console.log(produto.valor);
+    const dataAtual = new Date()
+    const data = dataAtual.toISOString();
+    console.log('Estou aqui')
+    estabelecimentoId = 12824002
+
+    const produtos = await prisma.Estoque_Tecidos.create({
+        data: {
+            nome_do_tecido: produto.nome,
+            valor: produto.valor,
+            fornecedor: produto.fornecedor,
+            composicao: produto.composicao,
+            estoque: produto.estoque,
+            largura: produto.largura,
+            peso: produto.peso,
+            data_: data,
+            notas: produto.notas,
+            estabelecimento: {
+                connect: { cnpj: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
+            }
+        }
+    });
+    return produtos;
+}
+
+async function editProduto(){
     
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
     console.log('Estou aqui')
-    estabelecimentoId = 12824001
+    estabelecimentoId = 12824002
 
     const produtos = await prisma.Estoque_Tecidos.create({
         data: {
@@ -78,5 +101,6 @@ module.exports = {
     getEstoque,
     getTecido,
     postEstoque,
-    DeleteProduto
+    deleteProduto,
+    editProduto
 }

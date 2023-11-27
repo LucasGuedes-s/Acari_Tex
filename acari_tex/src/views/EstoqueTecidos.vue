@@ -75,7 +75,7 @@ export default {
   methods: {
     async getEstoque() {
       //this.showModalProduto = false
-      Axios.get(`http://localhost:3333/Estoque`)
+      Axios.get(`http://localhost:3333/tecido/estoque`)
         .then(response => {
           console.log(response.status)
           console.log(response.data.produtos)
@@ -92,7 +92,9 @@ export default {
           console.log(response.data.produto)
           this.produto = response.data.produto
           this.showModalProduto = true
-        })
+        }).catch(error =>{
+              console.error(error)
+          })
     },
     async editar(id){
       this.showModalEditarProduto= true,
@@ -109,7 +111,7 @@ export default {
       }).then((result) => {
         if (result.isConfirmed) {
           // Fazer a requisição Axios aqui
-          Axios.get(`http://localhost:3333/Deletar/${id_do_tecido}`)
+          Axios.get(`http://localhost:3333/tecido/deletar/${id_do_tecido}`)
             .then(response => {
               console.log(response.status)
               this.showModalProduto = false
@@ -119,10 +121,11 @@ export default {
                 'success'
               );
               this.getEstoque();
+            }).catch(error =>{
+              console.error(error)
             })
         }
       })
-      //console.error('Erro ao deletar o produto:', error.response.data);
     },
     async gerarPDFdoTecido(id_do_tecido) {
       Axios.get(`http://localhost:3333/Estoque/${id_do_tecido}`)
@@ -339,7 +342,7 @@ input {
 }
 
 @media screen and (max-width: 900px){
-  h1{
+ h1{
     margin: auto;
     margin-left: 60px;
     margin-bottom: 15px;

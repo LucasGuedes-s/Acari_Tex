@@ -93,8 +93,25 @@ export default {
                 }).then(() => {
                     this.$emit('getEstoque'),
                         this.showModal = false;
+                        this.produto = null
+                        this.valor = null
+                        this.fornecedor = null
+                        this.composicao = null
+                        this.estoque = null
+                        this.largura = null
+                        this.peso = null
+                        this.notas = null
                 })
-            )
+            ).catch(error =>{
+                console.log(error)
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro ao adicionar Tecido',
+                    timer: 2000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                })
+            })
         }
     }
 }

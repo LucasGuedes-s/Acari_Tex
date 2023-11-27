@@ -4,7 +4,7 @@ prisma = new PrismaClient()
 async function getEstoque() {
     const produtos = await prisma.Estoque_Agulhas.findMany({
         where:{
-            id_estabelecimento: 12824001,
+            id_estabelecimento: 12824002,
 
         }
     });
@@ -38,7 +38,7 @@ async function postEstoque(produto){
     console.log(produto.valor);
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
-    estabelecimentoId = 12824001
+    estabelecimentoId = 12824002
 
     valor = produto.valor
     const produtos = await prisma.Estoque_Agulhas.create({
@@ -54,12 +54,29 @@ async function postEstoque(produto){
             }
         }
     });
-    //return data;
     return produtos;
+}
+
+async function DeleteProduto(id){
+    console.log(id);
+    const id_agulha = parseInt(id);
+
+    try {
+        const produtoDeletado = await prisma.Estoque_Agulhas.delete({
+          where: {
+            id_da_agulha: id_agulha,
+          }
+        });
+
+        console.log('Agulha deletada:', produtoDeletado);
+    }catch (error) {
+        console.error('Erro ao deletar a agulha:', error);
+    }
 }
 module.exports = {
     getAgulha,
     getEstoque,
-    postEstoque
+    postEstoque,
+    DeleteProduto
     
 }

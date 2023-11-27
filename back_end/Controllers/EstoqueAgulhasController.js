@@ -33,6 +33,21 @@ async function postProduto(req, res, next){
         });
     } catch (err) {
         console.error(`Erro ao cadastrar produto no estoque.`, err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}
+async function deletarAgulha(req, res, next){
+    try {
+        const id = req.params.id;
+        console.log(id)
+
+        const produtos = await Agulhas.DeleteProduto(id);
+        res.status(200).send({
+            message: `Produto deletado: ${produtos}`,
+        });
+    } catch (err) {
+        console.error(`Erro ao deletar produto do estoque.`, err.message);
         next(err);
     }
 }
@@ -40,5 +55,6 @@ async function postProduto(req, res, next){
 module.exports = { 
     getAgulha,
     getEstoque,
-    postProduto
+    postProduto,
+    deletarAgulha
 };
