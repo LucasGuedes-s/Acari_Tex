@@ -7,6 +7,7 @@
     <div>
       <AdicionarEstoque @getEstoque="getEstoque" />
     </div>
+
     <div class="conteiner-produtos" v-for="item in estoque" :key="item.id_do_tecido">
       <div class="produtos">Tecido: {{ item.nome_do_tecido }}</div>
       <div class="produtos">Estoque: {{ item.estoque }}</div>
@@ -14,9 +15,13 @@
       <div class="button-container" @click="getTecido(item.id_do_tecido)">
         <span class="tooltip">Detalhar</span>
       </div>
+      <div class="button-container" @click="editar(item.id_do_tecido)">
+        <span class="tooltip">Usar tecido</span>
+      </div>
     </div>
-    <div v-if="showModalProduto" class="modal-background">
-      <div class="modal-content">
+
+    <conteiner v-if="showModalProduto" class="modal-background">
+      <section class="modal-content">
         <img class="img-close" @click="showModalProduto = false, showModalEditarProduto = false" src="@/assets/close.png" />
         <div class="produtos-modal">
           <div class="produtos-modal">Tecido: {{ produto.nome_do_tecido }} <div v-if="showModalEditarProduto"><input type="text" modal="nome_tecido"></div></div>
@@ -31,16 +36,21 @@
             <div class="button-deletar" @click="deletarProduto(produto.id_do_tecido)">
               <span class="tooltip">Deletar Tecido</span>
             </div>
-            <div class="button-tecido" @click="editar(produto.id_do_tecido)">
-              <span class="tooltip">Editar tecido</span>
-            </div>
             <div class="button" @click="gerarPDFdoTecido(produto.id_do_tecido)">
               <span class="tooltip">Gerar Relatório</span>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </conteiner>
+    <!-- 
+    <conteiner class="produtos-editar-modal">
+      <div class="produtos-modal">Tecido: {{ produto.nome_do_tecido }} <div v-if="showModalEditarProduto"><input type="text" modal="nome_tecido"></div></div>
+      <div class="produtos-modal">Estoque: {{ produto.estoque }} <div v-if="showModalEditarProduto"><input type="number" min="0" modal="estoque_tecido"></div></div>
+      <div v-if="produto.largura != null" class="produtos-modal">Largura: {{ produto.largura }} metros <div v-if="showModalEditarProduto"><input type="number" min="0" modal="largura"></div></div>
+      <div v-if="produto.peso != null" class="produtos-modal">Peso: {{ produto.peso }} Kg <div v-if="showModalEditarProduto"><input type="number" min="0" modal="peso"></div></div>
+      <div v-if="showModalEditarProduto"><input type="text" modal="notas"></div>
+    </conteiner>-->
   </div>
 </template>
 <script>
@@ -97,7 +107,7 @@ export default {
           })
     },
     async editar(id){
-      this.showModalEditarProduto= true,
+      //this.showModalEditarProduto= true,
       console.log(id)
     },
     async deletarProduto(id_do_tecido) {

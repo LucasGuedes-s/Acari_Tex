@@ -14,6 +14,9 @@
       <div class="button-container" @click="getAgulha(item.id_da_agulha)">
         <span class="tooltip">Detalhar</span>
       </div>
+      <div class="button-container" @click="editar(item.id_do_tecido)">
+        <span class="tooltip">Usar Agulhas</span>
+      </div>
     </div>
     <div v-if="showModalProduto" class="modal-background">
       <div class="modal-content">
