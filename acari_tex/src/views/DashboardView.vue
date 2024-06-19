@@ -32,7 +32,7 @@
           <div class="conteiner-tarefas" v-for="item in tarefas" :key="item.id">
             <div class="tarefa">Tarefa: {{ item.tarefa }}</div>
             <div class="tarefa">Status: {{ item.status }}</div>
-            <div class="tarefa">Data: {{ item.data_abertura }}</div>
+            <div class="tarefa">Data: {{ nova_data }}</div>
             <div class="button-container">
               <a class="tooltip" @click="alterarStatus(item.id)" >Concluída</a>
             </div>
@@ -45,15 +45,14 @@
         </div>
       </div>
     </div>
-    <div>
-      <Calendario />
-    </div>
   </div>
 </template>
 <script>
+
 import SidebarNav from '@/components/Sidebar.vue';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
+import FormatarData from '@/utils/functions/FormatarData.js'
 
 export default {
   name: 'Dashbboard-home',
@@ -66,6 +65,7 @@ export default {
       tarefas: null,
       tarefa: null,
       notas: null,
+      nova_data: null,
     }
   },
   methods: {
@@ -101,7 +101,6 @@ export default {
         cancelButtonText: 'Cancelar'
       });
       if (confirmResult.isConfirmed) {
-        console.log(id_tarefa)
         await Axios.post(`http://localhost:3333/Tarefas/Status/${id_tarefa}`)
           .then(response => {
             console.log(response.status)
@@ -144,6 +143,10 @@ export default {
           console.log(response.status)
           console.log(response.data.tarefas)
           this.tarefas = response.data.tarefas
+          console.log(this.tarefas.data_abertura)
+
+          this.nova_data = FormatarData.FormatarData(response.data.tarefas.data_abertura)
+          console.log(this.nova_data)
         })
         .catch(error => {
           console.error(error);
@@ -358,5 +361,3 @@ export default {
   }
 }
 </style>
-
-  

@@ -37,7 +37,7 @@
                     </div>
                     <div class="form-item">
                         <label>Imagem: </label>
-                        <input type="file">
+                        <input type="file" id="imagem" @change="handleFileUpload" required><br><br>
                     </div>
                     <div class="form-item">
                         <label>CPF: </label>
@@ -67,9 +67,11 @@
 import Axios from 'axios';
 import Swal from 'sweetalert2'
 import imagem from '@/assets/LogoAcariTex.png';
-
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from '../firebase.js'; // Certifique-se de ajustar o caminho conforme necessário
 import { jsPDF } from "jspdf";
 import 'jspdf-autotable';
+import { v4 as uuidv4 } from 'uuid';
 
 export default {
     data() {
@@ -90,8 +92,12 @@ export default {
         }
     },
     methods: {
+        async handleFileUpload(event) {
+            this.imagem = event.target.files[0];
+        },
         async gerarRelatorio() {
             try {
+           
                 const response = await Axios.get("http://localhost:3333/Funcionarios");
                 this.pdf = response.data.funcionarios;
                 console.log(this.pdf);
@@ -134,6 +140,19 @@ export default {
 
         },
         async submitForm() {
+
+            // Gera um identificador único para a imagem
+            const uniqueImageName = uuidv4() + '_' + this.imagem.name;
+
+            // Cria uma referência para o armazenamento
+            const storageRef = ref(storage, 'uploads/' + uniqueImageName);
+            
+            // Faz o upload da imagem
+            const snapshot = await uploadBytes(storageRef, this.imagem);
+            
+            // Obtém a URL pública da imagem
+            const imageUrl = await getDownloadURL(snapshot.ref);
+
             await Axios.post("http://localhost:3333/AdicionarFuncionario", {
                 funcionario: {
                     nome_do_funcionario: this.nome,
@@ -144,7 +163,8 @@ export default {
                     cpf: this.cpf,
                     pis: this.pis,
                     pix: this.pix,
-                    notas: this.notas
+                    notas: this.notas,
+                    foto: imageUrl
                 }
             }).then(
                 this.showModal = false,

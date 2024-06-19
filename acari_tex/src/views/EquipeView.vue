@@ -6,7 +6,7 @@
     </div>
     <div>
       <div class="conteiner" v-for="item in funcionarios" :key="item.id">
-        <img src="@/assets/pessoa.svg">
+        <img :src="item.foto">
         <div class="funcionario">Nome: {{ item.nome_do_funcionario }}</div>
         <div class="funcionario">Funções: {{ item.funcoes }}</div>
         <div class="funcionario">PIX: {{ item.pix }}</div>
