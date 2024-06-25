@@ -38,6 +38,7 @@ export default {
         }
       }).then(response => {
         console.log(response.status)
+        console.log(response.headers.authorization);
         router.push('/Dashboard')
 
     }).catch( error =>{

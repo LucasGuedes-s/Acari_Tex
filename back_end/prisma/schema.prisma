@@ -58,6 +58,8 @@ model Funcionarios {
   Horas_extras        Float?
   justificativa       String?
   notas               String?
+  foto                String   @db.VarChar(2048)
+
 }
 model Tarefas {
   id                  Int     @id @default(autoincrement())

@@ -29,18 +29,7 @@ app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios, routerDashboard
 
 const hostname = 'localhost';
 const port = 3333;
-/*
-//aplicando o body-parser
-app.use(bodyParser.json());
-app.use(
-    bodyParser.urlencoded({
-        extended: true,
-    })
-);
-app.use(cors({
-    origin: 'http://localhost:8080'
-}));
-*/
+
 app.use(cors({
     origin: 'http://localhost:8080',
     methods: 'PUT',

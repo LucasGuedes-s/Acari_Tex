@@ -1,8 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
-prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
-async function getFuncionarios() {
-    //console.log('Estou chegando aqui')
+async function getFuncionarios(req, res) {
     const funcionarios = await prisma.Funcionarios.findMany({});
 
     if (!funcionarios) {
@@ -10,27 +9,27 @@ async function getFuncionarios() {
     }
     return funcionarios;
 }
-async function getFuncionario(id) {
 
-    const id_do_funcionario = parseInt(id);
+async function getFuncionario(req, res) {
+    const id_do_funcionario = parseInt(req.params.id);
 
     try {
         const funcionario = await prisma.Funcionarios.findUnique({
-          where: {
-            id: id_do_funcionario
-          }
+            where: { id: id_do_funcionario }
         });
-        return funcionario
-    }catch (error) {
-        console.error('Funcionário não encontrado', error);
+
+        if (!funcionario) {
+            return res.status(404).json({ error: 'Funcionário não encontrado' });
+        }
+
+        res.json(funcionario);
+        
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar funcionário' });
     }
 }
 
-
 async function postFuncionario(funcionario) {
-    //console.log(funcionario)
-    /*const dataAtual = new Date()
-    const data = dataAtual.toISOString();*/
     let identidade = funcionario.identidade.toString();
     let cpf = funcionario.cpf.toString();
     let pis = funcionario.pis.toString();
@@ -45,7 +44,7 @@ async function postFuncionario(funcionario) {
             cpf: cpf,
             pis: pis,
             pix: funcionario.pix,
-            notas: funcionario.notas
+            foto: funcionario.foto
         }
     });
     return addfuncionario;
@@ -55,4 +54,4 @@ module.exports = {
     getFuncionarios,
     getFuncionario,
     postFuncionario
-}
+};
