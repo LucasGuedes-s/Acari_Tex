@@ -5,10 +5,6 @@
                 <span class="tooltip">Adicionar Funcionario</span>
                 <img src="@/assets/Adicionar.svg" alt="Adicionar" class="add-button">
             </div>
-            <div class="button-container" @click="gerarRelatorio()">
-                <span class="tooltip">Relatório de pagamento</span>
-                <img src="@/assets/relatorio.png" alt="Adicionar" class="add-button">
-            </div>
         </div>
         <div v-if="showModal" class="modal-background">
             <img class="img-close" @click="showModal = false" src="@/assets/close.png" />
@@ -66,10 +62,8 @@
 <script>
 import Axios from 'axios';
 import Swal from 'sweetalert2'
-import imagem from '@/assets/LogoAcariTex.png';
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from '../firebase.js'; // Certifique-se de ajustar o caminho conforme necessário
-import { jsPDF } from "jspdf";
 import 'jspdf-autotable';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -88,56 +82,11 @@ export default {
             pix: null,
             notas: '',
             imagem: null,
-            pdf: []
         }
     },
     methods: {
         async handleFileUpload(event) {
             this.imagem = event.target.files[0];
-        },
-        async gerarRelatorio() {
-            try {
-           
-                const response = await Axios.get("http://localhost:3333/Funcionarios");
-                this.pdf = response.data.funcionarios;
-                console.log(this.pdf);
-
-                // Crie o documento PDF
-                const doc = new jsPDF({
-                    orientation: "portrait",
-                    unit: "mm",
-                    format: "a4",
-                });
-                const width = 30;
-                const x = (doc.internal.pageSize.width - width) / 2;
-                const y = 10;
-                const height = 30;
-                // Adicione uma imagem, se necessário
-                doc.addImage(imagem, 'PNG', x, y, width, height);
-
-                // Crie o título
-                doc.text("Relatório de funcionários para pagamento", 50, 50);
-
-                const tableData = this.pdf.map((funcionario) => [
-                    funcionario.nome_do_funcionario,
-                    funcionario.funcoes,
-                    funcionario.pix,
-                    funcionario.pis,
-                ]);
-
-                // Crie a tabela de forma dinâmica
-                doc.autoTable({
-                    head: [["Nome", "Funções", "PIX", "Faltas"]],
-                    body: tableData,
-                    startY: 60,
-                });
-
-                // Salve ou abra o PDF
-                doc.save("Relatorio de pagamento.pdf");
-            } catch (error) {
-                console.error("Erro ao obter dados dos funcionários:", error);
-            }
-
         },
         async submitForm() {
 
@@ -146,10 +95,10 @@ export default {
 
             // Cria uma referência para o armazenamento
             const storageRef = ref(storage, 'uploads/' + uniqueImageName);
-            
+
             // Faz o upload da imagem
             const snapshot = await uploadBytes(storageRef, this.imagem);
-            
+
             // Obtém a URL pública da imagem
             const imageUrl = await getDownloadURL(snapshot.ref);
 

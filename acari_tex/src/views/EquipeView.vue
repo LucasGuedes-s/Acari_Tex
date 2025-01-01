@@ -1,6 +1,7 @@
 <template>
   <div>
-    <h1>Minha Equipe</h1>
+    <NavBarUser />
+    <SidebarNav />
     <div>
       <AdicionarFuncionario />
     </div>
@@ -17,9 +18,6 @@
         <section class="buttons">
           <div class="button-container">
             <span class="tooltip" @click="getFuncionario(item.id)">Detalhar</span>
-          </div>
-          <div class="button-container" @click="registro(item.id, item.nome_do_funcionario)">
-            <span class="tooltip">Registro</span>
           </div>
         </section>
       </div>
@@ -40,38 +38,7 @@
           </div>
         </div>
       </conteiner >
-      <conteiner v-if="showModalRegistro" class="modal-background">
-        <div class="modal-content" >
-            <img class="img-close" @click="showModalRegistro = false" src="@/assets/close.png" />
-            <div class="funcionario-modal">
-              <h1>Registro de funcionário: {{ registroFuncionario }}</h1>
-              <div>
-                <label>Registro de funcionário: </label>
-                <select>
-                  <option>15 min</option>
-                  <option>1h</option>
-                  <option>2h</option>
-                  <option>3h</option>
-                  <option>Meio dia</option>
-                  <option>O dia inteiro</option>
-                </select>
-              </div>
-              <div class="button-container">
-                <span class="tooltip">Registrar Horas extras</span>
-              </div>
-              <div class="button-container">
-                <span class="tooltip">Registrar falta</span>
-              </div>
-            </div>
-          </div>
-      </conteiner>
     </div>
-    <div>
-      <SidebarNav />
-    </div>
-    <section>
-      <h1></h1>
-    </section>
   </div>
 </template>
 <script>
@@ -79,6 +46,7 @@ import SidebarNav from '@/components/Sidebar.vue';
 import AdicionarFuncionario from '@/components/AdicionarFuncionario.vue';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
+import NavBarUser from '@/components/NavBarUser.vue';
 
 export default {
   name: 'funcionarios-equipe',
@@ -102,27 +70,10 @@ export default {
   },
   components: {
     SidebarNav,
+    NavBarUser,
     AdicionarFuncionario
   },
   methods: {
-    async registro(id, nome_do_funcionario) {
-      this.showModalRegistro = true
-      this.registroFuncionario = nome_do_funcionario
-      console.log(nome_do_funcionario)
-      console.log(id)
-      
-      /*Axios.get(`http://localhost:3333/Funcionario/${id}`)
-        .then(response => {
-          console.log(response.status)
-          console.log(response.data.funcionario)
-          this.funcionario = response.data.funcionario
-          this.showModalFuncionario = true
-
-        })
-        .catch(error => {
-          console.error(error);
-        });*/
-    },
     async getFuncionario(id) {
       Axios.get(`http://localhost:3333/Funcionario/${id}`)
         .then(response => {

@@ -1,10 +1,13 @@
 <template>
+  <LoginNav />
   <div class="login-container">
+    <img src="@/assets/img.png" alt="Login Image">
+
     <form class="login-form" @submit.prevent="getlogin">
       <h2>Login</h2>
       <div class="form-group">
-        <label for="username">CNPJ:</label>
-        <input type="text" id="username" v-model="cnpj" />
+        <label for="username">E-mail:</label>
+        <input type="text" id="username" v-model="email" />
       </div>
       <div class="form-group">
         <label for="password">Password:</label>
@@ -13,32 +16,41 @@
       <button type="submit" click="getlogin">Login</button>
       <p class="mb-5 pb-lg-2">Não tem acesso? <a href="/cadastro">Registre-se</a></p>
     </form>
-    <img src="@/assets/imagem.png" alt="Login Image">
   </div>
 </template>
 <script>
 import router from '@/router';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
+import { useAuthStore } from '@/store/store.js';
+import LoginNav from '@/components/NavLogin.vue';
 
 export default {
   name: 'HomeAcariTex',
+  components: {
+    LoginNav,
+  },
   data() {
     return {
-      cnpj: null,
+      email: null,
       password: ""
     }
   },
   methods: {
     async getlogin() {
       await Axios.post("http://localhost:3333/user/login", {
-        user: {
-          cnpj: this.cnpj,
+        usuario: {
+          email: this.email,
           senha: this.password,
         }
       }).then(response => {
-        console.log(response.status)
+        const authStore = useAuthStore();
+
+        console.log(response.data.usuario)
         console.log(response.headers.authorization);
+        authStore.setToken(response.headers.authorization );
+        authStore.setUsuario(response.data.usuario);
+
         router.push('/Dashboard')
 
     }).catch( error =>{
@@ -59,7 +71,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 80px;
+  margin-top: 20px;
 }
 
 .login-form {
@@ -79,6 +91,7 @@ export default {
 }
 
 .form-group label {
+  text-align: left;
   display: block;
   margin-bottom: 5px;
 }
@@ -107,6 +120,7 @@ button[type="submit"] {
 
 img {
   max-width: 40%;
+  padding: 40px;
   height: auto;
   margin-right: 20px;
 }

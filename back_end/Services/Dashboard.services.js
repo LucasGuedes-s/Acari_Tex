@@ -1,11 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 prisma = new PrismaClient()
 
-async function getTarefas() {
+async function getTarefas(req) {
     const status = 'Em andamento'
     const tarefas = await prisma.Tarefas.findMany({
         where:{
-            id_estabelecimento: 12824002,
+            id_estabelecimento: req.user.estabelecimento,
             status: status
         }
     });
@@ -19,9 +19,6 @@ async function getTarefas() {
 async function postTarefa(tarefa) {
     const dataAtual = new Date()
     const data = dataAtual.toISOString();
-    estabelecimentoId = 12824002
-
-   //console.log(`Adicionando tarefa, ${tarefa}`)
 
     const tarefas = await prisma.Tarefas.create({
         data: {
@@ -30,7 +27,7 @@ async function postTarefa(tarefa) {
             data_abertura: data,
             notas: tarefa.notas,
             estabelecimento: {
-                connect: { cnpj: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
+                connect: { email: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
             }
         }
     });

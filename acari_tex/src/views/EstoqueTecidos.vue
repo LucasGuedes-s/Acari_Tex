@@ -79,7 +79,6 @@ export default {
       Axios.get(`http://localhost:3333/tecido/estoque`)
         .then(response => {
           console.log(response.status)
-          //console.log(response.data.produtos)
           this.estoque = response.data.produtos
         })
         .catch(error => {
