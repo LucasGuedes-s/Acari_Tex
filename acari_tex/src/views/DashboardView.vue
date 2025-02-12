@@ -1,144 +1,216 @@
 <template>
+  <div>
     <SidebarNav />
     <NavBarUser class="d-none d-md-block" />
-    <div class="container my-3">
-    <div class="row">
-      <div 
-        class="col-12 col-sm-6 col-md-3 mb-3" 
-        v-for="(item, index) in data" 
-        :key="index"
-      >
-        <div :class="`card border-0 shadow h-100 text-center bg-${item.bgColor}`">
-          <div class="card-body">
-            <div class="d-flex justify-content-center align-items-center mb-3">
-              <i :class="item.icon" style="font-size: 2rem;"></i>
+    <main class="flex-grow-1 container my-4 mt-md-0 mt-3">
+      <div class="row">
+        <!-- Card: Não iniciadas -->
+        <div class="col-12 col-sm-6 col-md-3 mb-3">
+          <div class="card border-0 shadow h-100 text-center bg-light-pink">
+            <div class="card-body">
+              <div class="d-flex justify-content-center align-items-center mb-3">
+                <i class="bi bi-kanban" style="font-size: 2rem;"></i>
+              </div>
+              <h3 class="card-title mb-1">{{ pecasNaoIniciadas }}</h3>
+              <p class="card-text">Não iniciadas</p>
             </div>
-            <h3 class="card-title mb-1">{{ item.count }}</h3>
-            <p class="card-text">{{ item.label }}</p>
+          </div>
+        </div>
+
+        <!-- Card: Em andamento -->
+        <div class="col-12 col-sm-6 col-md-3 mb-3">
+          <div class="card border-0 shadow h-100 text-center bg-light-blue">
+            <div class="card-body">
+              <div class="d-flex justify-content-center align-items-center mb-3">
+                <i class="bi bi-graph-up-arrow" style="font-size: 2rem;"></i>
+              </div>
+              <h3 class="card-title mb-1">{{ pecasEmProgresso }}</h3>
+              <p class="card-text">Em andamento</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Aguardando coleta -->
+        <div class="col-12 col-sm-6 col-md-3 mb-3">
+          <div class="card border-0 shadow h-100 text-center bg-green">
+            <div class="card-body">
+              <div class="d-flex justify-content-center align-items-center mb-3">
+                <i class="bi bi-truck" style="font-size: 2rem;"></i>
+              </div>
+              <h3 class="card-title mb-1">{{ pecasColeta }}</h3>
+              <p class="card-text">Aguardando coleta</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card: Concluídas -->
+        <div class="col-12 col-sm-6 col-md-3 mb-3">
+          <div class="card border-0 shadow h-100 text-center bg-light-green">
+            <div class="card-body">
+              <div class="d-flex justify-content-center align-items-center mb-3">
+                <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
+              </div>
+              <h3 class="card-title mb-1">{{ pecasConcluidas }}</h3>
+              <p class="card-text">Concluídas</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <div class="row">
+        <div class="col-12 justify-content-left">
+          <canvas id="pecasChart" width="800" height="400" style="background-color: #ffff;"></canvas>
+        </div>
+      </div>
+    </main>
   </div>
 </template>
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import Axios from 'axios'
-import Swal from 'sweetalert2'
 import NavBarUser from '@/components/NavBarUser.vue';
+import { useAuthStore } from '@/store/store';
+import { Chart, registerables } from 'chart.js';
+import Axios from 'axios';
+
+Chart.register(...registerables);
 
 export default {
-  name: 'Dashbboard-home',
+  name: 'DashboardHome',
+  setup() {
+    const store = useAuthStore();
+    return {
+      store,
+    };
+  },
   data() {
     return {
       id: 1,
-      estoque: null,
-      quantidadeDeTecidos: null,
-      showModalProduto: false,
-      tarefas: null,
-      tarefa: null,
-      notas: null,
-      nova_data: null,
-      data: [
-        { count: "02", label: "Não iniciadas", icon: "bi bi-kanban", bgColor: "light-pink" },
-        { count: "08", label: "Em andamento", icon: "bi bi-graph-up-arrow", bgColor: "light-blue" },
-        { count: "06", label: "Concluídas", icon: "bi bi-check-circle", bgColor: "light-green" },
-        { count: "12", label: "Aguardando coleta", icon: "bi bi-truck", bgColor: "green" },
-      ]
-    }
+      pecas: {
+        finalizado: [],
+        em_progresso: [],
+        Iniciado: [],
+        coleta: [],
+      },
+      chartInstance: null,
+    };
   },
-
-  methods: {
-    async postTarefa() {
-      await Axios.post("http://localhost:3333/AdicionarTarefa", {
-        tarefa: {
-          tarefa: this.tarefa,
-          notas: this.notas,
-        }
-      }).then(
-        Swal.fire({
-          icon: 'success',
-          title: 'Tarefa Adicionado!',
-          text: 'Sua tarefa foi adicionada com sucesso.',
-          timer: 4000,
-          timerProgressBar: true,
-          showConfirmButton: false
-        }),
-        this.tarefa = '',
-        this.notas = '',
-        this.getTarefas(),
-      ).catch(error => {
-        console.error(error)
-      })
+  computed: {
+    pecasNaoIniciadas() {
+      return this.pecas.Iniciado.length;
     },
-    async alterarStatus(id_tarefa) {
-      const confirmResult = await Swal.fire({
-        title: 'Marcar como concluído?',
-        text: 'Tem certeza que deseja marcar como concluído?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Sim',
-        cancelButtonText: 'Cancelar'
+    pecasEmProgresso() {
+      return this.pecas.em_progresso.length;
+    },
+    pecasConcluidas() {
+      return this.pecas.finalizado.length;
+    },
+    pecasColeta() {
+      return this.pecas.coleta.length;
+    },
+  },
+  mounted() {
+    this.fetchData();
+  },
+  methods: {
+    async fetchData() {
+      try {
+        const token = this.store.pegar_token;
+        const response = await Axios.get("http://localhost:3333/pecas", {
+          headers: {
+            Authorization: `${token}`,
+          },
+        });
+        this.pecas = response.data.peca;
+        this.renderChart();
+      } catch (error) {
+        console.error("Erro ao buscar os dados:", error);
+      }
+    },
+    renderChart() {
+      const ctx = document.getElementById('pecasChart').getContext('2d');
+
+      if (this.chartInstance) {
+        this.chartInstance.destroy();
+      }
+
+      this.chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Não Iniciadas', 'Em Andamento', 'Aguardando Coleta', 'Concluídas'],
+          datasets: [
+            {
+              label: 'Quantidade de Peças',
+              data: [
+                this.pecasNaoIniciadas,
+                this.pecasEmProgresso,
+                this.pecasColeta,
+                this.pecasConcluidas,
+              ],
+              backgroundColor: [
+                'rgba(255, 99, 132, 0.2)',
+                'rgba(54, 162, 235, 0.2)',
+                'rgba(75, 192, 192, 0.2)',
+                'rgba(153, 102, 255, 0.2)'
+              ],
+              borderColor: [
+                'rgba(255, 99, 132, 1)',
+                'rgba(54, 162, 235, 1)',
+                'rgba(75, 192, 192, 1)',
+                'rgba(153, 102, 255, 1)'
+              ],
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+            },
+            title: {
+              display: true,
+              text: 'Status das Peças',
+            },
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Status',
+              },
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Quantidade',
+              },
+            },
+          },
+        },
       });
-      if (confirmResult.isConfirmed) {
-        await Axios.post(`http://localhost:3333/Tarefas/Status/${id_tarefa}`)
-          .then(response => {
-            console.log(response.status)
-            this.getTarefas(),
-              Swal.fire({
-                icon: 'success',
-                title: 'Tarefa Concluida!',
-                text: 'Sua tarefa foi concluida com sucesso.',
-                timer: 2000,
-                timerProgressBar: true,
-                showConfirmButton: false
-              })
-          })
-          .catch(error => {
-            console.error(error);
-          });
-      }
-      else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
-        console.log('Cancelado')
-      }
-    }
+    },
   },
   components: {
     SidebarNav,
-    NavBarUser
-  }
-
-
-}
+    NavBarUser,
+  },
+};
 </script>
 
 <style scoped>
-.container{
+.container {
   margin-left: 200px;
 }
-.row{
+.row {
   margin-top: 100px;
 }
-.bg-light-pink {
-  background-color: #fdecef;
-}
-.bg-light-blue {
-  background-color: #e8f9fd;
-}
-.bg-light-green {
-  background-color: #e6fbe9;
-}
-.bg-green {
-  background-color: #d1f5d3;
-}
-.card-title {
-  font-size: 1.5rem;
-  font-weight: bold;
-}
-@media screen and (max-width: 600px) {
-  .container{
-    width: 50%;
-  }
+#pecasChart {
+  max-width: 800px;
+  max-height: 800px;
+  margin: auto;
 }
 </style>

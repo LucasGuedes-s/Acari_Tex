@@ -35,6 +35,7 @@ async function loginUser(user) {
         const token = jwt.sign(dados_usuario, config.jwtSecret, {
             expiresIn: 86400 // 24 hours
         });
+        console.log(token)
         return {token: token, dados_usuario}
     } else {
         throw new Error(`Usuário ou senha inválidos.`); 

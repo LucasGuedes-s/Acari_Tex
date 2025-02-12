@@ -11,7 +11,7 @@ async function postOP(req, res, next){
 }
 async function getOPs(req, res, next){
     try {
-        const peca = await pecas.getPecasOP(req);
+        const peca = await pecas.getPecasOP(req.user);
         res.status(200).json({peca});
     } catch (err) {
         console.error(`Erro ao obter peças.`, err.message);
