@@ -1,87 +1,104 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
-
 const saltRounds = 10; // Número de rounds para criptografia da senha
 
-async function firstRun() {
-    console.log('DATABASE_URL:', process.env.DATABASE_URL);
+async function main() {
+  console.log("🔍 Verificando se os dados iniciais já existem...");
+  const cnpj = process.env.CNPJ;
+  const senhaTexto = process.env.SENHA;
+  const nomeUsuario = process.env.USER_PADRAO || 'Administrador Padrão';
+  const emailUsuario = 'admin@admin.com';
+  const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);
 
-    // Variáveis de ambiente
-    const cnpj = process.env.CNPJ;
-    const senhaTexto = process.env.SENHA;
-    const nomeUsuario = process.env.USER_PADRAO || 'Administrador Padrão';
-    const emailUsuario = 'admin@admin.com';
+  // 1️⃣ Criar Etapas fixas (se não existirem)
+  const etapasFixas = ["Corte", "Costura", "Acabamento", "Embalagem"];
+  for (const descricao of etapasFixas) {
+    const etapaExistente = await prisma.etapa.findUnique({
+      where: { descricao },
+    });
 
-    try {
-        // Verifica se o estabelecimento já existe
-        const estabelecimentoExistente = await prisma.Estabelecimento.findUnique({
-            where: {
-                cnpj: cnpj,
-            },
-        });
-
-        // Se o estabelecimento já existe, encerra
-        if (estabelecimentoExistente) {
-            console.log('Estabelecimento já existe. Verifique os dados.');
-            return;
-        }
-
-        // Cria o usuário administrador
-        console.log('Criando usuário administrador...');
-        const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);
-
-        const usuario = await prisma.usuarios.create({
-            data: {
-                email: emailUsuario,
-                nome: nomeUsuario,
-                senha: senhaCriptografada,
-                foto: 'https://via.placeholder.com/150', // Foto padrão
-                idade: 30, // Idade padrão
-                funcoes: 'Administrador',
-                notas: 'Usuário criado automaticamente pelo sistema.',
-            },
-        });
-        console.log('Usuário administrador criado:', usuario);
-
-        // Cria o estabelecimento vinculado ao usuário
-        console.log('Criando estabelecimento...');
-        const estabelecimento = await prisma.estabelecimento.create({
-            data: {
-                cnpj: cnpj,
-                id_usuarios: usuario.email, // Relaciona o usuário ao estabelecimento
-                estoque_tecidos: {
-                    create: [
-                        {
-                            nome_do_tecido: 'Tecido de Exemplo',
-                            valor: 50.0,
-                            fornecedor: 'Fornecedor Exemplo',
-                            estoque: 200,
-                            data_: new Date(),
-                            notas: 'Tecido inicial adicionado automaticamente.',
-                        },
-                    ],
-                },
-                estoque_agulhas: {
-                    create: [
-                        {
-                            valor: 5.0,
-                            fornecedor: 'Fornecedor Exemplo',
-                            numeracao: '14',
-                            estoque: 500,
-                            data: new Date(),
-                            notas: 'Agulha inicial adicionada automaticamente.',
-                        },
-                    ],
-                },
-            },
-        });
-        console.log('Estabelecimento criado com sucesso:', estabelecimento);
-    } catch (error) {
-        console.error('Erro durante o processo de firstRun:', error.message);
-    } finally {
-        await prisma.$disconnect();
+    if (!etapaExistente) {
+      await prisma.etapa.create({
+        data: { descricao },
+      });
+      console.log(`✅ Etapa criada: ${descricao}`);
     }
+  }
+
+  // 2️⃣ Criar Usuário Admin se não existir
+  let admin = await prisma.usuarios.findUnique({
+    where: { email: emailUsuario },
+  });
+
+  if (!admin) {
+    admin = await prisma.usuarios.create({
+      data: {
+        nome: "Administrador",
+        email: emailUsuario,
+        senha: senhaCriptografada, // ⚠️ Alterar para hash seguro em produção!
+        foto: "https://firebasestorage.googleapis.com/v0/b/clinica-maria-luiza.appspot.com/o/uploads%2Ffuncionarios2.svg?alt=media&token=cc7511c0-9e76-4cd6-9e33-891bbb3cfd1c",
+        idade: 35,
+        funcoes: "Administrador",
+      },
+    });
+    console.log("✅ Usuário admin criado.");
+  }
+
+  // 3️⃣ Criar Estabelecimento se não existir
+  const cnpjEstabelecimento = "12345678000199";
+  let estabelecimento = await prisma.estabelecimento.findUnique({
+    where: { cnpj: cnpjEstabelecimento },
+  });
+
+  if (!estabelecimento) {
+    estabelecimento = await prisma.estabelecimento.create({
+      data: {
+        cnpj: cnpjEstabelecimento,
+        id_usuarios: emailUsuario,
+      },
+    });
+    console.log("✅ Estabelecimento criado.");
+  }
+
+  // 4️⃣ Criar uma Peça de Produção vinculada ao Estabelecimento
+  const pecaExistente = await prisma.pecasOP.findFirst({
+    where: { id_Estabelecimento: cnpjEstabelecimento },
+  });
+
+  if (!pecaExistente) {
+    const novaPeca = await prisma.pecasOP.create({
+      data: {
+        id_Estabelecimento: cnpjEstabelecimento,
+        status: "Em produção",
+        descricao: "Camiseta Algodão",
+        quantidade_pecas: 100,
+        pedido_por: "Cliente X",
+        valor_peca: 25.5,
+      },
+    });
+    console.log(`✅ Peça criada: ${novaPeca.descricao}`);
+
+    // 5️⃣ Associar a peça às etapas
+    const etapas = await prisma.etapa.findMany();
+    for (const etapa of etapas) {
+      await prisma.pecasEtapas.create({
+        data: {
+          id_da_op: novaPeca.id_da_op,
+          id_da_funcao: etapa.id_da_funcao,
+        },
+      });
+      console.log(`🔗 Peça vinculada à etapa: ${etapa.descricao}`);
+    }
+  }
+
+  console.log("🎉 Configuração inicial concluída!");
 }
 
-module.exports = firstRun;
+main()
+  .catch((e) => {
+    console.error("❌ Erro:", e);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

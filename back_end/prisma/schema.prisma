@@ -6,6 +6,10 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "/home/gabriel/ERD.svg"
+}
 
 model Usuarios {
   nome                String
@@ -35,7 +39,7 @@ model Estabelecimento {
 }
 
 model PecasOP {
-  id_da_op           Int     @id @default(autoincrement())
+  id_da_op           Int       @id @default(autoincrement())
   Estabelecimento    Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
   id_Estabelecimento String
   status             String?
@@ -46,19 +50,39 @@ model PecasOP {
   data_do_pedido     String?
   data_de_entrega    String?
   notas              String?
-  producao_peca      Producao[] // Agora correta a relação
+  producao_peca      Producao[]
+
+  etapas             PecasEtapas[] // Relacionamento M:N através da tabela intermediária
+}
+
+model Etapa {
+  id_da_funcao  Int     @id @default(autoincrement())
+  descricao     String  @unique // Nome da etapa deve ser único
+  pecas         PecasEtapas[]  // Relacionamento M:N através da tabela intermediária
+}
+
+// Tabela intermediária para conectar PecasOP e Etapa (Relacionamento M:N)
+model PecasEtapas {
+  id_da_op      Int
+  id_da_funcao  Int
+
+  peca_op       PecasOP @relation(fields: [id_da_op], references: [id_da_op], onDelete: Cascade)
+  etapa         Etapa   @relation(fields: [id_da_funcao], references: [id_da_funcao], onDelete: Cascade)
+
+  @@id([id_da_op, id_da_funcao]) // Chave composta para garantir unicidade
 }
 
 model Producao {
   id_da_producao         Int     @id @default(autoincrement())
-  quantidade_pecas       Int 
+  quantidade_pecas       Int?
   Estabelecimento        Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
   id_Estabelecimento     String
   producao_peca          PecasOP  @relation(fields: [id_da_op], references: [id_da_op]) // Correção da relação
   id_da_op               Int // O campo de relacionamento correto
   producao_funcionario   Usuarios  @relation(fields: [id_funcionario], references: [email]) // Referência ao campo correto
   id_funcionario         String
-  data                   String?
+  data_inicio            String? // Data de início da etapa
+  data_fim               String? // Data de término da etapa
 }
 
 model Estoque_Tecidos {

@@ -1,7 +1,8 @@
 <template>
-  <div class="container position-absolute top-0 end-0 p-3">
-    <div class="row align-items-center justify-content-end">
-      <div class="col-md-6 user-info d-flex align-items-center justify-content-end">
+  <div class="container-fluid px-4"> 
+    <div class="row align-items-center justify-content-between">
+      <!-- Informações do usuário alinhadas à direita -->
+      <div class="col-auto ms-auto user-info d-flex align-items-center">
         <!-- Botão de "+" -->
         <button class="btn btn-sm border d-flex align-items-center justify-content-center"
           style="width: 40px; height: 40px; border-radius: 50%;" @click="Adicionar()">
@@ -18,7 +19,6 @@
       </div>
     </div>
   </div>
-
 </template>
 <script>
 import router from '@/router';
@@ -46,9 +46,11 @@ export default {
         showDenyButton: true,
         denyButtonText: 'Adicionar funcionário',
       });
-      console.log(resultado)
       if (resultado.isConfirmed) {
         router.push('/Adicionar/peca')
+      }
+      if (resultado.isDenied) {
+        router.push('/Adicionar/funcionario')
       }
     }
   }
@@ -60,4 +62,16 @@ export default {
   background-color: #00692b;
   color: rgb(255, 255, 255);
 }
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .user-info {
+    flex-direction: row; /* Mantém os itens alinhados horizontalmente */
+  }
+}
+
 </style>

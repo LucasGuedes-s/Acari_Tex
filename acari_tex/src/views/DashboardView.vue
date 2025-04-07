@@ -1,66 +1,34 @@
 <template>
-  <div>
-    <SidebarNav />
-    <NavBarUser class="d-none d-md-block" />
-    <main class="flex-grow-1 container my-4 mt-md-0 mt-3">
-      <div class="row">
-        <!-- Card: Não iniciadas -->
-        <div class="col-12 col-sm-6 col-md-3 mb-3">
-          <div class="card border-0 shadow h-100 text-center bg-light-pink">
-            <div class="card-body">
-              <div class="d-flex justify-content-center align-items-center mb-3">
-                <i class="bi bi-kanban" style="font-size: 2rem;"></i>
-              </div>
-              <h3 class="card-title mb-1">{{ pecasNaoIniciadas }}</h3>
-              <p class="card-text">Não iniciadas</p>
-            </div>
+  <div class="d-flex flex-column flex-md-row">
+    <!-- Sidebar fixa -->
+    <SidebarNav style="z-index: 1"/>
+
+    <!-- Conteúdo Principal -->
+    <main class="content-wrapper flex-grow-1">
+      <div class="container-fluid my-4 mt-md-0 mt-3">
+        
+        <!-- Linha do Usuário e Cards -->
+        <div class="row justify-content-center">
+          <NavBarUser class="d-none d-md-block" />
+        </div>
+
+        <div class="row justify-content-center text-center">
+          <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
+          <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso" class="bg-light-blue" />
+          <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
+          <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+        </div>
+
+        <!-- Gráficos -->
+        <div class="row justify-content-center">
+          <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
+            <canvas ref="pecasBarChart" width="800" height="400"></canvas>
+          </div>
+          <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
+            <canvas ref="pecasLineChart" width="800" height="400"></canvas>
           </div>
         </div>
 
-        <!-- Card: Em andamento -->
-        <div class="col-12 col-sm-6 col-md-3 mb-3">
-          <div class="card border-0 shadow h-100 text-center bg-light-blue">
-            <div class="card-body">
-              <div class="d-flex justify-content-center align-items-center mb-3">
-                <i class="bi bi-graph-up-arrow" style="font-size: 2rem;"></i>
-              </div>
-              <h3 class="card-title mb-1">{{ pecasEmProgresso }}</h3>
-              <p class="card-text">Em andamento</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card: Aguardando coleta -->
-        <div class="col-12 col-sm-6 col-md-3 mb-3">
-          <div class="card border-0 shadow h-100 text-center bg-green">
-            <div class="card-body">
-              <div class="d-flex justify-content-center align-items-center mb-3">
-                <i class="bi bi-truck" style="font-size: 2rem;"></i>
-              </div>
-              <h3 class="card-title mb-1">{{ pecasColeta }}</h3>
-              <p class="card-text">Aguardando coleta</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card: Concluídas -->
-        <div class="col-12 col-sm-6 col-md-3 mb-3">
-          <div class="card border-0 shadow h-100 text-center bg-light-green">
-            <div class="card-body">
-              <div class="d-flex justify-content-center align-items-center mb-3">
-                <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
-              </div>
-              <h3 class="card-title mb-1">{{ pecasConcluidas }}</h3>
-              <p class="card-text">Concluídas</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-12 justify-content-left">
-          <canvas id="pecasChart" width="800" height="400" style="background-color: #ffff;"></canvas>
-        </div>
       </div>
     </main>
   </div>
@@ -69,6 +37,7 @@
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
 import NavBarUser from '@/components/NavBarUser.vue';
+import DashboardCard from '@/components/DashboardCard.vue';
 import { useAuthStore } from '@/store/store';
 import { Chart, registerables } from 'chart.js';
 import Axios from 'axios';
@@ -77,38 +46,39 @@ Chart.register(...registerables);
 
 export default {
   name: 'DashboardHome',
+  components: { SidebarNav, NavBarUser, DashboardCard },
   setup() {
     const store = useAuthStore();
-    return {
-      store,
-    };
+    return { store };
   },
   data() {
     return {
-      id: 1,
       pecas: {
         finalizado: [],
         em_progresso: [],
-        Iniciado: [],
+        nao_iniciado: [],
         coleta: [],
       },
-      chartInstance: null,
+      chartInstances: {
+        barChart: null,
+        lineChart: null,
+      },
     };
   },
   computed: {
     pecasNaoIniciadas() {
-      return this.pecas.Iniciado.length;
+      return this.pecas?.Iniciado?.length || 0;
     },
     pecasEmProgresso() {
-      return this.pecas.em_progresso.length;
+      return this.pecas?.em_progresso?.length || 0;
     },
     pecasConcluidas() {
-      return this.pecas.finalizado.length;
+      return this.pecas?.finalizado?.length || 0;
     },
     pecasColeta() {
-      return this.pecas.coleta.length;
-    },
-  },
+      return this.pecas?.coleta?.length || 0;
+    }
+},
   mounted() {
     this.fetchData();
   },
@@ -117,100 +87,95 @@ export default {
       try {
         const token = this.store.pegar_token;
         const response = await Axios.get("http://localhost:3333/pecas", {
-          headers: {
-            Authorization: `${token}`,
-          },
+          headers: { Authorization: `${token}` },
         });
         this.pecas = response.data.peca;
-        this.renderChart();
+        this.$nextTick(this.renderCharts);
       } catch (error) {
         console.error("Erro ao buscar os dados:", error);
       }
     },
-    renderChart() {
-      const ctx = document.getElementById('pecasChart').getContext('2d');
+    renderCharts() {
+      const barCtx = this.$refs.pecasBarChart.getContext('2d');
+      const lineCtx = this.$refs.pecasLineChart.getContext('2d');
 
-      if (this.chartInstance) {
-        this.chartInstance.destroy();
-      }
+      if (this.chartInstances.barChart) this.chartInstances.barChart.destroy();
+      if (this.chartInstances.lineChart) this.chartInstances.lineChart.destroy();
 
-      this.chartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: ['Não Iniciadas', 'Em Andamento', 'Aguardando Coleta', 'Concluídas'],
-          datasets: [
-            {
-              label: 'Quantidade de Peças',
-              data: [
-                this.pecasNaoIniciadas,
-                this.pecasEmProgresso,
-                this.pecasColeta,
-                this.pecasConcluidas,
-              ],
-              backgroundColor: [
-                'rgba(255, 99, 132, 0.2)',
-                'rgba(54, 162, 235, 0.2)',
-                'rgba(75, 192, 192, 0.2)',
-                'rgba(153, 102, 255, 0.2)'
-              ],
-              borderColor: [
-                'rgba(255, 99, 132, 1)',
-                'rgba(54, 162, 235, 1)',
-                'rgba(75, 192, 192, 1)',
-                'rgba(153, 102, 255, 1)'
-              ],
-              borderWidth: 1
-            }
-          ]
+      const chartData = {
+        labels: ['Não Iniciadas', 'Em Andamento', 'Aguardando Coleta', 'Concluídas'],
+        datasets: [{
+          label: 'Quantidade de Peças',
+          data: [
+            this.pecasNaoIniciadas,
+            this.pecasEmProgresso,
+            this.pecasColeta,
+            this.pecasConcluidas,
+          ],
+          backgroundColor: ['#FF6384', '#36A2EB', '#4BC0C0', '#9966FF'],
+          borderColor: ['#FF6384', '#36A2EB', '#4BC0C0', '#9966FF'],
+          borderWidth: 1,
+        }],
+      };
+
+      const chartOptions = {
+        responsive: true,
+        plugins: {
+          legend: { display: true, position: 'top' },
+          title: { display: true, text: 'Status das Peças' },
         },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-            },
-            title: {
-              display: true,
-              text: 'Status das Peças',
-            },
-          },
-          scales: {
-            x: {
-              title: {
-                display: true,
-                text: 'Status',
-              },
-            },
-            y: {
-              beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Quantidade',
-              },
-            },
-          },
+        scales: {
+          x: { title: { display: true, text: 'Status' } },
+          y: { beginAtZero: true, title: { display: true, text: 'Quantidade' } },
         },
-      });
+      };
+
+      this.chartInstances.barChart = new Chart(barCtx, { type: 'bar', data: chartData, options: chartOptions });
+      this.chartInstances.lineChart = new Chart(lineCtx, { type: 'line', data: chartData, options: chartOptions });
     },
-  },
-  components: {
-    SidebarNav,
-    NavBarUser,
   },
 };
 </script>
 
 <style scoped>
-.container {
-  margin-left: 200px;
+.d-flex {
+  display: flex;
+  flex-direction: row; /* Coloca sidebar e conteúdo lado a lado */
+  height: 100vh; /* Garante que o conteúdo ocupe toda a altura da tela */
 }
+
+.content-wrapper {
+  flex-grow: 1;
+  padding-left: 200px; /* Espaço para a sidebar */
+  width: 100%;
+}
+
+.container-fluid {
+  max-width: 1200px; /* Define um limite para não ficar muito largo */
+  margin: auto; /* Centraliza o conteúdo */
+}
+
 .row {
-  margin-top: 100px;
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center; /* Centraliza os elementos */
 }
-#pecasChart {
-  max-width: 800px;
-  max-height: 800px;
-  margin: auto;
+
+canvas {
+  max-width: 100%;
+  height: auto;
+  background-color: white;
+}
+
+/* Garante espaçamento adequado em telas menores */
+@media (max-width: 768px) {
+  .d-flex {
+    flex-direction: column; /* Sidebar fica acima do conteúdo */
+  }
+  .content-wrapper {
+    padding-left: 80px; /* Remove a margem lateral */
+    z-index: 0;
+  }
 }
 </style>

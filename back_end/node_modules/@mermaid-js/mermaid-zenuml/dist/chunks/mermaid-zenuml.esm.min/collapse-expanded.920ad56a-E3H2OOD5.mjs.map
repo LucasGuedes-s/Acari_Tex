@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../node_modules/.pnpm/@zenuml+core@3.17.2_ts-node@10.9.2_typescript@5.3.3/node_modules/@zenuml/core/dist/collapse-expanded.920ad56a.js"],
+  "sourcesContent": ["import { o as e, c as o, a as t } from \"./core.0767a1be.js\";\nconst n = {\n  xmlns: \"http://www.w3.org/2000/svg\",\n  fill: \"none\",\n  stroke: \"currentColor\",\n  \"stroke-linecap\": \"round\",\n  viewBox: \"0 0 24 24\"\n}, r = /* @__PURE__ */ t(\"path\", { d: \"m14 10 7-7M20 10h-6V4M3 21l7-7M4 14h6v6\" }, null, -1), s = [\n  r\n];\nfunction c(a, l) {\n  return e(), o(\"svg\", n, s);\n}\nconst h = { render: c };\nexport {\n  h as default,\n  c as render\n};\n//# sourceMappingURL=collapse-expanded.920ad56a.js.map\n"],
+  "mappings": "gGACA,IAAMA,EAAI,CACR,MAAO,6BACP,KAAM,OACN,OAAQ,eACR,iBAAkB,QAClB,QAAS,WACX,EAAGC,EAAoBC,EAAE,OAAQ,CAAE,EAAG,yCAA0C,EAAG,KAAM,EAAE,EAAGC,EAAI,CAChGF,CACF,EACA,SAASG,EAAEC,EAAGC,EAAG,CACf,OAAOC,EAAE,EAAGC,EAAE,MAAOR,EAAGG,CAAC,CAC3B,CAFSM,EAAAL,EAAA,KAGT,IAAM,EAAI,CAAE,OAAQA,CAAE",
+  "names": ["n", "r", "S", "s", "c", "a", "l", "R", "q", "__name"]
+}

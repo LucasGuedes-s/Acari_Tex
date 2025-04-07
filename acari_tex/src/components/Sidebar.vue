@@ -24,9 +24,9 @@
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/Eficiencia" class="d-flex align-items-center text-reset">
+            <router-link to="/Producao" class="d-flex align-items-center text-reset">
               <i class="bi bi-bar-chart-line-fill icon"></i>
-              <span v-if="!isMinimized" class="ms-2">Eficiencia</span>
+              <span v-if="!isMinimized" class="ms-2">Produção</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">

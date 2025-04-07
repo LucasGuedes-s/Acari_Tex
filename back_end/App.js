@@ -13,11 +13,6 @@ app.use(function(req, res, next) {
     next();
 });
 
-//Primeira vez que o sistema é executado
-const firstRun = require('./firstRun.util.js');
-firstRun();
-
-
 app.set('trust proxy', 1);
 
 const routerEstoque = require('./Routes/EstoqueTecido.router.js');

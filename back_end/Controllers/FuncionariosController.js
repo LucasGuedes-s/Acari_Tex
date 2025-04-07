@@ -1,9 +1,8 @@
 const Funcionarios = require('../Services/Funcionarios.services')
 
 async function getEquipe(req, res, next){
-    console.log('Cheguei aqui')
     try {
-        const funcionarios = await Funcionarios.getFuncionarios();
+        const funcionarios = await Funcionarios.getFuncionarios(req.user);
         res.status(200).json({funcionarios:funcionarios});
     } catch (err) {
         console.error(`Erro ao obter funcionários.`, err.message);

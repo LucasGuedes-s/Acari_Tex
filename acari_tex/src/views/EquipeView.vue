@@ -10,7 +10,6 @@
         <img :src="item.foto">
         <div class="funcionario">Nome: {{ item.nome_do_funcionario }}</div>
         <div class="funcionario">Funções: {{ item.funcoes }}</div>
-        <div class="funcionario">PIX: {{ item.pix }}</div>
         <div class="funcionario">Notas: {{ item.notas }}</div>
         <div class="button-container" @click="demitirFuncionario()">
           <span class="tooltip-demitir">Demitir</span>
@@ -47,9 +46,14 @@ import AdicionarFuncionario from '@/components/AdicionarFuncionario.vue';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
 import NavBarUser from '@/components/NavBarUser.vue';
+import { useAuthStore } from '@/store/store';
 
 export default {
   name: 'funcionarios-equipe',
+  setup() {
+    const store = useAuthStore();
+    return { store };
+  },
   data() {
     return {
       showModalFuncionario: false,
@@ -88,16 +92,23 @@ export default {
         });
     },
     async getFuncionarios() {
-      Axios.get(`http://localhost:3333/Funcionarios`)
+      const token = this.store.pegar_token;
+
+      Axios.get(`http://localhost:3333/Funcionarios`, {
+        headers: {
+          Authorization: `${token}` // Enviando o token no cabeçalho
+        }
+      })
         .then(response => {
-          console.log(response.status)
-          console.log(response.data.funcionarios)
-          this.funcionarios = response.data.funcionarios
+          console.log(response.status);
+          console.log(response.data.funcionarios);
+          this.funcionarios = response.data.funcionarios;
         })
         .catch(error => {
           console.error(error);
         });
     },
+
     async demitirFuncionario() {
       Swal.fire({
         title: 'Confirmar Demissão',

@@ -2,12 +2,22 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function getFuncionarios(req, res) {
-    const funcionarios = await prisma.Funcionarios.findMany({});
+    const { cnpj } = req; // Pegando o CNPJ do estabelecimento da requisição
+    console.log(req)
+    const funcionarios = await prisma.Usuarios.findMany({
+        where: {
+            Estabelecimento: {
+                some: { cnpj } // Filtra funcionários do estabelecimento específico
+            }
+        }
+    });
 
-    if (!funcionarios) {
-        throw new Error('Nenhum funcionário cadastrado');
+    if (!funcionarios.length) {
+        return 'Nenhum funcionário encontrado para este estabelecimento';
     }
+
     return funcionarios;
+
 }
 
 async function getFuncionario(req, res) {
@@ -23,7 +33,7 @@ async function getFuncionario(req, res) {
         }
 
         res.json(funcionario);
-        
+
     } catch (error) {
         res.status(500).json({ error: 'Erro ao buscar funcionário' });
     }

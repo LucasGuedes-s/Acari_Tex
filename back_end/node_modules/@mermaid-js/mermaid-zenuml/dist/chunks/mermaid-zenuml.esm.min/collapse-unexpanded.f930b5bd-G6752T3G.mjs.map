@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../node_modules/.pnpm/@zenuml+core@3.17.2_ts-node@10.9.2_typescript@5.3.3/node_modules/@zenuml/core/dist/collapse-unexpanded.f930b5bd.js"],
+  "sourcesContent": ["import { o, c as t, a as e } from \"./core.0767a1be.js\";\nconst n = {\n  xmlns: \"http://www.w3.org/2000/svg\",\n  fill: \"currentColor\",\n  viewBox: \"0 0 24 24\"\n}, r = /* @__PURE__ */ e(\"g\", {\n  fill: \"none\",\n  stroke: \"currentColor\",\n  \"stroke-linecap\": \"round\",\n  \"stroke-linejoin\": \"round\"\n}, [\n  /* @__PURE__ */ e(\"path\", {\n    d: \"M3 17.3V21h3.7\",\n    \"data-name\": \"Right\"\n  }),\n  /* @__PURE__ */ e(\"path\", { d: \"m10 14-6.2 6.2M14 10l6.2-6.2\" }),\n  /* @__PURE__ */ e(\"path\", {\n    d: \"M21 6.7V3h-3.7\",\n    \"data-name\": \"Right\"\n  })\n], -1), a = [\n  r\n];\nfunction s(c, d) {\n  return o(), t(\"svg\", n, a);\n}\nconst i = { render: s };\nexport {\n  i as default,\n  s as render\n};\n//# sourceMappingURL=collapse-unexpanded.f930b5bd.js.map\n"],
+  "mappings": "gGACA,IAAMA,EAAI,CACR,MAAO,6BACP,KAAM,eACN,QAAS,WACX,EAAGC,EAAoBC,EAAE,IAAK,CAC5B,KAAM,OACN,OAAQ,eACR,iBAAkB,QAClB,kBAAmB,OACrB,EAAG,CACeA,EAAE,OAAQ,CACxB,EAAG,iBACH,YAAa,OACf,CAAC,EACeA,EAAE,OAAQ,CAAE,EAAG,8BAA+B,CAAC,EAC/CA,EAAE,OAAQ,CACxB,EAAG,iBACH,YAAa,OACf,CAAC,CACH,EAAG,EAAE,EAAGC,EAAI,CACVF,CACF,EACA,SAASG,EAAEC,EAAGC,EAAG,CACf,OAAOC,EAAE,EAAGC,EAAE,MAAOR,EAAGG,CAAC,CAC3B,CAFSM,EAAAL,EAAA,KAGT,IAAMM,EAAI,CAAE,OAAQN,CAAE",
+  "names": ["n", "r", "S", "a", "s", "c", "d", "R", "q", "__name", "i"]
+}
