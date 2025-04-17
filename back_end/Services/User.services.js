@@ -5,7 +5,6 @@ prisma = new PrismaClient()
 
 const bcrypt = require('bcrypt');
 
-
 async function loginUser(user) {
     const usuario = await prisma.Usuarios.findFirst({ //A função findFirst faz uma busca na tabela usuários do banco de dados pelo email digitado pelo usuário 
         where: {
@@ -25,7 +24,7 @@ async function loginUser(user) {
     }
     const senhavalida = bcrypt.compareSync(user.usuario.senha, usuario.senha); //A senha digitada pelo usuário é criptografada e testada pelo API de criptografia bcrypt.
     let dados_usuario = {
-        cnpj: usuario.Estabelecimento[0].cnpj, 
+        cnpj: usuario.Estabelecimento.cnpj, 
         funcoes: usuario.funcoes,
         email: usuario.email, 
         nome: usuario.nome,

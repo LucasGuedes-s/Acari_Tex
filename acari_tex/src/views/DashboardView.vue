@@ -172,6 +172,7 @@ canvas {
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column; /* Sidebar fica acima do conteúdo */
+    height: auto;
   }
   .content-wrapper {
     padding-left: 80px; /* Remove a margem lateral */

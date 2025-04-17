@@ -36,6 +36,3 @@ app.use(cors({
 app.listen(3333, () => {
     console.log(`Servidor iniciado em http://${hostname}:${port} (Clique Ctrl+C)`);
 });
-//Inicia o servidor
-//app.listen(port, hostname, ()=>{
-//});

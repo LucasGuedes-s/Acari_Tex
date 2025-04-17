@@ -2,22 +2,24 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function getFuncionarios(req, res) {
-    const { cnpj } = req; // Pegando o CNPJ do estabelecimento da requisição
-    console.log(req)
-    const funcionarios = await prisma.Usuarios.findMany({
-        where: {
-            Estabelecimento: {
-                some: { cnpj } // Filtra funcionários do estabelecimento específico
-            }
+    try {
+        const { cnpj } = req;
+
+        const funcionarios = await prisma.usuarios.findMany({
+            where: {
+                estabelecimentoCnpj: cnpj,
+            },
+        });
+
+        if (!funcionarios.length) {
+            return 'Nenhum funcionário encontrado para este estabelecimento.';
         }
-    });
 
-    if (!funcionarios.length) {
-        return 'Nenhum funcionário encontrado para este estabelecimento';
+        return funcionarios;
+    } catch (error) {
+        console.error("Erro ao buscar funcionários:", error);
+        throw new Error("Erro ao buscar os funcionários.");
     }
-
-    return funcionarios;
-
 }
 
 async function getFuncionario(req, res) {
@@ -40,25 +42,43 @@ async function getFuncionario(req, res) {
 }
 
 async function postFuncionario(funcionario) {
-    let identidade = funcionario.identidade.toString();
-    let cpf = funcionario.cpf.toString();
-    let pis = funcionario.pis.toString();
+    const identidade = funcionario.identidade?.toString() || null;
+    const cpf = funcionario.cpf?.toString() || null;
+    const pis = funcionario.pis?.toString() || null;
 
-    const addfuncionario = await prisma.Funcionarios.create({
-        data: {
-            nome_do_funcionario: funcionario.nome_do_funcionario,
-            idade: funcionario.idade,
-            funcoes: funcionario.funcoes,
-            aniversario: null,
-            identidade: identidade,
-            cpf: cpf,
-            pis: pis,
-            pix: funcionario.pix,
-            foto: funcionario.foto
+    // Verifica se o email já está cadastrado
+    const usuarioExistente = await prisma.usuarios.findUnique({
+        where: {
+            email: funcionario.email
         }
     });
-    return addfuncionario;
+
+    if (usuarioExistente) {
+        console.log(usuarioExistente)
+        throw new Error("Já existe um usuário com esse email.");
+    }
+
+    const addFuncionario = await prisma.usuarios.create({
+        data: {
+            email: funcionario.email,
+            nome: funcionario.nome_do_funcionario,
+            senha: funcionario.senha,
+            foto: funcionario.foto,
+            idade: funcionario.idade,
+            funcoes: funcionario.funcoes,
+            identidade,
+            cpf,
+            pis,
+            pix: funcionario.pix,
+            notas: funcionario.notas,
+            estabelecimentoCnpj: funcionario.estabelecimento.cnpj // FK direta
+
+        }
+    });
+
+    return addFuncionario;
 }
+
 
 module.exports = {
     getFuncionarios,

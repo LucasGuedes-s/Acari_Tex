@@ -19,7 +19,31 @@ async function getOPs(req, res, next){
         next(err);
     }
 }
+
+async function postProducaoPeca(req, res, next){
+    try {
+        const peca = await pecas.postProducaoPeca(req);
+        res.status(200).json({peca});
+    } catch (err) {
+        console.error(`Erro ao cadastrar produção de peças.`, err.message);
+        next(err);
+    }
+}
+async function getProducao(req, res, next){
+    try {
+        const peca = await pecas.getEtapasProducaoPorPeca(req.params.id_da_op);
+        if (!peca) {
+            return res.status(404).json({ mensagem: 'Nenhuma produção encontrada para essa peça.' });
+        }
+        res.status(200).json({peca});
+    } catch (err) {
+        console.error(`Erro ao cadastrar produção de peças.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
-    getOPs
+    getOPs,
+    postProducaoPeca,
+    getProducao
 };

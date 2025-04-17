@@ -74,7 +74,6 @@ async function getPecasOP(req) {
         coleta
     };
 }
-
 async function postProducaoPeca(req, res) {
   try {
     const {
@@ -85,38 +84,103 @@ async function postProducaoPeca(req, res) {
       data_inicio,
       data_fim,
       id_Estabelecimento
-    } = req.body
+    } = req.body;
 
-    // Verificar se a Etapa está associada à OP
+    // Verifica se a etapa está relacionada com a OP
     const etapaRelacionada = await prisma.pecasEtapas.findUnique({
       where: {
         id_da_op_id_da_funcao: {
           id_da_op,
-          id_da_funcao,
+          id_da_funcao
         }
       }
-    })
+    });
 
     if (!etapaRelacionada) {
-      return res.status(400).json({ error: "A etapa informada não está relacionada com essa OP." })
+      return "A etapa informada não está relacionada com essa OP." ;
     }
 
-    // Criar registro de produção
+    // Buscar a OP para pegar a quantidade total de peças
+    const op = await prisma.pecasOP.findUnique({
+      where: { id_da_op },
+      select: { quantidade_pecas: true }
+    });
+
+    if (!op || op.quantidade_pecas == null) {
+      return "OP não encontrada ou sem quantidade definida.";
+    }
+
+    // Soma da produção já registrada para essa OP + etapa
+    const totalEtapaProduzido = await prisma.producao.aggregate({
+      _sum: {
+        quantidade_pecas: true
+      },
+      where: {
+        id_da_op,
+        id_da_funcao
+      }
+    });
+
+    const jaProduzido = totalEtapaProduzido._sum.quantidade_pecas || 0;
+    const novaQuantidade = jaProduzido + quantidade_pecas;
+
+    // Se a nova soma excede o total da OP, bloquear
+    if (novaQuantidade > op.quantidade_pecas) {
+      return {
+        error: `A produção para essa etapa excede a quantidade total da OP.`,
+        jaProduzido,
+        totalOP: op.quantidade_pecas
+      };
+    }
+
+    // Criar novo registro de produção com a etapa
     const producao = await prisma.producao.create({
       data: {
         id_da_op,
         id_funcionario,
         id_Estabelecimento,
+        id_da_funcao, // <- etapa agora faz parte da produção
         quantidade_pecas,
-        data_inicio
-       }
-    })
+        data_inicio,
+        data_fim
+      }
+    });
 
     return producao;
 
   } catch (error) {
-    console.error(error)
-    return res.status(500).json({ error: "Erro ao registrar a produção." })
+    console.error(error);
+    return "Erro ao registrar a produção.";
+  }
+}
+
+async function getEtapasProducaoPorPeca(req, res) {
+  try {
+    const id_da_op  = req;
+
+    const producao = await prisma.producao.findMany({
+      where: {
+        id_da_op: Number(id_da_op)
+      },
+      include: {
+        producao_etapa: true,         // Etapa (ex: Corte, Costura...)
+        producao_funcionario: {
+          select: {
+            nome: true,    // Seleciona apenas o nome do funcionário
+            email: true    // Seleciona apenas o e-mail do funcionário
+          }
+        }
+      }
+    });
+
+    if (!producao.length) {
+      return 'Nenhuma produção encontrada para essa peça.';
+    }
+
+    return producao;
+  } catch (error) {
+    console.error("Erro ao buscar etapas da produção:", error);
+    return "Erro ao buscar dados da produção.";
   }
 }
 
@@ -124,4 +188,5 @@ module.exports = {
     postPecaOP,
     getPecasOP,
     postProducaoPeca,
+    getEtapasProducaoPorPeca
 };

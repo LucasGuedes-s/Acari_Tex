@@ -12,7 +12,6 @@ async function getEquipe(req, res, next){
 async function getFuncionario(req, res, next){
     try {
         const id = req.params.id;
-        console.log(id)
         const funcionario = await Funcionarios.getFuncionario(req.params.id);
         res.status(200).json({funcionario:funcionario});
 
@@ -23,8 +22,7 @@ async function getFuncionario(req, res, next){
 }
 async function postEquipe(req, res, next){
     try {
-        const funcionario = req.body.funcionario;
-        console.log(funcionario)
+        const funcionario = req.body;
         const equipe = await Funcionarios.postFuncionario(funcionario);
         res.status(200).send({
             message: `Funcionário cadastrado: ${equipe}`,
