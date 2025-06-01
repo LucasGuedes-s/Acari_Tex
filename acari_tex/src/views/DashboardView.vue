@@ -20,7 +20,10 @@
         </div>
 
         <!-- Gráficos -->
+
         <div class="row justify-content-center">
+          <Producao />
+
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasBarChart" width="800" height="400"></canvas>
           </div>
@@ -28,7 +31,6 @@
             <canvas ref="pecasLineChart" width="800" height="400"></canvas>
           </div>
         </div>
-
       </div>
     </main>
   </div>
@@ -41,12 +43,13 @@ import DashboardCard from '@/components/DashboardCard.vue';
 import { useAuthStore } from '@/store/store';
 import { Chart, registerables } from 'chart.js';
 import Axios from 'axios';
+import Producao from '@/components/Producao.vue';
 
 Chart.register(...registerables);
 
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard },
+  components: { SidebarNav, NavBarUser, DashboardCard, Producao},
   setup() {
     const store = useAuthStore();
     return { store };
@@ -67,7 +70,7 @@ export default {
   },
   computed: {
     pecasNaoIniciadas() {
-      return this.pecas?.Iniciado?.length || 0;
+      return this.pecas?.nao_iniciado?.length || 0;
     },
     pecasEmProgresso() {
       return this.pecas?.em_progresso?.length || 0;

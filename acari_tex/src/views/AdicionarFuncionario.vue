@@ -11,7 +11,6 @@
   
               <!-- Etapa 1 -->
               <div v-if="etapa === 1" class="section">
-                <h3 class="section-title">1. Informações Básicas</h3>
                 <div class="form-group">
                   <label for="descricao">Descrição:</label>
                   <input v-model="novaPeca.descricao" id="descricao" type="text" class="form-control" placeholder="Digite a descrição" required />
@@ -241,6 +240,12 @@
     font-size: 1.1rem;
     cursor: pointer;
     transition: all 0.3s ease;
+  }
+  label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    justify-self: left;
+    display: block;
   }
   
   .btn-block {

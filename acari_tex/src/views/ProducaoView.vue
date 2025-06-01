@@ -51,7 +51,7 @@ export default {
 
   computed: {
     pecasNaoIniciadas() {
-      return this.pecas?.Iniciado?.length || 0;
+      return this.pecas?.nao_iniciado?.length || 0;
     },
     pecasEmProgresso() {
       return this.pecas?.em_progresso?.length || 0;

@@ -86,7 +86,7 @@ model Producao {
   id_da_funcao           Int        // <- ADICIONADO: etapa da produção (ex: corte, costura...)
 
   data_inicio            String?
-  data_fim               String?
+  hora_registro          String?
 
   Estabelecimento        Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_peca          PecasOP          @relation(fields: [id_da_op], references: [id_da_op])

@@ -29,9 +29,9 @@ const hostname = 'localhost';
 const port = 3333;
 
 app.use(cors({
-    origin: 'http://localhost:8080',
-    methods: 'PUT',
-    optionsSuccessStatus: 200 // Algumas versões mais recentes do CORS exigem isso
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   }));
 app.listen(3333, () => {
     console.log(`Servidor iniciado em http://${hostname}:${port} (Clique Ctrl+C)`);

@@ -22,7 +22,7 @@ async function postPecaOP(req, user) {
     // Criar a nova peça com as etapas conectadas
     const novaPeca = await prisma.PecasOP.create({
         data: {
-            status: "Iniciado",
+            status: "Não Iniciado",
             descricao: req.peca.descricao || null,
             quantidade_pecas: req.peca.quantidade || null,
             pedido_por: req.peca.pedido_por || null,
@@ -53,24 +53,29 @@ async function getPecasOP(req) {
         include: {
           Estabelecimento: true,
           producao_peca: true,
+          etapas: {
+            include: {
+              etapa: true, // <- Isso trará os dados da Etapa, incluindo "descricao"
+            },
+          },
+        
         },
       });
-    console.log(pecasOp)
     // Se pecasOp for nulo ou undefined, retorne um array vazio ou algum erro
     if (!pecasOp) {
-        return { finalizado: [], em_progresso: [], Iniciado: [], coleta: [] };
+        return { finalizado: [], em_progresso: [], nao_iniciado: [], coleta: [] };
     }
 
     // Filtrando os resultados por status
     const finalizado = pecasOp.filter(peca => peca.status === "Finalizado");
     const em_progresso = pecasOp.filter(peca => peca.status === "Em andamento");
-    const Iniciado = pecasOp.filter(peca => peca.status === "Iniciado");
+    const nao_iniciado = pecasOp.filter(peca => peca.status === "Não Iniciado");
     const coleta = pecasOp.filter(peca => peca.status === "Aguardando coleta");
 
     return {
         finalizado,
         em_progresso,
-        Iniciado,
+        nao_iniciado,
         coleta
     };
 }
@@ -82,10 +87,9 @@ async function postProducaoPeca(req, res) {
       id_da_funcao,
       quantidade_pecas,
       data_inicio,
-      data_fim,
-      id_Estabelecimento
+      hora_registro,
     } = req.body;
-
+    const id_Estabelecimento = req.user.cnpj; // Obtendo o CNPJ do estabelecimento do usuário autenticado
     // Verifica se a etapa está relacionada com a OP
     const etapaRelacionada = await prisma.pecasEtapas.findUnique({
       where: {
@@ -132,17 +136,16 @@ async function postProducaoPeca(req, res) {
         totalOP: op.quantidade_pecas
       };
     }
-
     // Criar novo registro de produção com a etapa
     const producao = await prisma.producao.create({
       data: {
         id_da_op,
         id_funcionario,
         id_Estabelecimento,
-        id_da_funcao, // <- etapa agora faz parte da produção
+        id_da_funcao,
+        hora_registro,
         quantidade_pecas,
         data_inicio,
-        data_fim
       }
     });
 
@@ -184,9 +187,56 @@ async function getEtapasProducaoPorPeca(req, res) {
   }
 }
 
+async function getEtapasProducaoPorEstabelecimento(req, res) {
+  try {
+    const { cnpj } = req.cnpj;  // Aqui, supondo que o CNPJ do estabelecimento esteja sendo passado na requisição
+
+    // Buscar todas as produções do estabelecimento com base no CNPJ
+    const producao = await prisma.producao.findMany({
+      where: {
+        Estabelecimento: {
+          cnpj: cnpj  // Filtra as produções para o estabelecimento com o CNPJ fornecido
+        }
+      },
+      include: {
+        producao_etapa: true,         // Etapa (ex: Corte, Costura...)
+        producao_funcionario: {
+          select: {
+            nome: true,    // Seleciona apenas o nome do funcionário
+            email: true    // Seleciona apenas o e-mail do funcionário
+          }
+        }
+      }
+    });
+
+    if (!producao.length) {
+      return 'Nenhuma produção encontrada para este estabelecimento.';
+    }
+
+    return producao;
+  } catch (error) {
+    console.error("Erro ao buscar etapas da produção:", error);
+    return "Erro ao buscar dados da produção.";
+  }
+}
+async function updatePecaStatus(id_da_op, novoStatus) {
+    try {
+        const peca = await prisma.PecasOP.update({
+            where: { id_da_op },
+            data: { status: novoStatus }
+        });
+        return peca;
+    } catch (error) {
+        console.error("Erro ao atualizar status da peça:", error);
+        throw new Error("Erro ao atualizar status da peça.");
+    }
+}
+
 module.exports = {
     postPecaOP,
     getPecasOP,
     postProducaoPeca,
-    getEtapasProducaoPorPeca
+    getEtapasProducaoPorPeca,
+    getEtapasProducaoPorEstabelecimento,
+    updatePecaStatus
 };
