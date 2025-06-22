@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 const saltRounds = 10;
 
 async function main() {
-  console.log("🔍 Verificando se os dados iniciais já existem...");
+  //console.log("🔍 Verificando se os dados iniciais já existem...");
   const cnpjEstabelecimento = process.env.CNPJ || "12345678000199";
   const senhaTexto = process.env.SENHA || "admin123";
   const nomeUsuario = process.env.USER_PADRAO || 'Administrador Padrão';

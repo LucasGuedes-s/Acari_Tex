@@ -56,7 +56,7 @@ model PecasOP {
   notas              String?
   producao_peca      Producao[]
 
-  etapas             PecasEtapas[] // Relacionamento M:N através da tabela intermediária
+  etapas             PecasEtapas[]
 }
 
 model Etapa {

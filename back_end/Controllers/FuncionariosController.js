@@ -32,8 +32,21 @@ async function postEquipe(req, res, next){
         next(err);
     }
 }
+async function getProducaoFuncionario(req, res, next){
+    try {
+        const email = req.params.email;
+        const producao = await Funcionarios.getProducaoFuncionario(email);
+        res.status(200).json({producao:producao});
+    } catch (err) {
+        console.error(`Erro ao obter produção do funcionário.`, err.message);
+        next(err);
+    }
+}
+
 module.exports = {
     getEquipe,
     getFuncionario,
-    postEquipe
+    postEquipe,
+    getProducaoFuncionario
+
 }

@@ -61,13 +61,11 @@ async function getPecasOP(req) {
         
         },
       });
-    // Se pecasOp for nulo ou undefined, retorne um array vazio ou algum erro
     if (!pecasOp) {
         return { finalizado: [], em_progresso: [], nao_iniciado: [], coleta: [] };
     }
 
-    // Filtrando os resultados por status
-    const finalizado = pecasOp.filter(peca => peca.status === "Finalizado");
+    const finalizado = pecasOp.filter(peca => peca.status === "Concluido");
     const em_progresso = pecasOp.filter(peca => peca.status === "Em andamento");
     const nao_iniciado = pecasOp.filter(peca => peca.status === "Não Iniciado");
     const coleta = pecasOp.filter(peca => peca.status === "Aguardando coleta");
@@ -86,7 +84,7 @@ async function postProducaoPeca(req, res) {
       id_funcionario,
       id_da_funcao,
       quantidade_pecas,
-      data_inicio,
+      //data_inicio,
       hora_registro,
     } = req.body;
     const id_Estabelecimento = req.user.cnpj; // Obtendo o CNPJ do estabelecimento do usuário autenticado
@@ -145,7 +143,7 @@ async function postProducaoPeca(req, res) {
         id_da_funcao,
         hora_registro,
         quantidade_pecas,
-        data_inicio,
+        data_inicio: new Date().toISOString(),
       }
     });
 
@@ -219,11 +217,11 @@ async function getEtapasProducaoPorEstabelecimento(req, res) {
     return "Erro ao buscar dados da produção.";
   }
 }
-async function updatePecaStatus(id_da_op, novoStatus) {
+async function updatePecaStatus(id_da_op, status) {
     try {
         const peca = await prisma.PecasOP.update({
             where: { id_da_op },
-            data: { status: novoStatus }
+            data: { status: status }
         });
         return peca;
     } catch (error) {
@@ -231,6 +229,67 @@ async function updatePecaStatus(id_da_op, novoStatus) {
         throw new Error("Erro ao atualizar status da peça.");
     }
 }
+async function getProducaoEquipe(req) {
+  try {
+    // Pega a data de hoje no formato YYYY-MM-DD
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+    const dataHojeStr = `${ano}-${mes}-${dia}`;
+
+    const producoes = await prisma.producao.findMany({
+       where: {
+        data_inicio: {
+          startsWith: dataHojeStr // Filtra somente produções de hoje
+        }
+      },
+      select: {
+        id_funcionario: true,
+        quantidade_pecas: true,
+        data_inicio: true,
+        hora_registro: true,
+        producao_funcionario: {
+          select: { nome: true }
+        }
+      }
+    });
+
+    const agrupado = {};
+
+    for (const producao of producoes) {
+      const funcionario = producao.id_funcionario;
+      const nome = producao.producao_funcionario?.nome || funcionario;
+
+      const hora = producao.hora_registro || "00:00";
+
+      if (!agrupado[funcionario]) {
+        agrupado[funcionario] = {
+          nome,
+          producao: []
+        };
+      }
+
+      agrupado[funcionario].producao.push({
+        data: dataHojeStr,
+        hora,
+        quantidade: producao.quantidade_pecas || 0
+      });
+    }
+
+    const resultado = Object.entries(agrupado).map(([email, dados]) => ({
+      funcionario: email,
+      nome: dados.nome,
+      producao: dados.producao
+    }));
+
+    return resultado;
+  } catch (error) {
+    console.error("Erro ao buscar produção da equipe:", error);
+    return { error: error.message };
+  }
+}
+
 
 module.exports = {
     postPecaOP,
@@ -238,5 +297,6 @@ module.exports = {
     postProducaoPeca,
     getEtapasProducaoPorPeca,
     getEtapasProducaoPorEstabelecimento,
-    updatePecaStatus
+    updatePecaStatus,
+    getProducaoEquipe
 };

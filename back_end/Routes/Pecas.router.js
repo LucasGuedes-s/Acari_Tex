@@ -6,8 +6,11 @@ const jwtMiddleware = require('../middlewares/auth')
 router.post('/adicionar/peca', [jwtMiddleware], ControllerOp.postOP);
 router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);
+router.get('/producao/equipe', [jwtMiddleware], ControllerOp.getProducaoEquipe);
 
 router.post('/registrar/producao', [jwtMiddleware], ControllerOp.postProducaoPeca);
 router.post('/update/status', [jwtMiddleware], ControllerOp.updatePecaStatus);
+
+
 
 module.exports = router;

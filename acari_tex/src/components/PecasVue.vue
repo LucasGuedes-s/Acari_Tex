@@ -34,7 +34,6 @@
     </div>
   </div>
 </template>
-
 <script>
 import Axios from 'axios';
 import Swal from 'sweetalert2';
@@ -46,7 +45,7 @@ export default {
     pecasPorStatus: {
       type: Object,
       required: true,
-      default: () => ({}) // Garantindo que sempre recebe um objeto
+      default: () => ({})
     }
   },
   setup() {
@@ -61,67 +60,66 @@ export default {
     }
   },
   methods: {
-  async updateStatus(id_da_op) {
-    const token = this.store.pegar_token;
-    const { value: status } = await Swal.fire({
-      title: 'Selecione o novo status',
-      input: 'select',
-      inputOptions: {
-        'Não Iniciado': 'Não iniciado',
-        'Em andamento': 'Em andamento',
-        'Aguardando coleta': 'Aguardando coleta',
-        'Finalizado': 'Concluído'
-      },
-      inputPlaceholder: 'Escolha um status',
-      showCancelButton: true,
-      confirmButtonText: 'Confirmar',
-      cancelButtonText: 'Cancelar'
-    });
+    async updateStatus(id_da_op) {
+      const token = this.store.pegar_token;
 
-    console.log(`Status selecionado: ${status}`);
-    const id_da_op = id_da_op;
-    
-    await Axios.post("http://localhost:3333/update/status", {
-      id_da_op,
-      status
-    }, {
-      headers: {
-        Authorization: `${token}`
-      }
-    }).then(response => {
-      console.log(response.data);
-      Swal.fire('Status atualizado com sucesso!', '', 'success');
-    }).catch(error => {
-      console.error(error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erro ao atualizar status',
-        timer: 4000,
+      const { value: status } = await Swal.fire({
+        title: 'Selecione o novo status',
+        input: 'select',
+        inputOptions: {
+          'Não inciado': 'Não iniciado',
+          'Em andamento': 'Em andamento',
+          'Aguardando coleta': 'Aguardando coleta',
+          'Concluido': 'Concluído'
+        },
+        inputPlaceholder: 'Escolha um status',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar',
+        cancelButtonText: 'Cancelar'
       });
-    });
-  },
 
-  formatarData(data) {
-    return data ? new Date(data).toLocaleDateString("pt-BR") : "Não informado";
-  },
+      if (!status) return;
 
-  formatarStatus(status) {
-    return status
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  },
+      console.log(`Status selecionado: ${status}`);
 
-  alterarStatus(peca) {
-    alert(`Alterar status da peça: ${peca.descricao}`);
-  },
+      try {
+        await Axios.post("http://localhost:3333/update/status", {
+          id_da_op: id_da_op,
+          status: status
+        }, {
+          headers: {
+            Authorization: `${token}`
+          }
+        });
 
-  detalharPeca(peca) {
-    alert(`Detalhes da peça: ${peca.descricao}`);
+        Swal.fire('Status atualizado com sucesso!', '', 'success');
+      } catch (error) {
+        console.error(error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Erro ao atualizar status',
+          timer: 4000,
+        });
+      }
+    },
+
+    formatarData(data) {
+      return data ? new Date(data).toLocaleDateString("pt-BR") : "Não informado";
+    },
+
+    formatarStatus(status) {
+      return status
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    },
+
+    detalharPeca(peca) {
+      alert(`Detalhes da peça: ${peca.descricao}`);
+    }
   }
 }
-
-}
 </script>
+
 
 <style scoped>
 /* Layout principal */

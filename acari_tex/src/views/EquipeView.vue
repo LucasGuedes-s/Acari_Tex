@@ -16,7 +16,7 @@
         </div>
 
         <div class="acoes-funcionario">
-          <button @click="getFuncionario(funcionario.id)">Detalhar</button>
+          <button @click="producao(funcionario.email)">Produção</button>
           <button class="demitir" @click="demitirFuncionario()">Demitir</button>
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">Registrar
             Produção</button>
@@ -164,6 +164,9 @@ export default {
 
   },
   methods: {
+    async producao(email){
+      this.$router.push({ name: 'ProducaoFuncionario', params: { emailFuncionario: email } })
+    },
     async fecharModal() {
       this.showModalRegistro = false;
     },

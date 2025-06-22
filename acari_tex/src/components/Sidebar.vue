@@ -54,8 +54,10 @@ export default {
   },
   methods: {
     toggleSidebar() {
-      this.isMinimized = !this.isMinimized;
-    },
+      if (window.innerWidth <= 600) {
+        this.isMinimized = !this.isMinimized;
+      }
+    }
   },
 };
 </script>

@@ -78,10 +78,68 @@ async function postFuncionario(funcionario) {
 
     return addFuncionario;
 }
+async function getProducaoFuncionario(req) {
+  const email = req;
 
+  try {
+    const producoes = await prisma.producao.findMany({
+      where: {
+        id_funcionario: email,
+      },
+      select: {
+        quantidade_pecas: true,
+        data_inicio: true,
+        hora_registro: true, // <- incluído
+      },
+    });
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // garantir que estamos comparando só a data
+
+    const agrupadoPorData = {};
+    const producaoHojeSeparada = [];
+
+    for (const producao of producoes) {
+      const dataCompleta = new Date(producao.data_inicio);
+      const dataStr = dataCompleta.toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+      // Agrupamento por data para o histórico
+      if (!agrupadoPorData[dataStr]) {
+        agrupadoPorData[dataStr] = 0;
+      }
+      agrupadoPorData[dataStr] += producao.quantidade_pecas || 0;
+
+      // Verifica se é do dia atual
+      const dataSemHora = new Date(dataCompleta);
+      dataSemHora.setHours(0, 0, 0, 0);
+
+      if (dataSemHora.getTime() === hoje.getTime()) {
+        const hora = producao.hora_registro?.substring(0, 5) || '00:00'; // pega "HH:mm"
+        producaoHojeSeparada.push({
+          hora,
+          quantidade: producao.quantidade_pecas || 0,
+        });
+      }
+    }
+
+    const resultadoHistorico = Object.entries(agrupadoPorData)
+      .map(([data, total]) => ({ data, quantidade: total }))
+      .sort((a, b) => new Date(a.data) - new Date(b.data));
+
+    const resultadoHoje = producaoHojeSeparada.sort((a, b) => a.hora.localeCompare(b.hora));
+
+    return {
+      historico: resultadoHistorico,
+      producao_hoje: resultadoHoje,
+    };
+  } catch (error) {
+    return { error: error.message };
+  }
+}
 
 module.exports = {
     getFuncionarios,
     getFuncionario,
-    postFuncionario
+    postFuncionario,
+    getProducaoFuncionario
 };

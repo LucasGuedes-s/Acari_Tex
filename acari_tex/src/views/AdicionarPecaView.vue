@@ -3,7 +3,7 @@
     <Sidebar />
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid">
-        <div class="row justify-content-center mt-5">
+        <div class="row justify-content-center mt-2">
           <!-- Contêiner de Formulário -->
           <div class="form col-12 col-md-10 col-lg-8">
             <!-- Contêiner de Título e Subtítulo -->
@@ -11,7 +11,7 @@
 
             <!-- Etapa 1 -->
             <div v-if="etapa === 1" class="section">
-              <h3 class="section-title">1. Informações Básicas</h3>
+              <h3 class="section-title">1 - Informações Básicas</h3>
               <div class="form-group">
                 <label for="descricao">Descrição:</label>
                 <input v-model="novaPeca.descricao" id="descricao" type="text" class="form-control" placeholder="Digite a descrição" required />
@@ -35,7 +35,7 @@
 
             <!-- Etapa 2 -->
             <div v-if="etapa === 2" class="section">
-              <h3 class="section-title">2. Processo de Produção</h3>
+              <h3 class="section-title">2 - Processo de Produção</h3>
               <div class="drag-drop-container">
                 <div class="predefined-container">
                   <h4>Locais Pré-definidos</h4>
@@ -59,7 +59,7 @@
 
             <!-- Etapa 3 -->
             <div v-if="etapa === 3" class="section">
-              <h3 class="section-title">3. Revisão e Cadastro</h3>
+              <h3 class="section-title">3 - Revisão e Cadastro</h3>
               <p><strong>Descrição:</strong> {{ novaPeca.descricao }}</p>
               <p><strong>Quantidade:</strong> {{ novaPeca.quantidade_pecas }}</p>
               <p><strong>Pedido por:</strong> {{ novaPeca.pedido_por }}</p>
@@ -342,7 +342,11 @@ button {
 .remove-btn:hover {
   background-color: #c82333;
 }
-
+label {
+  display: flex;
+  align-items: left;
+  margin-bottom: 10px;
+}
 /* Responsividade */
 @media (max-width: 768px) {
   .content-wrapper {

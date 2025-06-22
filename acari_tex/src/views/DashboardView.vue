@@ -22,6 +22,7 @@
         <!-- Gráficos -->
 
         <div class="row justify-content-center">
+          <GraficoProducaoTotal class="mb-4" />
           <Producao />
 
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
@@ -44,12 +45,12 @@ import { useAuthStore } from '@/store/store';
 import { Chart, registerables } from 'chart.js';
 import Axios from 'axios';
 import Producao from '@/components/Producao.vue';
-
+import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 Chart.register(...registerables);
 
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard, Producao},
+  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal },
   setup() {
     const store = useAuthStore();
     return { store };
