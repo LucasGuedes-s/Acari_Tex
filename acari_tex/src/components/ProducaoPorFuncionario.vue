@@ -18,6 +18,7 @@
 import axios from 'axios'
 import { GChart } from 'vue-google-charts'
 import { useAuthStore } from '@/store/store'
+import { io } from 'socket.io-client'
 
 export default {
   name: 'GraficoProducao',
@@ -38,6 +39,8 @@ export default {
     return {
       chartDataBarras: [['Hora', 'Peças Produzidas']],
       chartDataLinhas: [['Data', 'Peças Produzidas']],
+      socket: null,
+      loading: false,
 
       barOptions: {
         title: '',
@@ -68,10 +71,28 @@ export default {
     }
   },
   mounted() {
-    this.carregarDados()
+    this.carregarDados();
+    this.socket = io('http://localhost:3333');
+
+    /* Garante que o evento não é registrado múltiplas vezes
+    this.socket.off('nova_producao_funcionario');
+    this.socket.on('nova_producao_funcionario', () => {
+      if (!this.loading) {
+        this.carregarDados();
+      }
+    });*/
+  },
+  unmounted() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
   },
   methods: {
     async carregarDados() {
+      if (this.loading) return;
+      this.loading = true;
+
       try {
         const token = this.store.pegar_token;
         const response = await axios.get(`http://localhost:3333/Producao/funcionario/${this.emailFuncionario}`, {
@@ -80,8 +101,8 @@ export default {
 
         const producao = response.data.producao;
 
+        // Dados para o gráfico de barras (produção hoje por hora)
         const dadosHoje = producao.producao_hoje;
-        console.log('Dados de produção hoje:', dadosHoje);
         const barras = [['Hora', 'Peças Produzidas']];
         const producaoPorHora = {};
 
@@ -100,7 +121,7 @@ export default {
 
         this.chartDataBarras = barras;
 
-
+        // Dados para o gráfico de linhas (histórico por dia)
         const historico = producao.historico;
         const linhas = [['Data', 'Peças Produzidas']];
         historico.forEach(item => {
@@ -111,6 +132,8 @@ export default {
 
       } catch (error) {
         console.error('Erro ao carregar dados do gráfico:', error);
+      } finally {
+        this.loading = false;
       }
     },
     formatarData(dataStr) {

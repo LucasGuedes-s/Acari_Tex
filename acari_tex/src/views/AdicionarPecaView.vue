@@ -142,9 +142,10 @@ export default {
               timerProgressBar: true,
               showConfirmButton: false
           })
-          router.push('/dashboard');
           this.etapa = 1;
           this.novaPeca = { descricao: "", quantidade_pecas: null, pedido_por: "", producao: [] };
+          router.push('/dashboard');
+
         }
       } catch (error) {
         console.error("Erro ao cadastrar a peça:", error);

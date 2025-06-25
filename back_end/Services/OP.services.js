@@ -134,6 +134,12 @@ async function postProducaoPeca(req, res) {
         totalOP: op.quantidade_pecas
       };
     }
+    const agoraBrasil = new Date().toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo"
+    });
+
+    const data_inicio = getDataInicioBrasil();
+
     // Criar novo registro de produção com a etapa
     const producao = await prisma.producao.create({
       data: {
@@ -143,7 +149,7 @@ async function postProducaoPeca(req, res) {
         id_da_funcao,
         hora_registro,
         quantidade_pecas,
-        data_inicio: new Date().toISOString(),
+        data_inicio: data_inicio,
       }
     });
 
@@ -231,13 +237,13 @@ async function updatePecaStatus(id_da_op, status) {
 }
 async function getProducaoEquipe(req) {
   try {
+    console.log("Buscando produção da equipe...");
     // Pega a data de hoje no formato YYYY-MM-DD
     const hoje = new Date();
     const ano = hoje.getFullYear();
     const mes = String(hoje.getMonth() + 1).padStart(2, '0');
     const dia = String(hoje.getDate()).padStart(2, '0');
     const dataHojeStr = `${ano}-${mes}-${dia}`;
-
     const producoes = await prisma.producao.findMany({
        where: {
         data_inicio: {
@@ -290,6 +296,25 @@ async function getProducaoEquipe(req) {
   }
 }
 
+function getDataInicioBrasil() {
+  const agora = new Date();
+  const fusoHorarioBrasil = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(agora).reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  const { year, month, day, hour, minute, second } = fusoHorarioBrasil;
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}:00`;
+}
 
 module.exports = {
     postPecaOP,

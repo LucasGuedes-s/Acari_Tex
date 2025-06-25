@@ -38,7 +38,6 @@
 import Axios from 'axios';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '@/store/store';
-
 export default {
   name: "ListaPecas",
   props: {
@@ -52,6 +51,7 @@ export default {
     const store = useAuthStore();
     return { store };
   },
+
   computed: {
     pecasVisiveis() {
       return Object.fromEntries(

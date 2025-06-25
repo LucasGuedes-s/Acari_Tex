@@ -3,6 +3,7 @@ const pecas = require('../Services/OP.services');
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
+        req.io.emit('nova_peca', novaPeca); // Notifica todos os clientes conectados sobre a nova peça
         res.status(201).json({novaPeca});
     } catch (err) {
         console.error(`Erro ao adicionar`, err.message);
@@ -23,6 +24,7 @@ async function postProducaoPeca(req, res, next){
     try {
         //console.log(`Dados recebidos para produção de peça:`, req.body);
         const peca = await pecas.postProducaoPeca(req);
+        req.io.emit('nova_producao', peca); // Notifica todos os clientes conectados sobre a nova produção
         //console.log(`Produção de peça cadastrada com sucesso:`, peca);
         res.status(200).json({peca});
     } catch (err) {

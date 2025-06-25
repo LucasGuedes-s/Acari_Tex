@@ -1,14 +1,12 @@
 <template>
   <div class="grafico-equipe">
-
     <GChart
-      v-if="chartData.length > 1"
+      v-if="chartData.length > 1 && chartData[0].length > 1"
       type="LineChart"
       :data="chartData"
       :options="chartOptions"
       style="width: 100%; height: 400px"
     />
-
     <p v-else>Carregando dados da produção...</p>
   </div>
 </template>
@@ -17,6 +15,7 @@
 import { GChart } from 'vue-google-charts'
 import axios from 'axios'
 import { useAuthStore } from '@/store/store'
+import { io } from 'socket.io-client'
 
 export default {
   name: 'GraficoEquipeProducao',
@@ -27,7 +26,9 @@ export default {
   },
   data() {
     return {
-      chartData: [['Hora', /* nomes dos funcionários dinâmicos */]],
+      chartData: [['Hora', 'Sem dados']],
+      loading: false,
+      socket: null,
       chartOptions: {
         title: 'Produção por Funcionário (Hoje)',
         curveType: 'function',
@@ -39,51 +40,72 @@ export default {
           title: 'Peças Produzidas',
           minValue: 0,
         },
-        colors: ['#3366CC', '#DC3912', '#FF9900', '#109618', '#990099'] // até 5 funcionários
+        colors: ['#3366CC', '#DC3912', '#FF9900', '#109618', '#990099', '#AAAAAA']
       }
     };
   },
   mounted() {
     this.carregarDados();
+    this.socket = io('http://localhost:3333');
+
+    // Remove qualquer listener anterior e registra novo
+    this.socket.off('nova_peca');
+    this.socket.on('nova_peca', () => {
+      if (!this.loading) {
+        this.carregarDados();
+      }
+    });
+  },
+  unmounted() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
   },
   methods: {
     async carregarDados() {
-  try {
-    const token = this.store.pegar_token;
+      if (this.loading) return;
+      this.loading = true;
+      try {
+        const token = this.store.pegar_token;
+        const res = await axios.get('http://localhost:3333/producao/equipe', {
+          headers: { Authorization: `${token}` }
+        });
 
-    const res = await axios.get('http://localhost:3333/Producao/equipe', {
-      headers: { Authorization: `${token}` }
-    });
+        const equipe = res.data.producao;
+        console.log('Dados da equipe:', equipe);
 
-    const equipe = res.data.producao;
+        const horasPadrao = Array.from({ length: 24 }, (_, i) =>
+          String(i).padStart(2, '0') + ':00'
+        );
 
-    if (!Array.isArray(equipe)) {
-      console.error('Resposta inesperada da API:', equipe);
-      return;
-    }
+        const nomes = equipe.map(f => f.nome);
+        const colunas = nomes.length > 0 ? nomes : ['Sem dados'];
 
-    const horasPadrao = Array.from({ length: 24 }, (_, i) =>
-      String(i).padStart(2, '0') + ':00'
-    );
+        const dataMatrix = [['Hora', ...colunas]];
 
-    const nomes = equipe.map(f => f.nome);
-    const dataMatrix = [['Hora', ...nomes]];
+        for (const hora of horasPadrao) {
+          const linha = [hora];
 
-    for (const hora of horasPadrao) {
-      const linha = [hora];
-      for (const funcionario of equipe) {
-        const item = funcionario.producao.find(p => p.hora === hora);
-        linha.push(item ? item.quantidade : 0);
+          if (nomes.length > 0) {
+            for (const funcionario of equipe) {
+              const item = funcionario.producao.find(p => p.hora === hora);
+              linha.push(item ? item.quantidade : 0);
+            }
+          } else {
+            linha.push(0);
+          }
+
+          dataMatrix.push(linha);
+        }
+
+        this.chartData = dataMatrix;
+      } catch (err) {
+        console.error('Erro ao carregar gráfico da equipe:', err);
+      } finally {
+        this.loading = false;
       }
-      dataMatrix.push(linha);
     }
-
-    this.chartData = dataMatrix;
-  } catch (err) {
-    console.error('Erro ao carregar gráfico da equipe:', err);
-  }
-}
-
   }
 };
 </script>

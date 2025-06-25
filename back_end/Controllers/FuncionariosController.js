@@ -36,6 +36,7 @@ async function getProducaoFuncionario(req, res, next){
     try {
         const email = req.params.email;
         const producao = await Funcionarios.getProducaoFuncionario(email);
+        req.io.emit('nova_producao'); 
         res.status(200).json({producao:producao});
     } catch (err) {
         console.error(`Erro ao obter produção do funcionário.`, err.message);

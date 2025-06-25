@@ -15,6 +15,22 @@ app.use(function(req, res, next) {
 
 app.set('trust proxy', 1);
 
+const { Server } = require('socket.io');
+
+const http = require('http');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST'],
+    },
+});
+
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
 const routerEstoque = require('./Routes/EstoqueTecido.router.js');
 const routerEstoqueAgulhas = require('./Routes/EstoqueAgulhas.router.js');
 const routerFuncionarios = require('./Routes/Funcionarios.router.js');
@@ -25,6 +41,7 @@ const routerUser= require('./Routes/User.router.js');
 
 app.use(routerEstoque, routerEstoqueAgulhas, routerFuncionarios, routerDashboard, routerPecas, routerUser);
 
+
 const hostname = 'localhost';
 const port = 3333;
 
@@ -33,6 +50,6 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   }));
-app.listen(3333, () => {
+server.listen(3333, () => {
     console.log(`Servidor iniciado em http://${hostname}:${port} (Clique Ctrl+C)`);
 });

@@ -1,12 +1,12 @@
 <template>
   <div class="d-flex flex-column flex-md-row">
     <!-- Sidebar fixa -->
-    <SidebarNav style="z-index: 1"/>
+    <SidebarNav style="z-index: 1" />
 
     <!-- Conteúdo Principal -->
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
-        
+
         <!-- Linha do Usuário e Cards -->
         <div class="row justify-content-center">
           <NavBarUser class="d-none d-md-block" />
@@ -14,7 +14,8 @@
 
         <div class="row justify-content-center text-center">
           <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
-          <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso" class="bg-light-blue" />
+          <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
+            class="bg-light-blue" />
           <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
           <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
         </div>
@@ -47,7 +48,7 @@ import Axios from 'axios';
 import Producao from '@/components/Producao.vue';
 import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 Chart.register(...registerables);
-
+import { io } from 'socket.io-client';
 export default {
   name: 'DashboardHome',
   components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal },
@@ -82,9 +83,13 @@ export default {
     pecasColeta() {
       return this.pecas?.coleta?.length || 0;
     }
-},
+  },
   mounted() {
     this.fetchData();
+    this.socket = io('http://localhost:3333'); // Conecta ao servidor Socket.IO
+    this.socket.on('nova_peca', () => {
+      this.fetchData(); // Recarrega os dados quando uma nova peça é adicionada
+    });
   },
   methods: {
     async fetchData() {
@@ -100,8 +105,16 @@ export default {
       }
     },
     renderCharts() {
-      const barCtx = this.$refs.pecasBarChart.getContext('2d');
-      const lineCtx = this.$refs.pecasLineChart.getContext('2d');
+      const barCanvas = this.$refs.pecasBarChart;
+      const lineCanvas = this.$refs.pecasLineChart;
+
+      if (!barCanvas || !lineCanvas) {
+        console.warn("Canvas ainda não está disponível.");
+        return;
+      }
+
+      const barCtx = barCanvas.getContext('2d');
+      const lineCtx = lineCanvas.getContext('2d');
 
       if (this.chartInstances.barChart) this.chartInstances.barChart.destroy();
       if (this.chartInstances.lineChart) this.chartInstances.lineChart.destroy();
@@ -134,36 +147,51 @@ export default {
         },
       };
 
-      this.chartInstances.barChart = new Chart(barCtx, { type: 'bar', data: chartData, options: chartOptions });
-      this.chartInstances.lineChart = new Chart(lineCtx, { type: 'line', data: chartData, options: chartOptions });
-    },
-  },
+      this.chartInstances.barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: chartData,
+        options: chartOptions,
+      });
+
+      this.chartInstances.lineChart = new Chart(lineCtx, {
+        type: 'line',
+        data: chartData,
+        options: chartOptions,
+      });
+    }
+  }
 };
 </script>
 
 <style scoped>
 .d-flex {
   display: flex;
-  flex-direction: row; /* Coloca sidebar e conteúdo lado a lado */
-  height: 100vh; /* Garante que o conteúdo ocupe toda a altura da tela */
+  flex-direction: row;
+  /* Coloca sidebar e conteúdo lado a lado */
+  height: 100vh;
+  /* Garante que o conteúdo ocupe toda a altura da tela */
 }
 
 .content-wrapper {
   flex-grow: 1;
-  padding-left: 200px; /* Espaço para a sidebar */
+  padding-left: 200px;
+  /* Espaço para a sidebar */
   width: 100%;
 }
 
 .container-fluid {
-  max-width: 1200px; /* Define um limite para não ficar muito largo */
-  margin: auto; /* Centraliza o conteúdo */
+  max-width: 1200px;
+  /* Define um limite para não ficar muito largo */
+  margin: auto;
+  /* Centraliza o conteúdo */
 }
 
 .row {
   margin-top: 30px;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center; /* Centraliza os elementos */
+  justify-content: center;
+  /* Centraliza os elementos */
 }
 
 canvas {
@@ -175,11 +203,14 @@ canvas {
 /* Garante espaçamento adequado em telas menores */
 @media (max-width: 768px) {
   .d-flex {
-    flex-direction: column; /* Sidebar fica acima do conteúdo */
+    flex-direction: column;
+    /* Sidebar fica acima do conteúdo */
     height: auto;
   }
+
   .content-wrapper {
-    padding-left: 80px; /* Remove a margem lateral */
+    padding-left: 80px;
+    /* Remove a margem lateral */
     z-index: 0;
   }
 }
