@@ -1,56 +1,82 @@
 <template>
   <div>
-    <div :class="{ 'sidebar': true, 'minimized': isMinimized }">
+    <!-- Navbar mobile -->
+    <nav class="mobile-navbar d-md-none d-flex justify-content-end align-items-center p-2">
+      <button class="btn btn-outline-secondary" @click="isMinimized = !isMinimized">
+        <i class="bi bi-list"></i>
+
+      </button>
+      <NavBarUser class="ms-2" />
+    </nav>
+
+    <!-- Sidebar -->
+    <div :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
-        <div>
-          <!-- Alterando a classe da imagem da logo com base no estado 'isMinimized' -->
-          <img 
-            class="icon-logo" 
-            :src="isMinimized ? require('@/assets/LogoAcariTex.png') : require('@/assets/Logo.png')" 
-            :class="{'logo-minimized': isMinimized}" 
-            alt="Logo">
+        <!-- Logo só no desktop -->
+        <div class="d-none d-md-block">
+          <img class="icon-logo"
+            :src="isMinimized ? require('@/assets/LogoAcariTex.png') : require('@/assets/Logo.png')"
+            :class="{ 'logo-minimized': isMinimized }" alt="Logo">
         </div>
+
         <div class="list-group">
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/Dashboard" class="d-flex align-items-center text-reset">
+            <router-link to="/dashboard" class="d-flex align-items-center text-reset">
               <i class="bi bi-house-door-fill icon"></i>
-              <span v-if="!isMinimized" class="ms-2">Dashboard</span>
+              <span>Dashboard</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/MinhaEquipe" class="d-flex align-items-center text-reset">
               <i class="bi bi-person-fill icon"></i>
-              <span v-if="!isMinimized" class="ms-2">Minha equipe</span>
+              <span>Minha equipe</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/Producao" class="d-flex align-items-center text-reset">
               <i class="bi bi-bar-chart-line-fill icon"></i>
-              <span v-if="!isMinimized" class="ms-2">Produção</span>
+              <span>Produção</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/adicionar-peca" class="d-flex align-items-center text-reset">
+              <i class="bi bi-plus-circle-fill icon"></i>
+              <span>Adicionar OP</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/Producao" class="d-flex align-items-center text-reset">
+              <i class="bi bi-peace-fill icon"></i>
+              <span>Relatórios</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/Eficiencia" class="d-flex align-items-center text-reset">
               <i class="bi bi-gear-fill icon"></i>
-              <span v-if="!isMinimized" class="ms-2">Configurações</span>
+              <span>Configurações</span>
             </router-link>
           </div>
         </div>
       </div>
-      <div class="arrasta" @click="toggleSidebar">
-        <img src="@/assets/setas.png" alt="Toggle Sidebar" />
-      </div>
     </div>
+
+    <!-- Overlay mobile -->
+    <div v-if="isMinimized" class="overlay" @click="isMinimized = false"></div>
   </div>
 </template>
 
 <script>
+import NavBarUser from './NavBarUser.vue';
+
 export default {
   name: 'Sidebar-menu',
   data() {
     return {
       isMinimized: false,
     };
+  },
+  components: {
+    NavBarUser,
   },
   methods: {
     toggleSidebar() {
@@ -63,9 +89,10 @@ export default {
 </script>
 
 <style scoped>
+/* Mantendo exatamente seu estilo pré-definido */
 .icon-logo {
   margin-top: 20px;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
   padding: 5px;
   width: 150px;
 }
@@ -78,19 +105,15 @@ export default {
   background-color: #ffffff;
   width: 200px;
   transition: width 0.3s;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
 }
 
 .minimized {
   width: 80px;
 }
-.logo-minimized{
+
+.logo-minimized {
   width: 80px;
 }
-.minimized .list-group-item span {
-  display: none;
-}
-
 .icon {
   font-size: 1.5em;
   margin-right: 10px;
@@ -102,33 +125,88 @@ export default {
   transition: background-color 0.3s;
   cursor: pointer;
 }
-.menu .list-group-item{
+
+.menu .list-group-item {
   margin-left: 10px;
   color: #616161;
 }
+
 .menu .list-group-item:hover {
-  color:rgb(41, 41, 41);
+  color: rgb(41, 41, 41);
 }
 
 .arrasta img {
+  display: none;
   margin-left: 10px;
   margin-top: 70px;
   width: 50px;
   cursor: pointer;
 }
-a{
+
+a {
   text-decoration: none;
 }
+
+/* Mobile navbar e off-canvas */
+.mobile-navbar {
+  display: none;
+  background-color: #fff;
+  border-bottom: 1px solid #ddd;
+  z-index: 1100;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 900;
+}
+
+.mobile-open {
+  left: 0;
+}
+
+/* Mobile styles mantendo o resto */
+/* Mobile styles mantendo o resto */
 @media screen and (max-width: 600px) {
-  .menu .item img {
-    width: 50px;
-    padding: 5px;
+  .mobile-navbar {
+    display: flex;
   }
 
-  .arrasta img {
-    margin-left: 0px;
-    margin-top: 20px;
-    width: 50px;
+  /* Sidebar off-canvas */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -250px;
+    /* inicialmente escondida */
+    width: 250px;
+    height: 100%;
+    transition: all 0.3s;
+    z-index: 1001;
+    /* acima da overlay */
+  }
+
+  .mobile-open {
+    left: 0;
+    /* aparece ao clicar no botão */
+  }
+
+  .icon-logo {
+    display: none;
+  }
+
+  /* Overlay */
+  .overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 1000;
   }
 }
 </style>

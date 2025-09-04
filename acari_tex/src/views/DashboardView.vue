@@ -1,27 +1,19 @@
 <template>
   <div class="d-flex flex-column flex-md-row">
-    <!-- Sidebar fixa -->
     <SidebarNav style="z-index: 1" />
 
-    <!-- Conteúdo Principal -->
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
-
-        <!-- Linha do Usuário e Cards -->
-        <div class="row justify-content-center">
-          <NavBarUser class="d-none d-md-block" />
-        </div>
-
-        <div class="row justify-content-center text-center">
+      <div class="row justify-content-center">
+        <NavBarUser class="d-none d-md-block" />
+      </div>
+        <section class="row justify-content-center text-center">
           <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
           <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
             class="bg-light-blue" />
           <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
           <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
-        </div>
-
-        <!-- Gráficos -->
-
+        </section>
         <div class="row justify-content-center">
           <GraficoProducaoTotal class="mb-4" />
           <Producao />
@@ -42,11 +34,13 @@
 import SidebarNav from '@/components/Sidebar.vue';
 import NavBarUser from '@/components/NavBarUser.vue';
 import DashboardCard from '@/components/DashboardCard.vue';
+
+import Producao from '@/components/Producao.vue';
+import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 import { useAuthStore } from '@/store/store';
 import { Chart, registerables } from 'chart.js';
 import Axios from 'axios';
-import Producao from '@/components/Producao.vue';
-import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
+
 Chart.register(...registerables);
 import { io } from 'socket.io-client';
 export default {
@@ -175,15 +169,12 @@ export default {
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
-  /* Espaço para a sidebar */
   width: 100%;
 }
 
 .container-fluid {
   max-width: 1200px;
-  /* Define um limite para não ficar muito largo */
   margin: auto;
-  /* Centraliza o conteúdo */
 }
 
 .row {
@@ -191,16 +182,13 @@ export default {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  /* Centraliza os elementos */
 }
-
 canvas {
   max-width: 100%;
   height: auto;
   background-color: white;
 }
 
-/* Garante espaçamento adequado em telas menores */
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
@@ -209,7 +197,7 @@ canvas {
   }
 
   .content-wrapper {
-    padding-left: 80px;
+    padding-left: 0px;
     /* Remove a margem lateral */
     z-index: 0;
   }

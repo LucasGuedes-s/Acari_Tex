@@ -34,16 +34,13 @@ export default {
 <style scoped>
 .content-wrapper {
     padding-left: 200px;
-    /* Espaço para a sidebar */
     width: 100%;
 }
 
 .d-flex {
     display: flex;
     flex-direction: row;
-    /* Coloca sidebar e conteúdo lado a lado */
     height: 100vh;
-    /* Garante que o conteúdo ocupe toda a altura da tela */
 }
 
 .form {

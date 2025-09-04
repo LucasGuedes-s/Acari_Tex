@@ -1,9 +1,24 @@
 <template>
-  <div>
-    <NavBarUser />
+  <div class="d-flex flex-column flex-md-row">
     <SidebarNav />
     <main class="content-wrapper flex-grow-1">
-      <div class="container_profissional" v-for="funcionario in funcionarios" :key="funcionario.id">
+        <div class="nav row justify-content-center">
+          <div class="form col-12 col-md-10 col-lg-8  ">
+            <div class="search">
+                <select name="Pesquisar" id="hora" v-model="profissional">
+                  <option value="" disabled>Pesquisar por grupo</option>
+                  <option value="08:00">Equipe1</option>
+                  <option value="09:00">Equipe2</option>
+                  <option value="10:00">Equipe3</option>
+                </select>
+                <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa">
+                <RouterLink to="/adicionar-profissional"><button class="btn-button">Novo profissional</button></RouterLink>
+
+                <NavBarUser class="nav" />
+            </div>
+          </div>
+        </div>
+      <div class="container_profissional" v-for="funcionario in filteredProfissional" :key="funcionario.id">
         <div class="card-content">
           <div class="imagem-funcionario">
             <img :src="funcionario.foto" alt="Foto do funcionário" />
@@ -118,8 +133,8 @@
 import SidebarNav from '@/components/Sidebar.vue';
 import Axios from 'axios'
 import Swal from 'sweetalert2'
-import NavBarUser from '@/components/NavBarUser.vue';
 import { useAuthStore } from '@/store/store';
+import NavBarUser from '@/components/NavBarUser.vue';
 
 export default {
   name: 'funcionarios-equipe',
@@ -132,6 +147,11 @@ export default {
       return this.etapas
         .flat() // Junta os subarrays em um único array
         .filter(etapa => etapa.id_da_op === this.pecaRegistro);
+    },
+    filteredProfissional() {
+        return this.funcionarios.filter(funcionario =>
+            funcionario.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
+        );
     }
   },
   data() {
@@ -148,7 +168,7 @@ export default {
       pis: null,
       pix: null,
       notas: null,
-      funcionarios: null,
+      funcionarios: [],
       funcionario: null,
       pecas: [],
       etapas: [],
@@ -156,15 +176,16 @@ export default {
       quantidadeRegistro: null,
       horaRegistro: null,
       funcao: null,
+      pesquisa: '',
+      profissional: '',
     }
   },
   components: {
     SidebarNav,
-    NavBarUser,
-
+    NavBarUser
   },
   methods: {
-    async producao(email){
+    async producao(email) {
       this.$router.push({ name: 'ProducaoFuncionario', params: { emailFuncionario: email } })
     },
     async fecharModal() {
@@ -273,7 +294,14 @@ export default {
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
-  /* Espaço para a sidebar */
+  width: 100%;
+}
+.nav{
+  padding: 1rem;
+  display: flex;
+  justify-content: end;
+}
+.form {
   width: 100%;
 }
 
@@ -287,14 +315,22 @@ export default {
   flex-direction: column;
 }
 
-/* Bloco com imagem e informações */
 .card-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
 }
-
+.btn-button{
+    padding: 10px 20px;
+    background-color: white;
+    border: 1px solid #84E7FF;
+    color: #7E7E7E;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+}
 .imagem-funcionario img {
   width: 100px;
   height: 100px;
@@ -425,8 +461,78 @@ label {
 
 }
 
-/* Responsividade para celular */
-@media (max-width: 600px) {
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* espaçamento entre os itens */
+  margin-bottom: 20px;
+}
+
+.search input {
+  padding: 10px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  font-family: 'Montserrat', sans-serif;
+}
+
+.search select {
+  max-width: 180px;
+  border: 1px solid #008d3b;
+  padding: 12px 15px;
+  border: none;
+  border-radius: 8px;
+  background-color: white;
+  cursor: pointer;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+}
+
+.search .btn-button {
+  flex: 1; /* ocupa menos espaço */
+  max-width: 150px; /* limite */
+  padding: 10px 20px;
+  background-color: #008d3b;
+  border: 1px solid #008d3b;
+  color: #ffffff;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  white-space: nowrap; /* evita quebrar texto */
+}
+
+input {
+  width: 100%;
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+}
+
+
+.search input, select{
+    padding: 10px 50px;
+    width: 100%;
+    border: none;
+    background-color: white;
+    cursor: pointer;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+}
+
+
+  @media (max-width: 600px) {
+    .nav{
+      display: none;
+    }
   .card-content {
     flex-direction: row;
     align-items: center;
@@ -437,7 +543,7 @@ label {
   }
 
   .content-wrapper {
-    padding-left: 80px;
+    padding-left: 0px;
     /* Remove a margem lateral */
     z-index: 0;
   }

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import HomeView from '../views/Login.vue'
 
 const routes = [
   {
@@ -8,7 +8,7 @@ const routes = [
     component: HomeView
   },
   {
-    path: '/Dashboard',
+    path: '/dashboard',
     name: 'dashboard',
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
@@ -16,7 +16,7 @@ const routes = [
     component: () => import(/* webpackChunkName: "about" */ '../views/DashboardView.vue')
   },
   {
-    path: '/Adicionar/Peca',
+    path: '/adicionar-peca',
     name: 'Adicionar Peca',
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
@@ -24,7 +24,7 @@ const routes = [
     component: () => import(/* webpackChunkName: "about" */ '../views/AdicionarPecaView.vue')
   },
   {
-    path: '/Adicionar/funcionario',
+    path: '/adicionar-profissional',
     name: 'Adicionar funcionario',
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route

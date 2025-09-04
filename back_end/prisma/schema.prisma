@@ -24,6 +24,7 @@ model Usuarios {
   pix                 String?     
   notas               String?
 
+  EquipesGrupos  EquipesGrupos[]
   estabelecimentoCnpj String
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
@@ -33,7 +34,7 @@ model Usuarios {
 model Estabelecimento {
   cnpj                String @id
   usuarios            Usuarios[] // <- agora sim, vários funcionários ligados a 1 cnpj
-
+  EquipesGrupos       EquipesGrupos[]
   estoque_tecidos     Estoque_Tecidos[]
   estoque_agulhas     Estoque_Agulhas[]
   tarefas             Tarefas[]
@@ -134,4 +135,14 @@ model Tarefas {
   data_abertura       DateTime
   data_conclusao      DateTime?
   notas               String?
+}
+
+model EquipesGrupos{
+  id            Int     @id @default(autoincrement())
+  nome          String
+  descricao     String?
+  Usuario       Usuarios @relation(fields: [usuarioEmail], references: [email])
+  usuarioEmail  String
+  estabelecimentoCnpj String
+  Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 }

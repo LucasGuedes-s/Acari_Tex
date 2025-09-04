@@ -4,19 +4,23 @@ const prisma = new PrismaClient();
 async function postPecaOP(req, user) {
     const etapas = req.peca.etapas || [];
     const etapasIds = await Promise.all(
-        etapas.map(async (descricao) => {
-          const etapa = await prisma.Etapa.findUnique({
-            where: {
-              descricao: descricao,  // Utilizando a descrição da etapa para buscar
-            },
-            select: {
-              id_da_funcao: true  // Garantindo que o id_da_funcao será retornado
-            }
+      etapas.map(async (descricao) => {
+        // Busca a etapa pelo nome
+        let etapa = await prisma.Etapa.findUnique({
+          where: { descricao },
+          select: { id_da_funcao: true },
+        });
+
+        if (!etapa) {
+          etapa = await prisma.Etapa.create({
+            data: { descricao },
+            select: { id_da_funcao: true },
           });
-          return etapa ? etapa.id_da_funcao : null;  // Retorna o id ou null se não encontrar
-        })
-      );
-      
+        }
+
+        return etapa.id_da_funcao;
+      })
+    );
       // Filtrando etapas válidas (não nulas)
       const etapasValidas = etapasIds.filter(id => id !== null);
     // Criar a nova peça com as etapas conectadas
