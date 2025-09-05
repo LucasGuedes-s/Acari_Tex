@@ -6,10 +6,6 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-generator erd {
-  provider = "prisma-erd-generator"
-  output   = "/home/gabriel/ERD.svg"
-}
 
 model Usuarios {
   nome                String
@@ -55,6 +51,8 @@ model PecasOP {
   data_do_pedido     String?
   data_de_entrega    String?
   notas              String?
+  tempo_estimado     Float?
+  tempo_esperado     Float?
   producao_peca      Producao[]
 
   etapas             PecasEtapas[]
@@ -84,9 +82,9 @@ model Producao {
   id_Estabelecimento     String
   id_da_op               Int
   id_funcionario         String
-  id_da_funcao           Int        // <- ADICIONADO: etapa da produção (ex: corte, costura...)
+  id_da_funcao           Int     
 
-  data_inicio            String?
+  data_inicio            DateTime?
   hora_registro          String?
 
   Estabelecimento        Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])

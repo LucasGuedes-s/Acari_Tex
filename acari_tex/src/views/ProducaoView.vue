@@ -3,108 +3,215 @@
     <div>
       <SidebarNav style="z-index: 1" />
     </div>
-    <main class="content-wrapper  flex-grow-1">
-      <!-- Exibindo a lista de peças -->
+    <main class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
-        <!-- Linha do Usuário e Cards -->
         <div class="row justify-content-center">
           <NavBarUser class="d-none d-md-block" />
         </div>
-      <div class="row justify-content-center text-center">
+
+        <!-- Cards resumo -->
+        <div class="row justify-content-center text-center mb-4">
           <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
           <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso" class="bg-light-blue" />
           <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
           <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
-          <ListaPecas :pecasPorStatus="pecasPorStatus" />
+        </div>
 
+        <!-- Kanban draggable -->
+        <div class="row mt-4 kanban-board">
+          <div
+            class="col"
+            v-for="(lista, status) in pecas"
+            :key="status"
+          >
+            <h5 class="text-center mb-3">{{ traduzStatus(status) }}</h5>
+
+            <draggable
+              class="kanban-column"
+              :list="pecas[status]"
+              :group="{ name: 'pecas' }"
+              item-key="id"
+              @change="onKanbanChange($event, status)"
+            >
+              <template #item="{ element }">
+                <div class="kanban-item" :class="element.status">
+                  <i class="bi bi-box-seam me-2"></i>
+                  {{ element.descricao }}
+                </div>
+              </template>
+            </draggable>
+          </div>
         </div>
       </div>
     </main>
   </div>
 </template>
+
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
 import NavBarUser from '@/components/NavBarUser.vue';
-import ListaPecas from '@/components/PecasVue.vue';
 import { useAuthStore } from '@/store/store';
 import Axios from 'axios';
 import DashboardCard from '@/components/DashboardCard.vue';
+import draggable from 'vuedraggable';
 
 export default {
   name: 'DashboardTecidos',
+  components: {
+    SidebarNav,
+    NavBarUser,
+    DashboardCard,
+    draggable,
+  },
   setup() {
     const store = useAuthStore();
     return { store };
   },
   data() {
     return {
-      pecasPorStatus: {},
       pecas: {
-        finalizado: [],
-        em_progresso: [],
         nao_iniciado: [],
+        em_progresso: [],
         coleta: [],
+        finalizado: [],
       },
     };
-
   },
-
   computed: {
-    pecasNaoIniciadas() {
-      return this.pecas?.nao_iniciado?.length || 0;
-    },
-    pecasEmProgresso() {
-      return this.pecas?.em_progresso?.length || 0;
-    },
-    pecasConcluidas() {
-      return this.pecas?.finalizado?.length || 0;
-    },
-    pecasColeta() {
-      return this.pecas?.coleta?.length || 0;
-    }
+    pecasNaoIniciadas() { return this.pecas?.nao_iniciado?.length || 0; },
+    pecasEmProgresso() { return this.pecas?.em_progresso?.length || 0; },
+    pecasConcluidas() { return this.pecas?.finalizado?.length || 0; },
+    pecasColeta() { return this.pecas?.coleta?.length || 0; },
   },
   methods: {
+    traduzStatus(status) {
+      const mapa = {
+        nao_iniciado: "Não iniciadas",
+        em_progresso: "Em andamento",
+        coleta: "Aguardando coleta",
+        finalizado: "Concluídas",
+      };
+      return mapa[status] || status;
+    },
+
+    normalizePecas(raw) {
+      const keys = ['nao_iniciado', 'em_progresso', 'coleta', 'finalizado'];
+      const out = {};
+      for (const k of keys) {
+        const list = Array.isArray(raw?.[k]) ? raw[k] : [];
+        out[k] = list.map(item => ({
+          ...item,
+          id: item.id ?? item.id_da_op ?? item._id ?? item.codigo, // garante um id
+          status: k, // status atual para colorir
+        }));
+      }
+      return out;
+    },
+
     async fetchData() {
       try {
         const token = this.store.pegar_token;
-        const response = await Axios.get("http://localhost:3333/pecas", {
+        const { data } = await Axios.get("http://localhost:3333/pecas", {
           headers: { Authorization: `${token}` },
         });
-        this.pecas = response.data.peca;
-        this.pecasPorStatus = response.data.peca || {}; // Garante que sempre seja um objeto
+        this.pecas = this.normalizePecas(data.peca);
       } catch (error) {
         console.error("Erro ao buscar os dados:", error);
-        this.pecasPorStatus = {}; // Evita erro caso a API falhe
+      }
+    },
+
+    async atualizarStatusNoServidor(itemId, novoStatus) {
+      const token = this.store.pegar_token;
+      await Axios.post(
+        `http://localhost:3333/update/status`,
+        {id_da_op: itemId, status: novoStatus},
+        { headers: { Authorization: `${token}` } }
+      );
+    },
+
+    async onKanbanChange(evt, colunaDestino) {
+      // evt tem { added, moved, removed } dependendo da ação
+      try {
+        if (evt?.added) {
+          const movedItem = evt.added.element;
+          if (!movedItem) return;
+
+          // só atualiza no backend se realmente trocou de coluna
+          if (movedItem.status !== colunaDestino) {
+            await this.atualizarStatusNoServidor(movedItem.id, colunaDestino);
+            movedItem.status = colunaDestino; // atualiza localmente para refletir a cor
+          }
+        }
+        // evt.moved => reordenação dentro da mesma coluna (não precisa chamar API)
+        // evt.removed => saiu de uma coluna (a confirmação é tratada no 'added' da coluna destino)
+      } catch (error) {
+        console.error('Erro ao atualizar status:', error);
+        // rollback simples: recarrega do servidor
+        this.fetchData();
       }
     },
   },
   mounted() {
     this.fetchData();
   },
-  components: {
-    SidebarNav,
-    NavBarUser,
-    ListaPecas,
-    DashboardCard
-  },
 };
 </script>
 
-
 <style scoped>
 .content-wrapper {
-  padding-left: 200px; /* Espaço para a sidebar */
+  flex-grow: 1;
+  padding-left: 200px;
   width: 100%;
 }
-.container-fluid {
-  max-width: 1200px; /* Define um limite para não ficar muito largo */
-  margin: auto; /* Centraliza o conteúdo */
+
+.kanban-board {
+  display: flex;
+  gap: 1rem;
+}
+
+.kanban-column {
+  background: #f9f9f9;
+  border-radius: 8px;
+  min-height: 300px;
+  padding: 10px;
+  box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+}
+
+.kanban-item {
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  transition: 0.2s;
+  color: #fff;
+  font-weight: 500;
+}
+
+.kanban-item:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+/* Cores por status */
+.kanban-item.nao_iniciado {
+  background: #ffb3b3; /* rosa claro */
+}
+.kanban-item.em_progresso {
+  background: #4da6ff; /* azul */
+}
+.kanban-item.coleta {
+  background: #66cc66; /* verde médio */
+}
+.kanban-item.finalizado {
+  background: #66cc99; /* verde suave */
 }
 
 @media (max-width: 768px) {
   .content-wrapper {
-    padding-left: 80px; /* Remove a margem lateral */
-    z-index: 0;
+    padding-left: 80px;
   }
 }
 </style>

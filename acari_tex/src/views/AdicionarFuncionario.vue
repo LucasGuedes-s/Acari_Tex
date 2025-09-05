@@ -60,9 +60,9 @@
 import Sidebar from '@/components/Sidebar.vue'
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue'
 import router from '@/router'
-import axios from 'axios'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/store/store'
+import api from '@/Axios'
 
 export default {
   components: {
@@ -93,7 +93,7 @@ export default {
     async cadastrarFuncionario() {
       try {
         const token = this.store.pegar_token
-        const response = await axios.post('http://localhost:3333/adicionar/funcionario', {
+        const response = await api.post('/adicionar/funcionario', {
           funcionario: this.novoFuncionario
         }, {
           headers: { Authorization: `${token}` }

@@ -49,5 +49,4 @@ module.exports = {
     getFuncionario,
     postEquipe,
     getProducaoFuncionario
-
 }

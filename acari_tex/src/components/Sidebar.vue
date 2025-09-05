@@ -45,8 +45,8 @@
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/Producao" class="d-flex align-items-center text-reset">
-              <i class="bi bi-peace-fill icon"></i>
+            <router-link to="/relatorios" class="d-flex align-items-center text-reset">
+              <i class="bi bi-graph-up-arrow icon"></i>
               <span>Relatórios</span>
             </router-link>
           </div>

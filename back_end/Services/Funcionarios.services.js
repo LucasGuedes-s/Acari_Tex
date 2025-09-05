@@ -144,10 +144,48 @@ async function getProducaoFuncionario(req) {
     return { error: error.message };
   }
 }
+async function criarEquipe(req) {
+  try {
+    const { nome, descricao, funcionarioEmails } = req.body;
+    const cnpj = req.user.cnpj
+    // Buscar os funcionários que pertencem ao estabelecimento
+    const funcionarios = await prisma.usuarios.findMany({
+      where: {
+        email: { in: funcionarioEmails },
+        estabelecimentoCnpj: cnpj
+      }
+    });
+
+    if (funcionarios.length !== funcionarioEmails.length) {
+      throw new Error("Um ou mais funcionários não pertencem a este estabelecimento.");
+    }
+
+    // Criar a equipe e conectar os usuários
+    const equipe = await prisma.equipesGrupos.create({
+      data: {
+        nome,
+        descricao,
+        estabelecimentoCnpj: cnpj,
+        usuarios: {
+          connect: funcionarios.map(f => ({ email: f.email }))
+        }
+      },
+      include: {
+        usuarios: true
+      }
+    });
+
+    return equipe;
+  } catch (error) {
+    console.error("Erro ao criar equipe:", error);
+    throw new Error("Erro ao criar a equipe.");
+  }
+}
 
 module.exports = {
   getFuncionarios,
   getFuncionario,
   postFuncionario,
-  getProducaoFuncionario
+  getProducaoFuncionario,
+  criarEquipe
 };

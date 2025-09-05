@@ -22,15 +22,16 @@ async function postPecaOP(req, user) {
       })
     );
       // Filtrando etapas válidas (não nulas)
-      const etapasValidas = etapasIds.filter(id => id !== null);
+    const etapasValidas = etapasIds.filter(id => id !== null);
     // Criar a nova peça com as etapas conectadas
+    console.log(req.peca)
     const novaPeca = await prisma.PecasOP.create({
         data: {
-            status: "Não Iniciado",
+            status: "nao_iniciado",
             descricao: req.peca.descricao || null,
-            quantidade_pecas: req.peca.quantidade || null,
+            quantidade_pecas: req.peca.quantidade_pecas || null,
             pedido_por: req.peca.pedido_por || null,
-            data_do_pedido: req.peca.data_do_pedido || null,
+            data_do_pedido: new Date().toISOString(),
             data_de_entrega: req.peca.data_de_entrega || null,
             valor_peca: req.peca.valor_peca || null,
             Estabelecimento: {
@@ -69,10 +70,10 @@ async function getPecasOP(req) {
         return { finalizado: [], em_progresso: [], nao_iniciado: [], coleta: [] };
     }
 
-    const finalizado = pecasOp.filter(peca => peca.status === "Concluido");
-    const em_progresso = pecasOp.filter(peca => peca.status === "Em andamento");
-    const nao_iniciado = pecasOp.filter(peca => peca.status === "Não Iniciado");
-    const coleta = pecasOp.filter(peca => peca.status === "Aguardando coleta");
+    const finalizado = pecasOp.filter(peca => peca.status === "finalizado");
+    const em_progresso = pecasOp.filter(peca => peca.status === "em_progresso");
+    const nao_iniciado = pecasOp.filter(peca => peca.status === "nao_iniciado");
+    const coleta = pecasOp.filter(peca => peca.status === "coleta");
 
     return {
         finalizado,
@@ -88,11 +89,9 @@ async function postProducaoPeca(req, res) {
       id_funcionario,
       id_da_funcao,
       quantidade_pecas,
-      //data_inicio,
       hora_registro,
     } = req.body;
-    const id_Estabelecimento = req.user.cnpj; // Obtendo o CNPJ do estabelecimento do usuário autenticado
-    // Verifica se a etapa está relacionada com a OP
+    const id_Estabelecimento = req.user.cnpj;
     const etapaRelacionada = await prisma.pecasEtapas.findUnique({
       where: {
         id_da_op_id_da_funcao: {
@@ -101,12 +100,10 @@ async function postProducaoPeca(req, res) {
         }
       }
     });
-
     if (!etapaRelacionada) {
       return "A etapa informada não está relacionada com essa OP." ;
     }
 
-    // Buscar a OP para pegar a quantidade total de peças
     const op = await prisma.pecasOP.findUnique({
       where: { id_da_op },
       select: { quantidade_pecas: true }
@@ -132,6 +129,7 @@ async function postProducaoPeca(req, res) {
 
     // Se a nova soma excede o total da OP, bloquear
     if (novaQuantidade > op.quantidade_pecas) {
+      console.log(`A produção para essa etapa excede a quantidade total da OP. Produzido: ${jaProduzido}, Tentativa de adicionar: ${quantidade_pecas}, Total OP: ${op.quantidade_pecas}`);
       return {
         error: `A produção para essa etapa excede a quantidade total da OP.`,
         jaProduzido,
@@ -153,10 +151,10 @@ async function postProducaoPeca(req, res) {
         id_da_funcao,
         hora_registro,
         quantidade_pecas,
-        data_inicio: data_inicio,
+        data_inicio: new Date(), // Usando a data e hora atual no fuso horário de São Paulo
       }
     });
-
+    console.log(`Produção registrada:`, producao);
     return producao;
 
   } catch (error) {
@@ -229,9 +227,13 @@ async function getEtapasProducaoPorEstabelecimento(req, res) {
 }
 async function updatePecaStatus(id_da_op, status) {
     try {
+        let data = {status: status}
+        if(status == "finalizado"){
+          data = {status: status, data_de_entrega: new Date().toISOString()}
+        }
         const peca = await prisma.PecasOP.update({
             where: { id_da_op },
-            data: { status: status }
+            data
         });
         return peca;
     } catch (error) {
@@ -241,18 +243,22 @@ async function updatePecaStatus(id_da_op, status) {
 }
 async function getProducaoEquipe(req) {
   try {
-    console.log("Buscando produção da equipe...");
-    // Pega a data de hoje no formato YYYY-MM-DD
-    const hoje = new Date();
+    const hoje = new Date(); // ou qualquer data desejada
     const ano = hoje.getFullYear();
     const mes = String(hoje.getMonth() + 1).padStart(2, '0');
     const dia = String(hoje.getDate()).padStart(2, '0');
-    const dataHojeStr = `${ano}-${mes}-${dia}`;
+    const dataHojeStr = `${ano}-${mes}-${dia}`; // <-- adiciona isso
+
+    // Cria início e fim do dia
+    const inicioDia = new Date(`${ano}-${mes}-${dia}T00:00:00Z`);
+    const fimDia = new Date(`${ano}-${mes}-${dia}T23:59:59Z`);
+
     const producoes = await prisma.producao.findMany({
-       where: {
+      where: {
         data_inicio: {
-          startsWith: dataHojeStr // Filtra somente produções de hoje
-        }
+          gte: inicioDia,
+          lte: fimDia,
+        },
       },
       select: {
         id_funcionario: true,
@@ -260,7 +266,9 @@ async function getProducaoEquipe(req) {
         data_inicio: true,
         hora_registro: true,
         producao_funcionario: {
-          select: { nome: true }
+          select: {
+            nome: true
+          }
         }
       }
     });
@@ -319,6 +327,66 @@ function getDataInicioBrasil() {
   const { year, month, day, hour, minute, second } = fusoHorarioBrasil;
   return `${year}-${month}-${day}T${hour}:${minute}:${second}:00`;
 }
+async function getEstatisticasPeca(id) {
+  try {
+    const id_da_op = parseInt(id);
+
+    const peca = await prisma.PecasOP.findUnique({
+      where: { id_da_op },
+      include: {
+        Estabelecimento: true,
+        etapas: { include: { etapa: true } },
+        producao_peca: {
+          include: {
+            producao_funcionario: true, // carrega dados do funcionário
+            producao_etapa: true        // carrega dados da etapa
+          }
+        }
+      },
+    });
+
+    if (!peca) throw new Error("Peça não encontrada.");
+
+    const producaoPorEtapa = {};
+    let totalProduzido = 0;
+
+    peca.producao_peca.forEach((p) => {
+      const etapaNome = p.producao_etapa?.descricao || "Etapa não definida";
+
+      if (!producaoPorEtapa[etapaNome]) producaoPorEtapa[etapaNome] = [];
+
+      producaoPorEtapa[etapaNome].push({
+        id_da_producao: p.id_da_producao,
+        funcionario: p.producao_funcionario?.nome || "Desconhecido",
+        funcionario_email: p.producao_funcionario?.email,
+        quantidade: p.quantidade_pecas,
+        data_inicio: p.data_inicio,
+        hora_registro: p.hora_registro,
+      });
+
+      totalProduzido += p.quantidade_pecas || 0;
+    });
+
+    return {
+      id_da_op: peca.id_da_op,
+      descricao: peca.descricao,
+      status: peca.status,
+      quantidade_pecas: peca.quantidade_pecas,
+      totalProduzido,
+      saldo: (peca.quantidade_pecas || 0) - totalProduzido,
+      pedido_por: peca.pedido_por,
+      valor_peca: peca.valor_peca,
+      data_do_pedido: peca.data_do_pedido,
+      data_de_entrega: peca.data_de_entrega,
+      notas: peca.notas,
+      producaoPorEtapa,
+    };
+  } catch (error) {
+    console.error("Erro ao buscar estatísticas da peça:", error);
+    throw new Error("Erro ao buscar estatísticas da peça.");
+  }
+}
+
 
 module.exports = {
     postPecaOP,
@@ -327,5 +395,6 @@ module.exports = {
     getEtapasProducaoPorPeca,
     getEtapasProducaoPorEstabelecimento,
     updatePecaStatus,
-    getProducaoEquipe
+    getProducaoEquipe,
+    getEstatisticasPeca
 };

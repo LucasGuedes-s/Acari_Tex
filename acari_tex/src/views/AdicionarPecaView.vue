@@ -20,7 +20,7 @@
 
                 <div class="col-md-6">
                   <label for="quantidade" class="form-label">Quantidade</label>
-                  <input v-model.number="novaPeca.quantidade_pecas" id="quantidade" type="number" class="form-control"
+                  <input v-model="novaPeca.quantidade_pecas" id="quantidade" type="number" class="form-control"
                     placeholder="Ex: 50" required />
                 </div>
 
@@ -174,9 +174,9 @@
 import Sidebar from "@/components/Sidebar.vue";
 import TituloSubtitulo from "@/components/TituloSubtitulo.vue";
 import router from "@/router";
-import axios from "axios";
 import { useAuthStore } from "@/store/store";
 import Swal from "sweetalert2";
+import api from '@/Axios'
 
 export default {
   components: { Sidebar, TituloSubtitulo },
@@ -207,7 +207,7 @@ export default {
     async adicionarPeca() {
       try {
         const token = this.store.pegar_token;
-        const response = await axios.post("http://localhost:3333/adicionar/peca", {
+        const response = await api.post("/adicionar/peca", {
           peca: {
             descricao: this.novaPeca.descricao,
             quantidade_pecas: this.novaPeca.quantidade_pecas,
@@ -226,10 +226,20 @@ export default {
             timerProgressBar: true,
             showConfirmButton: false,
           });
+        }
+          else {
+            Swal.fire({
+              icon: "error",
+              title: "Erro ao adicionar peça",
+              text: "Tente novamente mais tarde.",
+              timer: 2000,
+              timerProgressBar: true,
+              showConfirmButton: false,
+            });
+          }
           this.etapa = 1;
           this.novaPeca = { descricao: "", quantidade_pecas: null, pedido_por: "", producao: [] };
           router.push("/dashboard");
-        }
       } catch (error) {
         console.error("Erro ao cadastrar a peça:", error);
         alert("Erro ao cadastrar a peça. Tente novamente.");

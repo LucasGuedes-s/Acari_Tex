@@ -10,7 +10,6 @@
     <p v-else>Carregando dados da produção...</p>
   </div>
 </template>
-
 <script>
 import { GChart } from 'vue-google-charts'
 import axios from 'axios'
@@ -32,15 +31,26 @@ export default {
       chartOptions: {
         title: 'Produção por Funcionário (Hoje)',
         curveType: 'function',
-        legend: { position: 'bottom' },
+        legend: { position: 'bottom', maxLines: 4 },
         hAxis: {
           title: 'Hora',
+          slantedText: true, // inclina os labels para não ficarem sobrepostos
         },
         vAxis: {
           title: 'Peças Produzidas',
           minValue: 0,
         },
-        colors: ['#3366CC', '#DC3912', '#FF9900', '#109618', '#990099', '#AAAAAA']
+        // Paleta expandida com muitas cores (até 40 diferentes)
+        colors: [
+          '#3366CC', '#DC3912', '#FF9900', '#109618', '#990099',
+          '#3B3EAC', '#0099C6', '#DD4477', '#66AA00', '#B82E2E',
+          '#316395', '#994499', '#22AA99', '#AAAA11', '#6633CC',
+          '#E67300', '#8B0707', '#329262', '#5574A6', '#3B3EAC',
+          '#FF33CC', '#00FF99', '#FF6600', '#33CC33', '#CC33FF',
+          '#FF9999', '#99CC00', '#6699FF', '#FFCC00', '#00CCCC',
+          '#FF0066', '#9966FF', '#33CCFF', '#CCFF33', '#FF3366',
+          '#33FF66', '#663399', '#FF9933', '#66FF33', '#FF33FF'
+        ]
       }
     };
   },
@@ -48,7 +58,6 @@ export default {
     this.carregarDados();
     this.socket = io('http://localhost:3333');
 
-    // Remove qualquer listener anterior e registra novo
     this.socket.off('nova_peca');
     this.socket.on('nova_peca', () => {
       if (!this.loading) {
@@ -75,8 +84,9 @@ export default {
         const equipe = res.data.producao;
         console.log('Dados da equipe:', equipe);
 
-        const horasPadrao = Array.from({ length: 24 }, (_, i) =>
-          String(i).padStart(2, '0') + ':00'
+        // Agora começa de 06:00 até 23:00
+        const horasPadrao = Array.from({ length: 18 }, (_, i) =>
+          String(i + 6).padStart(2, '0') + ':00'
         );
 
         const nomes = equipe.map(f => f.nome);

@@ -4,6 +4,7 @@ import router from './router'
 import VueGoogleCharts from 'vue-google-charts'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useAuthStore } from '@/store/store';
+import Vue3Lottie from 'vue3-lottie'
 
 const app = createApp(App);
 
@@ -15,7 +16,7 @@ app.use(pinia);
 
 
 app.use(VueGoogleCharts);
-
+app.use(Vue3Lottie)
 
 const authStore = useAuthStore();
 authStore.carregarDadosPersistidos();

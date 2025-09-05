@@ -22,10 +22,8 @@ async function getOPs(req, res, next){
 
 async function postProducaoPeca(req, res, next){
     try {
-        //console.log(`Dados recebidos para produção de peça:`, req.body);
         const peca = await pecas.postProducaoPeca(req);
         req.io.emit('nova_producao', peca); // Notifica todos os clientes conectados sobre a nova produção
-        //console.log(`Produção de peça cadastrada com sucesso:`, peca);
         res.status(200).json({peca});
     } catch (err) {
         console.error(`Erro ao cadastrar produção de peças.`, err.message);
@@ -70,11 +68,28 @@ async function getProducaoEquipe(req, res, next) {
         next(err);
     }
 }
+async function getEstatisticasPeca(req, res, next) {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ mensagem: 'ID da peça é obrigatório.' });
+        }
+        const estatisticas = await pecas.getEstatisticasPeca(id);
+        if (!estatisticas) {
+            return res.status(404).json({ mensagem: 'Nenhuma estatística encontrada para essa peça.' });
+        }
+        res.status(200).json({ estatisticas });
+    } catch (err) {
+        console.error(`Erro ao obter estatísticas da peça.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     getOPs,
     postProducaoPeca,
     getProducao,
     updatePecaStatus,
-    getProducaoEquipe
+    getProducaoEquipe,
+    getEstatisticasPeca
 };

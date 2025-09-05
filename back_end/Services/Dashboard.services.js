@@ -39,8 +39,6 @@ async function updateTarefa(id) {
     const data = dataAtual.toISOString();
     const id_da_tarefa = parseInt(id);
 
-   //console.log(`Adicionando tarefa, ${tarefa}`)
-
     const tarefas = await prisma.Tarefas.update({
         where:{
             id: id_da_tarefa
