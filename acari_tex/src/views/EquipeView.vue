@@ -131,10 +131,10 @@
 </template>
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import Axios from 'axios'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/store/store';
 import NavBarUser from '@/components/NavBarUser.vue';
+import api from '@/Axios';
 
 export default {
   name: 'funcionarios-equipe',
@@ -199,7 +199,7 @@ export default {
     async postProdução() {
       const token = this.store.pegar_token;
 
-      await Axios.post("http://localhost:3333/registrar/producao", {
+      await api.post("/registrar/producao", {
         id_da_op: this.pecaRegistro,
         id_funcionario: this.registroFuncionario,
         id_da_funcao: this.funcao,
@@ -229,7 +229,7 @@ export default {
     },
     async getPecasProducao() {
       const token = this.store.pegar_token;
-      Axios.get(`http://localhost:3333/pecas`, {
+      api.get(`/pecas`, {
         headers: {
           Authorization: `${token}` // Enviando o token no cabeçalho
         }
@@ -244,7 +244,7 @@ export default {
         });
     },
     async getFuncionario(id) {
-      Axios.get(`http://localhost:3333/Funcionario/${id}`)
+      api.get(`/Funcionario/${id}`)
         .then(response => {
           this.funcionario = response.data.funcionario
           this.showModalFuncionario = true
@@ -256,7 +256,7 @@ export default {
     async getFuncionarios() {
       const token = this.store.pegar_token;
 
-      Axios.get(`http://localhost:3333/Funcionarios`, {
+      api.get(`/Funcionarios`, {
         headers: {
           Authorization: `${token}` // Enviando o token no cabeçalho
         }

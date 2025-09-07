@@ -3,7 +3,9 @@ import Swal from 'sweetalert2';
 import router from './router';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3333',
+  baseURL: 'http://192.168.0.115:3333',
+  //baseURL: 'http://localhost:3333',
+
   //baseURL: 'https://clinica-maria-luiza-bjdd.onrender.com',
 });
 

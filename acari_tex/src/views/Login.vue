@@ -20,10 +20,10 @@
 </template>
 <script>
 import router from '@/router';
-import Axios from 'axios'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/store/store.js';
 import LoginNav from '@/components/NavLogin.vue';
+import api from '@/Axios';
 
 export default {
   name: 'HomeAcariTex',
@@ -38,7 +38,7 @@ export default {
   },
   methods: {
     async getlogin() {
-      await Axios.post("http://localhost:3333/user/login", {
+      await api.post("/user/login", {
         usuario: {
           email: this.email,
           senha: this.password,

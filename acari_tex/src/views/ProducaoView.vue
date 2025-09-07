@@ -5,9 +5,9 @@
     </div>
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
-        <div class="row justify-content-center">
-          <NavBarUser class="d-none d-md-block" />
-        </div>
+      <div class="row justify-content-center">
+        <NavBarUser class="d-none d-md-block" />
+      </div>
 
         <!-- Cards resumo -->
         <div class="row justify-content-center text-center mb-4">
@@ -164,6 +164,12 @@ export default {
   width: 100%;
 }
 
+.row {
+  margin-top: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
 .kanban-board {
   display: flex;
   gap: 1rem;

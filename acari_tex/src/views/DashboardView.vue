@@ -39,8 +39,7 @@ import Producao from '@/components/Producao.vue';
 import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 import { useAuthStore } from '@/store/store';
 import { Chart, registerables } from 'chart.js';
-import Axios from 'axios';
-
+import api from '@/Axios'
 Chart.register(...registerables);
 import { io } from 'socket.io-client';
 export default {
@@ -89,7 +88,7 @@ export default {
     async fetchData() {
       try {
         const token = this.store.pegar_token;
-        const response = await Axios.get("http://localhost:3333/pecas", {
+        const response = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
         this.pecas = response.data.peca;
@@ -161,9 +160,7 @@ export default {
 .d-flex {
   display: flex;
   flex-direction: row;
-  /* Coloca sidebar e conteúdo lado a lado */
   height: 100vh;
-  /* Garante que o conteúdo ocupe toda a altura da tela */
 }
 
 .content-wrapper {
@@ -172,10 +169,6 @@ export default {
   width: 100%;
 }
 
-.container-fluid {
-  max-width: 1200px;
-  margin: auto;
-}
 
 .row {
   margin-top: 30px;
@@ -192,13 +185,11 @@ canvas {
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
-    /* Sidebar fica acima do conteúdo */
     height: auto;
   }
 
   .content-wrapper {
     padding-left: 0px;
-    /* Remove a margem lateral */
     z-index: 0;
   }
 }
