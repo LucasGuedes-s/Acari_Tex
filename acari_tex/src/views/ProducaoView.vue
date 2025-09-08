@@ -5,34 +5,41 @@
     </div>
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
-      <div class="row justify-content-center">
-        <NavBarUser class="d-none d-md-block" />
-      </div>
-
-        <!-- Cards resumo -->
-        <div class="row justify-content-center text-center mb-4">
-          <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
-          <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso" class="bg-light-blue" />
-          <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
-          <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+        <div class="row justify-content-center">
+          <NavBarUser class="d-none d-md-block" />
         </div>
 
-        <!-- Kanban draggable -->
+        <section class="row justify-content-center text-center">
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
+          </div>
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
+              class="bg-light-blue" />
+          </div>
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
+          </div>
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+          </div>
+
+          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Não iniciadas"
+            :count="pecasNaoIniciadas" />
+          <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento"
+            :count="pecasEmProgresso" />
+          <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta"
+            :count="pecasColeta" />
+          <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
+            :count="pecasConcluidas" />
+        </section>
+
         <div class="row mt-4 kanban-board">
-          <div
-            class="col"
-            v-for="(lista, status) in pecas"
-            :key="status"
-          >
+          <div class="col" v-for="(lista, status) in pecas" :key="status">
             <h5 class="text-center mb-3">{{ traduzStatus(status) }}</h5>
 
-            <draggable
-              class="kanban-column"
-              :list="pecas[status]"
-              :group="{ name: 'pecas' }"
-              item-key="id"
-              @change="onKanbanChange($event, status)"
-            >
+            <draggable class="kanban-column" :list="pecas[status]" :group="{ name: 'pecas' }" item-key="id"
+              @change="onKanbanChange($event, status)">
               <template #item="{ element }">
                 <div class="kanban-item" :class="element.status">
                   <i class="bi bi-box-seam me-2"></i>
@@ -51,9 +58,9 @@
 import SidebarNav from '@/components/Sidebar.vue';
 import NavBarUser from '@/components/NavBarUser.vue';
 import { useAuthStore } from '@/store/store';
-import Axios from 'axios';
 import DashboardCard from '@/components/DashboardCard.vue';
 import draggable from 'vuedraggable';
+import api from '@/Axios';
 
 export default {
   name: 'DashboardTecidos',
@@ -111,7 +118,7 @@ export default {
     async fetchData() {
       try {
         const token = this.store.pegar_token;
-        const { data } = await Axios.get("http://localhost:3333/pecas", {
+        const { data } = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
         this.pecas = this.normalizePecas(data.peca);
@@ -122,9 +129,9 @@ export default {
 
     async atualizarStatusNoServidor(itemId, novoStatus) {
       const token = this.store.pegar_token;
-      await Axios.post(
-        `http://localhost:3333/update/status`,
-        {id_da_op: itemId, status: novoStatus},
+      await api.post(
+        `/update/status`,
+        { id_da_op: itemId, status: novoStatus },
         { headers: { Authorization: `${token}` } }
       );
     },
@@ -170,6 +177,7 @@ export default {
   flex-wrap: wrap;
   justify-content: center;
 }
+
 .kanban-board {
   display: flex;
   gap: 1rem;
@@ -180,14 +188,14 @@ export default {
   border-radius: 8px;
   min-height: 300px;
   padding: 10px;
-  box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .kanban-item {
   border-radius: 6px;
   padding: 10px;
   margin-bottom: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
   cursor: grab;
@@ -203,16 +211,23 @@ export default {
 
 /* Cores por status */
 .kanban-item.nao_iniciado {
-  background: #ffb3b3; /* rosa claro */
+  background: #ffb3b3;
+  /* rosa claro */
 }
+
 .kanban-item.em_progresso {
-  background: #4da6ff; /* azul */
+  background: #4da6ff;
+  /* azul */
 }
+
 .kanban-item.coleta {
-  background: #66cc66; /* verde médio */
+  background: #66cc66;
+  /* verde médio */
 }
+
 .kanban-item.finalizado {
-  background: #66cc99; /* verde suave */
+  background: #66cc99;
+  /* verde suave */
 }
 
 @media (max-width: 768px) {

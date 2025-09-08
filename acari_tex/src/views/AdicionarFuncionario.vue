@@ -13,7 +13,6 @@
             <div class="section card shadow-sm p-4 mb-4">
               <h4 class="section-title mb-3">Dados do Funcionário</h4>
 
-              <!-- Nome + Idade lado a lado -->
               <div class="row mb-4">
                 <div class="col-md-6">
                   <label for="nome">Nome completo:</label>
@@ -25,7 +24,6 @@
                 </div>
               </div>
 
-              <!-- Email + Função principal lado a lado -->
               <div class="row mb-3">
                 <div class="col-md-6">
                   <label for="email">E-mail:</label>
@@ -39,7 +37,6 @@
                   </select>
                 </div>
               </div>
-                            <!-- Permissão + Equipe lado a lado -->
               <div class="row mb-3">
                 <div class="col-md-6">
                   <label for="permissao">Permissão:</label>
@@ -127,7 +124,8 @@ export default {
         const { data } = await api.get('/equipes', {
           headers: { Authorization: `${token}` }
         })
-        this.equipesDisponiveis = data
+        this.equipesDisponiveis = data.equipes
+        console.log('Equipes carregadas:', this.equipesDisponiveis)
       } catch (error) {
         console.error('Erro ao carregar equipes:', error)
       }

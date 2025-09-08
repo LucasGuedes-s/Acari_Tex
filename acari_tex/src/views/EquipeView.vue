@@ -2,22 +2,25 @@
   <div class="d-flex flex-column flex-md-row">
     <SidebarNav />
     <main class="content-wrapper flex-grow-1">
-        <div class="nav row justify-content-center">
-          <div class="form col-12 col-md-10 col-lg-8  ">
-            <div class="search">
-                <select name="Pesquisar" id="hora" v-model="profissional">
-                  <option value="" disabled>Pesquisar por grupo</option>
-                  <option value="08:00">Equipe1</option>
-                  <option value="09:00">Equipe2</option>
-                  <option value="10:00">Equipe3</option>
-                </select>
-                <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa">
-                <RouterLink to="/adicionar-profissional"><button class="btn-button">Novo profissional</button></RouterLink>
+      <div v-if="loading">
+        <CarregandoTela />
+      </div>
+      <div v-if="loading === false" class="nav row justify-content-center">
+        <div class="form col-12 col-md-10 col-lg-8  ">
+          <div class="search">
+            <select name="Pesquisar" id="hora" v-model="equipe">
+              <option value="" disabled>Pesquisar por grupo</option>
+              <option v-for="equipe in equipesDisponiveis" :key="equipe.id" :value="equipe.id">{{ equipe.nome }}</option>
 
-                <NavBarUser class="nav" />
-            </div>
+            </select>
+            <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa">
+            <RouterLink to="/adicionar-profissional"><button class="btn-button">Novo profissional</button></RouterLink>
+            <button class="btn-button" @click="criarEquipe">Nova equipe</button>
+
+            <NavBarUser class="nav" />
           </div>
         </div>
+      </div>
       <div class="container_profissional" v-for="funcionario in filteredProfissional" :key="funcionario.id">
         <div class="card-content">
           <div class="imagem-funcionario">
@@ -31,30 +34,66 @@
         </div>
 
         <div class="acoes-funcionario">
-          <button @click="producao(funcionario.email)">Produção</button>
+          <!-- <button @click="producao(funcionario.email)">Produção</button>-->
+          <button  @click="getFuncionario(funcionario.email)">Ver mais</button>
           <button class="demitir" @click="demitirFuncionario()">Demitir</button>
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">Registrar
             Produção</button>
         </div>
 
-        <conteiner>
-          <div v-if="showModalFuncionario" class="modal-background">
-            <div class="modal-content">
-              <img class="img-close" @click="showModalFuncionario = false" src="@/assets/close.png" />
-              <div class="funcionario-modal">
-                <h1>Funcionário: {{ funcionario.nome_do_funcionario }}</h1>
-                <div class="funcionario-modal">ID: {{ funcionario.id }}</div>
-                <div class="funcionario-modal">Funções: {{ funcionario.funcoes }}</div>
-                <div class="funcionario-modal">aniversario: {{ funcionario.aniversario }}</div>
-                <div class="funcionario-modal">PIS: {{ funcionario.pis }}</div>
-                <div class="funcionario-modal">PIX: {{ funcionario.pix }}</div>
-                <div class="funcionario-modal">aniversario: {{ funcionario.aniversario }}</div>
-                <div class="funcionario-modal">Notas: {{ funcionario.estoque }}</div>
-              </div>
-            </div>
-          </div>
-        </conteiner>
+        <!-- Modal do Funcionário -->
+<div v-if="showModalFuncionario" class="modal-background">
+  <div class="modal-container">
+    <!-- Cabeçalho -->
+    <div class="modal-header">
+      <h2>Detalhes do Funcionário</h2>
+      <img class="modal-close" @click="showModalFuncionario = false" src="@/assets/close.png" alt="Fechar" />
+    </div>
+
+    <!-- Conteúdo principal -->
+    <div class="modal-body">
+      <!-- Foto -->
+      <div class="modal-foto">
+        <img :src="funcionario.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
       </div>
+
+      <!-- Dados -->
+      <div class="modal-info">
+        <div class="info-row">
+          <span class="label">Nome:</span>
+          <span class="value">{{ funcionario.nome }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">ID:</span>
+          <span class="value">{{ funcionario.id }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Funções:</span>
+          <span class="value">{{ funcionario.funcoes }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Aniversário:</span>
+          <span class="value">{{ funcionario.aniversario }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">PIS:</span>
+          <span class="value">{{ funcionario.pis }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">PIX:</span>
+          <span class="value">{{ funcionario.pix }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Notas:</span>
+          <span class="value">{{ funcionario.notas }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+      </div>
+
       <!-- Modal de Edição -->
       <div v-if="showModal" class="modal-overlay">
         <div class="modal-content">
@@ -135,6 +174,7 @@ import Swal from 'sweetalert2'
 import { useAuthStore } from '@/store/store';
 import NavBarUser from '@/components/NavBarUser.vue';
 import api from '@/Axios';
+import CarregandoTela from '@/components/carregandoTela.vue';
 
 export default {
   name: 'funcionarios-equipe',
@@ -149,9 +189,9 @@ export default {
         .filter(etapa => etapa.id_da_op === this.pecaRegistro);
     },
     filteredProfissional() {
-        return this.funcionarios.filter(funcionario =>
-            funcionario.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
-        );
+      return this.funcionarios.filter(funcionario =>
+        funcionario.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
+      );
     }
   },
   data() {
@@ -178,11 +218,15 @@ export default {
       funcao: null,
       pesquisa: '',
       profissional: '',
+      loading: true,
+      equipesDisponiveis: []
+
     }
   },
   components: {
     SidebarNav,
-    NavBarUser
+    NavBarUser,
+    CarregandoTela
   },
   methods: {
     async producao(email) {
@@ -198,7 +242,6 @@ export default {
     },
     async postProdução() {
       const token = this.store.pegar_token;
-
       await api.post("/registrar/producao", {
         id_da_op: this.pecaRegistro,
         id_funcionario: this.registroFuncionario,
@@ -210,35 +253,36 @@ export default {
           Authorization: `${token}` // Enviando o token no cabeçalho
         }
       }).then(response => {
-        console.log(response.data);
         this.showModalRegistro = false;
         Swal.fire({
           icon: 'success',
           title: 'Produção registrada com sucesso!',
           timer: 4000,
         });
+        console.log(response.data);
         this.getPecasProducao();
       }).catch(error => {
         console.error(error);
         Swal.fire({
           icon: 'erro',
-          title: 'CNPJ ou senha incorretos',
+          title: 'Erro ao carregar a produção',
           timer: 4000,
         })
       })
     },
     async getPecasProducao() {
+      this.loading = true;
       const token = this.store.pegar_token;
       api.get(`/pecas`, {
         headers: {
           Authorization: `${token}` // Enviando o token no cabeçalho
         }
+      }).then(response => {
+        this.pecas = response.data.peca.em_progresso;
+        this.etapas = response.data.peca.em_progresso.map(peca => peca.etapas);
+        this.loading = false;
+
       })
-        .then(response => {
-          this.pecas = response.data.peca.em_progresso;
-          this.etapas = response.data.peca.em_progresso.map(peca => peca.etapas);
-          console.log(this.etapas);
-        })
         .catch(error => {
           console.error(error);
         });
@@ -255,7 +299,6 @@ export default {
     },
     async getFuncionarios() {
       const token = this.store.pegar_token;
-
       api.get(`/Funcionarios`, {
         headers: {
           Authorization: `${token}` // Enviando o token no cabeçalho
@@ -269,38 +312,115 @@ export default {
           console.error(error);
         });
     },
+    async buscarEquipes() {
+      try {
+        const token = this.store.pegar_token
+        const { data } = await api.get('/equipes', {
+          headers: { Authorization: `${token}` }
+        })
+        this.equipesDisponiveis = data.equipes
+        console.log('Equipes carregadas:', this.equipesDisponiveis)
+      } catch (error) {
+        console.error('Erro ao carregar equipes:', error)
+      }
+    },
+    async criarEquipe() {
+      const funcionarios = this.funcionarios ?? [];
 
-    async demitirFuncionario() {
-      Swal.fire({
-        title: 'Confirmar Demissão',
-        text: 'Tem certeza de que deseja demitir este funcionário?',
-        icon: 'warning',
+      const checkboxesHtml = funcionarios
+        .map(
+          f => `
+          <div style="text-align:left; margin:4px 0;">
+            <label style="cursor:pointer; display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" value="${f.email}" style="transform: scale(1.2);">
+              ${f.nome || f.email}
+            </label>
+          </div>
+        `
+        )
+        .join('');
+
+      const { value: formValues } = await Swal.fire({
+        title: 'Criar nova equipe',
+        html: `
+          <input id="nome-equipe" 
+       class="swal2-input" 
+       placeholder="Nome da equipe" 
+       style="margin:0 0 15px 0; width:100%; max-width:400px; box-sizing:border-box; display:block; margin-left:auto; margin-right:auto;">
+
+      <div id="usuarios-equipe" 
+          style="max-height:200px; width:100%; max-width:400px; overflow-y:auto; border:1px solid #ccc; 
+                  padding:8px; border-radius:6px; text-align:left; box-sizing:border-box; margin:0 auto;">
+        ${checkboxesHtml}
+      </div>
+
+        `,
+        focusConfirm: false,
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#00692b',
-        confirmButtonText: 'Sim, demitir!',
-        cancelButtonText: 'Cancelar'
-      })
+        confirmButtonText: 'Criar equipe',
+        width: 500,
+        preConfirm: () => {
+          const nome = (document.getElementById('nome-equipe')?.value || '').trim();
+          const checked = Array.from(document.querySelectorAll('#usuarios-equipe input[type="checkbox"]:checked'))
+            .map(c => c.value);
+
+          if (!nome) {
+            Swal.showValidationMessage('O nome da equipe é obrigatório');
+            return false;
+          }
+          if (!checked.length) {
+            Swal.showValidationMessage('Selecione ao menos um usuário');
+            return false;
+          }
+          return { nome, funcionarioEmails: checked };
+        }
+      });
+
+      if (!formValues) return;
+
+      try {
+        Swal.fire({ title: 'Criando equipe...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const token = this.store?.pegar_token || '';
+        await api.post('/equipes', formValues, {
+          headers: token ? { Authorization: token } : {}
+        });
+        Swal.close();
+        Swal.fire('Sucesso', 'Equipe criada com sucesso!', 'success');
+
+        this.$emit('equipe-criada', formValues);
+
+        if (typeof this.fetchEquipes === 'function') {
+          await this.fetchEquipes();
+        }
+      } catch (err) {
+        Swal.close();
+        console.error('Erro ao criar equipe:', err);
+        Swal.fire('Erro', err.response?.data?.message || err.message || 'Não foi possível criar a equipe.', 'error');
+      }
     }
+
   },
   mounted() {
     this.getFuncionarios();
     this.getPecasProducao();
+    this.buscarEquipes();
   }
-
 }
 </script>
+
 <style scoped>
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
   width: 100%;
 }
-.nav{
+
+.nav {
   padding: 1rem;
   display: flex;
   justify-content: end;
 }
+
 .form {
   width: 100%;
 }
@@ -321,16 +441,18 @@ export default {
   align-items: center;
   gap: 1rem;
 }
-.btn-button{
-    padding: 10px 20px;
-    background-color: white;
-    border: 1px solid #84E7FF;
-    color: #7E7E7E;
-    border-radius: 5px;
-    cursor: pointer;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
+
+.btn-button {
+  padding: 10px 20px;
+  background-color: white;
+  border: 1px solid #84E7FF;
+  color: #7E7E7E;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
 }
+
 .imagem-funcionario img {
   width: 100px;
   height: 100px;
@@ -386,74 +508,113 @@ export default {
   background-color: #ff484b;
   color: white;
 }
-
-.modal-overlay {
+.modal-background {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0,0,0,0.6);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 999;
 }
 
-.modal-content h2 {
-  color: #008d3b;
-  margin-bottom: 2px;
-  font-size: 30px;
-  margin-top: 2px;
-}
-
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 60%;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  border: 2px solid #84E7FF;
-  box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.10);
-}
-
-.modal-content input,
-.modal-content textarea,
-.modal-content select {
-  padding: 10px;
-  border: 1px solid #D9D9D9;
-  border-radius: 4px;
-  background-color: white;
-  font-size: 16px;
-  color: #7E7E7E;
-  width: 100%;
-  box-sizing: border-box;
-  outline: none;
-  box-shadow: none;
+.modal-container {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease-out;
   font-family: 'Montserrat', sans-serif;
-  line-height: 1.5;
-  text-align: justify;
-  resize: none;
 }
 
-.modal-buttons {
+.modal-header {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
-  gap: 20px;
+  align-items: center;
+  background-color: #008d3b;
+  color: white;
+  padding: 15px 20px;
 }
 
-.modal-buttons button {
-  flex: 1;
-  padding: 10px 20px;
-  border-radius: 4px;
-  background-color: #F5F5F5;
-  color: #7E7E7E;
-  border: 1px solid #D9D9D9;
-  font-size: 14px;
+.modal-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.modal-close {
+  width: 24px;
+  height: 24px;
   cursor: pointer;
-  font-family: 'Montserrat', sans-serif;
+  filter: brightness(0) invert(1);
+}
+
+.modal-body {
+  display: flex;
+  padding: 20px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.modal-foto img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #008d3b;
+}
+
+.modal-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+}
+
+.label {
+  font-weight: 600;
+  color: #555;
+}
+
+.value {
+  color: #333;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 15px 20px;
+  background-color: #f5f5f5;
+}
+
+.btn-close {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background-color: #008d3b;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-close:hover {
+  background-color: #00692b;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 label {
@@ -464,7 +625,8 @@ label {
 .search {
   display: flex;
   align-items: center;
-  gap: 10px; /* espaçamento entre os itens */
+  gap: 10px;
+  /* espaçamento entre os itens */
   margin-bottom: 20px;
 }
 
@@ -491,8 +653,10 @@ label {
 }
 
 .search .btn-button {
-  flex: 1; /* ocupa menos espaço */
-  max-width: 150px; /* limite */
+  flex: 1;
+  /* ocupa menos espaço */
+  max-width: 150px;
+  /* limite */
   padding: 10px 20px;
   background-color: #008d3b;
   border: 1px solid #008d3b;
@@ -501,7 +665,8 @@ label {
   cursor: pointer;
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
-  white-space: nowrap; /* evita quebrar texto */
+  white-space: nowrap;
+  /* evita quebrar texto */
 }
 
 input {
@@ -516,23 +681,50 @@ input {
 }
 
 
-.search input, select{
-    padding: 10px 50px;
-    width: 100%;
-    border: none;
-    background-color: white;
-    cursor: pointer;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
+.search input,
+select {
+  padding: 10px 50px;
+  width: 100%;
+  border: none;
+  background-color: white;
+  cursor: pointer;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
 }
 
 
-  @media (max-width: 600px) {
-    .nav{
-      display: none;
-    }
+@media (max-width: 600px) {
+  .modal-body {
+    flex-direction: column;
+    align-items: center;
+    text-align: left; /* mantém alinhamento à esquerda */
+  }
+
+  .modal-info {
+    width: 100%;
+  }
+
+  .info-row {
+    flex-direction: row; /* label e value lado a lado */
+    justify-content: space-between;
+    flex-wrap: wrap; /* quebra linha se necessário */
+    gap: 8px;
+  }
+
+  .label {
+    flex: 0 0 40%; /* label ocupa 40% do espaço */
+  }
+
+  .value {
+    flex: 1 1 55%; /* value ocupa o restante */
+    text-align: left;
+  }
+  .nav {
+    display: none;
+  }
+
   .card-content {
     flex-direction: row;
     align-items: center;

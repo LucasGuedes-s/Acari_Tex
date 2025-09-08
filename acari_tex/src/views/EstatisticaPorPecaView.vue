@@ -121,8 +121,8 @@
 import SidebarNav from "@/components/Sidebar.vue";
 import TituloSubtitulo from "@/components/TituloSubtitulo.vue";
 import { GChart } from "vue-google-charts";
-import Axios from "axios";
 import { useAuthStore } from "@/store/store";
+import api from "@/Axios";
 
 export default {
   name: "DetalhesProducao",
@@ -163,8 +163,8 @@ export default {
     },
     async buscarEstatisticas() {
       const token = this.store.pegar_token;
-      const { data } = await Axios.get(
-        `http://localhost:3333/estatisticas/${this.$route.params.id}`,
+      const { data } = await api.get(
+        `/estatisticas/${this.$route.params.id}`,
         { headers: { Authorization: `${token}` } }
       );
 

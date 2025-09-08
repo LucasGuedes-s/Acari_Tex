@@ -1,19 +1,40 @@
 <template>
   <div class="d-flex flex-column flex-md-row">
     <SidebarNav style="z-index: 1" />
-
-    <main class="content-wrapper flex-grow-1">
-      <div class="container-fluid my-4 mt-md-0 mt-3">
-      <div class="row justify-content-center">
-        <NavBarUser class="d-none d-md-block" />
+    <main  class="content-wrapper flex-grow-1">
+      <div v-if="loading">
+         <CarregandoTela />
       </div>
+      <div v-if="loading === false" class="container-fluid my-4 mt-md-0 mt-3">
+        <div class="row justify-content-center">
+          <NavBarUser class="d-none d-md-block" />
+        </div>
         <section class="row justify-content-center text-center">
-          <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
-          <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
-            class="bg-light-blue" />
-          <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
-          <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
+          </div>
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
+              class="bg-light-blue" />
+          </div>
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
+          </div>
+          <div class="d-block d-md-none col-6 mb-3">
+            <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+          </div>
+
+          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Não iniciadas"
+            :count="pecasNaoIniciadas" />
+          <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento"
+            :count="pecasEmProgresso" />
+          <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta"
+            :count="pecasColeta" />
+          <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
+            :count="pecasConcluidas" />
         </section>
+
+
         <div class="row justify-content-center">
           <GraficoProducaoTotal class="mb-4" />
           <Producao />
@@ -34,7 +55,6 @@
 import SidebarNav from '@/components/Sidebar.vue';
 import NavBarUser from '@/components/NavBarUser.vue';
 import DashboardCard from '@/components/DashboardCard.vue';
-
 import Producao from '@/components/Producao.vue';
 import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 import { useAuthStore } from '@/store/store';
@@ -42,15 +62,18 @@ import { Chart, registerables } from 'chart.js';
 import api from '@/Axios'
 Chart.register(...registerables);
 import { io } from 'socket.io-client';
+import CarregandoTela from '@/components/carregandoTela.vue';
+
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal },
+  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
   setup() {
     const store = useAuthStore();
     return { store };
   },
   data() {
     return {
+      loading: true,
       pecas: {
         finalizado: [],
         em_progresso: [],
@@ -79,21 +102,25 @@ export default {
   },
   mounted() {
     this.fetchData();
-    this.socket = io('http://localhost:3333'); // Conecta ao servidor Socket.IO
+    this.socket = io('http://192.168.0.115:3333'); // Conecta ao servidor Socket.IO
     this.socket.on('nova_peca', () => {
       this.fetchData(); // Recarrega os dados quando uma nova peça é adicionada
     });
   },
   methods: {
     async fetchData() {
+      this.loading = true;
+
       try {
         const token = this.store.pegar_token;
         const response = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
         this.pecas = response.data.peca;
+        this.loading = false;
         this.$nextTick(this.renderCharts);
       } catch (error) {
+        console.log(this.loading)
         console.error("Erro ao buscar os dados:", error);
       }
     },
@@ -176,6 +203,7 @@ export default {
   flex-wrap: wrap;
   justify-content: center;
 }
+
 canvas {
   max-width: 100%;
   height: auto;

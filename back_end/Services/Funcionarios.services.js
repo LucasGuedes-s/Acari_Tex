@@ -23,21 +23,19 @@ async function getFuncionarios(req, res) {
 }
 
 async function getFuncionario(req, res) {
-  const id_do_funcionario = parseInt(req.params.id);
-
+  const id_do_funcionario = req
   try {
-    const funcionario = await prisma.Funcionarios.findUnique({
-      where: { id: id_do_funcionario }
+    const funcionario = await prisma.Usuarios.findUnique({
+      where: { email: id_do_funcionario }
     });
-
     if (!funcionario) {
-      return res.status(404).json({ error: 'Funcionário não encontrado' });
+      return 'Funcionário não encontrado';
     }
 
-    res.json(funcionario);
+    return funcionario
 
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar funcionário' });
+    return 'Erro ao buscar funcionário';
   }
 }
 
@@ -148,6 +146,7 @@ async function criarEquipe(req) {
   try {
     const { nome, descricao, funcionarioEmails } = req.body;
     const cnpj = req.user.cnpj
+    console.log("Aqui", req.body)
     // Buscar os funcionários que pertencem ao estabelecimento
     const funcionarios = await prisma.usuarios.findMany({
       where: {
@@ -159,7 +158,7 @@ async function criarEquipe(req) {
     if (funcionarios.length !== funcionarioEmails.length) {
       throw new Error("Um ou mais funcionários não pertencem a este estabelecimento.");
     }
-
+    console.log(funcionarios)
     // Criar a equipe e conectar os usuários
     const equipe = await prisma.equipesGrupos.create({
       data: {
@@ -181,11 +180,27 @@ async function criarEquipe(req) {
     throw new Error("Erro ao criar a equipe.");
   }
 }
+async function getEquipes(req) {
+  const cnpj = req.user.cnpj;
+  
+  try {
+    const equipes = await prisma.equipesGrupos.findMany({
+      where: { estabelecimentoCnpj: cnpj },
+      include: { usuarios: true }
+    });
+    return equipes; 
+  
+  } catch (error) {
+    console.error("Erro ao buscar equipes:", error);
+    throw new Error("Erro ao buscar as equipes.");
+  } 
+}
 
 module.exports = {
   getFuncionarios,
   getFuncionario,
   postFuncionario,
   getProducaoFuncionario,
-  criarEquipe
+  criarEquipe,
+  getEquipes
 };

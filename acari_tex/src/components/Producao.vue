@@ -12,9 +12,9 @@
 </template>
 
 <script>
-import Axios from 'axios';
 import { Chart } from 'chart.js';
 import { useAuthStore } from '@/store/store';
+import api from '@/Axios';
 
 export default {
   name: 'ProducaoCharts',
@@ -41,7 +41,7 @@ export default {
         const token = this.store.pegar_token;
 
         // Buscando dados de produção de peças
-        const response = await Axios.get(`http://localhost:3333/producao`, {
+        const response = await api.get(`/producao`, {
           headers: { Authorization: `${token}` },
         });
 

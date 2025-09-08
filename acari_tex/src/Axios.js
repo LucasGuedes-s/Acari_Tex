@@ -5,8 +5,6 @@ import router from './router';
 const api = axios.create({
   baseURL: 'http://192.168.0.115:3333',
   //baseURL: 'http://localhost:3333',
-
-  //baseURL: 'https://clinica-maria-luiza-bjdd.onrender.com',
 });
 
 api.interceptors.response.use(
@@ -16,12 +14,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response.status === 401) {
       console.error("Erro de autenticação:", error.response.data.message);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erro de autenticação',
-        text: error.response.data.message || 'Sua autenticação falhou, refaça seu login.'
-      });
-      router.push('/unauthorized');
+      router.push('/nao-autorizado');
     } else if (error.response.status === 403) {
       console.error("Acesso negado:", error.response.data.message);
     } else

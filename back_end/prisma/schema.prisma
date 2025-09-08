@@ -19,8 +19,8 @@ model Usuarios {
   pis                 String?
   pix                 String?     
   notas               String?
-
-  EquipesGrupos  EquipesGrupos[]
+  status              String? @default("ativo")
+  equipes             EquipesGrupos[] 
   estabelecimentoCnpj String
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
@@ -135,12 +135,12 @@ model Tarefas {
   notas               String?
 }
 
-model EquipesGrupos{
-  id            Int     @id @default(autoincrement())
-  nome          String
-  descricao     String?
-  Usuario       Usuarios @relation(fields: [usuarioEmail], references: [email])
-  usuarioEmail  String
+model EquipesGrupos {
+  id                 Int        @id @default(autoincrement())
+  nome               String
+  descricao          String?
   estabelecimentoCnpj String
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  
+  usuarios           Usuarios[]   // <- relação N:N
 }

@@ -12,9 +12,9 @@
 </template>
 <script>
 import { GChart } from 'vue-google-charts'
-import axios from 'axios'
 import { useAuthStore } from '@/store/store'
 import { io } from 'socket.io-client'
+import api from '@/Axios';
 
 export default {
   name: 'GraficoEquipeProducao',
@@ -56,12 +56,13 @@ export default {
   },
   mounted() {
     this.carregarDados();
-    this.socket = io('http://localhost:3333');
+    this.socket = io('http://192.168.0.115:3333');
 
-    this.socket.off('nova_peca');
-    this.socket.on('nova_peca', () => {
+    this.socket.on('nova_producao', () => {
       if (!this.loading) {
+        console.log("AQUI CHEGUEI")
         this.carregarDados();
+
       }
     });
   },
@@ -77,7 +78,7 @@ export default {
       this.loading = true;
       try {
         const token = this.store.pegar_token;
-        const res = await axios.get('http://localhost:3333/producao/equipe', {
+        const res = await api.get('/producao/equipe', {
           headers: { Authorization: `${token}` }
         });
 

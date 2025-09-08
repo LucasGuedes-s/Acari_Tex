@@ -6,7 +6,6 @@
                 <TituloSubtitulo titulo="Relatórios de Produção"
                     subtitulo="Acompanhe o progresso e estatísticas das peças em produção" />
 
-                <!-- Filtros -->
                 <div class="filtros row mb-4">
                     <div class="col-md-4 mb-2">
                         <input type="text" class="form-control" placeholder="Buscar por descrição..."
@@ -26,7 +25,6 @@
                     </div>
                 </div>
 
-                <!-- Lista de peças -->
                 <div class="row">
                     <div class="col-md-4 mb-3" v-for="peca in pecasFiltradas" :key="peca.id">
                         <div class="card p-3 shadow-sm h-100">
@@ -54,9 +52,9 @@
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import Axios from 'axios';
 import { useAuthStore } from '@/store/store';
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
+import api from '@/Axios';
 
 export default {
     name: 'DetalhesPecas',
@@ -117,7 +115,7 @@ export default {
         },
         async fetchPecas() {
             const token = this.store.pegar_token;
-            const { data } = await Axios.get('http://localhost:3333/pecas', {
+            const { data } = await api.get('/pecas', {
                 headers: { Authorization: `${token}` },
             });
             this.pecas = data.peca
@@ -128,7 +126,7 @@ export default {
             const token = this.store.pegar_token;
 
             try {
-                const res = await Axios.get(`http://localhost:3333/estatisticas/${peca.id_da_op}`, {
+                const res = await api.get(`/estatisticas/${peca.id_da_op}`, {
                     headers: { Authorization: `${token}` },
                 });
 

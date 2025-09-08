@@ -15,10 +15,10 @@
 </template>
 
 <script>
-import axios from 'axios'
 import { GChart } from 'vue-google-charts'
 import { useAuthStore } from '@/store/store'
 import { io } from 'socket.io-client'
+import api from '@/Axios'
 
 export default {
   name: 'GraficoProducao',
@@ -95,7 +95,7 @@ export default {
 
       try {
         const token = this.store.pegar_token;
-        const response = await axios.get(`http://localhost:3333/Producao/funcionario/${this.emailFuncionario}`, {
+        const response = await api.get(`/Producao/funcionario/${this.emailFuncionario}`, {
           headers: { Authorization: `${token}` }
         });
 
