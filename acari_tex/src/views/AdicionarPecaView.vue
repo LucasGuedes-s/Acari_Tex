@@ -339,9 +339,7 @@ export default {
   align-items: center;
   gap: 12px;
   flex-wrap: nowrap;
-  /* impede quebra de linha */
   white-space: nowrap;
-  /* impede quebra de texto */
 }
 
 .pipeline-inner {
@@ -361,7 +359,6 @@ export default {
   gap: 8px;
   cursor: grab;
   flex-shrink: 0;
-  /* impede que diminua no scroll */
 }
 
 .seta {
@@ -444,25 +441,22 @@ export default {
   font-size: 1rem;
   color: #333;
   display: flex;
-}/* Corrige scroll horizontal indesejado */
+}
 .container-fluid, .content-wrapper, main {
-  overflow-x: hidden; /* evita scroll horizontal na página inteira */
+  overflow-x: hidden;
 }
 
-/* Linha de produção continua scrollável */
 .linha-producao {
-  overflow-x: auto; /* permite scroll só nessa área */
-  -webkit-overflow-scrolling: touch; /* suaviza scroll no mobile */
+  overflow-x: auto; 
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Cards e pipeline não quebram a tela */
 .pipeline-inner, .etapas-disponiveis {
   display: flex;
-  flex-wrap: nowrap; /* não quebra linha */
+  flex-wrap: nowrap; 
   gap: 12px;
 }
 
-/* Inputs e botões em mobile ocupam 100% */
 @media (max-width: 767px) {
   .nova-etapa section {
     flex-direction: column;
@@ -488,13 +482,55 @@ export default {
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
-    /* Sidebar fica acima do conteúdo */
     height: auto;
   }
 
   .content-wrapper {
     padding-left: 0px;
     z-index: 0;
+  }
+
+  /* Input + botão em coluna */
+  .nova-etapa section {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .nova-etapa .etapa-input,
+  .nova-etapa button {
+    width: 100% !important;
+    font-size: 1rem;
+  }
+
+  /* Etapas disponíveis em grid */
+  .etapas-disponiveis {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 colunas */
+    gap: 10px;
+  }
+
+  .etapa-card {
+    font-size: 0.9rem;
+    padding: 8px 10px;
+    text-align: center;
+  }
+
+  /* Pipeline rolável no mobile */
+  .pipeline {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .etapa-pipeline {
+    font-size: 0.85rem;
+    padding: 8px 10px;
+    min-width: 120px; /* garante espaço mesmo em rolagem */
+  }
+
+  .seta {
+    font-size: 1rem;
   }
 }
 </style>

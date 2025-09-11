@@ -2,7 +2,6 @@ const Tarefas = require('../Services/Dashboard.services');
 
 async function getTarefas(req, res, next){  
 
-    console.log('Get nas tarefas')
     try {
         const tarefas = await Tarefas.getTarefas();
         res.status(200).json({tarefas: tarefas});

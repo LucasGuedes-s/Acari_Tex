@@ -149,8 +149,8 @@ export default {
             this.pecasColeta,
             this.pecasConcluidas,
           ],
-          backgroundColor: ['#FF6384', '#36A2EB', '#4BC0C0', '#9966FF'],
-          borderColor: ['#FF6384', '#36A2EB', '#4BC0C0', '#9966FF'],
+          backgroundColor: ['#4caf50', '#8bc34a', '#007f5c', '#004d20'],
+          borderColor: ['#4caf50', '#8bc34a', '#007f5c', '#004d20'],
           borderWidth: 1,
         }],
       };

@@ -5,26 +5,51 @@
       <div v-if="loading">
         <CarregandoTela />
       </div>
-      <div v-if="loading === false" class="nav row justify-content-center">
-        <div class="form col-12 col-md-10 col-lg-8  ">
+      <div v-else class="nav row justify-content-center">
+        <div class="form col-12 col-md-10 col-lg-8">
           <div class="search">
-            <select name="Pesquisar" id="hora" v-model="equipe">
-              <option value="" disabled>Pesquisar por grupo</option>
-              <option v-for="equipe in equipesDisponiveis" :key="equipe.id" :value="equipe.id">{{ equipe.nome }}</option>
+            <!-- Versão desktop -->
+            <div class="search-desktop d-none d-md-flex align-items-center gap-2 w-100">
+              <select name="Pesquisar" id="hora" v-model="equipe" class="form-select flex-shrink-0"
+                style="max-width: 220px;">
+                <option value="" disabled>Pesquisar por grupo</option>
+                <option v-for="equipe in equipesDisponiveis" :key="equipe.id" :value="equipe.id">
+                  {{ equipe.nome }}
+                </option>
+              </select>
 
-            </select>
-            <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa">
-            <RouterLink to="/adicionar-profissional"><button class="btn-button">Novo profissional</button></RouterLink>
-            <button class="btn-button" @click="criarEquipe">Nova equipe</button>
+              <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa"
+                class="form-control flex-grow-1" />
 
-            <NavBarUser class="nav" />
+              <RouterLink to="/adicionar-profissional">
+                <button class="btn-button px-4">Novo profissional</button>
+              </RouterLink>
+              <button class="btn-button px-4" @click="criarEquipe">Nova equipe</button>
+
+              <NavBarUser class="ms-2" />
+            </div>
+
+            <!-- Versão mobile -->
+            <div class="search-mobile d-flex d-md-none flex-column gap-3 w-100">
+              <!-- Campo de pesquisa ocupa 100% -->
+              <input type="text" placeholder="Pesquisar profissional..." v-model="pesquisa" class="w-100" />
+
+              <!-- Botões lado a lado, mesmo tamanho -->
+              <div class="d-flex gap-2 w-100">
+                <RouterLink to="/adicionar-profissional" class="flex-grow-1">
+                  <button class="btn-button w-100 py-2">Novo profissional</button>
+                </RouterLink>
+                <button class="btn-button w-100 py-2 flex-grow-1" @click="criarEquipe">Nova equipe</button>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
       <div class="container_profissional" v-for="funcionario in filteredProfissional" :key="funcionario.id">
         <div class="card-content">
           <div class="imagem-funcionario">
-            <img :src="funcionario.foto" alt="Foto do funcionário" />
+            <img :src="funcionario.foto || '/default-avatar.png'" alt="Foto do funcionário" />
           </div>
           <div class="info-funcionario">
             <div class="funcionario">Nome: {{ funcionario.nome }}</div>
@@ -34,180 +59,140 @@
         </div>
 
         <div class="acoes-funcionario">
-          <!-- <button @click="producao(funcionario.email)">Produção</button>-->
-          <button  @click="getFuncionario(funcionario.email)">Ver mais</button>
-          <button class="demitir" @click="demitirFuncionario()">Demitir</button>
-          <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">Registrar
-            Produção</button>
-        </div>
-
-        <!-- Modal do Funcionário -->
-<div v-if="showModalFuncionario" class="modal-background">
-  <div class="modal-container">
-    <!-- Cabeçalho -->
-    <div class="modal-header">
-      <h2>Detalhes do Funcionário</h2>
-      <img class="modal-close" @click="showModalFuncionario = false" src="@/assets/close.png" alt="Fechar" />
-    </div>
-
-    <!-- Conteúdo principal -->
-    <div class="modal-body">
-      <!-- Foto -->
-      <div class="modal-foto">
-        <img :src="funcionario.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
-      </div>
-
-      <!-- Dados -->
-      <div class="modal-info">
-        <div class="info-row">
-          <span class="label">Nome:</span>
-          <span class="value">{{ funcionario.nome }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">ID:</span>
-          <span class="value">{{ funcionario.id }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">Funções:</span>
-          <span class="value">{{ funcionario.funcoes }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">Aniversário:</span>
-          <span class="value">{{ funcionario.aniversario }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">PIS:</span>
-          <span class="value">{{ funcionario.pis }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">PIX:</span>
-          <span class="value">{{ funcionario.pix }}</span>
-        </div>
-        <div class="info-row">
-          <span class="label">Notas:</span>
-          <span class="value">{{ funcionario.notas }}</span>
+          <button @click="getFuncionario(funcionario.email)">Ver mais</button>
+          <button class="demitir" @click="demitirFuncionario(funcionario.id)">
+            Demitir
+          </button>
+          <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
+            Registrar Produção
+          </button>
         </div>
       </div>
-    </div>
-  </div>
-</div>
 
-      </div>
+      <div v-if="showModalFuncionario" class="modal-background">
+        <div class="modal-container">
+          <div class="modal-header">
+            <h2>Detalhes do Funcionário</h2>
+            <img class="modal-close" @click="showModalFuncionario = false" src="@/assets/close.png" alt="Fechar" />
+          </div>
 
-      <!-- Modal de Edição -->
-      <div v-if="showModal" class="modal-overlay">
-        <div class="modal-content">
-          <h2>Editar Profissional</h2>
+          <div class="modal-body">
+            <div class="modal-foto">
+              <img :src="funcionario?.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
+            </div>
 
-          <label for="nome">Nome:</label>
-          <input type="text" id="nome_funcionario" name="nome" v-model="consultaEdit.nome">
-
-
-          <label for="email">Email:</label>
-          <input type="email" id="email_prof" name="email" v-model="consultaEdit.email">
-
-          <label for="telefone">Telefone:</label>
-          <input type="tel" id="telefone_prof" name="telefone" v-model="consultaEdit.telefone">
-
-          <label for="pix">PIX:</label>
-          <input type="text" id="pix" name="pix" v-model="consultaEdit.pix">
-
-          <label for="imagem">Adicionar Imagem:</label>
-          <input type="file" id="imagem_prof" name="imagem" @change="handleFileUpload">
-
-          <div class="modal-buttons">
-            <button @click="salvarEdicao">Salvar</button>
-            <button @click="fecharModal">Cancelar</button>
+            <div class="modal-info">
+              <div class="info-row">
+                <span class="label">Nome:</span>
+                <span class="value">{{ funcionario?.nome }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">ID:</span>
+                <span class="value">{{ funcionario?.id }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Funções:</span>
+                <span class="value">{{ funcionario?.funcoes }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Aniversário:</span>
+                <span class="value">{{ funcionario?.aniversario }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">PIS:</span>
+                <span class="value">{{ funcionario?.pis }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">PIX:</span>
+                <span class="value">{{ funcionario?.pix }}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Notas:</span>
+                <span class="value">{{ funcionario?.notas }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div v-if="showModalRegistro" class="modal-overlay">
-        <div class="modal-content">
-          <h2>Registrar Produção - {{ funcionario }}</h2>
-          <label for="peca">Peça:</label>
-          <select id="peca" v-model="pecaRegistro">
-            <option v-for="peca in pecas" :key="peca.id_da_op" :value="peca.id_da_op">
-              {{ peca.descricao }}
-            </option>
-          </select>
 
-          <!-- Selecionar a etapa da peça -->
-          <label for="funcao">Etapa da produção:</label>
-          <select id="funcao" v-model="funcao">
-            <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
-              {{ etapa.etapa.descricao }}
-            </option>
-          </select>
+      <div v-if="showModalRegistro" class="modal-background">
+        <div class="modal-container registro">
+          <div class="modal-header registro">
+            <h2>Registrar Produção - {{ funcionario }}</h2>
+            <img class="modal-close" @click="fecharModal" src="@/assets/close.png" alt="Fechar" />
+          </div>
+          <div class="modal-body registro">
+            <div class="modal-info registro">
+              <div class="info-row">
+                <label class="label" for="peca">Peça:</label>
+                <select id="peca" v-model="pecaRegistro" class="input-select">
+                  <option v-for="peca in pecas" :key="peca.id_da_op" :value="peca.id_da_op">
+                    {{ peca.descricao }}
+                  </option>
+                </select>
+              </div>
 
-          <label for="quantidade">Quantidade:</label>
-          <input type="number" id="quantidade" v-model="quantidadeRegistro">
-
-          <label for="hora">Hora do registro</label>
-          <select name="" id="hora" v-model="horaRegistro">
-            <option value="08:00">08:00</option>
-            <option value="09:00">09:00</option>
-            <option value="10:00">10:00</option>
-            <option value="11:00">11:00</option>
-            <option value="12:00">12:00</option>
-            <option value="13:00">13:00</option>
-            <option value="14:00">14:00</option>
-            <option value="15:00">15:00</option>
-            <option value="16:00">16:00</option>
-            <option value="17:00">17:00</option>
-            <option value="18:00">18:00</option>
-            <option value="1h extra">1h extra</option>
-            <option value="outro">Outro</option>
-          </select>
-
-          <div class="modal-buttons">
-            <button @click="fecharModal">Cancelar</button>
-            <button @click="postProdução">Registrar</button>
+              <div class="info-row">
+                <label class="label" for="funcao">Etapa:</label>
+                <select id="funcao" v-model="funcao" class="input-select">
+                  <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
+                    {{ etapa.etapa.descricao }}
+                  </option>
+                </select>
+              </div>
+              <div class="info-row">
+                <label class="label" for="quantidade">Quantidade:</label>
+                <input type="number" min="1" id="quantidade" v-model="quantidadeRegistro" class="input-field" />
+              </div>
+              <div class="info-row">
+                <label class="label" for="hora">Hora:</label>
+                <select id="hora" v-model="horaRegistro" class="input-select">
+                  <option value="08:00">08:00</option>
+                  <option value="09:00">09:00</option>
+                  <option value="10:00">10:00</option>
+                  <option value="11:00">11:00</option>
+                  <option value="12:00">12:00</option>
+                  <option value="13:00">13:00</option>
+                  <option value="14:00">14:00</option>
+                  <option value="15:00">15:00</option>
+                  <option value="16:00">16:00</option>
+                  <option value="17:00">17:00</option>
+                  <option value="18:00">18:00</option>
+                  <option value="1h extra">1h extra</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer registro">
+            <button class="btn-cancel" @click="fecharModal">Cancelar</button>
+            <button class="btn-save" @click="postProdução">Registrar</button>
           </div>
         </div>
       </div>
     </main>
   </div>
 </template>
+
 <script>
-import SidebarNav from '@/components/Sidebar.vue';
+import SidebarNav from '@/components/Sidebar.vue'
 import Swal from 'sweetalert2'
-import { useAuthStore } from '@/store/store';
-import NavBarUser from '@/components/NavBarUser.vue';
-import api from '@/Axios';
-import CarregandoTela from '@/components/carregandoTela.vue';
+import { useAuthStore } from '@/store/store'
+import NavBarUser from '@/components/NavBarUser.vue'
+import api from '@/Axios'
+import CarregandoTela from '@/components/carregandoTela.vue'
 
 export default {
   name: 'funcionarios-equipe',
   setup() {
-    const store = useAuthStore();
-    return { store };
-  },
-  computed: {
-    etapasFiltradas() {
-      return this.etapas
-        .flat() // Junta os subarrays em um único array
-        .filter(etapa => etapa.id_da_op === this.pecaRegistro);
-    },
-    filteredProfissional() {
-      return this.funcionarios.filter(funcionario =>
-        funcionario.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
-      );
-    }
+    const store = useAuthStore()
+    return { store }
   },
   data() {
     return {
       showModalFuncionario: false,
       showModalRegistro: false,
       registroFuncionario: null,
-      nome: null,
-      idade: null,
-      funcoes: null,
-      aniversario: null,
-      identidade: null,
-      cpf: null,
-      pis: null,
-      pix: null,
-      notas: null,
       funcionarios: [],
       funcionario: null,
       pecas: [],
@@ -217,193 +202,131 @@ export default {
       horaRegistro: null,
       funcao: null,
       pesquisa: '',
-      profissional: '',
       loading: true,
       equipesDisponiveis: []
-
     }
+  },
+  computed: {
+    etapasFiltradas() {
+      return this.etapas.flat().filter(etapa => etapa.id_da_op === this.pecaRegistro)
+    },
+    filteredProfissional() {
+      return this.funcionarios.filter(f =>
+        f.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
+      )
+    }
+  },
+  methods: {
+    async validarToken() {
+      if (!this.store.pegar_token) {
+        Swal.fire('Não autorizado', 'Sua sessão expirou. Faça login novamente.', 'warning')
+        this.$router.push('/nao-autorizado')
+        return false
+      }
+      return true
+    },
+
+    async getFuncionario(id) {
+      if (!(await this.validarToken())) return
+      try {
+        const { data } = await api.get(`/Funcionario/${id}`, {
+          headers: { Authorization: this.store.pegar_token }
+        })
+        if (!data?.funcionario) {
+          Swal.fire('Atenção', 'Funcionário não encontrado.', 'info')
+          return
+        }
+        this.funcionario = data.funcionario
+        this.showModalFuncionario = true
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao carregar funcionário.', 'error')
+      }
+    },
+
+    async getFuncionarios() {
+      if (!(await this.validarToken())) return
+      try {
+        const { data } = await api.get('/Funcionarios', {
+          headers: { Authorization: this.store.pegar_token }
+        })
+        this.funcionarios = data.funcionarios || []
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao carregar funcionários.', 'error')
+      }
+    },
+
+    async getPecasProducao() {
+      if (!(await this.validarToken())) return
+      try {
+        const { data } = await api.get('/pecas', {
+          headers: { Authorization: this.store.pegar_token }
+        })
+        console.log(data.peca)
+        this.pecas = data.peca.em_progresso
+        this.etapas = data.peca.em_progresso.map(p => p.etapas)
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao carregar peças.', 'error')
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async postProdução() {
+      if (!(await this.validarToken())) return
+      try {
+        await api.post('/registrar/producao', {
+          id_da_op: this.pecaRegistro,
+          id_funcionario: this.registroFuncionario,
+          id_da_funcao: this.funcao,
+          quantidade_pecas: this.quantidadeRegistro,
+          hora_registro: this.horaRegistro
+        }, {
+          headers: { Authorization: this.store.pegar_token }
+        })
+        this.showModalRegistro = false
+        Swal.fire('Sucesso', 'Produção registrada com sucesso!', 'success')
+        this.getPecasProducao()
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao registrar produção.', 'error')
+      }
+    },
+
+    async buscarEquipes() {
+      if (!(await this.validarToken())) return
+      try {
+        const { data } = await api.get('/equipes', {
+          headers: { Authorization: this.store.pegar_token }
+        })
+        this.equipesDisponiveis = data.equipes
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao carregar equipes.', 'error')
+      }
+    },
+
+    registrarProducao(id, funcionario) {
+      this.registroFuncionario = id
+      this.funcionario = funcionario
+      this.showModalRegistro = true
+    },
+
+    fecharModal() {
+      this.showModalRegistro = false
+    }
+  },
+  mounted() {
+    this.getFuncionarios()
+    this.getPecasProducao()
+    this.buscarEquipes()
   },
   components: {
     SidebarNav,
     NavBarUser,
     CarregandoTela
-  },
-  methods: {
-    async producao(email) {
-      this.$router.push({ name: 'ProducaoFuncionario', params: { emailFuncionario: email } })
-    },
-    async fecharModal() {
-      this.showModalRegistro = false;
-    },
-    async registrarProducao(id, funcionrio) {
-      this.registroFuncionario = id
-      this.funcionario = funcionrio
-      this.showModalRegistro = true
-    },
-    async postProdução() {
-      const token = this.store.pegar_token;
-      await api.post("/registrar/producao", {
-        id_da_op: this.pecaRegistro,
-        id_funcionario: this.registroFuncionario,
-        id_da_funcao: this.funcao,
-        quantidade_pecas: this.quantidadeRegistro,
-        hora_registro: this.horaRegistro,
-      }, {
-        headers: {
-          Authorization: `${token}` // Enviando o token no cabeçalho
-        }
-      }).then(response => {
-        this.showModalRegistro = false;
-        Swal.fire({
-          icon: 'success',
-          title: 'Produção registrada com sucesso!',
-          timer: 4000,
-        });
-        console.log(response.data);
-        this.getPecasProducao();
-      }).catch(error => {
-        console.error(error);
-        Swal.fire({
-          icon: 'erro',
-          title: 'Erro ao carregar a produção',
-          timer: 4000,
-        })
-      })
-    },
-    async getPecasProducao() {
-      this.loading = true;
-      const token = this.store.pegar_token;
-      api.get(`/pecas`, {
-        headers: {
-          Authorization: `${token}` // Enviando o token no cabeçalho
-        }
-      }).then(response => {
-        this.pecas = response.data.peca.em_progresso;
-        this.etapas = response.data.peca.em_progresso.map(peca => peca.etapas);
-        this.loading = false;
-
-      })
-        .catch(error => {
-          console.error(error);
-        });
-    },
-    async getFuncionario(id) {
-      api.get(`/Funcionario/${id}`)
-        .then(response => {
-          this.funcionario = response.data.funcionario
-          this.showModalFuncionario = true
-        })
-        .catch(error => {
-          console.error(error);
-        });
-    },
-    async getFuncionarios() {
-      const token = this.store.pegar_token;
-      api.get(`/Funcionarios`, {
-        headers: {
-          Authorization: `${token}` // Enviando o token no cabeçalho
-        }
-      })
-        .then(response => {
-          console.log(response.data.funcionarios);
-          this.funcionarios = response.data.funcionarios;
-        })
-        .catch(error => {
-          console.error(error);
-        });
-    },
-    async buscarEquipes() {
-      try {
-        const token = this.store.pegar_token
-        const { data } = await api.get('/equipes', {
-          headers: { Authorization: `${token}` }
-        })
-        this.equipesDisponiveis = data.equipes
-        console.log('Equipes carregadas:', this.equipesDisponiveis)
-      } catch (error) {
-        console.error('Erro ao carregar equipes:', error)
-      }
-    },
-    async criarEquipe() {
-      const funcionarios = this.funcionarios ?? [];
-
-      const checkboxesHtml = funcionarios
-        .map(
-          f => `
-          <div style="text-align:left; margin:4px 0;">
-            <label style="cursor:pointer; display:flex; align-items:center; gap:6px;">
-              <input type="checkbox" value="${f.email}" style="transform: scale(1.2);">
-              ${f.nome || f.email}
-            </label>
-          </div>
-        `
-        )
-        .join('');
-
-      const { value: formValues } = await Swal.fire({
-        title: 'Criar nova equipe',
-        html: `
-          <input id="nome-equipe" 
-       class="swal2-input" 
-       placeholder="Nome da equipe" 
-       style="margin:0 0 15px 0; width:100%; max-width:400px; box-sizing:border-box; display:block; margin-left:auto; margin-right:auto;">
-
-      <div id="usuarios-equipe" 
-          style="max-height:200px; width:100%; max-width:400px; overflow-y:auto; border:1px solid #ccc; 
-                  padding:8px; border-radius:6px; text-align:left; box-sizing:border-box; margin:0 auto;">
-        ${checkboxesHtml}
-      </div>
-
-        `,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Criar equipe',
-        width: 500,
-        preConfirm: () => {
-          const nome = (document.getElementById('nome-equipe')?.value || '').trim();
-          const checked = Array.from(document.querySelectorAll('#usuarios-equipe input[type="checkbox"]:checked'))
-            .map(c => c.value);
-
-          if (!nome) {
-            Swal.showValidationMessage('O nome da equipe é obrigatório');
-            return false;
-          }
-          if (!checked.length) {
-            Swal.showValidationMessage('Selecione ao menos um usuário');
-            return false;
-          }
-          return { nome, funcionarioEmails: checked };
-        }
-      });
-
-      if (!formValues) return;
-
-      try {
-        Swal.fire({ title: 'Criando equipe...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        const token = this.store?.pegar_token || '';
-        await api.post('/equipes', formValues, {
-          headers: token ? { Authorization: token } : {}
-        });
-        Swal.close();
-        Swal.fire('Sucesso', 'Equipe criada com sucesso!', 'success');
-
-        this.$emit('equipe-criada', formValues);
-
-        if (typeof this.fetchEquipes === 'function') {
-          await this.fetchEquipes();
-        }
-      } catch (err) {
-        Swal.close();
-        console.error('Erro ao criar equipe:', err);
-        Swal.fire('Erro', err.response?.data?.message || err.message || 'Não foi possível criar a equipe.', 'error');
-      }
-    }
-
-  },
-  mounted() {
-    this.getFuncionarios();
-    this.getPecasProducao();
-    this.buscarEquipes();
   }
 }
 </script>
@@ -430,7 +353,7 @@ export default {
   padding: 1rem;
   border: 1px solid #ccc;
   border-radius: 12px;
-  background-color: #f9f9f9;
+  background-color: #ffffff;
   display: flex;
   flex-direction: column;
 }
@@ -508,13 +431,14 @@ export default {
   background-color: #ff484b;
   color: white;
 }
+
 .modal-background {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -526,7 +450,7 @@ export default {
   border-radius: 16px;
   max-width: 600px;
   width: 90%;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
   overflow: hidden;
   animation: fadeIn 0.3s ease-out;
   font-family: 'Montserrat', sans-serif;
@@ -613,8 +537,15 @@ export default {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 label {
@@ -626,7 +557,6 @@ label {
   display: flex;
   align-items: center;
   gap: 10px;
-  /* espaçamento entre os itens */
   margin-bottom: 20px;
 }
 
@@ -654,9 +584,7 @@ label {
 
 .search .btn-button {
   flex: 1;
-  /* ocupa menos espaço */
   max-width: 150px;
-  /* limite */
   padding: 10px 20px;
   background-color: #008d3b;
   border: 1px solid #008d3b;
@@ -699,7 +627,8 @@ select {
   .modal-body {
     flex-direction: column;
     align-items: center;
-    text-align: left; /* mantém alinhamento à esquerda */
+    text-align: left;
+    /* mantém alinhamento à esquerda */
   }
 
   .modal-info {
@@ -707,22 +636,22 @@ select {
   }
 
   .info-row {
-    flex-direction: row; /* label e value lado a lado */
+    flex-direction: row;
+    /* label e value lado a lado */
     justify-content: space-between;
-    flex-wrap: wrap; /* quebra linha se necessário */
+    flex-wrap: wrap;
+    /* quebra linha se necessário */
     gap: 8px;
   }
 
   .label {
-    flex: 0 0 40%; /* label ocupa 40% do espaço */
+    flex: 0 0 40%;
   }
 
   .value {
-    flex: 1 1 55%; /* value ocupa o restante */
+    flex: 1 1 55%;
+    /* value ocupa o restante */
     text-align: left;
-  }
-  .nav {
-    display: none;
   }
 
   .card-content {
@@ -736,7 +665,6 @@ select {
 
   .content-wrapper {
     padding-left: 0px;
-    /* Remove a margem lateral */
     z-index: 0;
   }
 
@@ -774,6 +702,117 @@ select {
 
   .acoes-funcionario button {
     width: 140px;
+  }
+}
+
+.input-field,
+.input-select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.input-field:focus,
+.input-select:focus {
+  outline: none;
+  border-color: #008d3b;
+  box-shadow: 0 0 0 2px rgba(0, 141, 59, 0.2);
+}
+
+/* Estilização específica do modal de Registro */
+.modal-container.registro {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  font-family: 'Montserrat', sans-serif;
+  animation: fadeInUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header.registro {
+  background: linear-gradient(90deg, #008d3b, #00b64a);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header.registro h2 {
+  font-size: 20px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.modal-body.registro {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modal-info.registro .info-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-footer.registro {
+  padding: 15px 20px;
+  background: #f7f7f7;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #ccc;
+  color: #333;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-cancel:hover {
+  background: #aaa;
+}
+
+.btn-save {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #008d3b;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-save:hover {
+  background: #006f2e;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

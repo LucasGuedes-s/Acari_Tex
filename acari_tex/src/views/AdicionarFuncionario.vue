@@ -4,11 +4,9 @@
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
         <div class="row justify-content-center mt-3">
-          <div class="col-12 col-md-10 col-lg-8">
-            <TituloSubtitulo 
-              titulo="Cadastro de novo funcionário" 
-              subtitulo="Preencha os dados abaixo para cadastrar um novo membro na sua equipe" 
-            />
+          <div class="col-12">
+            <TituloSubtitulo titulo="Cadastro de novo funcionário"
+              subtitulo="Preencha os dados abaixo para cadastrar um novo membro na sua equipe" />
 
             <div class="section card shadow-sm p-4 mb-4">
               <h4 class="section-title mb-3">Dados do Funcionário</h4>
@@ -16,18 +14,21 @@
               <div class="row mb-4">
                 <div class="col-md-6">
                   <label for="nome">Nome completo:</label>
-                  <input v-model="novoFuncionario.nome" id="nome" type="text" class="form-control" placeholder="Digite o nome" required />
+                  <input v-model="novoFuncionario.nome" id="nome" type="text" class="form-control"
+                    placeholder="Digite o nome" required />
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                   <label for="idade">Idade:</label>
-                  <input v-model.number="novoFuncionario.idade" id="idade" type="number" min="16" class="form-control" placeholder="Idade" required />
+                  <input v-model.number="novoFuncionario.idade" id="idade" type="number" min="16" class="form-control"
+                    placeholder="Idade" required />
                 </div>
               </div>
 
               <div class="row mb-3">
                 <div class="col-md-6">
                   <label for="email">E-mail:</label>
-                  <input v-model="novoFuncionario.email" id="email" type="email" class="form-control" placeholder="Digite o e-mail" required />
+                  <input v-model="novoFuncionario.email" id="email" type="email" class="form-control"
+                    placeholder="Digite o e-mail" required />
                 </div>
                 <div class="col-md-6">
                   <label for="funcao">Função principal:</label>
@@ -46,28 +47,19 @@
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label for="equipe">Equipe:</label>
-                  <select v-model="novoFuncionario.equipe" id="equipe" class="form-control">
-                    <option disabled value="">Selecione uma equipe</option>
-                    <option v-for="equipe in equipesDisponiveis" :key="equipe.id" :value="equipe.id">{{ equipe.nome }}</option>
-                  </select>
-                </div>
-              </div>
-
-
-              <!-- Foto -->
-              <div class="form-group mb-3">
-                <label for="foto">Foto:</label>
-                <input @change="uploadFoto" id="foto" type="file" accept="image/*" class="form-control" />
-                <div v-if="novoFuncionario.foto" class="mt-2 text-center">
-                  <img :src="novoFuncionario.foto" alt="Pré-visualização" class="preview-img" />
+                  <label for="foto">Foto:</label>
+                  <input @change="uploadFoto" id="foto" type="file" accept="image/*" class="form-control" />
+                  <div v-if="novoFuncionario.foto" class="mt-2 text-center">
+                    <img :src="novoFuncionario.foto" alt="Pré-visualização" class="preview-img" />
+                  </div>
                 </div>
               </div>
 
               <!-- Outras funções -->
               <div class="form-group mb-3">
                 <label for="funcoes">Outras funções (opcional):</label>
-                <input v-model="novoFuncionario.funcoes" id="funcoes" type="text" class="form-control" placeholder="Ex: Corte, Acabamento" />
+                <input v-model="novoFuncionario.funcoes" id="funcoes" type="text" class="form-control"
+                  placeholder="Ex: Corte, Acabamento" />
               </div>
 
 
@@ -194,5 +186,24 @@ export default {
   max-width: 150px;
   border-radius: 8px;
   border: 2px solid #ddd;
+}
+label {
+  display: flex;
+  color: #616161;
+  font-weight: 600;
+  margin-top: 5px;
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  .d-flex {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .content-wrapper {
+    padding-left: 0px;
+    z-index: 0;
+  }
 }
 </style>

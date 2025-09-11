@@ -13,12 +13,12 @@
     <div :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
         <!-- Logo só no desktop -->
-        <div class="d-none d-md-block">
+        <div>
           <img class="icon-logo"
-            :src="isMinimized ? require('@/assets/LogoAcariTex.png') : require('@/assets/Logo.png')"
+            :src="isMinimized ? require('@/assets/Logo.png') : require('@/assets/Logo.png')"
             :class="{ 'logo-minimized': isMinimized }" alt="Logo">
         </div>
-
+        
         <div class="list-group">
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/dashboard" class="d-flex align-items-center text-reset">
@@ -169,33 +169,29 @@ a {
   left: 0;
 }
 
-/* Mobile styles mantendo o resto */
-/* Mobile styles mantendo o resto */
 @media screen and (max-width: 600px) {
   .mobile-navbar {
     display: flex;
   }
 
-  /* Sidebar off-canvas */
   .sidebar {
     position: fixed;
     top: 0;
     left: -250px;
-    /* inicialmente escondida */
     width: 250px;
     height: 100%;
     transition: all 0.3s;
     z-index: 1001;
-    /* acima da overlay */
   }
 
   .mobile-open {
     left: 0;
-    /* aparece ao clicar no botão */
   }
 
   .icon-logo {
-    display: none;
+    display: flex;
+    margin-left: 15px;
+    width: 150px;
   }
 
   /* Overlay */

@@ -107,8 +107,8 @@ export default {
           datasets: [{
             label: 'Quantidade de Peças por OP',
             data: this.opData,
-            backgroundColor: '#FF6384',
-            borderColor: '#FF6384',
+            backgroundColor: '#008d3b',
+            borderColor: '#008d3b',
             borderWidth: 1,
           }],
         },
@@ -133,8 +133,8 @@ export default {
           datasets: [{
             label: 'Quantidade de Peças por Funcionário',
             data: this.funcionarioData,
-            backgroundColor: '#36A2EB',
-            borderColor: '#36A2EB',
+            backgroundColor: '#00692b',
+            borderColor: '#00692b',
             borderWidth: 1,
           }],
         },

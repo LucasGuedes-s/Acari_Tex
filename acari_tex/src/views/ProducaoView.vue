@@ -232,7 +232,7 @@ export default {
 
 @media (max-width: 768px) {
   .content-wrapper {
-    padding-left: 80px;
+    padding-left: 0px;
   }
 }
 </style>

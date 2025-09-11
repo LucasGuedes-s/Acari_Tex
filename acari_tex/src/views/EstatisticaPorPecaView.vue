@@ -29,7 +29,6 @@
             <div class="col-md-6">
               <div class="info-box p-3 rounded shadow-sm bg-light">
                 <p><strong>Pedido por:</strong> {{ pecaDetalhes.pedido_por }}</p>
-   
                 <p><strong>Data do pedido:</strong> {{ formatarData(pecaDetalhes.data_do_pedido) }}</p>
                 <p><strong>Data de entrega:</strong> {{ formatarData(pecaDetalhes.data_de_entrega) }}</p>
               </div>
@@ -38,21 +37,8 @@
 
           <!-- Gráficos -->
           <div class="row mt-5 g-4">
-            <!-- Gráfico produção total 
-            <div class="col-md-4">
-              <div class="card p-3 shadow-sm border-0">
-                <h5 class="mb-3">📈 Produção total</h5>
-                <GChart 
-                  v-if="graficoTotal.length > 1"
-                  type="PieChart"
-                  :data="graficoTotal"
-                  :options="{ title: 'Produzido x Saldo' }"
-                  style="width: 100%; height: 300px;" 
-                />
-              </div>
-            </div> -->
-
-            <div class="col-md-4">
+            <!-- Produção por Funcionário -->
+            <div class="col-12">
               <div class="card p-3 shadow-sm border-0">
                 <h5 class="mb-3">👷 Produção por Funcionário</h5>
                 <GChart 
@@ -60,12 +46,13 @@
                   type="BarChart"
                   :data="graficoFuncionarios"
                   :options="{ title: 'Funcionários', legend: { position: 'none' } }"
-                  style="width: 100%; height: 300px;" 
+                  style="width: 100%; height: 500px;" 
                 />
               </div>
             </div>
 
-            <div class="col-md-4">
+            <!-- Produção por Etapa -->
+            <div class="col-12">
               <div class="card p-3 shadow-sm border-0">
                 <h5 class="mb-3">⚙️ Produção por Etapa</h5>
                 <GChart 
@@ -78,7 +65,7 @@
                     hAxis: { title: 'Quantidade' },
                     vAxis: { title: 'Etapas' },
                   }"
-                  style="width: 100%; height: 300px;"
+                  style="width: 100%; height: 500px;"
                 />
               </div>
             </div>
@@ -216,6 +203,7 @@ export default {
   border-left: 5px solid #198754;
   justify-items: left;
 }
+
 @media (max-width: 768px) {
   .content-wrapper {
     padding-left: 0px;

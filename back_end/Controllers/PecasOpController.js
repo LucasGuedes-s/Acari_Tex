@@ -75,12 +75,38 @@ async function getEstatisticasPeca(req, res, next) {
             return res.status(400).json({ mensagem: 'ID da peça é obrigatório.' });
         }
         const estatisticas = await pecas.getEstatisticasPeca(id);
+        console.log(estatisticas);
         if (!estatisticas) {
             return res.status(404).json({ mensagem: 'Nenhuma estatística encontrada para essa peça.' });
         }
         res.status(200).json({ estatisticas });
     } catch (err) {
         console.error(`Erro ao obter estatísticas da peça.`, err.message);
+        next(err);
+    }
+}
+async function deletarPeca(req, res, next) {  
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ mensagem: 'ID da peça é obrigatório.' });
+        }
+        const deletada = await pecas.deletarPeca(id);
+        if (!deletada) {
+            return res.status(404).json({ mensagem: 'Peça não encontrada.' });
+        }
+        res.status(200).json({ mensagem: 'Peça deletada com sucesso.', deletada });
+    } catch (err) {
+        console.error(`Erro ao deletar a peça.`, err.message);
+        next(err);
+    }
+}
+async function voltarPeca(req, res, next){
+    try {
+        const voltarPeca = await pecas.voltarPeca(req);
+        res.status(200).json({voltarPeca});
+    } catch (err) {
+        console.error(`Erro ao voltar peça.`, err.message);
         next(err);
     }
 }
@@ -91,5 +117,7 @@ module.exports = {
     getProducao,
     updatePecaStatus,
     getProducaoEquipe,
-    getEstatisticasPeca
+    getEstatisticasPeca,
+    deletarPeca,
+    voltarPeca
 };

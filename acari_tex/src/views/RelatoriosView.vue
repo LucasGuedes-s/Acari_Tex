@@ -20,9 +20,10 @@
                             <option value="finalizado">Concluídas</option>
                         </select>
                     </div>
+                    <!--
                     <div class="col-md-4 mb-2">
                         <input type="date" class="form-control" v-model="filtroData" />
-                    </div>
+                    </div>  -->
                 </div>
 
                 <div class="row">
@@ -37,11 +38,20 @@
 
                             <p>Quantidade: {{ peca.quantidade }}</p>
                             <p>Data de Criação: {{ formatarData(peca.data_do_pedido) }}</p>
+                            <div class="mt-3 d-flex flex-row gap-2">
+                                <button 
+                                    class="btn w-50" 
+                                    @click="$router.push(`/pecas/${peca.id_da_op}`)">
+                                    Ver estatísticas
+                                </button>
 
-                            <button class="btn btn-primary w-100 mt-2"   @click="$router.push(`/pecas/${peca.id_da_op}`)"
->
-                                Ver estatísticas
-                            </button>
+                                <button 
+                                    class="btn excluir w-50" 
+                                    @click="deletarPeca(peca.id_da_op)">
+                                    Excluir
+                                </button>
+                                </div>
+
                         </div>
                     </div>
                 </div>
@@ -55,6 +65,7 @@ import SidebarNav from '@/components/Sidebar.vue';
 import { useAuthStore } from '@/store/store';
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
 import api from '@/Axios';
+import Swal from 'sweetalert2';
 
 export default {
     name: 'DetalhesPecas',
@@ -120,6 +131,43 @@ export default {
             });
             this.pecas = data.peca
             console.log(data.peca)
+        },
+        async deletarPeca(pecaId) {
+            Swal.fire({
+                title: 'Confirmação',
+                text: 'Tem certeza que deseja excluir esta peça? Esta ação não pode ser desfeita.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim, excluir',
+                cancelButtonText: 'Cancelar',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    this.confirmarDelecao(pecaId);
+                }
+            });
+        },
+        async confirmarDelecao(pecaId) {
+            const token = this.store.pegar_token;
+
+            try {
+                await api.post(`/deletar/peca/${pecaId}`, {}, {
+                    headers: { Authorization: `${token}` },
+                });
+
+                // Remover peça da lista localmente
+                this.pecas = Object.fromEntries(
+                    Object.entries(this.pecas).map(([status, lista]) => [
+                        status,
+                        lista.filter(peca => peca.id !== pecaId)
+                    ])
+                );
+
+                Swal.fire('Excluído!', 'A peça foi excluída com sucesso.', 'success');
+                this.fetchPecas(); 
+            } catch (error) {
+                console.error("Erro ao excluir peça:", error);
+                Swal.fire('Erro', 'Ocorreu um erro ao tentar excluir a peça.', 'error');    
+            }
         },
         async selecionarPeca(peca) {
             this.pecaSelecionada = peca;
@@ -261,7 +309,10 @@ export default {
 .btn-primary:hover {
     background-color: #357ab8;
 }
-
+.excluir{
+    background-color: #e74c3c;
+    color: white;
+}
 /* Animações */
 @keyframes fadeIn {
     from {

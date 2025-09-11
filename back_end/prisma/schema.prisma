@@ -29,7 +29,7 @@ model Usuarios {
 
 model Estabelecimento {
   cnpj                String @id
-  usuarios            Usuarios[] // <- agora sim, vários funcionários ligados a 1 cnpj
+  usuarios            Usuarios[]
   EquipesGrupos       EquipesGrupos[]
   estoque_tecidos     Estoque_Tecidos[]
   estoque_agulhas     Estoque_Agulhas[]
@@ -60,20 +60,21 @@ model PecasOP {
 
 model Etapa {
   id_da_funcao  Int     @id @default(autoincrement())
-  descricao     String  @unique // Nome da etapa deve ser único
-  pecas         PecasEtapas[]  // Relacionamento M:N através da tabela intermediária
-  producao_etapa Producao[] // Relacionamento com a tabela de produção
+  descricao     String  @unique 
+  pecas         PecasEtapas[]  
+  producao_etapa Producao[] 
 }
 
-// Tabela intermediária para conectar PecasOP e Etapa (Relacionamento M:N)
 model PecasEtapas {
   id_da_op      Int
   id_da_funcao  Int
+  quantidade_meta Int     
+  status         String?  @default("pendente")
 
   peca_op       PecasOP @relation(fields: [id_da_op], references: [id_da_op], onDelete: Cascade)
   etapa         Etapa   @relation(fields: [id_da_funcao], references: [id_da_funcao], onDelete: Cascade)
 
-  @@id([id_da_op, id_da_funcao]) // Chave composta para garantir unicidade
+  @@id([id_da_op, id_da_funcao])
 }
 
 model Producao {
@@ -90,7 +91,7 @@ model Producao {
   Estabelecimento        Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_peca          PecasOP          @relation(fields: [id_da_op], references: [id_da_op])
   producao_funcionario   Usuarios         @relation(fields: [id_funcionario], references: [email])
-  producao_etapa         Etapa            @relation(fields: [id_da_funcao], references: [id_da_funcao]) // <- NOVO RELACIONAMENTO
+  producao_etapa         Etapa            @relation(fields: [id_da_funcao], references: [id_da_funcao])
 
   @@index([id_da_op])
   @@index([id_da_funcao])
@@ -142,5 +143,5 @@ model EquipesGrupos {
   estabelecimentoCnpj String
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
   
-  usuarios           Usuarios[]   // <- relação N:N
+  usuarios           Usuarios[]
 }

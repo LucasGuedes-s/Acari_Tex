@@ -11,7 +11,7 @@ router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPec
 
 router.post('/registrar/producao', [jwtMiddleware], ControllerOp.postProducaoPeca);
 router.post('/update/status', [jwtMiddleware], ControllerOp.updatePecaStatus);
+router.post('/deletar/peca/:id', [jwtMiddleware], ControllerOp.deletarPeca);
 
-
-
+router.post('/voltar/peca', [jwtMiddleware], ControllerOp.voltarPeca);
 module.exports = router;
