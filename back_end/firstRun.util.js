@@ -38,6 +38,7 @@ async function main() {
         nome: nomeUsuario,
         email: emailUsuario,
         senha: senhaCriptografada,
+        permissoes: 'Administrador',
         foto: "https://firebasestorage.googleapis.com/v0/b/clinica-maria-luiza.appspot.com/o/uploads%2Ffuncionarios2.svg?alt=media&token=cc7511c0-9e76-4cd6-9e33-891bbb3cfd1c",
         idade: 35,
         funcoes: "Administrador",

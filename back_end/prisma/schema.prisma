@@ -21,7 +21,7 @@ model Usuarios {
   pix                 String?     
   notas               String?
   status              String? @default("ativo")
-  equipes             EquipesGrupos[] 
+  equipes             EquipesUsuarios[] 
   estabelecimentoCnpj String
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
@@ -38,7 +38,6 @@ model Estabelecimento {
   PecasOP             PecasOP[]
   Producao            Producao[]
 }
-
 
 model PecasOP {
   id_da_op           Int       @id @default(autoincrement())
@@ -67,7 +66,8 @@ model Etapa {
 }
 
 model PecasEtapas {
-  id_da_op      Int
+  id            Int @id @default(autoincrement())
+  id_da_op      Int 
   id_da_funcao  Int
   quantidade_meta Int     
   status         String?  @default("pendente")
@@ -75,7 +75,7 @@ model PecasEtapas {
   peca_op       PecasOP @relation(fields: [id_da_op], references: [id_da_op], onDelete: Cascade)
   etapa         Etapa   @relation(fields: [id_da_funcao], references: [id_da_funcao], onDelete: Cascade)
 
-  @@id([id_da_op, id_da_funcao])
+  @@unique([id_da_op, id_da_funcao])
 }
 
 model Producao {
@@ -138,11 +138,22 @@ model Tarefas {
 }
 
 model EquipesGrupos {
-  id                 Int        @id @default(autoincrement())
-  nome               String
-  descricao          String?
+  id                  Int   @id @default(autoincrement())
+  nome                String
+  descricao           String?
   estabelecimentoCnpj String
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-  
-  usuarios           Usuarios[]
+
+  usuarios            EquipesUsuarios[]
+}
+
+model EquipesUsuarios {
+  id           Int @id @default(autoincrement())
+  usuarioEmail  String
+  equipeId      Int
+
+  usuario       Usuarios      @relation(fields: [usuarioEmail], references: [email], onDelete: Cascade)
+  equipe        EquipesGrupos @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioEmail, equipeId]) // 🔑 chave primária composta
 }
