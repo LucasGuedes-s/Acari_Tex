@@ -47,7 +47,7 @@ async function postFuncionario(funcionario, cnpj) {
       cpf,
       pis,
       pix: funcionario.pix,
-      notas: funcionario.permissao === 'Funcionario',
+      notas: funcionario.funcoes,
       estabelecimentoCnpj: cnpj
     }
   });
