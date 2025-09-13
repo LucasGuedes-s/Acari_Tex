@@ -1,81 +1,60 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const bcrypt = require('bcrypt');
+require('dotenv').config();
 
-async function getFuncionarios(req, res) {
-  try {
-    const { cnpj } = req;
-
-    const funcionarios = await prisma.usuarios.findMany({
-      where: {
-        estabelecimentoCnpj: cnpj,
-      },
-    });
-
-    if (!funcionarios.length) {
-      return 'Nenhum funcionário encontrado para este estabelecimento.';
-    }
-
-    return funcionarios;
-  } catch (error) {
-    console.error("Erro ao buscar funcionários:", error);
-    throw new Error("Erro ao buscar os funcionários.");
+async function getFuncionarios(cnpj) {
+  const funcionarios = await prisma.usuarios.findMany({
+    where: { estabelecimentoCnpj: cnpj.cnpj }
+  });
+  if (!funcionarios.length) {
+    throw new Error('Nenhum funcionário encontrado para este estabelecimento.');
   }
+  return funcionarios;
 }
 
-async function getFuncionario(req, res) {
-  const id_do_funcionario = req
-  try {
-    const funcionario = await prisma.Usuarios.findUnique({
-      where: { email: id_do_funcionario }
-    });
-    if (!funcionario) {
-      return 'Funcionário não encontrado';
-    }
-
-    return funcionario
-
-  } catch (error) {
-    return 'Erro ao buscar funcionário';
-  }
+async function getFuncionario(email) {
+  const funcionario = await prisma.usuarios.findUnique({
+    where: { email }
+  });
+  if (!funcionario) throw new Error('Funcionário não encontrado');
+  return funcionario;
 }
 
-async function postFuncionario(funcionario) {
+async function postFuncionario(funcionario, cnpj) {
+
+  // Verifica se o email já existe
+  const usuarioExistente = await prisma.usuarios.findUnique({
+    where: { email: funcionario.email }
+  });
+
+  if (usuarioExistente) throw new Error("Já existe um usuário com esse email.");
+
   const identidade = funcionario.identidade?.toString() || null;
   const cpf = funcionario.cpf?.toString() || null;
   const pis = funcionario.pis?.toString() || null;
-
-  // Verifica se o email já está cadastrado
-  const usuarioExistente = await prisma.usuarios.findUnique({
-    where: {
-      email: funcionario.email
-    }
-  });
-
-  if (usuarioExistente) {
-    console.log(usuarioExistente)
-    throw new Error("Já existe um usuário com esse email.");
-  }
-
+  const senha = bcrypt.hashSync(process.env.SENHA, 10);
   const addFuncionario = await prisma.usuarios.create({
     data: {
       email: funcionario.email,
-      nome: funcionario.nome_do_funcionario,
-      senha: funcionario.senha,
-      foto: funcionario.foto,
+      nome: funcionario.nome,
+      senha: senha,
+      foto: funcionario.fotoUrl,
       idade: funcionario.idade,
       funcoes: funcionario.funcoes,
+      permissoes: funcionario.permissao || "funcionario",
       identidade,
       cpf,
       pis,
       pix: funcionario.pix,
-      notas: funcionario.notas,
-      estabelecimentoCnpj: funcionario.estabelecimento.cnpj // FK direta
-
+      notas: funcionario.permissao === 'Funcionario',
+      estabelecimentoCnpj: cnpj
     }
   });
 
   return addFuncionario;
 }
+
 async function getProducaoFuncionario(req) {
   const email = req;
 
@@ -146,24 +125,18 @@ async function criarEquipe(req) {
   try {
     const { nome, descricao, funcionarioEmails } = req.body;
     const cnpj = req.user.cnpj
-    console.log("Aqui", req.body)
     // Buscar os funcionários que pertencem ao estabelecimento
     const funcionarios = await prisma.usuarios.findMany({
       where: {
-        email: { in: funcionarioEmails },
+        email: { in: req.body.funcionarios },
         estabelecimentoCnpj: cnpj
       }
     });
 
-    if (funcionarios.length !== funcionarioEmails.length) {
-      throw new Error("Um ou mais funcionários não pertencem a este estabelecimento.");
-    }
-    console.log(funcionarios)
-    // Criar a equipe e conectar os usuários
     const equipe = await prisma.equipesGrupos.create({
       data: {
-        nome,
-        descricao,
+        nome: req.body.nome,
+        descricao: req.body.descricao,
         estabelecimentoCnpj: cnpj,
         usuarios: {
           connect: funcionarios.map(f => ({ email: f.email }))

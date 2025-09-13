@@ -8,7 +8,7 @@ router.get('/funcionario/:id', ControllerFuncionarios.getFuncionario);
 router.get('/Producao/funcionario/:email', [jwtMiddleware], ControllerFuncionarios.getProducaoFuncionario);
 router.get('/equipes', [jwtMiddleware], ControllerFuncionarios.getEquipes);
 
-router.post('/adicionar/funcionario', ControllerFuncionarios.postEquipe);
+router.post('/adicionar/funcionario', [jwtMiddleware],  ControllerFuncionarios.postEquipe);
 router.post('/funcionario/grupo', [jwtMiddleware], ControllerFuncionarios.adicionarFuncionarioAgrupo);
 
 

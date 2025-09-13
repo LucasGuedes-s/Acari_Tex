@@ -22,9 +22,8 @@ async function getFuncionario(req, res, next){
 }
 async function postEquipe(req, res, next){
     try {
-        const funcionario = req.body;
-        const equipe = await Funcionarios.postFuncionario(funcionario);
-        res.status(200).send({
+        const equipe = await Funcionarios.postFuncionario(req.body, req.user.cnpj);
+        res.status(201).send({
             message: `Funcionário cadastrado: ${equipe}`,
         });
     } catch (err) {

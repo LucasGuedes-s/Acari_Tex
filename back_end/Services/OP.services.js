@@ -445,8 +445,12 @@ async function getEstatisticasPeca(id) {
       data_do_pedido: peca.data_do_pedido,
       data_de_entrega: peca.data_de_entrega,
       notas: peca.notas,
-      producaoPorEtapa,               // formato compatível com frontend
-      somaPorEtapa                    // resumo por etapa (liquido/positivos/estornos)
+      producaoPorEtapa, 
+      pecasEtapas: peca.etapas.map(e => ({
+        id_da_funcao: e.id_da_funcao,
+        descricao: e.etapa?.descricao || "Desconhecida",   
+      })),         
+      somaPorEtapa     
     };
 
   } catch (error) {
@@ -481,14 +485,32 @@ async function voltarPeca(req, res) {
   try {
     const { id_da_op, id_funcionario, id_da_funcao, quantidade } = req.body;
     if (!id_da_op || !id_da_funcao || !quantidade) {
-      return res.status(400).json({ mensagem: "ID da OP, etapa e quantidade são obrigatórios." });
+      return "ID da OP, etapa e quantidade são obrigatórios.";
     }
 
-    // Caso o id_funcionario seja informado, o estorno é direto
+    // Buscar a produção total atual da etapa
+    const producaoTotal = await prisma.producao.aggregate({
+      _sum: { quantidade_pecas: true },
+      where: {
+        id_da_op: Number(id_da_op),
+        id_da_funcao: Number(id_da_funcao),
+        ...(id_funcionario && { id_funcionario }),
+      },
+    });
+
+    const totalAtual = producaoTotal._sum.quantidade_pecas || 0;
+
+    if (totalAtual <= 0) {
+      throw new Error("Não há produção para estornar nessa peça e etapa.");
+    }
+
+    // Ajustar quantidade para não ficar negativa
+    const quantidadeEstorno = Math.min(Math.abs(quantidade), totalAtual);
+
     if (id_funcionario) {
       const producaoEstorno = await prisma.producao.create({
         data: {
-          quantidade_pecas: -Math.abs(quantidade),
+          quantidade_pecas: -quantidadeEstorno,
           id_da_op: Number(id_da_op),
           id_funcionario,
           id_da_funcao: Number(id_da_funcao),
@@ -517,16 +539,16 @@ async function voltarPeca(req, res) {
     });
 
     if (producoes.length === 0) {
-      return "Nenhum funcionário encontrado para essa etapa da peça." ;
+      throw new Error("Nenhum funcionário encontrado para essa peça e etapa.");
     }
 
     // Divide a quantidade igualmente entre os funcionários encontrados
-    const quantidadePorFuncionario = Math.floor(Math.abs(quantidade) / producoes.length);
-    const resto = Math.abs(quantidade) % producoes.length; // se não for divisível, distribui o excedente
+    const quantidadePorFuncionario = Math.floor(quantidadeEstorno / producoes.length);
+    const resto = quantidadeEstorno % producoes.length;
 
     const estornos = [];
     for (let i = 0; i < producoes.length; i++) {
-      const qnt = quantidadePorFuncionario + (i < resto ? 1 : 0); // distribui sobras
+      const qnt = quantidadePorFuncionario + (i < resto ? 1 : 0);
       const estorno = await prisma.producao.create({
         data: {
           quantidade_pecas: -qnt,
@@ -547,9 +569,10 @@ async function voltarPeca(req, res) {
     });
 
     return peca;
+
   } catch (err) {
     console.error("Erro ao voltar peça:", err.message);
-    return res.status(500).json({ mensagem: "Erro ao voltar peça" });
+    throw new Error("Erro ao voltar peça" );
   }
 }
 

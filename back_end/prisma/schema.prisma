@@ -15,6 +15,7 @@ model Usuarios {
   idade               Int
   funcoes             String?
   identidade          String?
+  permissoes          String? @default("funcionario")
   cpf                 String?
   pis                 String?
   pix                 String?     
