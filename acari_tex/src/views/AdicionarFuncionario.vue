@@ -5,8 +5,10 @@
       <div class="container-fluid my-4 mt-md-0 mt-3">
         <div class="row justify-content-center mt-3">
           <div class="col-12">
-            <TituloSubtitulo titulo="Cadastro de novo funcionário"
-              subtitulo="Preencha os dados abaixo para cadastrar um novo membro na sua equipe" />
+            <TituloSubtitulo 
+              titulo="Cadastro de novo funcionário"
+              subtitulo="Preencha os dados abaixo para cadastrar um novo membro na sua equipe" 
+            />
 
             <div class="section card shadow-sm p-4 mb-4">
               <h4 class="section-title mb-3">Dados do Funcionário</h4>
@@ -38,6 +40,7 @@
                   </select>
                 </div>
               </div>
+
               <div class="row mb-3">
                 <div class="col-md-6">
                   <label for="permissao">Permissão:</label>
@@ -48,20 +51,18 @@
                 </div>
                 <div class="col-md-6">
                   <label for="foto">Foto:</label>
-                  <input @change="uploadFoto" id="foto" type="file" accept="image/*" class="form-control" />
-                  <div v-if="novoFuncionario.foto" class="mt-2 text-center">
-                    <img :src="novoFuncionario.foto" alt="Pré-visualização" class="preview-img" />
+                  <input @change="selecionarFoto" id="foto" type="file" accept="image/*" class="form-control" />
+                  <div v-if="previewFoto" class="mt-2 text-center">
+                    <img :src="previewFoto" alt="Pré-visualização" class="preview-img" />
                   </div>
                 </div>
               </div>
 
-              <!-- Outras funções -->
               <div class="form-group mb-3">
                 <label for="funcoes">Outras funções (opcional):</label>
                 <input v-model="novoFuncionario.funcoes" id="funcoes" type="text" class="form-control"
                   placeholder="Ex: Corte, Acabamento" />
               </div>
-
 
               <div class="d-flex justify-content-end">
                 <button @click="cadastrarFuncionario" class="btn btn-success">Cadastrar Funcionário</button>
@@ -95,12 +96,14 @@ export default {
         nome: '',
         email: '',
         idade: null,
-        foto: '',
         funcao: '',
         funcoes: '',
         permissao: '',
-        equipe: ''
+        equipe: '',
+        fotoUrl: null 
       },
+      previewFoto: null, 
+      fotoSelecionada: null,
       funcoesDisponiveis: ['Corte', 'Costura', 'Acabamento', 'Supervisor'],
       permissoes: ['Admin', 'Gestor', 'Funcionário'],
       equipesDisponiveis: []
@@ -116,41 +119,66 @@ export default {
         const { data } = await api.get('/equipes', {
           headers: { Authorization: `${token}` }
         })
-        this.equipesDisponiveis = data.equipes
-        console.log('Equipes carregadas:', this.equipesDisponiveis)
+        this.equipesDisponiveis = data.equipes || []
       } catch (error) {
         console.error('Erro ao carregar equipes:', error)
+        Swal.fire('Erro', 'Não foi possível carregar as equipes.', 'error')
       }
     },
-    async uploadFoto(event) {
+
+    selecionarFoto(event) {
       const file = event.target.files[0]
       if (!file) return
+      this.fotoSelecionada = file
+      this.previewFoto = URL.createObjectURL(file)
+    },
 
-      const formData = new FormData()
-      formData.append('file', file)
+    async uploadFoto() {
+      if (!this.fotoSelecionada) return null
 
       try {
         const token = this.store.pegar_token
-        const { data } = await api.post('/upload/foto', formData, {
+        const formData = new FormData()
+        formData.append('file', this.fotoSelecionada)
+
+        const response = await api.post('/upload/foto', formData, {
           headers: {
             Authorization: `${token}`,
             'Content-Type': 'multipart/form-data'
           }
         })
-        this.novoFuncionario.foto = data.url // backend retorna a URL da foto
+
+        return response.data.fileUrl
       } catch (error) {
-        console.error('Erro ao enviar foto:', error)
-        Swal.fire('Erro', 'Não foi possível fazer upload da foto.', 'error')
+        console.error('Erro ao enviar imagem:', error)
+        Swal.fire('Erro', 'Não foi possível enviar a imagem.', 'error')
+        return null
       }
     },
+
     async cadastrarFuncionario() {
       try {
         const token = this.store.pegar_token
-        const response = await api.post('/adicionar/funcionario', {
-          funcionario: this.novoFuncionario
-        }, {
-          headers: { Authorization: `${token}` }
+        Swal.fire({
+          title: 'Cadastrando funcionário...',
+          text: 'Aguarde um momento.',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => {
+            Swal.showLoading()
+          }
         })
+        // 1️⃣ Envia a imagem primeiro
+        const fotoUrl = await this.uploadFoto()
+        if (fotoUrl) this.novoFuncionario.fotoUrl = fotoUrl
+        console.log('URL da foto enviada:', this.novoFuncionario)
+        const response = await api.post('/adicionar/funcionario', this.novoFuncionario, {
+          headers: {
+            Authorization: `${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        Swal.close()
 
         if (response.status === 201) {
           Swal.fire({
@@ -160,7 +188,7 @@ export default {
             showConfirmButton: false
           })
           router.push('/MinhaEquipe')
-        }
+        } 
       } catch (error) {
         console.error('Erro ao cadastrar funcionário:', error)
         Swal.fire('Erro', 'Erro ao cadastrar. Verifique os dados.', 'error')
@@ -192,7 +220,6 @@ label {
   color: #616161;
   font-weight: 600;
   margin-top: 5px;
-  display: flex;
 }
 
 @media (max-width: 768px) {

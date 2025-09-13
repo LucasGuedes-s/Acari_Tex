@@ -490,7 +490,6 @@ export default {
     z-index: 0;
   }
 
-  /* Input + botão em coluna */
   .nova-etapa section {
     flex-direction: column;
     width: 100%;

@@ -51,7 +51,7 @@ export default {
   },
   mounted() {
     this.carregarDados();
-    this.socket = io('http://192.168.0.115:3333');
+    this.socket = io('http://10.48.9.239:3333');
 
     this.socket.on('nova_producao', () => {
       if (!this.loading) {

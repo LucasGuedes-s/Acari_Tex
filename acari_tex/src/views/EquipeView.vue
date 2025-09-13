@@ -5,47 +5,68 @@
       <div v-if="loading">
         <CarregandoTela />
       </div>
+
       <div v-else class="nav row justify-content-center">
         <div class="form col-12 col-md-10 col-lg-8">
           <div class="search">
-            <!-- Versão desktop -->
-            <div class="search-desktop d-none d-md-flex align-items-center gap-2 w-100">
-              <select name="Pesquisar" id="hora" v-model="equipe" class="form-select flex-shrink-0"
-                style="max-width: 220px;">
-                <option value="" disabled>Pesquisar por grupo</option>
-                <option v-for="equipe in equipesDisponiveis" :key="equipe.id" :value="equipe.id">
-                  {{ equipe.nome }}
-                </option>
-              </select>
-
-              <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa"
-                class="form-control flex-grow-1" />
-
-              <RouterLink to="/adicionar-profissional">
-                <button class="btn-button px-4">Novo profissional</button>
-              </RouterLink>
-              <button class="btn-button px-4" @click="criarEquipe">Nova equipe</button>
-
-              <NavBarUser class="ms-2" />
-            </div>
-
-            <!-- Versão mobile -->
-            <div class="search-mobile d-flex d-md-none flex-column gap-3 w-100">
-              <!-- Campo de pesquisa ocupa 100% -->
-              <input type="text" placeholder="Pesquisar profissional..." v-model="pesquisa" class="w-100" />
-
-              <!-- Botões lado a lado, mesmo tamanho -->
-              <div class="d-flex gap-2 w-100">
-                <RouterLink to="/adicionar-profissional" class="flex-grow-1">
-                  <button class="btn-button w-100 py-2">Novo profissional</button>
-                </RouterLink>
-                <button class="btn-button w-100 py-2 flex-grow-1" @click="criarEquipe">Nova equipe</button>
+            <!-- 🔎 Versão mobile -->
+            <div class="search-mobile d-md-none w-100 mb-3">
+              <input 
+                type="text" 
+                id="search-input" 
+                placeholder="Pesquisar nome do profissional..." 
+                v-model="pesquisa"
+                class="form-control mb-2" 
+              />
+              <div class="d-flex w-100 gap-2 justify-content-between">
+                <button @click="cadastrar" class="btn-button w-80 py-2">Novo profissional</button>
+                <button class="btn-button w-50 py-2" @click="criarEquipe">
+                  Nova equipe
+                </button>
               </div>
             </div>
 
+            <!-- 💻 Versão desktop -->
+            <div class="search-desktop d-none d-md-flex align-items-center gap-2 w-100 mb-3">
+              <!-- <select 
+                name="Pesquisar" 
+                id="hora" 
+                v-model="equipe" 
+                class="form-select flex-shrink-0"
+                style="max-width: 220px;"
+              >
+                <option value="" disabled>Pesquisar por grupo</option>
+                <option 
+                  v-for="equipe in equipesDisponiveis" 
+                  :key="equipe.id" 
+                  :value="equipe.id"
+                >
+                  {{ equipe.nome }}
+                </option>
+              </select>-->
+
+              <input 
+                type="text" 
+                id="search-input" 
+                placeholder="Pesquisar nome do profissional..." 
+                v-model="pesquisa"
+                class="form-control flex-grow-1" 
+              />
+
+              <RouterLink to="/adicionar-profissional" class="flex-fill">
+                <button class="btn-button w-100 py-2">Novo profissional</button>
+              </RouterLink>
+              <button class="btn-button w-100 py-2 flex-fill" @click="criarEquipe">
+                Nova equipe
+              </button>
+
+              <NavBarUser class="ms-2" />
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Lista de funcionários -->
       <div class="container_profissional" v-for="funcionario in filteredProfissional" :key="funcionario.id">
         <div class="card-content">
           <div class="imagem-funcionario">
@@ -60,61 +81,40 @@
 
         <div class="acoes-funcionario">
           <button @click="getFuncionario(funcionario.email)">Ver mais</button>
-          <button class="demitir" @click="demitirFuncionario(funcionario.id)">
+          <!-- <button class="demitir" @click="demitirFuncionario(funcionario.id)">
             Demitir
-          </button>
+          </button>-->
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
             Registrar Produção
           </button>
         </div>
       </div>
 
+      <!-- Modal Funcionário -->
       <div v-if="showModalFuncionario" class="modal-background">
         <div class="modal-container">
           <div class="modal-header">
             <h2>Detalhes do Funcionário</h2>
             <img class="modal-close" @click="showModalFuncionario = false" src="@/assets/close.png" alt="Fechar" />
           </div>
-
           <div class="modal-body">
             <div class="modal-foto">
               <img :src="funcionario?.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
             </div>
-
             <div class="modal-info">
-              <div class="info-row">
-                <span class="label">Nome:</span>
-                <span class="value">{{ funcionario?.nome }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">ID:</span>
-                <span class="value">{{ funcionario?.id }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">Funções:</span>
-                <span class="value">{{ funcionario?.funcoes }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">Aniversário:</span>
-                <span class="value">{{ funcionario?.aniversario }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">PIS:</span>
-                <span class="value">{{ funcionario?.pis }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">PIX:</span>
-                <span class="value">{{ funcionario?.pix }}</span>
-              </div>
-              <div class="info-row">
-                <span class="label">Notas:</span>
-                <span class="value">{{ funcionario?.notas }}</span>
-              </div>
+              <div class="info-row"><span class="label">Nome:</span><span class="value">{{ funcionario?.nome }}</span></div>
+              <div class="info-row"><span class="label">ID:</span><span class="value">{{ funcionario?.id }}</span></div>
+              <div class="info-row"><span class="label">Funções:</span><span class="value">{{ funcionario?.funcoes }}</span></div>
+              <div class="info-row"><span class="label">Aniversário:</span><span class="value">{{ funcionario?.aniversario }}</span></div>
+              <div class="info-row"><span class="label">PIS:</span><span class="value">{{ funcionario?.pis }}</span></div>
+              <div class="info-row"><span class="label">PIX:</span><span class="value">{{ funcionario?.pix }}</span></div>
+              <div class="info-row"><span class="label">Notas:</span><span class="value">{{ funcionario?.notas }}</span></div>
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Modal Registro Produção -->
       <div v-if="showModalRegistro" class="modal-background">
         <div class="modal-container registro">
           <div class="modal-header registro">
@@ -131,7 +131,6 @@
                   </option>
                 </select>
               </div>
-
               <div class="info-row">
                 <label class="label" for="funcao">Etapa:</label>
                 <select id="funcao" v-model="funcao" class="input-select">
@@ -142,11 +141,13 @@
               </div>
               <div class="info-row">
                 <label class="label" for="quantidade">Quantidade:</label>
-                <input type="number" min="1" id="quantidade" v-model="quantidadeRegistro" class="input-field" />
+                <input placeholder="Ex: 50" type="number" min="1" id="quantidade" v-model="quantidadeRegistro" class="input-field" />
               </div>
               <div class="info-row">
                 <label class="label" for="hora">Hora:</label>
                 <select id="hora" v-model="horaRegistro" class="input-select">
+                  <option value="" disabled>Selecione a hora</option>
+                  <option value="07:00">07:00</option>
                   <option value="08:00">08:00</option>
                   <option value="09:00">09:00</option>
                   <option value="10:00">10:00</option>
@@ -170,6 +171,7 @@
           </div>
         </div>
       </div>
+
     </main>
   </div>
 </template>
@@ -224,6 +226,9 @@ export default {
         return false
       }
       return true
+    },
+    async cadastrar() {
+      this.$router.push('/adicionar-profissional')
     },
 
     async getFuncionario(id) {
@@ -316,6 +321,9 @@ export default {
 
     fecharModal() {
       this.showModalRegistro = false
+    },
+    criarEquipe() {
+      this.$router.push('/criar-equipe')
     }
   },
   mounted() {

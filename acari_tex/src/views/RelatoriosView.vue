@@ -42,7 +42,7 @@
                                 <button 
                                     class="btn w-50" 
                                     @click="$router.push(`/pecas/${peca.id_da_op}`)">
-                                    Ver estatísticas
+                                    Detalhar
                                 </button>
 
                                 <button 
@@ -50,8 +50,7 @@
                                     @click="deletarPeca(peca.id_da_op)">
                                     Excluir
                                 </button>
-                                </div>
-
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -309,6 +308,7 @@ export default {
 .btn-primary:hover {
     background-color: #357ab8;
 }
+
 .excluir{
     background-color: #e74c3c;
     color: white;
