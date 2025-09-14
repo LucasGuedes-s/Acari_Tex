@@ -51,9 +51,9 @@
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/Eficiencia" class="d-flex align-items-center text-reset">
+            <router-link to="/" class="d-flex align-items-center text-reset">
               <i class="bi bi-gear-fill icon"></i>
-              <span>Configurações</span>
+              <span>Sair</span>
             </router-link>
           </div>
         </div>

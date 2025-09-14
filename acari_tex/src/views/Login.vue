@@ -1,15 +1,13 @@
 <template>
   <div class="login-wrapper">
-    <!-- Lado esquerdo: Imagem -->
-    <div class="login-image">
-      <img src="@/assets/img.png" alt="Imagem de Login" />
-    </div>
+    <!-- Fundo com ondas -->
+    <div class="bg-wave"></div>
 
-    <!-- Lado direito: Formulário -->
+    <!-- Formulário -->
     <div class="login-form-container">
-
       <form class="login-form" @submit.prevent="getlogin">
-        <h2 class="text-center mb-4">Bem-vindo</h2>
+        <h2 class="title">Bem-vindo 👋</h2>
+        <p class="subtitle">Entre para acessar sua conta</p>
 
         <div class="form-group">
           <label for="username">E-mail</label>
@@ -32,11 +30,6 @@
         </div>
 
         <button type="submit" class="btn-login">Entrar</button>
-        <!-- 
-        <p class="text-center mt-3">
-          Não tem acesso?
-          <RouterLink to="/cadastro">Registre-se</RouterLink>
-        </p>-->
       </form>
     </div>
   </div>
@@ -55,6 +48,12 @@ export default {
       email: "",
       password: "",
     };
+  },
+
+  mounted() {
+    const store = useAuthStore();
+    store.logout();
+    return store;
   },
   methods: {
     async getlogin() {
@@ -87,104 +86,117 @@ export default {
 <style scoped>
 .login-wrapper {
   display: flex;
-  min-height: 100vh;
-  background-color: #dedede;
-}
-
-/* Lado esquerdo - Imagem */
-.login-image {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.login-image img {
-  max-width: 80%;
-  height: auto;
-}
-
-/* Lado direito - Formulário */
-.login-form-container {
-  flex: 1;
-  display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  background-color: #fff;
-  padding: 40px;
+  min-height: 100vh;
+  background: #f5f7f6;
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.bg-wave {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 220px;
+  background: linear-gradient(135deg, #0d3927, #145a32);
+  clip-path: ellipse(120% 100% at 50% 0%);
+  z-index: 1;
+}
+
+.login-form-container {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 400px;
 }
 
 .login-form {
-  max-width: 600px;
-  margin: 0 auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.5s ease-in-out;
 }
 
-.login-form h2 {
-  font-size: 28px;
-  font-weight: 600;
+.title {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #0d3927;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 24px;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
   display: flex;
   margin-bottom: 6px;
   font-weight: 500;
+  color: #333;
 }
 
 .form-group input {
   width: 100%;
   padding: 12px;
   border: 1px solid #ccc;
-  border-radius: 6px;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.form-group input:focus {
+  border-color: #145a32;
 }
 
 .btn-login {
   width: 100%;
-  padding: 12px;
-  background-color: black;
+  padding: 14px;
+  background: #145a32;
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
-  font-weight: 500;
-  transition: 0.2s;
+  font-weight: 600;
+  font-size: 16px;
+  transition: background 0.3s;
 }
 
 .btn-login:hover {
-  background-color: #1f1f1f;
+  background: #0d3927;
 }
 
-.text-center {
-  text-align: center;
-}
-
-a {
-  color: black;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
-/* Responsividade */
-@media screen and (max-width: 768px) {
-  .login-wrapper {
-    flex-direction: column;
+/* Animação */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
-
-  .login-image {
-    display: none;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
+}
 
-  .login-form-container {
-    flex: none;
-    width: 100%;
-    min-height: 100vh;
+/* Responsivo */
+@media (max-width: 480px) {
+  .title {
+    font-size: 22px;
+  }
+  .login-form {
+    padding: 24px 20px;
   }
 }
 </style>

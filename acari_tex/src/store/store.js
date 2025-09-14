@@ -25,7 +25,17 @@ export const useAuthStore = defineStore('auth', {
       if (usuarioPersistido) {
         this.usuario = JSON.parse(usuarioPersistido);
       }
-    }
+    },
+    clearAuthData() {
+      this.usuario = null;
+      this.token = null;
+      // Remover do localStorage e dos cookies
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+    },
+    logout() {
+      this.clearAuthData();
+    },
   },
   getters: {
     naoautenticado(state) {
