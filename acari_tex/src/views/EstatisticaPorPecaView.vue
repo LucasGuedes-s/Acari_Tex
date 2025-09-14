@@ -430,6 +430,10 @@ export default {
   .modal-container.registro {
     padding: 10px 0;
   }
+  .content-wrapper {
+    padding-left: 0px;
+    z-index: 0;
+  }
 }
 
 </style>
