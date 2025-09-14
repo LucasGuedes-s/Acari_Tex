@@ -8,7 +8,6 @@
       <form class="login-form" @submit.prevent="getlogin">
         <h2 class="title">Bem-vindo 👋</h2>
         <p class="subtitle">Entre para acessar sua conta</p>
-
         <div class="form-group">
           <label for="username">E-mail</label>
           <input

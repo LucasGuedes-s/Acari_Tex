@@ -52,7 +52,7 @@
           </div>
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/" class="d-flex align-items-center text-reset">
-              <i class="bi bi-gear-fill icon"></i>
+              <i class="bi bi-box-arrow-left icon"></i>
               <span>Sair</span>
             </router-link>
           </div>
