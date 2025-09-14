@@ -161,11 +161,6 @@ async function getPecasOP(req) {
     },
   });
 
-  // já vai vir algo assim:
-  // etapas: [
-  //   { id_da_op: 1, id_da_funcao: 2, quantidade_meta: 500, status: "PENDENTE", etapa: { descricao: "Corte" } }
-  // ]
-
   if (!pecasOp) {
     return { finalizado: [], em_progresso: [], nao_iniciado: [], coleta: [] };
   }
@@ -280,9 +275,11 @@ async function getProducaoEquipe(req) {
     const mes = partes.find(p => p.type === "month").value;
     const ano = partes.find(p => p.type === "year").value;
 
-    // Construir início e fim do dia em UTC
+    
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 3, 0, 0));   // 00h SP → 03h UTC
     const fimDiaUTC    = new Date(Date.UTC(ano, mes - 1, Number(dia) + 1, 2, 59, 59)); // 23:59 SP → 02:59 UTC do dia seguinte
+
+    console.log(inicioDiaUTC, fimDiaUTC)
 
     // Buscar produção do dia para o estabelecimento
     const producoes = await prisma.producao.findMany({
@@ -299,7 +296,7 @@ async function getProducaoEquipe(req) {
         producao_etapa: { select: { descricao: true } },
       },
     });
-
+    console.log(producoes)
     // Agrupar por funcionário e etapa
     const agrupado = {};
 
