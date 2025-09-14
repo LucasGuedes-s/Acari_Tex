@@ -203,7 +203,10 @@ export default {
     },
     formatarData(dataStr) {
       if (!dataStr) return "-";
-      return new Date(dataStr).toLocaleDateString("pt-BR");
+      const data = new Date(dataStr);
+      return new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "UTC",
+      }).format(data);
     },
     async confirmarEstorno() {
       if (!this.etapaSelecionada || this.quantidadeEstorno < 1) {
