@@ -1,6 +1,5 @@
 <template>
   <div>
-    <!-- Navbar mobile -->
     <nav class="mobile-navbar d-md-none d-flex justify-content-end align-items-center p-2">
       <button class="btn btn-outline-secondary" @click="isMinimized = !isMinimized">
         <i class="bi bi-list"></i>
@@ -9,10 +8,8 @@
       <NavBarUser class="ms-2" />
     </nav>
 
-    <!-- Sidebar -->
     <div :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
-        <!-- Logo só no desktop -->
         <div>
           <img class="icon-logo"
             :src="isMinimized ? require('@/assets/Logo.png') : require('@/assets/Logo.png')"

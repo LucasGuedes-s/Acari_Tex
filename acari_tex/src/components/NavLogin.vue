@@ -26,7 +26,7 @@ export default {
   }
   
   .logo {
-    height: 80px; /* Tamanho da logo */
+    height: 80px;
     margin-right: 5px;
   }
   
