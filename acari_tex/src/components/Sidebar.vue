@@ -89,7 +89,6 @@ export default {
 </script>
 
 <style scoped>
-/* Mantendo exatamente seu estilo pré-definido */
 .icon-logo {
   margin-top: 20px;
   margin-bottom: 20px;

@@ -206,7 +206,7 @@ export default {
 
 .section-title {
   font-size: 1.3rem;
-  color: #00692b;
+  color: var(--verde-escuro);
   font-weight: 600;
 }
 

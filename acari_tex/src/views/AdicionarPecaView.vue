@@ -295,12 +295,10 @@ export default {
   display: flex;
 }
 
-/* Input + botão nova etapa */
 .nova-etapa .etapa-input {
   max-width: 300px;
 }
 
-/* Etapas disponíveis */
 .etapas-disponiveis {
   display: flex;
   flex-wrap: wrap;
@@ -322,7 +320,6 @@ export default {
   transform: scale(1.05);
 }
 
-/* Linha de produção */
 .linha-producao {
   background: #f4f6f8;
   padding: 20px;
@@ -330,7 +327,6 @@ export default {
   border: 2px dashed #90a4ae;
   margin-top: 20px;
   overflow-x: auto;
-  /* adiciona rolagem se passar do limite */
 }
 
 .pipeline {
@@ -350,7 +346,7 @@ export default {
 }
 
 .etapa-pipeline {
-  background: #2e7d32;
+  background: var(--verde-escuro);
   color: white;
   padding: 10px 16px;
   border-radius: 6px;
@@ -416,7 +412,7 @@ export default {
   padding: 15px 20px;
   border-radius: 10px;
   background: white;
-  border-left: 5px solid #2e7d32;
+  border-left: 5px solid var(--verde-escuro);
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
   transition: transform 0.2s ease;
 }
@@ -427,7 +423,7 @@ export default {
 
 .info-icon {
   font-size: 1.8rem;
-  color: #2e7d32;
+  color: var(--verde-escuro);
 }
 
 .info-label {
@@ -501,10 +497,9 @@ export default {
     font-size: 1rem;
   }
 
-  /* Etapas disponíveis em grid */
   .etapas-disponiveis {
     display: grid;
-    grid-template-columns: 1fr 1fr; /* 2 colunas */
+    grid-template-columns: 1fr 1fr; 
     gap: 10px;
   }
 
@@ -514,7 +509,6 @@ export default {
     text-align: center;
   }
 
-  /* Pipeline rolável no mobile */
   .pipeline {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -525,7 +519,7 @@ export default {
   .etapa-pipeline {
     font-size: 0.85rem;
     padding: 8px 10px;
-    min-width: 120px; /* garante espaço mesmo em rolagem */
+    min-width: 120px;
   }
 
   .seta {

@@ -427,7 +427,7 @@ export default {
 }
 
 .acoes-funcionario .registro {
-  background-color: #008d3b;
+  background-color: var(--verde-escuro);
   color: white;
 }
 
@@ -468,7 +468,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #008d3b;
+  background-color: var(--verde-escuro);
   color: white;
   padding: 15px 20px;
 }
@@ -497,7 +497,7 @@ export default {
   height: 120px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #008d3b;
+  border: 3px solid var(--verde-escuro);
 }
 
 .modal-info {
@@ -533,7 +533,7 @@ export default {
   padding: 8px 20px;
   border: none;
   border-radius: 8px;
-  background-color: #008d3b;
+  background-color: var(--verde-escuro);
   color: white;
   font-weight: 600;
   cursor: pointer;
@@ -594,7 +594,7 @@ label {
   flex: 1;
   max-width: 150px;
   padding: 10px 20px;
-  background-color: #008d3b;
+  background-color: var(--verde-escuro);
   border: 1px solid #008d3b;
   color: #ffffff;
   border-radius: 5px;
@@ -732,7 +732,6 @@ select {
   box-shadow: 0 0 0 2px rgba(0, 141, 59, 0.2);
 }
 
-/* Estilização específica do modal de Registro */
 .modal-container.registro {
   background: #fff;
   border-radius: 16px;
@@ -747,7 +746,7 @@ select {
 }
 
 .modal-header.registro {
-  background: linear-gradient(90deg, #008d3b, #00b64a);
+  background: linear-gradient(90deg, #145a32, #008d3b);
   color: white;
   padding: 16px 20px;
   display: flex;
@@ -801,7 +800,7 @@ select {
   padding: 10px 20px;
   border: none;
   border-radius: 8px;
-  background: #008d3b;
+  background: var(--verde-escuro);
   color: #fff;
   font-weight: 600;
   cursor: pointer;

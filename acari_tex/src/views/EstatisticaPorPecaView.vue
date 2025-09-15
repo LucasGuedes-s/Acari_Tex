@@ -295,6 +295,9 @@ export default {
 </script>
 
 <style scoped>
+.btn{
+  background-color: var(--verde-escuro);
+}
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
@@ -302,10 +305,9 @@ export default {
 
 .info-box {
   background: #f9f9f9;
-  border-left: 5px solid #198754;
+  border-left: 5px solid var(--verde-escuro);
   justify-items: left;
 }
-/* Modal de Estorno de Produção */
 .modal-background {
   position: fixed;
   top: 0;
@@ -334,7 +336,7 @@ export default {
 }
 
 .modal-header.registro {
-  background: linear-gradient(90deg, #2e7d32, #43a047);
+  background: linear-gradient(90deg, #145a32, #2e7d32);
   color: #fff;
   padding: 16px 20px;
   display: flex;
@@ -410,13 +412,13 @@ export default {
 }
 
 .modal-footer.registro .btn-success {
-  background-color: #2e7d32;
+  background-color: var(--verde-escuro);
   color: white;
   border: none;
 }
 
 .modal-footer.registro .btn-success:hover {
-  background-color: #43a047;
+  background-color: var(--verde-claro);
 }
 
 .modal-footer.registro .btn-secondary {

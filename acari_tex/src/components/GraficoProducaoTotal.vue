@@ -1,12 +1,7 @@
 <template>
   <div class="grafico-equipe">
-    <GChart
-      v-if="chartData.length > 1 && chartData[0].length > 1"
-      type="LineChart"
-      :data="chartData"
-      :options="chartOptions"
-      style="width: 100%; height: 400px"
-    />
+    <GChart v-if="chartData.length > 1 && chartData[0].length > 1" type="LineChart" :data="chartData"
+      :options="chartOptions" style="width: 100%; height: 400px" />
     <p v-else>Carregando dados da produção...</p>
   </div>
 </template>
@@ -43,9 +38,29 @@ export default {
           viewWindow: { min: 0 }
         },
         colors: [
-          '#004d20','#3366CC', '#DC3912', '#FF9900', '#109618', '#990099',
+          // Verdes
+          '#004d20', '#006400', '#008000', '#228B22', '#2E8B57',
+          '#3CB371', '#32CD32', '#00FF7F', '#66CDAA', '#20B2AA',
+
+          // Verdes claros e amarelados
+          '#9ACD32', '#ADFF2F', '#7FFF00', '#98FB98', '#90EE90',
+
+          // Azuis
+          '#3366CC', '#1E90FF', '#4682B4', '#5F9EA0', '#87CEEB',
+
+          // Roxos / Lilás
+          '#990099', '#8A2BE2', '#9370DB', '#BA55D3', '#DA70D6',
+
+          // Vermelhos / Laranjas
+          '#DC3912', '#FF4500', '#FF6347', '#FF7F50', '#FF9900',
+
+          // Amarelos / Dourados
+          '#FFD700', '#FFA500', '#FFE135', '#F0E68C', '#FFFACD',
+
+          // Tons extras de contraste
           '#3B3EAC', '#0099C6', '#DD4477', '#66AA00', '#B82E2E'
         ]
+
       }
     };
   },

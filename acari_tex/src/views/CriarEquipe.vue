@@ -219,7 +219,6 @@ async function cadastrarEquipe() {
 </script>
 
 <style scoped>
-/* Layout consistency */
 .content-wrapper {
   padding-left: 200px;
   width: 100%;
@@ -228,7 +227,6 @@ async function cadastrarEquipe() {
 label{
   display: flex;
 }
-/* Card and section */
 .section {
   border-radius: 10px;
   background: #ffffff;
@@ -238,11 +236,10 @@ label{
 /* Title styles */
 .section-title {
   font-size: 1.25rem;
-  color: #00692b; /* seu verde */
+  color: var(--verde-escuro); 
   font-weight: 700;
 }
 
-/* List cards */
 .listcard {
   background: #fbfdfb;
   border-radius: 8px;
@@ -250,7 +247,6 @@ label{
   height: 100%;
 }
 
-/* Listbox select */
 .listbox {
   width: 100%;
   height: 320px;
@@ -261,13 +257,11 @@ label{
   outline: none;
 }
 
-/* Controls column */
 .controls-col .btn {
   min-width: 100%;
   padding: 8px 6px;
 }
 
-/* Badge count */
 .badge-count {
   display: inline-block;
   background: rgba(0,105,43,0.12);
@@ -287,14 +281,13 @@ label{
   background: #fff;
 }
 
-/* Buttons */
 .btn-primary {
-  background: #00692b;
+  background: var(--verde-escuro);
   border-color: #00692b;
   box-shadow: 0 2px 6px rgba(0,105,43,0.08);
 }
 .btn-outline-primary {
-  color: #00692b;
+  color: var(--verde-escuro);
   border-color: #cfe9d8;
   background: #fff;
 }

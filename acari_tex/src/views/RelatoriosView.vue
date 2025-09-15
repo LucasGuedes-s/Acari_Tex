@@ -223,7 +223,6 @@ export default {
     margin: 0;
 }
 
-/* Filtros */
 .filtros input,
 .filtros select {
     width: 100%;
@@ -242,7 +241,6 @@ export default {
     box-shadow: 0 0 6px rgba(74, 144, 226, 0.3);
 }
 
-/* Cards mais clean */
 .card {
     border-radius: 12px;
     transition: all 0.3s;
@@ -290,30 +288,22 @@ export default {
 
 /* amarelo */
 .status-finalizado {
-    color: #27ae60;
+    color: var(--verde-escuro);
 }
 
-/* Botão */
-.btn-primary {
-    display: block;
-    width: 100%;
-    text-align: center;
-    background-color: #4a90e2;
-    border: none;
-    border-radius: 8px;
-    font-weight: 500;
-    transition: all 0.2s;
+.btn{
+  background-color: var(--verde-escuro);
 }
 
-.btn-primary:hover {
-    background-color: #357ab8;
+.btn:hover {
+    background-color: var(--verde-claro);
+    color: white;
 }
 
 .excluir{
     background-color: #e74c3c;
     color: white;
 }
-/* Animações */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -336,7 +326,6 @@ export default {
     }
 }
 
-/* Responsividade */
 @media (max-width: 768px) {
     .content-wrapper {
         padding-left: 0px;

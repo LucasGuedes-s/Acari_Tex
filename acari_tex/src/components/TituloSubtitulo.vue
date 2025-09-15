@@ -50,11 +50,11 @@ export default {
   justify-content: space-between;
   background-color: white;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 10px; /* bordas arredondadas apenas no topo esquerdo e direito */
-  padding: 10px 25px; /* menos padding vertical para container mais “fino” */
+  border-radius: 10px; 
+  padding: 10px 25px; 
   margin-bottom: 25px;
 
-  max-width: 100%; /* pode ajustar para um valor fixo se quiser */
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
   margin-top: 10px;
@@ -66,7 +66,7 @@ export default {
 
 .titulo {
   font-size: 1.6rem; /* menor que antes */
-  color: #00692b;
+  color: var(--verde-escuro);
   font-weight: 600;
   margin: 0;
   width: max-content;

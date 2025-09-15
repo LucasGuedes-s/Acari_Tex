@@ -10,6 +10,12 @@
   text-align: center;
   color: #2c3e50;
 }
+:root {
+  --verde-escuro: #145a32;
+  --verde-claro: #266c44;
+  --cinza-claro: #dedede;
+  --bs-primary: #145a32
+}
 
 nav {
   padding: 30px;
