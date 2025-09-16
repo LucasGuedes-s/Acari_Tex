@@ -66,6 +66,7 @@ export default {
         authStore.setToken(response.headers.authorization);
         authStore.setUsuario(response.data.usuario);
         console.log(response.data.usuario);
+        console.log(response.headers.authorization);
         router.push("/Dashboard");
       } catch (error) {
         console.error(error);

@@ -1,7 +1,9 @@
 <template>
     <div class="detalhes-pecas-page">
         <SidebarNav />
-        <main class="content-wrapper flex-grow-1">
+        <carregandoTela v-if="loading" />
+
+        <main v-else class="content-wrapper flex-grow-1">
             <div class="container-fluid py-4">
                 <TituloSubtitulo titulo="Relatórios de Produção"
                     subtitulo="Acompanhe o progresso e estatísticas das peças em produção" />
@@ -45,7 +47,7 @@
                                     Detalhar
                                 </button>
 
-                                <button 
+                                <button v-if="usuario.permissoes == 1"
                                     class="btn excluir w-50" 
                                     @click="deletarPeca(peca.id_da_op)">
                                     Excluir
@@ -65,10 +67,11 @@ import { useAuthStore } from '@/store/store';
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
 import api from '@/Axios';
 import Swal from 'sweetalert2';
+import carregandoTela from '@/components/carregandoTela.vue';
 
 export default {
     name: 'DetalhesPecas',
-    components: { SidebarNav, TituloSubtitulo },
+    components: { SidebarNav, TituloSubtitulo, carregandoTela },
     setup() {
         const store = useAuthStore();
         const usuario = store.pegar_usuario;
@@ -78,6 +81,7 @@ export default {
     },
     data() {
         return {
+            loading: true,
             pecas: [],
             filtroDescricao: '',
             filtroStatus: '',
@@ -127,11 +131,13 @@ export default {
             return new Date(dataStr).toLocaleDateString('pt-BR');
         },
         async fetchPecas() {
+            this.loading = true;
             const token = this.store.pegar_token;
             const { data } = await api.get('/pecas', {
                 headers: { Authorization: `${token}` },
             });
             this.pecas = data.peca
+            this.loading = false;
         },
         async deletarPeca(pecaId) {
             Swal.fire({

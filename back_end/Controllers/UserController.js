@@ -1,3 +1,4 @@
+const permissoes = require('../config/permissions.config');
 const Login = require('../Services/User.services');
 
 async function login(req, res, next){  
@@ -8,6 +9,7 @@ async function login(req, res, next){
             usuario: {
                 cnpj: login.dados_usuario.cnpj, 
                 funcoes: login.dados_usuario.funcoes,
+                permissoes: login.dados_usuario.permissoes,
                 nome: login.dados_usuario.nome,
                 email: login.dados_usuario.email,
                 foto: login.dados_usuario.foto,

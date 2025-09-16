@@ -34,7 +34,6 @@
             :count="pecasConcluidas" />
         </section>
 
-
         <div class="row justify-content-center">
           <GraficoProducaoTotal class="mb-4" />
           <Producao />
@@ -66,7 +65,7 @@ import CarregandoTela from '@/components/carregandoTela.vue';
 
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
+  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela},
   setup() {
     const store = useAuthStore();
     return { store };

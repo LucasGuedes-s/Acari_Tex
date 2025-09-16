@@ -3,7 +3,8 @@
     <div>
       <SidebarNav style="z-index: 1" />
     </div>
-    <main class="content-wrapper flex-grow-1">
+    <carregandoTela v-if="loading" />
+    <main v-else class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
         <div class="row justify-content-center">
           <NavBarUser class="d-none d-md-block" />
@@ -61,6 +62,7 @@ import { useAuthStore } from '@/store/store';
 import DashboardCard from '@/components/DashboardCard.vue';
 import draggable from 'vuedraggable';
 import api from '@/Axios';
+import carregandoTela from '@/components/carregandoTela.vue';
 
 export default {
   name: 'DashboardTecidos',
@@ -69,6 +71,7 @@ export default {
     NavBarUser,
     DashboardCard,
     draggable,
+    carregandoTela
   },
   setup() {
     const store = useAuthStore();
@@ -76,6 +79,7 @@ export default {
   },
   data() {
     return {
+      loading: true,
       pecas: {
         nao_iniciado: [],
         em_progresso: [],
@@ -109,7 +113,7 @@ export default {
         out[k] = list.map(item => ({
           ...item,
           id: item.id ?? item.id_da_op ?? item._id ?? item.codigo, // garante um id
-          status: k, // status atual para colorir
+          status: k,
         }));
       }
       return out;
@@ -117,12 +121,15 @@ export default {
 
     async fetchData() {
       try {
+        this.loading = true;
         const token = this.store.pegar_token;
         const { data } = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
         this.pecas = this.normalizePecas(data.peca);
+        this.loading = false;
       } catch (error) {
+        this.loading = false;
         console.error("Erro ao buscar os dados:", error);
       }
     },
