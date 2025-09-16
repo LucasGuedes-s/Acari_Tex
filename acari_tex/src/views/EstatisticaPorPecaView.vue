@@ -258,7 +258,6 @@ export default {
 
       this.pecaDetalhes = data.estatisticas;
       this.etapas = this.pecaDetalhes.pecasEtapas || [];
-      console.log(this.pecaDetalhes);
       // Gráfico total
       this.graficoTotal = [
         ["Status", "Quantidade"],

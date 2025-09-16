@@ -71,7 +71,6 @@ app.post('/upload/foto', upload.single('file'), async (req, res) => {
 
         // URL pública do arquivo-
         const fileUrl = `${process.env.URL_PUBLICA}.r2.dev/uploads/${fileName}`;
-        console.log(fileUrl)
         res.status(200).json({ fileUrl }); // Retorna a URL pública do arquivo
     } catch (error) {
         console.error(error);

@@ -79,7 +79,6 @@ export default {
         });
 
         const equipe = res.data.producao; // Array de funcionários
-        console.log('Dados da equipe:', equipe);
         // Criando matriz de horas de 06:00 até 23:00
         const horasPadrao = Array.from({ length: 18 }, (_, i) =>
           String(i + 6).padStart(2, '0') + ':00'

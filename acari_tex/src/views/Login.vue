@@ -1,9 +1,7 @@
 <template>
   <div class="login-wrapper">
-    <!-- Fundo com ondas -->
     <div class="bg-wave"></div>
 
-    <!-- Formulário -->
     <div class="login-form-container">
       <form class="login-form" @submit.prevent="getlogin">
         <h2 class="title">Bem-vindo 👋</h2>
@@ -67,7 +65,7 @@ export default {
         const authStore = useAuthStore();
         authStore.setToken(response.headers.authorization);
         authStore.setUsuario(response.data.usuario);
-
+        console.log(response.data.usuario);
         router.push("/Dashboard");
       } catch (error) {
         console.error(error);

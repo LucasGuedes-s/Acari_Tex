@@ -16,10 +16,7 @@ async function getEstoque() {
 }
 
 async function getAgulha(id) {
-    const id_agulha = parseInt(id);
-
-    //console.log('ESTOU AQUI')
-    
+    const id_agulha = parseInt(id);    
     const produto = await prisma.Estoque_Agulhas.findUnique({
         where: {
             id_da_agulha: id_agulha,

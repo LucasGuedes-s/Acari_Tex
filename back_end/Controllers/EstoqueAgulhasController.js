@@ -2,7 +2,6 @@ const Agulhas = require('../Services/EstoqueAgulhas.services');
 
 async function getAgulha(req, res, next){  
 
-    console.log('Get Agulha')
     try {
         const produto = await Agulhas.getAgulha(req.params.id);
         res.status(200).json({produto: produto});

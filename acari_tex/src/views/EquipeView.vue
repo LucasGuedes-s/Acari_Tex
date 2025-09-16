@@ -56,9 +56,9 @@
               <RouterLink to="/adicionar-profissional" class="flex-fill">
                 <button class="btn-button w-100 py-2">Novo profissional</button>
               </RouterLink>
-              <button class="btn-button w-100 py-2 flex-fill" @click="criarEquipe">
+              <!-- <button class="btn-button w-100 py-2 flex-fill" @click="criarEquipe">
                 Nova equipe
-              </button>
+              </button>-->
 
               <NavBarUser class="ms-2" />
             </div>

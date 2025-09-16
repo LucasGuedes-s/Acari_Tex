@@ -210,21 +210,19 @@ async function getEtapasProducaoPorPeca(req, res) {
 
 async function getEtapasProducaoPorEstabelecimento(req, res) {
   try {
-    const { cnpj } = req.cnpj;  // Aqui, supondo que o CNPJ do estabelecimento esteja sendo passado na requisição
-
-    // Buscar todas as produções do estabelecimento com base no CNPJ
+    const { cnpj } = req.cnpj;  
     const producao = await prisma.producao.findMany({
       where: {
         Estabelecimento: {
-          cnpj: cnpj  // Filtra as produções para o estabelecimento com o CNPJ fornecido
+          cnpj: cnpj 
         }
       },
       include: {
-        producao_etapa: true,         // Etapa (ex: Corte, Costura...)
+        producao_etapa: true,        
         producao_funcionario: {
           select: {
-            nome: true,    // Seleciona apenas o nome do funcionário
-            email: true    // Seleciona apenas o e-mail do funcionário
+            nome: true,    
+            email: true   
           }
         }
       }
@@ -296,8 +294,7 @@ async function getProducaoEquipe(req) {
         producao_etapa: { select: { descricao: true } },
       },
     });
-    //console.log(producoes)
-    // Agrupar por funcionário e etapa
+
     const agrupado = {};
 
     for (const p of producoes) {

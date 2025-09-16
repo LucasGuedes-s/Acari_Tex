@@ -120,7 +120,6 @@ export default {
         this.loading = false;
         this.$nextTick(this.renderCharts);
       } catch (error) {
-        console.log(this.loading)
         console.error("Erro ao buscar os dados:", error);
       }
     },

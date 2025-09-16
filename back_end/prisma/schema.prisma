@@ -26,6 +26,7 @@ model Usuarios {
   Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
   producao_funcionario Producao[]
+  tempo_referencia     TempoReferencia[]
 }
 
 model Estabelecimento {
@@ -37,6 +38,7 @@ model Estabelecimento {
   tarefas             Tarefas[]
   PecasOP             PecasOP[]
   Producao            Producao[]
+  tempo_referencia   TempoReferencia[]
 }
 
 model PecasOP {
@@ -63,6 +65,7 @@ model Etapa {
   descricao     String  @unique 
   pecas         PecasEtapas[]  
   producao_etapa Producao[] 
+  tempo_referencia TempoReferencia[]
 }
 
 model PecasEtapas {
@@ -155,5 +158,24 @@ model EquipesUsuarios {
   usuario       Usuarios      @relation(fields: [usuarioEmail], references: [email], onDelete: Cascade)
   equipe        EquipesGrupos @relation(fields: [equipeId], references: [id], onDelete: Cascade)
 
-  @@unique([usuarioEmail, equipeId]) // 🔑 chave primária composta
+  @@unique([usuarioEmail, equipeId])
+}
+model TempoReferencia {
+  id                   Int       @id @default(autoincrement())
+  estabelecimentoCnpj  String
+  id_funcionario       String
+  id_da_funcao         Int
+  tempo_minutos        Int       
+  quantidade_pecas     Int?      
+  observacoes          String?  
+  criadoEm             DateTime  @default(now())
+  registradoPor        String?
+
+  usuario      Usuarios     @relation(fields: [id_funcionario], references: [email])
+  etapa        Etapa        @relation(fields: [id_da_funcao], references: [id_da_funcao])
+  estabelecimento Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  @@unique([estabelecimentoCnpj, id_funcionario, id_da_funcao])
+  @@index([id_da_funcao])
+  @@index([id_funcionario])
 }

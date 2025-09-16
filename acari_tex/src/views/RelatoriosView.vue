@@ -129,7 +129,6 @@ export default {
                 headers: { Authorization: `${token}` },
             });
             this.pecas = data.peca
-            console.log(data.peca)
         },
         async deletarPeca(pecaId) {
             Swal.fire({

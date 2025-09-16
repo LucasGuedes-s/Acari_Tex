@@ -37,8 +37,6 @@ async function main() {
       estabelecimentoCnpj: cnpj
     }
   })
-
-  console.log('Usuário criado com sucesso:', novoFuncionario)
 }
 
 main()

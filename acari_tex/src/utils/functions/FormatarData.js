@@ -15,7 +15,6 @@ async function FormatarData(data){
     };
 
     const dataFormatada = dataUTC.toLocaleString('pt-BR', options);
-    console.log(dataFormatada);
 
     return dataFormatada;
 }

@@ -171,7 +171,6 @@ export default {
         // 1️⃣ Envia a imagem primeiro
         const fotoUrl = await this.uploadFoto()
         if (fotoUrl) this.novoFuncionario.fotoUrl = fotoUrl
-        console.log('URL da foto enviada:', this.novoFuncionario)
         const response = await api.post('/adicionar/funcionario', this.novoFuncionario, {
           headers: {
             Authorization: `${token}`,
