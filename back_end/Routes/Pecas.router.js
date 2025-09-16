@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const ControllerOp = require('../Controllers/PecasOpController')
 const jwtMiddleware = require('../middlewares/auth')
+//const permissao = require('../Services/permissoes.services.js')
 
 router.post('/adicionar/peca', [jwtMiddleware], ControllerOp.postOP);
 router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);
-router.get('/producao/equipe', [jwtMiddleware], ControllerOp.getProducaoEquipe);
+router.get('/producao/equipe', [jwtMiddleware],  ControllerOp.getProducaoEquipe);
 router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPeca);
 
 router.post('/registrar/producao', [jwtMiddleware], ControllerOp.postProducaoPeca);

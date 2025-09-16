@@ -71,7 +71,10 @@ export default {
     components: { SidebarNav, TituloSubtitulo },
     setup() {
         const store = useAuthStore();
-        return { store };
+        const usuario = store.pegar_usuario;
+        console.log('Usuário logado:', usuario);
+        return { store, usuario };
+        
     },
     data() {
         return {

@@ -4,6 +4,7 @@ const config = require('../config/app.config.js');
 prisma = new PrismaClient()
 
 const bcrypt = require('bcrypt');
+const permissoes = require('../config/permissions.config.js');
 
 async function loginUser(user) {
     const usuario = await prisma.Usuarios.findFirst({ //A função findFirst faz uma busca na tabela usuários do banco de dados pelo email digitado pelo usuário 
@@ -28,6 +29,7 @@ async function loginUser(user) {
         funcoes: usuario.funcoes,
         email: usuario.email, 
         nome: usuario.nome,
+        permissoes: usuario.permissoes,
         foto: usuario.foto
     }
     if (senhavalida) {
