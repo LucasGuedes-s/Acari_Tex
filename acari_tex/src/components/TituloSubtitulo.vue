@@ -65,7 +65,7 @@ export default {
 }
 
 .titulo {
-  font-size: 1.6rem; /* menor que antes */
+  font-size: 1.5rem; /* menor que antes */
   color: var(--verde-escuro);
   font-weight: 600;
   margin: 0;

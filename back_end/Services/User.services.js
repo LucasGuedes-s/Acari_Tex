@@ -10,6 +10,7 @@ async function loginUser(user) {
     const usuario = await prisma.Usuarios.findFirst({ //A função findFirst faz uma busca na tabela usuários do banco de dados pelo email digitado pelo usuário 
         where: {
             email: user.usuario.email,
+            mode: 'insensitive'
         },
         include: {
             Estabelecimento: {
