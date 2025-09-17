@@ -44,7 +44,9 @@
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasLineChart" width="800" height="400"></canvas>
           </div>
-          <GraficoProducaoMes />
+          <div>
+            <GraficoProducaoMes />
+          </div>
         </div>
       </div>
     </main>
