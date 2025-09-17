@@ -124,7 +124,6 @@ async function postProducaoPeca(req, res) {
         data_inicio: getData(),
       }
     });
-    console.log(producao)
     // Se bateu a meta → atualizar status
     if (novaQuantidade === etapaRelacionada.quantidade_meta) {
       await prisma.pecasEtapas.update({
@@ -259,7 +258,7 @@ async function getProducaoEquipe(req) {
     const cnpjEstabelecimento = req.user.cnpj;
     const fusoSP = "America/Sao_Paulo";
 
-    // Pegar data atual no fuso de SP de forma segura
+    // Pegar data atual no fuso de SP
     const agora = new Date();
     const dtf = new Intl.DateTimeFormat("pt-BR", {
       timeZone: fusoSP,
@@ -273,14 +272,16 @@ async function getProducaoEquipe(req) {
     const mes = partes.find(p => p.type === "month").value;
     const ano = partes.find(p => p.type === "year").value;
 
-    // Limites de UTC equivalentes ao dia em SP
+    // Limites do dia (UTC)
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0)); 
     const fimDiaUTC    = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59)); 
 
-    //console.log(inicioDiaUTC, fimDiaUTC)
+    // Limites do mês (UTC)
+    const inicioMesUTC = new Date(Date.UTC(ano, mes - 1, 1, 0, 0, 0));
+    const fimMesUTC    = new Date(Date.UTC(ano, mes, 0, 23, 59, 59)); // último dia do mês
 
-    // Buscar produção do dia para o estabelecimento
-    const producoes = await prisma.producao.findMany({
+    // Produção do dia
+    const producoesDia = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
         data_inicio: { gte: inicioDiaUTC, lte: fimDiaUTC },
@@ -295,39 +296,61 @@ async function getProducaoEquipe(req) {
       },
     });
 
-    const agrupado = {};
+    // Produção do mês (detalhada)
+    const producoesMes = await prisma.producao.findMany({
+      where: {
+        id_Estabelecimento: cnpjEstabelecimento,
+        data_inicio: { gte: inicioMesUTC, lte: fimMesUTC },
+      },
+      select: {
+        id_funcionario: true,
+        quantidade_pecas: true,
+        data_inicio: true
+      },
+    });
 
-    for (const p of producoes) {
+    // --- Agrupar produção do dia ---
+    const agrupadoDia = {};
+    for (const p of producoesDia) {
       const funcionario = p.id_funcionario;
       const nome = p.producao_funcionario?.nome || funcionario;
       const etapa = p.producao_etapa?.descricao || "Sem Etapa";
       const hora = p.hora_registro || "00:00";
 
-      if (!agrupado[funcionario]) {
-        agrupado[funcionario] = {
-          nome,
-          etapas: {}
-        };
+      if (!agrupadoDia[funcionario]) {
+        agrupadoDia[funcionario] = { nome, etapas: {} };
       }
-
-      if (!agrupado[funcionario].etapas[etapa]) {
-        agrupado[funcionario].etapas[etapa] = [];
+      if (!agrupadoDia[funcionario].etapas[etapa]) {
+        agrupadoDia[funcionario].etapas[etapa] = [];
       }
-
-      agrupado[funcionario].etapas[etapa].push({
+      agrupadoDia[funcionario].etapas[etapa].push({
         hora,
         quantidade: p.quantidade_pecas || 0,
         data: `${ano}-${mes}-${dia}`
       });
     }
 
-    const resultado = Object.entries(agrupado).map(([email, dados]) => ({
+    const resultadoDia = Object.entries(agrupadoDia).map(([email, dados]) => ({
       funcionario: email,
       nome: dados.nome,
       etapas: dados.etapas
     }));
 
-    return resultado;
+    // --- Agrupar produção do mês por funcionário e dia ---
+    const agrupadoMes = {};
+    producoesMes.forEach(p => {
+      const funcionario = p.id_funcionario;
+      if (!agrupadoMes[funcionario]) agrupadoMes[funcionario] = {};
+      const data = new Date(p.data_inicio);
+      const diaDoMes = String(data.getDate()); // "1", "2", ..., "31"
+      if (!agrupadoMes[funcionario][diaDoMes]) agrupadoMes[funcionario][diaDoMes] = 0;
+      agrupadoMes[funcionario][diaDoMes] += p.quantidade_pecas || 0;
+    });
+
+    return {
+      producaoDia: resultadoDia,
+      producaoMes: agrupadoMes
+    };
 
   } catch (error) {
     console.error("Erro ao buscar produção da equipe:", error);

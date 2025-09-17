@@ -44,6 +44,7 @@
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasLineChart" width="800" height="400"></canvas>
           </div>
+          <GraficoProducaoMes />
         </div>
       </div>
     </main>
@@ -62,10 +63,11 @@ import api from '@/Axios'
 Chart.register(...registerables);
 import { io } from 'socket.io-client';
 import CarregandoTela from '@/components/carregandoTela.vue';
+import GraficoProducaoMes from '@/components/GraficoProducaoMes.vue';
 
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela},
+  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela, GraficoProducaoMes },
   setup() {
     const store = useAuthStore();
     return { store };
@@ -185,7 +187,7 @@ export default {
 .d-flex {
   display: flex;
   flex-direction: row;
-  height: 100vh;
+  height: 40vh;
 }
 
 .content-wrapper {
@@ -193,8 +195,6 @@ export default {
   padding-left: 200px;
   width: 100%;
 }
-
-
 .row {
   margin-top: 30px;
   display: flex;

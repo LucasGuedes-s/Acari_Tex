@@ -72,16 +72,16 @@
         <div class="plan-card">
           <h3>Básico</h3>
           <p>Ideal para pequenas confecções</p>
-          <span class="price">R$ 179,90/mês</span>
+          <span class="price">R$ 249,90/mês</span>
           <ul>
             <li>✔️ Controle de produção</li>
             <li>✔️ Gestão de equipes</li>
           </ul>
         </div>
         <div class="plan-card destaque">
-          <h3>Profissional</h3>
+          <h3>Plano anual</h3>
           <p>Para fábricas em crescimento</p>
-          <span class="price">R$ 199,90/mês</span>
+          <span class="price">R$ 2799,9/mês</span>
           <ul>
             <li>✔️ Tudo do Básico</li>
             <li>✔️ Relatórios avançados</li>
