@@ -47,7 +47,7 @@
                                     Detalhar
                                 </button>
 
-                                <button v-if="usuario.permissoes == 1"
+                                <button
                                     class="btn excluir w-50" 
                                     @click="deletarPeca(peca.id_da_op)">
                                     Excluir
