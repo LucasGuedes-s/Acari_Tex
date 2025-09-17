@@ -8,7 +8,6 @@ function getData() {
   const utc = agora.getTime() + agora.getTimezoneOffset() * 60000;
   const brasil = new Date(utc + 3600000 * offsetBrasil);
 
-  // Zerando hora, minuto, segundo e milissegundo
   brasil.setHours(0, 0, 0, 0);
   return brasil;
 }
@@ -280,7 +279,6 @@ async function getProducaoEquipe(req) {
     const inicioMesUTC = new Date(Date.UTC(ano, mes - 1, 1, 0, 0, 0));
     const fimMesUTC    = new Date(Date.UTC(ano, mes, 0, 23, 59, 59)); // último dia do mês
 
-    // Produção do dia
     const producoesDia = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -296,7 +294,6 @@ async function getProducaoEquipe(req) {
       },
     });
 
-    // Produção do mês (detalhada)
     const producoesMes = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -309,7 +306,6 @@ async function getProducaoEquipe(req) {
       },
     });
 
-    // --- Agrupar produção do dia ---
     const agrupadoDia = {};
     for (const p of producoesDia) {
       const funcionario = p.id_funcionario;
@@ -336,7 +332,6 @@ async function getProducaoEquipe(req) {
       etapas: dados.etapas
     }));
 
-    // --- Agrupar produção do mês por funcionário e dia ---
     const agrupadoMes = {};
     producoesMes.forEach(p => {
       const funcionario = p.id_funcionario;
@@ -397,30 +392,24 @@ async function getEstatisticasPeca(id) {
 
     if (!peca) throw new Error("Peça não encontrada.");
 
-    // estrutura que o frontend espera: { etapaNome: [registros...] }
     const producaoPorEtapa = {};
 
-    // soma total (leva em conta negativos), soma positiva e negativa separadas
     let totalLiquido = 0;
     let totalPositivo = 0;
     let totalNegativo = 0;
 
-    // também vamos calcular total por etapa (líquido, positivos, estornos)
     const somaPorEtapa = {};
 
     for (const p of peca.producao_peca) {
-      // garantir number (prisma retorna Int mas por segurança convertemos)
       const qtd = Number(p.quantidade_pecas) || 0;
       const etapaNome = p.producao_etapa?.descricao || "Etapa não definida";
       const funcionarioNome = p.producao_funcionario?.nome || p.id_funcionario || "Desconhecido";
 
-      // cria estrutura por etapa se necessário
       if (!producaoPorEtapa[etapaNome]) {
         producaoPorEtapa[etapaNome] = [];
         somaPorEtapa[etapaNome] = { liquido: 0, positivos: 0, estornos: 0 };
       }
 
-      // empurra registro (mantendo campos úteis)
       const registro = {
         id_da_producao: p.id_da_producao,
         funcionario: funcionarioNome,
@@ -433,18 +422,15 @@ async function getEstatisticasPeca(id) {
 
       producaoPorEtapa[etapaNome].push(registro);
 
-      // atualizar somas por etapa
       somaPorEtapa[etapaNome].liquido += qtd;
       if (qtd >= 0) somaPorEtapa[etapaNome].positivos += qtd;
       else somaPorEtapa[etapaNome].estornos += Math.abs(qtd);
 
-      // atualizar somas globais
       totalLiquido += qtd;
       if (qtd >= 0) totalPositivo += qtd;
       else totalNegativo += Math.abs(qtd);
     }
 
-    // saldo = meta total da OP - total líquido produzido (positivos - negativos)
     const metaTotal = Number(peca.quantidade_pecas) || 0;
     const saldo = metaTotal - totalLiquido;
 
@@ -479,7 +465,6 @@ async function getEstatisticasPeca(id) {
 async function deletarPeca(id) {
   const id_da_op = parseInt(id);
   try {
-    // Deletar produções relacionadas
     await prisma.producao.deleteMany({
       where: { id_da_op }
     });
@@ -505,7 +490,6 @@ async function voltarPeca(req, res) {
       return "ID da OP, etapa e quantidade são obrigatórios.";
     }
 
-    // Buscar a produção total atual da etapa
     const producaoTotal = await prisma.producao.aggregate({
       _sum: { quantidade_pecas: true },
       where: {
@@ -521,7 +505,6 @@ async function voltarPeca(req, res) {
       throw new Error("Não há produção para estornar nessa peça e etapa.");
     }
 
-    // Ajustar quantidade para não ficar negativa
     const quantidadeEstorno = Math.min(Math.abs(quantidade), totalAtual);
 
     if (id_funcionario) {
@@ -545,7 +528,6 @@ async function voltarPeca(req, res) {
       return producaoEstorno;
     }
 
-    // Caso não seja passado funcionário, buscar todos que atuaram nessa peça e função
     const producoes = await prisma.producao.findMany({
       where: {
         id_da_op: Number(id_da_op),
@@ -559,7 +541,6 @@ async function voltarPeca(req, res) {
       throw new Error("Nenhum funcionário encontrado para essa peça e etapa.");
     }
 
-    // Divide a quantidade igualmente entre os funcionários encontrados
     const quantidadePorFuncionario = Math.floor(quantidadeEstorno / producoes.length);
     const resto = quantidadeEstorno % producoes.length;
 

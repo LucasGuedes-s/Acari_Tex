@@ -81,7 +81,7 @@
         <div class="plan-card destaque">
           <h3>Plano anual</h3>
           <p>Para fábricas em crescimento</p>
-          <span class="price">R$ 2799,9/mês</span>
+          <span class="price">R$ 2799,9/ano</span>
           <ul>
             <li>✔️ Tudo do Básico</li>
             <li>✔️ Relatórios avançados</li>
