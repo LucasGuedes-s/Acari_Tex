@@ -5,14 +5,21 @@ const saltRounds = 10;
 require('dotenv').config();
 
 async function main() {
-  const cnpjEstabelecimento = process.env.CNPJ || "12345678000199";
+  /*const cnpjEstabelecimento = process.env.CNPJ || "12345678000199";
   const senhaTexto = process.env.SENHA || "admin123";
   const nomeUsuario = process.env.USER_PADRAO || 'Administrador Padrão';
   const emailUsuario = 'admin@admin.com';
   const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);
+  */
 
-  // 🔹 Etapas fixas do processo
-  const etapasFixas = ["Corte", "Costura", "Acabamento", "Embalagem"];
+  const cnpjEstabelecimento = "12345678000199";
+  const senhaTexto = "admin123";
+  const nomeUsuario = 'Mara Guedes';
+  const emailUsuario = 'mara.acari@hotmail.com';
+
+  const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);
+
+  const etapasFixas = ["Overloque", "Interloque", "Reta", "Travete", "Limpeza", "Acabamento", "Embalagem"];
   for (const descricao of etapasFixas) {
     const etapaExistente = await prisma.etapa.findUnique({ where: { descricao } });
     if (!etapaExistente) {
@@ -38,8 +45,8 @@ async function main() {
         nome: nomeUsuario,
         email: emailUsuario,
         senha: senhaCriptografada,
-        permissoes: 'Administrador',
-        foto: "https://firebasestorage.googleapis.com/v0/b/clinica-maria-luiza.appspot.com/o/uploads%2Ffuncionarios2.svg?alt=media&token=cc7511c0-9e76-4cd6-9e33-891bbb3cfd1c",
+        permissoes: 1,
+        foto: "https://pub-f5850e3c1d5b490ea1e15aacf2014355.r2.dev/uploads/Captura%20de%20tela_17-9-2025_201411_www.instagram.com.jpeg",
         idade: 35,
         funcoes: "Administrador",
         estabelecimentoCnpj: cnpjEstabelecimento
@@ -56,7 +63,7 @@ async function main() {
       data: {
         id_Estabelecimento: cnpjEstabelecimento,
         status: "nao_iniciado", // 🔹 Status padronizado
-        descricao: "Camiseta Algodão",
+        descricao: "Peça Exemplo",
         quantidade_pecas: 100,
         pedido_por: "Cliente X",
         data_do_pedido: new Date().toISOString(),

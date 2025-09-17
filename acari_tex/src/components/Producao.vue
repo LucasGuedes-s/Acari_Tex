@@ -46,6 +46,7 @@ export default {
         });
 
         const producao = response.data.peca;
+        console.log(producao);
         // Agregar dados de produção
         this.aggregateProducaoData(producao);
 

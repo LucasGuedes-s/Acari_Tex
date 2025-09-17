@@ -208,7 +208,7 @@ async function getEtapasProducaoPorPeca(req, res) {
 
 async function getEtapasProducaoPorEstabelecimento(req, res) {
   try {
-    const { cnpj } = req.cnpj;  
+    const cnpj = req.cnpj;  
     const producao = await prisma.producao.findMany({
       where: {
         Estabelecimento: {

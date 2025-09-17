@@ -36,17 +36,14 @@
 
         <div class="row justify-content-center">
           <GraficoProducaoTotal class="mb-4" />
-          <Producao />
-
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasBarChart" width="800" height="400"></canvas>
           </div>
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasLineChart" width="800" height="400"></canvas>
           </div>
-          <div>
-            <GraficoProducaoMes />
-          </div>
+          <Producao />
+
         </div>
       </div>
     </main>
@@ -65,11 +62,10 @@ import api from '@/Axios'
 Chart.register(...registerables);
 import { io } from 'socket.io-client';
 import CarregandoTela from '@/components/carregandoTela.vue';
-import GraficoProducaoMes from '@/components/GraficoProducaoMes.vue';
 
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela, GraficoProducaoMes },
+  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
   setup() {
     const store = useAuthStore();
     return { store };
@@ -119,6 +115,7 @@ export default {
         const response = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
+        console.log(response.data.peca);
         this.pecas = response.data.peca;
         this.loading = false;
         this.$nextTick(this.renderCharts);
@@ -205,7 +202,7 @@ export default {
 }
 
 canvas {
-  max-width: 100%;
+  max-width: 800px;
   height: auto;
   background-color: white;
 }

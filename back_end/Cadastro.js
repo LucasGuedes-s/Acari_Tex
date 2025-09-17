@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function main() {
-  const cnpj = '12345678' // CNPJ do estabelecimento já existente
+  const cnpj = '12345678910' // CNPJ do estabelecimento já existente
   const email = 'andouglas@gmail.com'
 
   // Verifica se o estabelecimento existe
