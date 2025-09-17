@@ -103,7 +103,7 @@ export default {
   },
   mounted() {
     this.fetchData();
-    this.socket = io('http://192.168.0.115:3333'); // Conecta ao servidor Socket.IO
+    this.socket = io('https://acari-tex.onrender.com'); // Conecta ao servidor Socket.IO
     this.socket.on('nova_peca', () => {
       this.fetchData(); // Recarrega os dados quando uma nova peça é adicionada
     });
