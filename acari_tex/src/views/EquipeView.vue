@@ -28,7 +28,7 @@
 
             <!-- 💻 Versão desktop -->
             <div class="search-desktop d-none d-md-flex align-items-center gap-2 w-100 mb-3">
-              <!-- <select 
+              <select 
                 name="Pesquisar" 
                 id="hora" 
                 v-model="equipe" 
@@ -43,7 +43,7 @@
                 >
                   {{ equipe.nome }}
                 </option>
-              </select>-->
+              </select>
 
               <input 
                 type="text" 
@@ -56,9 +56,9 @@
               <RouterLink to="/adicionar-profissional" class="flex-fill">
                 <button class="btn-button w-100 py-2">Novo profissional</button>
               </RouterLink>
-              <!-- <button class="btn-button w-100 py-2 flex-fill" @click="criarEquipe">
+              <button class="btn-button w-100 py-2 flex-fill" @click="criarEquipe">
                 Nova equipe
-              </button>-->
+              </button>
 
               <NavBarUser class="ms-2" />
             </div>
@@ -209,14 +209,26 @@ export default {
     }
   },
   computed: {
-    etapasFiltradas() {
-      return this.etapas.flat().filter(etapa => etapa.id_da_op === this.pecaRegistro)
-    },
-    filteredProfissional() {
-      return this.funcionarios.filter(f =>
-        f.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
-      )
-    }
+  etapasFiltradas() {
+    return this.etapas.flat().filter(etapa => etapa.id_da_op === this.pecaRegistro)
+  },
+  filteredProfissional() {
+    return this.funcionarios.filter(f => {
+      const matchNome = f.nome.toLowerCase().includes(this.pesquisa.toLowerCase())
+
+      // se nenhuma equipe for escolhida, não filtra
+      if (!this.equipe) return matchNome
+
+      // verifica se o usuário está dentro da equipe selecionada
+      const equipeSelecionada = this.equipesDisponiveis.find(e => e.id === this.equipe)
+
+      if (!equipeSelecionada) return matchNome
+
+      const emailsEquipe = equipeSelecionada.usuarios.map(u => u.usuario.email)
+
+      return matchNome && emailsEquipe.includes(f.email)
+    })
+  }
   },
   methods: {
     async validarToken() {
@@ -263,7 +275,6 @@ export default {
     },
 
     async getPecasProducao() {
-      if (!(await this.validarToken())) return
       try {
         const { data } = await api.get('/pecas', {
           headers: { Authorization: this.store.pegar_token }
@@ -280,7 +291,6 @@ export default {
     },
 
     async postProdução() {
-      if (!(await this.validarToken())) return
       try {
         await api.post('/registrar/producao', {
           id_da_op: this.pecaRegistro,
@@ -301,12 +311,12 @@ export default {
     },
 
     async buscarEquipes() {
-      if (!(await this.validarToken())) return
       try {
         const { data } = await api.get('/equipes', {
           headers: { Authorization: this.store.pegar_token }
         })
         this.equipesDisponiveis = data.equipes
+        console.log(this.equipesDisponiveis)
       } catch (err) {
         console.error(err)
         Swal.fire('Erro', 'Erro ao carregar equipes.', 'error')

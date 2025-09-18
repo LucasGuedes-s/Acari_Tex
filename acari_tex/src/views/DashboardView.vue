@@ -115,7 +115,6 @@ export default {
         const response = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
-        console.log(response.data.peca);
         this.pecas = response.data.peca;
         this.loading = false;
         this.$nextTick(this.renderCharts);

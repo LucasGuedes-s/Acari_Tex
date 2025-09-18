@@ -121,52 +121,73 @@ async function getProducaoFuncionario(req) {
     return { error: error.message };
   }
 }
-async function criarEquipe(req) {
+async function criarEquipe(req, res) {
   try {
-    const { nome, descricao, funcionarioEmails } = req.body;
-    const cnpj = req.user.cnpj
-    // Buscar os funcionários que pertencem ao estabelecimento
-    const funcionarios = await prisma.usuarios.findMany({
+    const { nome, descricao, funcionarios } = req.body;
+    const cnpj = req.user.cnpj;
+    // Busca os funcionários que realmente pertencem ao estabelecimento
+    const usuarios = await prisma.usuarios.findMany({
       where: {
-        email: { in: req.body.funcionarios },
-        estabelecimentoCnpj: cnpj
-      }
+        email: { in: funcionarios },
+        estabelecimentoCnpj: cnpj,
+      },
     });
+
+    if (!usuarios.length) {
+      return res.status(400).json({ message: "Nenhum funcionário válido encontrado para este estabelecimento." });
+    }
 
     const equipe = await prisma.equipesGrupos.create({
       data: {
-        nome: req.body.nome,
-        descricao: req.body.descricao,
+        nome,
+        descricao,
         estabelecimentoCnpj: cnpj,
         usuarios: {
-          connect: funcionarios.map(f => ({ email: f.email }))
-        }
+          create: usuarios.map((f) => ({
+            usuario: {
+              connect: { email: f.email }, // conecta cada usuário
+            },
+          })),
+        },
       },
       include: {
-        usuarios: true
-      }
+        usuarios: {
+          include: { usuario: true }, // retorna também os dados do usuário
+        },
+      },
     });
 
     return equipe;
   } catch (error) {
     console.error("Erro ao criar equipe:", error);
-    throw new Error("Erro ao criar a equipe.");
+    return "Erro ao criar a equipe." ;
   }
 }
-async function getEquipes(req) {
+async function getEquipes(req, res) {
   const cnpj = req.user.cnpj;
-  
+
   try {
     const equipes = await prisma.equipesGrupos.findMany({
       where: { estabelecimentoCnpj: cnpj },
-      include: { usuarios: true }
+      include: {
+        usuarios: {
+          include: {
+            usuario: {  
+              select: {
+                nome: true,
+                email: true,
+              }
+            }
+          }
+        }
+      }
     });
-    return equipes; 
-  
+
+    return equipes;
   } catch (error) {
     console.error("Erro ao buscar equipes:", error);
-    throw new Error("Erro ao buscar as equipes.");
-  } 
+    return "Erro ao buscar as equipes.";
+  }
 }
 
 module.exports = {

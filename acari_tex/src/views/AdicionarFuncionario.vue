@@ -6,7 +6,7 @@
         <div class="row justify-content-center mt-3">
           <div class="col-12">
             <TituloSubtitulo 
-              titulo="Cadastro de novo funcionário"
+              titulo="Novo funcionário"
               subtitulo="Preencha os dados abaixo para cadastrar um novo membro na sua equipe" 
             />
 

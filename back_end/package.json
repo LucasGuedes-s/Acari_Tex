@@ -22,8 +22,8 @@
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "@prisma/client": "^6.1.0",
-    "prisma": "^6.1.0",
+    "@prisma/client": "^6.16.2",
+    "prisma": "^6.16.2",
     "prisma-erd-generator": "^2.0.4"
   }
 }
