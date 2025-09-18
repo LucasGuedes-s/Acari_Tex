@@ -48,7 +48,7 @@ async function postPecaOP(req, user) {
       pedido_por: req.peca.pedido_por || null,
       data_do_pedido: new Date().toISOString(),
       data_de_entrega: req.peca.data_de_entrega || null,
-      valor_peca: req.peca.valor_peca || null,
+      valor_peca: parseFloat(req.peca.valor_peca) || null,
       Estabelecimento: {
         connect: { cnpj: user.cnpj },
       },

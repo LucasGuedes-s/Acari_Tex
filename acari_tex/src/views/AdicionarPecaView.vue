@@ -30,6 +30,10 @@
                 </div>
 
                 <div class="col-md-6">
+                  <label for="data" class="form-label">Valor da peça</label>
+                  <input v-model="novaPeca.valor_peca" id="data" type="number" class="form-control" required />
+                </div>
+                <div class="col-md-6">
                   <label for="fornecedor" class="form-label">Pedido por</label>
                   <select v-model="novaPeca.pedido_por" id="fornecedor" class="form-select">
                     <option value="" disabled>Selecione o fornecedor</option>
@@ -193,6 +197,7 @@ export default {
         pedido_por: "",
         data_entrega: null,
         producao: [],
+        valor_peca: null,
       },
       fornecedoresRecentes: ["Fornecedor A", "Fornecedor B", "Fornecedor C"],
       locaisPredefinidos: ["Máquina Reta", "Zig-Zag", "Fechadeira", "Braço Livre", "Overloque", "Galoneira", "Travete", "Caseadeira", "Interloque", "Limpeza"],
