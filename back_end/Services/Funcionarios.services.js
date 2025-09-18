@@ -34,6 +34,12 @@ async function postFuncionario(funcionario, cnpj) {
   const cpf = funcionario.cpf?.toString() || null;
   const pis = funcionario.pis?.toString() || null;
   const senha = bcrypt.hashSync(process.env.SENHA, 10);
+  if(funcionario.permissao === 'funcionario' || !funcionario.permissao){
+    funcionario.permissao = 2;
+  }
+  else{
+    funcionario.permissao = 1;
+  }
   const addFuncionario = await prisma.usuarios.create({
     data: {
       email: funcionario.email,
@@ -42,7 +48,7 @@ async function postFuncionario(funcionario, cnpj) {
       foto: funcionario.fotoUrl,
       idade: funcionario.idade,
       funcoes: funcionario.funcoes,
-      permissoes: funcionario.permissao || "funcionario",
+      permissoes: funcionario.permissao || 3,
       identidade,
       cpf,
       pis,

@@ -560,7 +560,7 @@ label {
 .search select {
   max-width: 180px;
   border: 1px solid #008d3b;
-  padding: 12px 15px;
+  padding: 10px 15px;
   border: none;
   border-radius: 8px;
   background-color: white;
