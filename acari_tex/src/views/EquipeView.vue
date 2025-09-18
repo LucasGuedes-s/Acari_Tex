@@ -87,7 +87,104 @@
         </div>
       </div>
 
-      <!-- modais etc continuam iguais... -->
+<!-- Modal Funcionário -->
+    <div v-if="showModalFuncionario" class="modal-background">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h2>Detalhes do Funcionário</h2>
+          <img 
+            class="modal-close" 
+            @click="showModalFuncionario = false" 
+            src="@/assets/close.png" 
+            alt="Fechar" 
+          />
+        </div>
+        <div class="modal-body">
+          <div class="modal-foto">
+            <img :src="funcionario?.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
+          </div>
+          <div class="modal-info">
+            <div class="info-row"><span class="label">Nome:</span><span class="value">{{ funcionario?.nome }}</span></div>
+            <div class="info-row"><span class="label">ID:</span><span class="value">{{ funcionario?.id }}</span></div>
+            <div class="info-row"><span class="label">Funções:</span><span class="value">{{ funcionario?.funcoes }}</span></div>
+            <div class="info-row"><span class="label">Aniversário:</span><span class="value">{{ funcionario?.aniversario }}</span></div>
+            <div class="info-row"><span class="label">PIS:</span><span class="value">{{ funcionario?.pis }}</span></div>
+            <div class="info-row"><span class="label">PIX:</span><span class="value">{{ funcionario?.pix }}</span></div>
+            <div class="info-row"><span class="label">Notas:</span><span class="value">{{ funcionario?.notas }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Registro Produção -->
+    <div v-if="showModalRegistro" class="modal-background">
+      <div class="modal-container registro">
+        <div class="modal-header registro">
+          <h2>Registrar Produção - {{ funcionario?.nome }}</h2>
+          <img 
+            class="modal-close" 
+            @click="fecharModal" 
+            src="@/assets/close.png" 
+            alt="Fechar" 
+          />
+        </div>
+        <div class="modal-body registro">
+          <div class="modal-info registro">
+            <div class="info-row">
+              <label class="label" for="peca">Peça:</label>
+              <select id="peca" v-model="pecaRegistro" class="input-select">
+                <option v-for="peca in pecas" :key="peca.id_da_op" :value="peca.id_da_op">
+                  {{ peca.descricao }}
+                </option>
+              </select>
+            </div>
+            <div class="info-row">
+              <label class="label" for="funcao">Etapa:</label>
+              <select id="funcao" v-model="funcao" class="input-select">
+                <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
+                  {{ etapa.etapa.descricao }}
+                </option>
+              </select>
+            </div>
+            <div class="info-row">
+              <label class="label" for="quantidade">Quantidade:</label>
+              <input 
+                placeholder="Ex: 50" 
+                type="number" 
+                min="1" 
+                id="quantidade" 
+                v-model="quantidadeRegistro" 
+                class="input-field" 
+              />
+            </div>
+            <div class="info-row">
+              <label class="label" for="hora">Hora:</label>
+              <select id="hora" v-model="horaRegistro" class="input-select">
+                <option value="" disabled>Selecione a hora</option>
+                <option value="07:00">07:00</option>
+                <option value="08:00">08:00</option>
+                <option value="09:00">09:00</option>
+                <option value="10:00">10:00</option>
+                <option value="11:00">11:00</option>
+                <option value="12:00">12:00</option>
+                <option value="13:00">13:00</option>
+                <option value="14:00">14:00</option>
+                <option value="15:00">15:00</option>
+                <option value="16:00">16:00</option>
+                <option value="17:00">17:00</option>
+                <option value="18:00">18:00</option>
+                <option value="1h extra">1h extra</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer registro">
+          <button class="btn-cancel" @click="fecharModal">Cancelar</button>
+          <button class="btn-save" @click="postProdução">Registrar</button>
+        </div>
+      </div>
+    </div>
     </main>
   </div>
 </template>
