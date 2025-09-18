@@ -3,13 +3,12 @@
     <SidebarNav />
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid py-4">
-        <TituloSubtitulo 
-          titulo="📊 Estatísticas da Peça"
-          subtitulo="Veja todos os detalhes e dados da produção desta peça" 
-        />
+        <TituloSubtitulo titulo="📊 Estatísticas da Peça"
+          subtitulo="Veja todos os detalhes e dados da produção desta peça" />
 
         <div v-if="pecaDetalhes" class="card p-4 shadow-sm border-0 rounded-3">
-          <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+          <div
+            class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
             <h4 class="mb-3 fw-bold">{{ pecaDetalhes.descricao }}</h4>
             <button class="btn btn-secondary mb-4" @click="showModalEstorno = true">Estornar produção</button>
           </div>
@@ -39,65 +38,59 @@
           </div>
 
           <!-- Gráficos -->
-          <div class="row mt-5 g-4">
+          <div class="row mt-5 g-4" v-if="pecaDetalhes.totalProduzido > 0">
             <div class="col-12">
               <div class="card p-3 shadow-sm border-0">
                 <h5 class="mb-3">👷 Produção por Funcionário</h5>
-                <GChart 
-                  v-if="graficoFuncionarios.length > 1"
-                  type="BarChart"
-                  :data="graficoFuncionarios"
+                <GChart v-if="graficoFuncionarios.length > 1" type="BarChart" :data="graficoFuncionarios"
                   :options="{ title: 'Funcionários', legend: { position: 'none' } }"
-                  style="width: 100%; height: 500px;" 
-                />
+                  style="width: 100%; height: 500px;" />
               </div>
             </div>
 
             <div class="col-12">
               <div class="card p-3 shadow-sm border-0">
                 <h5 class="mb-3">⚙️ Produção por Etapa</h5>
-                <GChart 
-                  v-if="graficoEtapas.length > 1"
-                  type="BarChart"
-                  :data="graficoEtapas"
-                  :options="{
-                    title: 'Etapas',
-                    isStacked: true,
-                    hAxis: { title: 'Quantidade' },
-                    vAxis: { title: 'Etapas' },
-                  }"
-                  style="width: 100%; height: 500px;"
-                />
+                <GChart v-if="graficoEtapas.length > 1" type="BarChart" :data="graficoEtapas" :options="{
+                  title: 'Etapas',
+                  isStacked: true,
+                  hAxis: { title: 'Quantidade' },
+                  vAxis: { title: 'Etapas' },
+                }" style="width: 100%; height: 500px;" />
               </div>
             </div>
           </div>
 
-          <!-- Produção detalhada -->
           <div class="mt-5">
             <h5 class="mb-3">Detalhamento da Produção por Etapa</h5>
-            <table class="table table-striped table-hover table-bordered align-middle">
-              <thead class="table-dark">
-                <tr>
-                  <th>Etapa</th>
-                  <th>Funcionário</th>
-                  <th>Quantidade</th>
-                  <th>Data</th>
-                  <th>Hora</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template v-for="(registros, etapa) in pecaDetalhes.producaoPorEtapa" :key="etapa">
-                  <tr v-for="(registro, idx) in registros" :key="etapa + '-' + idx">
-                    <td>{{ etapa }}</td>
-                    <td>{{ registro.funcionario }}</td>
-                    <td>{{ registro.quantidade }}</td>
-                    <td>{{ formatarData(registro.data_inicio) }}</td>
-                    <td>{{ registro.hora_registro }}</td>
+
+            <!-- wrapper para responsividade -->
+            <div class="table-responsive" v-if="pecaDetalhes.totalProduzido > 0">
+              <table class="table table-striped table-hover table-bordered align-middle">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Etapa</th>
+                    <th>Funcionário</th>
+                    <th>Quantidade</th>
+                    <th>Data</th>
+                    <th>Hora</th>
                   </tr>
-                </template>
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <template v-for="(registros, etapa) in pecaDetalhes.producaoPorEtapa" :key="etapa">
+                    <tr v-for="(registro, idx) in registros" :key="etapa + '-' + idx">
+                      <td>{{ etapa }}</td>
+                      <td>{{ registro.funcionario }}</td>
+                      <td>{{ registro.quantidade }}</td>
+                      <td>{{ formatarData(registro.data_inicio) }}</td>
+                      <td>{{ registro.hora_registro }}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
           </div>
+
         </div>
       </div>
 
@@ -114,8 +107,7 @@
               <div class="info-row">
                 <label class="label">Etapa</label>
                 <select v-model="etapaSelecionada" class="input-select">
-                  <option v-for="etapa in etapas" :key="etapa"
-                    :value="etapa.id_da_funcao">
+                  <option v-for="etapa in etapas" :key="etapa" :value="etapa.id_da_funcao">
                     {{ etapa.descricao }}
                   </option>
                 </select>
@@ -166,22 +158,22 @@ export default {
       etapas: [],
     };
   },
- computed: {
-  quantidadeMaxima() {
-    if (!this.pecaDetalhes || !this.pecaDetalhes.etapas) return 0;
+  computed: {
+    quantidadeMaxima() {
+      if (!this.pecaDetalhes || !this.pecaDetalhes.etapas) return 0;
 
-    const etapa = this.pecaDetalhes.etapas.find(
-      (e) => e.etapa.id_da_funcao === this.etapaSelecionada
-    );
+      const etapa = this.pecaDetalhes.etapas.find(
+        (e) => e.etapa.id_da_funcao === this.etapaSelecionada
+      );
 
-    if (!etapa) return 0;
+      if (!etapa) return 0;
 
-    const registrosEtapa = this.pecaDetalhes.producaoPorEtapa?.[etapa.etapa.descricao] || [];
-    const totalNaEtapa = registrosEtapa.reduce((sum, r) => sum + (r.quantidade || 0), 0);
+      const registrosEtapa = this.pecaDetalhes.producaoPorEtapa?.[etapa.etapa.descricao] || [];
+      const totalNaEtapa = registrosEtapa.reduce((sum, r) => sum + (r.quantidade || 0), 0);
 
-    return totalNaEtapa;
+      return totalNaEtapa;
+    },
   },
-},
 
   methods: {
     badgeClass(status) {
@@ -294,9 +286,10 @@ export default {
 </script>
 
 <style scoped>
-.btn{
+.btn {
   background-color: var(--verde-escuro);
 }
+
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
@@ -307,13 +300,14 @@ export default {
   border-left: 5px solid var(--verde-escuro);
   justify-items: left;
 }
+
 .modal-background {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0,0,0,0.35);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -326,7 +320,7 @@ export default {
   border-radius: 12px;
   max-width: 520px;
   width: 100%;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   animation: fadeInUp 0.3s ease;
@@ -434,10 +428,10 @@ export default {
   .modal-container.registro {
     padding: 10px 0;
   }
+
   .content-wrapper {
     padding-left: 0px;
     z-index: 0;
   }
 }
-
 </style>

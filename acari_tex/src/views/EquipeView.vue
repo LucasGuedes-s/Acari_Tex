@@ -335,6 +335,11 @@ export default {
         Swal.fire('Sucesso', 'Produção registrada com sucesso!', 'success')
         this.getPecasProducao()
       } catch (err) {
+        if(err.status === 400 && err.response && err.response.data && err.response.data.error) {
+          const errorMsg = err.response.data.error;
+          Swal.fire('Erro', errorMsg, 'error');
+          return;
+        }
         console.error(err)
         Swal.fire('Erro', 'Erro ao registrar produção.', 'error')
       }
@@ -476,7 +481,6 @@ export default {
   align-items: flex-start;
 }
 
-/* Bloco com os botões */
 .acoes-funcionario {
   display: flex;
   flex-direction: column;
@@ -669,7 +673,6 @@ label {
 
 .search .btn-button {
   flex: 1;
-  max-width: 150px;
   padding: 10px 20px;
   background-color: var(--verde-escuro);
   border: 1px solid #008d3b;
@@ -754,7 +757,7 @@ select {
   }
 
   .acoes-funcionario {
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
     margin-top: 1rem;
@@ -776,13 +779,6 @@ select {
   .card-content {
     flex: 1;
     align-items: center;
-  }
-
-  .acoes-funcionario {
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-end;
-    margin-left: 1rem;
   }
 
   .acoes-funcionario button {

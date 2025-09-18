@@ -200,7 +200,7 @@ export default {
         valor_peca: null,
       },
       fornecedoresRecentes: ["Fornecedor A", "Fornecedor B", "Fornecedor C"],
-      locaisPredefinidos: ["Máquina Reta", "Zig-Zag", "Fechadeira", "Braço Livre", "Overloque", "Galoneira", "Travete", "Caseadeira", "Interloque", "Limpeza"],
+      locaisPredefinidos: ["Fechar lateral", "Pregar bolso", "Pespontar lapela", "Fechar ombro", "Pregar zíper", "Fazer bainha", "Pregar lapela", "Montar braguilha", "Montar cós", "Fechar entrepernas"],
       draggedItem: null,
       draggedIndex: null,
       targetIndex: null,

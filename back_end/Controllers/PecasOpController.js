@@ -23,9 +23,10 @@ async function getOPs(req, res, next){
 async function postProducaoPeca(req, res, next){
     try {
         const peca = await pecas.postProducaoPeca(req);
-        req.io.emit('nova_producao', peca); // Notifica todos os clientes conectados sobre a nova produção
+        req.io.emit('nova_producao', peca);
         res.status(200).json({peca});
     } catch (err) {
+        res.status(400).json({ error: err });
         console.error(`Erro ao cadastrar produção de peças.`, err.message);
         next(err);
     }
