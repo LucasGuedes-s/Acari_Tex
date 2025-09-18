@@ -90,7 +90,7 @@ async function postProducaoPeca(req, res) {
     });
 
     if (!etapaRelacionada) {
-      return res.status(400).json({ error: "Etapa não encontrada para essa OP." });
+      return  "Etapa não encontrada para essa OP.";
     }
 
     // Soma da produção até agora
@@ -104,7 +104,7 @@ async function postProducaoPeca(req, res) {
 
     // Verificar meta da etapa
     if (novaQuantidade > etapaRelacionada.quantidade_meta) {
-      return res.status(400).json({
+      return ({
         error: "A produção dessa etapa excede a meta.",
         jaProduzido,
         meta: etapaRelacionada.quantidade_meta

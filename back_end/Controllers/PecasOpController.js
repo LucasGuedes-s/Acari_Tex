@@ -10,15 +10,35 @@ async function postOP(req, res, next){
         next(err);
     }
 }
-async function getOPs(req, res, next){
-    try {
-        const peca = await pecas.getPecasOP(req.user);
-        res.status(200).json({peca});
-    } catch (err) {
-        console.error(`Erro ao obter peças.`, err.message);
-        next(err);
+let cache = null;
+let cacheEtag = null;
+
+async function getOPs(req, res, next) {
+  try {
+    // Se já temos cache, podemos comparar direto
+    if (cache && req.headers['if-none-match'] === cacheEtag) {
+      return res.status(304).end();
     }
+
+    const peca = await pecas.getPecasOP(req.user);
+
+    const etag = '"' + require('crypto')
+      .createHash('md5')
+      .update(JSON.stringify(peca))
+      .digest('hex') + '"';
+
+    cache = peca;
+    cacheEtag = etag;
+
+    res.set('Cache-Control', 'public, max-age=60');
+    res.set('ETag', etag);
+
+    res.status(200).json({ peca });
+  } catch (err) {
+    next(err);
+  }
 }
+
 
 async function postProducaoPeca(req, res, next){
     try {
