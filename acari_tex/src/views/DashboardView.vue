@@ -6,9 +6,6 @@
          <CarregandoTela />
       </div>
       <div v-if="loading === false" class="container-fluid my-4 mt-md-0 mt-3">
-        <div class="row justify-content-center">
-          <NavBarUser class="d-none d-md-block" />
-        </div>
         <section class="row justify-content-center text-center">
           <div class="d-block d-md-none col-6 mb-3">
             <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
@@ -35,14 +32,15 @@
         </section>
 
         <div class="row justify-content-center">
+          <Producao class="mb-4"  />
           <GraficoProducaoTotal class="mb-4" />
+
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasBarChart" width="800" height="400"></canvas>
           </div>
           <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
             <canvas ref="pecasLineChart" width="800" height="400"></canvas>
           </div>
-          <Producao />
 
         </div>
       </div>
@@ -52,7 +50,6 @@
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import NavBarUser from '@/components/NavBarUser.vue';
 import DashboardCard from '@/components/DashboardCard.vue';
 import Producao from '@/components/Producao.vue';
 import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
@@ -65,7 +62,7 @@ import CarregandoTela from '@/components/carregandoTela.vue';
 
 export default {
   name: 'DashboardHome',
-  components: { SidebarNav, NavBarUser, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
+  components: { SidebarNav, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
   setup() {
     const store = useAuthStore();
     return { store };

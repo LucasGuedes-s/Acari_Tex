@@ -43,7 +43,41 @@ async function loginUser(user) {
 
 }
 
+async function criarTempoReferencia(req) {
+  try {
+    const { id_funcionario, id_da_funcao, tempo_minutos, quantidade_pecas, observacoes } = req.body;
+    const cnpj = req.user.cnpj;
+    const registradoPor = req.user.email;
+
+    const tempo = await prisma.tempoReferencia.create({
+      data: {
+        estabelecimentoCnpj: cnpj,
+        id_funcionario,
+        id_da_funcao,
+        tempo_minutos,
+        quantidade_pecas,
+        observacoes,
+        registradoPor
+      },
+      include: {
+        usuario: {
+          select: { nome: true, email: true }
+        },
+        etapa: {
+          select: { descricao: true }
+        }
+      }
+    });
+
+    return tempo;
+  } catch (error) {
+    console.error("Erro ao criar tempo de referência:", error);
+    throw new Error("Erro ao criar tempo de referência.");
+  }
+}
+
+
 module.exports = {
     loginUser,
-
+    criarTempoReferencia
 }

@@ -353,6 +353,109 @@ async function getProducaoEquipe(req) {
   }
 }
 
+async function getProducaoEquipeDia(req) {
+  try {
+    const cnpjEstabelecimento = req.user.cnpj;
+    const fusoSP = "America/Sao_Paulo";
+
+    // Data atual no fuso de SP
+    const agora = new Date();
+    const dtf = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: fusoSP,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    const partes = dtf.formatToParts(agora);
+    const dia = partes.find(p => p.type === "day").value;
+    const mes = partes.find(p => p.type === "month").value;
+    const ano = partes.find(p => p.type === "year").value;
+
+    // Limite do dia em UTC
+    const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
+    const fimDiaUTC    = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
+
+    // Buscar produção do dia com JOIN no funcionário -> equipe
+    const producoesDia = await prisma.producao.findMany({
+      where: {
+        id_Estabelecimento: cnpjEstabelecimento,
+        data_inicio: { gte: inicioDiaUTC, lte: fimDiaUTC },
+      },
+      select: {
+        id_funcionario: true,
+        quantidade_pecas: true,
+        hora_registro: true,
+        producao_funcionario: { 
+          select: { 
+            nome: true,
+            equipes: {
+              select: {
+                equipe: { select: { id: true, nome: true } }
+              }
+            }
+          } 
+        },
+        producao_etapa: { select: { descricao: true } },
+      },
+    });
+
+    // Agrupar por equipe
+    const agrupadoEquipe = {};
+
+    for (const p of producoesDia) {
+      const funcionario = p.id_funcionario;
+      const nomeFuncionario = p.producao_funcionario?.nome || funcionario;
+      const etapa = p.producao_etapa?.descricao || "Sem Etapa";
+      const hora = p.hora_registro || "00:00";
+
+      // um usuário pode estar em várias equipes
+      const equipesDoUsuario = p.producao_funcionario?.equipes?.map(e => e.equipe) || [];
+
+      if (equipesDoUsuario.length === 0) {
+        equipesDoUsuario.push({ id: 0, nome: "Sem Equipe" });
+      }
+
+      for (const equipe of equipesDoUsuario) {
+        if (!agrupadoEquipe[equipe.nome]) {
+          agrupadoEquipe[equipe.nome] = {};
+        }
+
+        if (!agrupadoEquipe[equipe.nome][funcionario]) {
+          agrupadoEquipe[equipe.nome][funcionario] = { nome: nomeFuncionario, etapas: {} };
+        }
+
+        if (!agrupadoEquipe[equipe.nome][funcionario].etapas[etapa]) {
+          agrupadoEquipe[equipe.nome][funcionario].etapas[etapa] = [];
+        }
+
+        agrupadoEquipe[equipe.nome][funcionario].etapas[etapa].push({
+          hora,
+          quantidade: p.quantidade_pecas || 0,
+          data: `${ano}-${mes}-${dia}`
+        });
+      }
+    }
+
+    // Transformar em array organizado
+    const resultado = Object.entries(agrupadoEquipe).map(([equipe, funcionarios]) => ({
+      equipe,
+      funcionarios: Object.entries(funcionarios).map(([email, dados]) => ({
+        funcionario: email,
+        nome: dados.nome,
+        etapas: dados.etapas
+      }))
+    }));
+
+    return { producaoDiaEquipe: resultado };
+
+  } catch (error) {
+    console.error("Erro ao buscar produção da equipe:", error);
+    return { error: error.message };
+  }
+}
+
+
 function getDataInicioBrasil() {
   const agora = new Date();
   const fusoHorarioBrasil = new Intl.DateTimeFormat('pt-BR', {
@@ -584,5 +687,6 @@ module.exports = {
     getProducaoEquipe,
     getEstatisticasPeca,
     deletarPeca,
-    voltarPeca
+    voltarPeca,
+    getProducaoEquipeDia
 };

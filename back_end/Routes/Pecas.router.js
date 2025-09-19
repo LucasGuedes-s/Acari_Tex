@@ -9,6 +9,7 @@ router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);
 router.get('/producao/equipe', [jwtMiddleware],  ControllerOp.getProducaoEquipe);
 router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPeca);
+router.get('/producao/equipe/dia', [jwtMiddleware], ControllerOp.getProducaoEquipeDia);
 
 router.post('/registrar/producao', [jwtMiddleware], ControllerOp.postProducaoPeca);
 router.post('/update/status', [jwtMiddleware], ControllerOp.updatePecaStatus);

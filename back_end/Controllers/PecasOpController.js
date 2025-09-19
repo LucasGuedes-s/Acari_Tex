@@ -109,6 +109,15 @@ async function voltarPeca(req, res, next){
         next(err);
     }
 }
+async function getProducaoEquipeDia(req, res, next) {
+    try {
+        const producao = await pecas.getProducaoEquipeDia(req);
+        res.status(200).json({ producao });
+    } catch (err) {
+        console.error(`Erro ao obter produção.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     getOPs,
@@ -118,5 +127,6 @@ module.exports = {
     getProducaoEquipe,
     getEstatisticasPeca,
     deletarPeca,
-    voltarPeca
+    voltarPeca,
+    getProducaoEquipeDia
 };

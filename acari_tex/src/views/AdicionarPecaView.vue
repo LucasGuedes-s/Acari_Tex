@@ -31,7 +31,7 @@
 
                 <div class="col-md-6">
                   <label for="data" class="form-label">Valor da peça</label>
-                  <input v-model="novaPeca.valor_peca" id="data" type="number" class="form-control" required />
+                  <input placeholder="4,00" v-model="novaPeca.valor_peca" id="data" type="number" class="form-control" required />
                 </div>
                 <div class="col-md-6">
                   <label for="fornecedor" class="form-label">Pedido por</label>

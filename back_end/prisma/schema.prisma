@@ -160,12 +160,13 @@ model EquipesUsuarios {
 
   @@unique([usuarioEmail, equipeId])
 }
+
 model TempoReferencia {
   id                   Int       @id @default(autoincrement())
   estabelecimentoCnpj  String
   id_funcionario       String
   id_da_funcao         Int
-  tempo_minutos        Int       
+  tempo_minutos        Float?       
   quantidade_pecas     Int?      
   observacoes          String?  
   criadoEm             DateTime  @default(now())

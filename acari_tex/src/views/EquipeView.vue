@@ -113,6 +113,12 @@
             <div class="info-row"><span class="label">Notas:</span><span class="value">{{ funcionario?.notas }}</span></div>
           </div>
         </div>
+        <div>
+          <div>
+          </div>
+            <button class="btn w-40 py-2 flex-fill">Ver produção</button>
+            <button class="btn w-40 py-2 flex-fill">Ver produção</button>
+          </div>
       </div>
     </div>
 
@@ -180,6 +186,7 @@
           </div>
         </div>
         <div class="modal-footer registro">
+          <button class="btn-cancel" @click="tempodeProducao">Tempo de produção</button>
           <button class="btn-cancel" @click="fecharModal">Cancelar</button>
           <button class="btn-save" @click="postProdução">Registrar</button>
         </div>
@@ -269,7 +276,12 @@ export default {
     async cadastrar() {
       this.$router.push('/adicionar-profissional')
     },
-
+    async tempodeProducao() {
+      this.$router.push({ 
+        name: 'tempoProducao', 
+        params: { emailFuncionario: this.registroFuncionario } 
+      })
+    },
     async getFuncionario(id) {
       if (!(await this.validarToken())) return
       try {
@@ -335,6 +347,7 @@ export default {
         Swal.fire('Sucesso', 'Produção registrada com sucesso!', 'success')
         this.getPecasProducao()
       } catch (err) {
+        console.log(err)
         if(err.status === 400 && err.response && err.response.data && err.response.data.error) {
           const errorMsg = err.response.data.error;
           Swal.fire('Erro', errorMsg, 'error');

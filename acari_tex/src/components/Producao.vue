@@ -1,15 +1,65 @@
 <template>
   <div>
-    <div class="row justify-content-center">
-      <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
-        <canvas ref="producaoBarChart" width="800" height="400"></canvas>
+    <div class="row justify-content-center charts-container">
+      <div class="chart-wrapper bar-chart-wrapper">
+        <canvas ref="funcionarioBarChart"></canvas>
       </div>
-      <div class="col-12 col-md-6 mb-3 d-flex justify-content-center">
-        <canvas ref="funcionarioBarChart" width="800" height="400"></canvas>
+      <div class="chart-wrapper pie-chart-wrapper">
+        <canvas ref="equipePieChart"></canvas>
       </div>
     </div>
   </div>
 </template>
+<style scoped>
+.charts-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  align-items: stretch;
+  /* força os gráficos terem mesma altura */
+}
+
+.chart-wrapper {
+  flex-grow: 1;
+  height: 400px;
+  /* mesma altura para todos */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.bar-chart-wrapper {
+  flex: 2;
+}
+
+.pie-chart-wrapper {
+  flex: 1;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Ajustes para telas pequenas (mobile) */
+@media (max-width: 767px) {
+  .charts-container {
+    flex-direction: column;
+    /* gráficos um abaixo do outro */
+    align-items: center;
+  }
+
+  .chart-wrapper {
+    width: 100%;
+    height: 350px;
+    /* altura reduzida para caber melhor no mobile */
+  }
+}
+</style>
 
 <script>
 import { Chart } from 'chart.js';
@@ -24,117 +74,139 @@ export default {
   },
   data() {
     return {
-      opLabels: [],         // Labels para o gráfico de OP
-      opData: [],           // Dados para o gráfico de OP
-      funcionarioLabels: [],// Labels para o gráfico de Funcionário
-      funcionarioData: [],  // Dados para o gráfico de Funcionário
-      chartInstances: {},   // Instâncias dos gráficos
+      equipeLabels: [],        // Labels para gráfico de equipes
+      equipeData: [],          // Dados para gráfico de equipes
+      funcionarioLabels: [],   // Labels para gráfico de funcionários
+      funcionarioData: [],     // Dados para gráfico de funcionários
+      chartInstances: {},      // Instâncias dos gráficos
     };
   },
   async mounted() {
     await this.fetchData();
   },
   methods: {
-    // Função para buscar os dados de produção
     async fetchData() {
       try {
         const token = this.store.pegar_token;
 
-        // Buscando dados de produção de peças
-        const response = await api.get(`/producao`, {
+        // Buscando dados da produção
+        const response = await api.get(`/producao/equipe/dia`, {
           headers: { Authorization: `${token}` },
         });
 
-        const producao = response.data.peca;
-        console.log(producao);
-        // Agregar dados de produção
+        const producao = response.data.producao.producaoDiaEquipe;
+        console.log('Produção recebida:', producao);
+
+        // Processa os dados
         this.aggregateProducaoData(producao);
 
-        // Após os dados estarem prontos, renderizar os gráficos
+        // Renderiza os gráficos
         this.$nextTick(() => {
           this.renderCharts();
         });
       } catch (error) {
-        console.error('Erro ao buscar os dados de produção:', error);
+        console.error('Erro ao buscar dados de produção:', error);
       }
     },
 
-    // Função para agregar dados de produção (por OP e por Funcionário)
     aggregateProducaoData(producao) {
-      this.pecasPorOP = {};
-      this.pecasPorFuncionario = {};
+      const pecasPorEquipe = {};
+      const pecasPorFuncionario = {};
 
-      producao.forEach((item) => {
-        // Agregar por OP
-        if (!this.pecasPorOP[item.id_da_op]) {
-          this.pecasPorOP[item.id_da_op] = 0;
-        }
-        this.pecasPorOP[item.id_da_op] += item.quantidade_pecas;
+      producao.forEach((equipe) => {
+        let totalEquipe = 0;
 
-        // Agregar por Funcionário
-        if (!this.pecasPorFuncionario[item.id_funcionario]) {
-          this.pecasPorFuncionario[item.id_funcionario] = 0;
+        equipe.funcionarios.forEach((func) => {
+          let totalFuncionario = 0;
+
+          Object.values(func.etapas).forEach((etapa) => {
+            etapa.forEach((registro) => {
+              totalFuncionario += registro.quantidade;
+              totalEquipe += registro.quantidade;
+            });
+          });
+
+          // Agregar por funcionário
+          if (!pecasPorFuncionario[func.nome]) {
+            pecasPorFuncionario[func.nome] = 0;
+          }
+          pecasPorFuncionario[func.nome] += totalFuncionario;
+        });
+
+        // Agregar por equipe
+        if (!pecasPorEquipe[equipe.equipe]) {
+          pecasPorEquipe[equipe.equipe] = 0;
         }
-        this.pecasPorFuncionario[item.id_funcionario] += item.quantidade_pecas;
+        pecasPorEquipe[equipe.equipe] += totalEquipe;
       });
 
-      // Preparar labels e dados para gráficos
-      this.opLabels = Object.keys(this.pecasPorOP);
-      this.opData = Object.values(this.pecasPorOP);
+      // Prepara dados para os gráficos
+      this.equipeLabels = Object.keys(pecasPorEquipe);
+      this.equipeData = Object.values(pecasPorEquipe);
 
-      this.funcionarioLabels = Object.keys(this.pecasPorFuncionario);
-      this.funcionarioData = Object.values(this.pecasPorFuncionario);
+      this.funcionarioLabels = Object.keys(pecasPorFuncionario);
+      this.funcionarioData = Object.values(pecasPorFuncionario);
     },
 
-    // Função para renderizar os gráficos
     renderCharts() {
-      // Obter contexto dos gráficos
-      const producaoBarCtx = this.$refs.producaoBarChart.getContext('2d');
+      const equipePieCtx = this.$refs.equipePieChart.getContext('2d');
       const funcionarioBarCtx = this.$refs.funcionarioBarChart.getContext('2d');
 
-      // Destruir gráficos anteriores, se existirem
-      if (this.chartInstances.producaoBarChart) {
-        this.chartInstances.producaoBarChart.destroy();
+      // Destroi gráficos anteriores
+      if (this.chartInstances.equipePieChart) {
+        this.chartInstances.equipePieChart.destroy();
       }
       if (this.chartInstances.funcionarioBarChart) {
         this.chartInstances.funcionarioBarChart.destroy();
       }
 
-      // Gráfico de barras de Produção por OP
-      this.chartInstances.producaoBarChart = new Chart(producaoBarCtx, {
-        type: 'bar',
+      // Gráfico de Pizza - Produção por Equipe
+      this.chartInstances.equipePieChart = new Chart(equipePieCtx, {
+        type: 'pie',
         data: {
-          labels: this.opLabels,
+          labels: this.equipeLabels,
           datasets: [{
-            label: 'Quantidade de Peças por OP',
-            data: this.opData,
-            backgroundColor: '#008d3b',
-            borderColor: '#008d3b',
-            borderWidth: 1,
+            label: 'Produção por Equipe',
+            data: this.equipeData,
+            backgroundColor: [
+              '#00692b', '#008d3b', '#00b14c', '#66cc99', '#99e6b3'
+            ],
+            borderColor: '#fff',
+            borderWidth: 2,
           }],
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { display: true, position: 'top' },
-            title: { display: true, text: 'Quantidade de Peças por OP' },
-          },
-          scales: {
-            x: { title: { display: true, text: 'OP' } },
-            y: { beginAtZero: true, title: { display: true, text: 'Quantidade' } },
-          },
+          plugins: [{
+            id: 'no-data-text',
+            beforeDraw: (chart) => {
+              const datasets = chart.data.datasets;
+              if (!datasets || datasets.length === 0 || datasets.every(ds => ds.data.length === 0)) {
+                const ctx = chart.ctx;
+                const width = chart.width;
+                const height = chart.height;
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#666';
+                ctx.fillText('Sem dados para exibir', width / 2, height / 2);
+                ctx.restore();
+              }
+            }
+          }],
         },
       });
 
-      // Gráfico de barras de Produção por Funcionário
+      // Gráfico de Barras - Produção por Funcionário
       this.chartInstances.funcionarioBarChart = new Chart(funcionarioBarCtx, {
         type: 'bar',
         data: {
           labels: this.funcionarioLabels,
           datasets: [{
-            label: 'Quantidade de Peças por Funcionário',
+            label: 'Produção por Funcionário',
             data: this.funcionarioData,
-            backgroundColor: '#00692b',
+            backgroundColor: '#008d3b',
             borderColor: '#00692b',
             borderWidth: 1,
           }],
@@ -146,7 +218,7 @@ export default {
             title: { display: true, text: 'Produção por Funcionário' },
           },
           scales: {
-            x: { title: { display: true, text: 'Funcionário' } },
+            x: { title: { display: true, text: 'Funcionários' } },
             y: { beginAtZero: true, title: { display: true, text: 'Quantidade' } },
           },
         },
@@ -155,26 +227,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-.container-fluid {
-  max-width: 1200px;
-  /* Define um limite para não ficar muito largo */
-  margin: auto;
-  /* Centraliza o conteúdo */
-}
-
-.row {
-  margin-top: 30px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  /* Centraliza os elementos */
-}
-
-canvas {
-  max-width: 100%;
-  height: auto;
-  background-color: white;
-}
-</style>
