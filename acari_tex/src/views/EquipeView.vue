@@ -236,6 +236,12 @@ export default {
     }
   },
   methods: {
+    resetRegistroModal() {
+      this.pecaRegistro = null;      
+      this.funcao = null;            
+      this.quantidadeRegistro = null;
+      this.horaRegistro = "";       
+    },
     async validarToken() {
       if (!this.store.pegar_token) {
         Swal.fire('Não autorizado', 'Sua sessão expirou. Faça login novamente.', 'warning')
@@ -315,10 +321,11 @@ export default {
         })
         this.showModalRegistro = false
         Swal.fire('Sucesso', 'Produção registrada com sucesso!', 'success')
+        this.resetRegistroModal()
         this.getPecasProducao()
       } catch (err) {
         console.log(err)
-
+        this.resetRegistroModal()
         console.error(err.response.data.error)
         Swal.fire('Erro', `Erro ao registrar produção. ${err.response.data.error}, 
         Já foram produzidos ${err.response.data.jaProduzido} a essa peça`, 'error')
@@ -382,6 +389,7 @@ export default {
     },
 
     fecharModal() {
+      this.resetRegistroModal()
       this.showModalRegistro = false
     },
     criarEquipe() {

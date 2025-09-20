@@ -2,7 +2,8 @@
   <div class="d-flex flex-column flex-md-row">
     <Sidebar />
     <main class="content-wrapper flex-grow-1">
-      <div class="container-fluid">
+      <carregandoTela v-if="loading" />
+      <div v-else class="container-fluid">
         <div class="row justify-content-center mt-2">
           <div class="form col-12">
             <TituloSubtitulo titulo="Cadastro de Nova Peça" subtitulo="Preencha as informações abaixo" />
@@ -35,10 +36,7 @@
                 </div>
                 <div class="col-md-6">
                   <label for="fornecedor" class="form-label">Pedido por</label>
-                  <select v-model="novaPeca.pedido_por" id="fornecedor" class="form-select">
-                    <option value="" disabled>Selecione o fornecedor</option>
-                    <option v-for="fornecedor in fornecedoresRecentes" :key="fornecedor">{{ fornecedor }}</option>
-                  </select>
+                  <input type="text" placeholder="Ex: Guararapes" v-model="novaPeca.pedido_por" id="fornecedor" class="form-control" />
                 </div>
               </div>
 
@@ -181,9 +179,10 @@ import router from "@/router";
 import { useAuthStore } from "@/store/store";
 import Swal from "sweetalert2";
 import api from '@/Axios'
+import carregandoTela from "@/components/carregandoTela.vue";
 
 export default {
-  components: { Sidebar, TituloSubtitulo },
+  components: { Sidebar, TituloSubtitulo, carregandoTela },
   setup() {
     const store = useAuthStore();
     return { store };
@@ -199,18 +198,31 @@ export default {
         producao: [],
         valor_peca: null,
       },
-      fornecedoresRecentes: ["Fornecedor A", "Fornecedor B", "Fornecedor C"],
       locaisPredefinidos: ["Fechar lateral", "Pregar bolso", "Pespontar lapela", "Fechar ombro", "Pregar zíper", "Fazer bainha", "Pregar lapela", "Montar braguilha", "Montar cós", "Fechar entrepernas"],
       draggedItem: null,
       draggedIndex: null,
       targetIndex: null,
       novaEtapa: "",
+      loading: false,
     };
   },
   methods: {
+    resetForm() {
+      this.etapa = 1;
+      this.novaPeca = {
+        descricao: "",
+        quantidade_pecas: null,
+        pedido_por: "",
+        data_entrega: null,
+        producao: [],
+        valor_peca: null,
+      };
+      this.novaEtapa = "";
+    },
     proximaEtapa() { this.etapa++; },
     async adicionarPeca() {
       try {
+        this.loading = true
         const token = this.store.pegar_token;
         const response = await api.post("/adicionar/peca", {
           peca: {
@@ -242,10 +254,12 @@ export default {
               showConfirmButton: false,
             });
           }
-          this.etapa = 1;
-          this.novaPeca = { descricao: "", quantidade_pecas: null, pedido_por: "", producao: [] };
+          this.resetForm()
+          this.loading = false
           router.push("/dashboard");
       } catch (error) {
+        this.resetForm()
+        this.loading = false
         console.error("Erro ao cadastrar a peça:", error);
         alert("Erro ao cadastrar a peça. Tente novamente.");
       }
