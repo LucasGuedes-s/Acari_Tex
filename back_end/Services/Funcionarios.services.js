@@ -250,6 +250,29 @@ async function getEquipes(req, res) {
     return "Erro ao buscar as equipes.";
   }
 }
+async function tempoDeProducao(req) {
+   const {
+    id_funcionario,
+    id_da_funcao,
+    tempo_minutos,
+    quantidade_pecas,
+    observacoes,
+    registradoPor,
+  } = req.body;
+  const estabelecimentoCnpj = req.user.cnpj
+  const tempoRef = await prisma.tempoReferencia.create({
+    data: {
+      estabelecimentoCnpj,
+      id_funcionario,
+      id_da_funcao,
+      tempo_minutos,
+      quantidade_pecas,
+      observacoes,
+      registradoPor,
+    },
+  });
+  return tempoRef
+}
 
 module.exports = {
   getFuncionarios,
@@ -258,5 +281,6 @@ module.exports = {
   getProducaoFuncionario,
   criarEquipe,
   getEquipes,
-  moverFuncionario
+  moverFuncionario,
+  tempoDeProducao
 };

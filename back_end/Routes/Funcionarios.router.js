@@ -10,6 +10,7 @@ router.get('/Producao/funcionario/:email', [jwtMiddleware], ControllerFuncionari
 router.get('/equipes', [jwtMiddleware, permissao.getProfissionais], ControllerFuncionarios.getEquipes);
 
 
+router.post('/registrar/tempo', [jwtMiddleware], ControllerFuncionarios.tempoDeProducao)
 router.post('/adicionar/funcionario', [jwtMiddleware, permissao.postProfissionais],  ControllerFuncionarios.postEquipe);
 router.post('/funcionario/grupo', [jwtMiddleware], ControllerFuncionarios.adicionarFuncionarioAgrupo);
 router.post('/funcionarios/mover', [jwtMiddleware, permissao.postProfissionais], ControllerFuncionarios.moverFuncionario);

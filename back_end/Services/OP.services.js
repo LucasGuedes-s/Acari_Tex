@@ -15,10 +15,8 @@ function getData() {
 async function postPecaOP(req, user) {
   const etapas = req.peca.etapas || [];
 
-  // Primeiro, garantir que cada etapa existe na tabela Etapa
   const etapasIds = await Promise.all(
     etapas.map(async (etapaItem) => {
-      // Verifica se é string ou objeto
       const descricao = typeof etapaItem === "string" ? etapaItem : etapaItem.descricao;
 
       if (!descricao) throw new Error("Descrição da etapa inválida");
@@ -39,7 +37,6 @@ async function postPecaOP(req, user) {
     })
   );
 
-  // Criar a nova OP
   const novaPeca = await prisma.pecasOP.create({
     data: {
       status: "nao_iniciado",
@@ -55,7 +52,6 @@ async function postPecaOP(req, user) {
     },
   });
 
-  // Criar as etapas da OP com metas e status inicial
   await prisma.pecasEtapas.createMany({
     data: etapasIds.map((etapa) => ({
       id_da_op: novaPeca.id_da_op,
@@ -90,7 +86,6 @@ async function postProducaoPeca(req, res) {
       return  "Etapa não encontrada para essa OP.";
     }
 
-    // Soma da produção até agora
     const totalEtapaProduzido = await prisma.producao.aggregate({
       _sum: { quantidade_pecas: true },
       where: { id_da_op, id_da_funcao }
@@ -107,8 +102,6 @@ async function postProducaoPeca(req, res) {
       }));
     }
 
-
-    // Criar registro
     const producao = await prisma.producao.create({
       data: {
         id_da_op,
@@ -120,7 +113,7 @@ async function postProducaoPeca(req, res) {
         data_inicio: getData(),
       }
     });
-    // Se bateu a meta → atualizar status
+
     if (novaQuantidade === etapaRelacionada.quantidade_meta) {
       await prisma.pecasEtapas.update({
         where: {
@@ -145,7 +138,7 @@ async function getPecasOP(req) {
       producao_peca: true,
       etapas: {
         include: {
-          etapa: true, // descrição da etapa
+          etapa: true,
         },
       },
     },
@@ -177,11 +170,11 @@ async function getEtapasProducaoPorPeca(req, res) {
         id_da_op: Number(id_da_op)
       },
       include: {
-        producao_etapa: true,         // Etapa (ex: Corte, Costura...)
+        producao_etapa: true,         
         producao_funcionario: {
           select: {
-            nome: true,    // Seleciona apenas o nome do funcionário
-            email: true    // Seleciona apenas o e-mail do funcionário
+            nome: true,    
+            email: true  
           }
         }
       }
@@ -249,7 +242,6 @@ async function getProducaoEquipe(req) {
     const cnpjEstabelecimento = req.user.cnpj;
     const fusoSP = "America/Sao_Paulo";
 
-    // Pegar data atual no fuso de SP
     const agora = new Date();
     const dtf = new Intl.DateTimeFormat("pt-BR", {
       timeZone: fusoSP,
@@ -350,7 +342,6 @@ async function getProducaoEquipeDia(req) {
     const cnpjEstabelecimento = req.user.cnpj;
     const fusoSP = "America/Sao_Paulo";
 
-    // Data atual no fuso de SP
     const agora = new Date();
     const dtf = new Intl.DateTimeFormat("pt-BR", {
       timeZone: fusoSP,
@@ -392,7 +383,6 @@ async function getProducaoEquipeDia(req) {
       },
     });
 
-    // Agrupar por equipe
     const agrupadoEquipe = {};
 
     for (const p of producoesDia) {
@@ -401,7 +391,6 @@ async function getProducaoEquipeDia(req) {
       const etapa = p.producao_etapa?.descricao || "Sem Etapa";
       const hora = p.hora_registro || "00:00";
 
-      // um usuário pode estar em várias equipes
       const equipesDoUsuario = p.producao_funcionario?.equipes?.map(e => e.equipe) || [];
 
       if (equipesDoUsuario.length === 0) {
@@ -429,7 +418,6 @@ async function getProducaoEquipeDia(req) {
       }
     }
 
-    // Transformar em array organizado
     const resultado = Object.entries(agrupadoEquipe).map(([equipe, funcionarios]) => ({
       equipe,
       funcionarios: Object.entries(funcionarios).map(([email, dados]) => ({
@@ -478,8 +466,8 @@ async function getEstatisticasPeca(id) {
         etapas: { include: { etapa: true } },
         producao_peca: {
           include: {
-            producao_funcionario: true, // carrega dados do funcionário
-            producao_etapa: true        // carrega dados da etapa
+            producao_funcionario: true, 
+            producao_etapa: true        
           }
         }
       },
