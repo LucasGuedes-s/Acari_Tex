@@ -3,14 +3,13 @@
     <nav class="mobile-navbar d-md-none d-flex justify-content-end align-items-center p-2">
       <button class="btn btn-outline-secondary" @click="isMinimized = !isMinimized">
         <i class="bi bi-list"></i>
-
       </button>
       <NavBarUser class="ms-2" />
     </nav>
 
     <div :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
-        <div>
+        <div @click="irPara()">
           <img class="icon-logo"
             :src="isMinimized ? require('@/assets/Logo.png') : require('@/assets/Logo.png')"
             :class="{ 'logo-minimized': isMinimized }" alt="Logo">
@@ -26,7 +25,7 @@
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/MinhaEquipe" class="d-flex align-items-center text-reset">
               <i class="bi bi-person-fill icon"></i>
-              <span>Minha equipe</span>
+              <span>Funcionários</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
@@ -39,6 +38,12 @@
             <router-link to="/adicionar-peca" class="d-flex align-items-center text-reset">
               <i class="bi bi-plus-circle-fill icon"></i>
               <span>Adicionar OP</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/minha-equipe" class="d-flex align-items-center text-reset">
+              <i class="bi bi-people-fill icon"></i>
+              <span>Equipes</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
@@ -63,6 +68,7 @@
 </template>
 
 <script>
+import router from '@/router';
 import NavBarUser from './NavBarUser.vue';
 
 export default {
@@ -80,6 +86,9 @@ export default {
       if (window.innerWidth <= 600) {
         this.isMinimized = !this.isMinimized;
       }
+    },
+    irPara(){
+      router.push('/dashboard')
     }
   },
 };

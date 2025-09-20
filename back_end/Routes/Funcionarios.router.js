@@ -9,8 +9,9 @@ router.get('/funcionario/:id', [jwtMiddleware, permissao.getProfissionais], Cont
 router.get('/Producao/funcionario/:email', [jwtMiddleware], ControllerFuncionarios.getProducaoFuncionario);
 router.get('/equipes', [jwtMiddleware, permissao.getProfissionais], ControllerFuncionarios.getEquipes);
 
+
 router.post('/adicionar/funcionario', [jwtMiddleware, permissao.postProfissionais],  ControllerFuncionarios.postEquipe);
 router.post('/funcionario/grupo', [jwtMiddleware], ControllerFuncionarios.adicionarFuncionarioAgrupo);
-
+router.post('/funcionarios/mover', [jwtMiddleware, permissao.postProfissionais], ControllerFuncionarios.moverFuncionario);
 
 module.exports = router;

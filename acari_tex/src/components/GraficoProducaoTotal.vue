@@ -78,7 +78,8 @@ export default {
           headers: { Authorization: `${token}` }
         });
 
-        const equipe = res.data.producao.producaoDia; // Array de funcionários
+        const equipe = res.data.producao.producaoDia;
+        console.log('Produção do dia recebida:', equipe);
         // Criando matriz de horas de 06:00 até 23:00
         const horasPadrao = Array.from({ length: 18 }, (_, i) =>
           String(i + 6).padStart(2, '0') + ':00'
@@ -86,8 +87,13 @@ export default {
 
         // Nome dos funcionários
         const nomes = equipe.map(f => f.nome);
-        const dataMatrix = [['Hora', ...nomes]];
+        if (nomes.length === 0) {
+          // Nenhum funcionário com produção hoje
+          this.chartData = [['Hora', 'Sem produção']];
+          return;
+        }
 
+        const dataMatrix = [['Hora', ...nomes]];
         // Para cada hora, soma as produções de todas as etapas do funcionário
         for (const hora of horasPadrao) {
           const linha = [hora];

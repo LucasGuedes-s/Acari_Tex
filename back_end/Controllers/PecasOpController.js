@@ -26,9 +26,13 @@ async function postProducaoPeca(req, res, next){
         req.io.emit('nova_producao', peca);
         res.status(200).json({peca});
     } catch (err) {
-        res.status(400).json({ error: err });
-        console.error(`Erro ao cadastrar produção de peças.`, err.message);
-        next(err);
+        try {
+            const parsed = JSON.parse(err.message);
+            return res.status(400).json(parsed);
+        } catch {
+            // se não for JSON
+            return res.status(400).json({ error: err.message });
+        }
     }
 }
 async function getProducao(req, res, next){

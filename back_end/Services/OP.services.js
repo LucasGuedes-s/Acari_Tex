@@ -69,7 +69,6 @@ async function postPecaOP(req, user) {
 }
 
 async function postProducaoPeca(req, res) {
-  try {
     const {
       id_da_op,
       id_funcionario,
@@ -102,14 +101,14 @@ async function postProducaoPeca(req, res) {
     const jaProduzido = totalEtapaProduzido._sum.quantidade_pecas || 0;
     const novaQuantidade = jaProduzido + quantidade_pecas;
 
-    // Verificar meta da etapa
     if (novaQuantidade > etapaRelacionada.quantidade_meta) {
-      return ({
+      throw new Error(JSON.stringify({
         error: "A produção dessa etapa excede a meta.",
         jaProduzido,
         meta: etapaRelacionada.quantidade_meta
-      });
+      }));
     }
+
 
     // Criar registro
     const producao = await prisma.producao.create({
@@ -137,11 +136,6 @@ async function postProducaoPeca(req, res) {
     }
 
     return producao;
-
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Erro ao registrar produção." });
-  }
 }
 
 async function getPecasOP(req) {
@@ -542,9 +536,9 @@ async function getEstatisticasPeca(id) {
       descricao: peca.descricao,
       status: peca.status,
       quantidade_pecas: metaTotal,
-      totalProduzido: totalLiquido,   // podendo ser menor por conta de estornos
-      totalPositivo,                  // soma apenas dos lançamentos positivos
-      totalNegativo,                  // soma dos estornos (valor absoluto)
+      totalProduzido: totalLiquido,   
+      totalPositivo,                
+      totalNegativo,                 
       saldo,
       pedido_por: peca.pedido_por,
       valor_peca: peca.valor_peca,

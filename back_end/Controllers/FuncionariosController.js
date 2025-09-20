@@ -60,6 +60,15 @@ async function getEquipes(req, res, next) {
         next(err);
     }
 }
+async function moverFuncionario(req, res, next) {
+    try {
+        const moverFuncionario = await Funcionarios.moverFuncionario(req);
+        res.status(200).json({ message: 'Funcionário movido com sucesso.', moverFuncionario });
+    } catch (err) {
+        console.error('Erro ao mover funcionário entre equipes.', err.message);
+        next(err);
+    }
+}
 
 module.exports = {
     getEquipe,
@@ -67,5 +76,6 @@ module.exports = {
     postEquipe,
     getProducaoFuncionario,
     adicionarFuncionarioAgrupo,
-    getEquipes
+    getEquipes,
+    moverFuncionario
 }
