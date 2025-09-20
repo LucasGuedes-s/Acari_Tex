@@ -77,8 +77,6 @@ async function postProducaoPeca(req, res) {
       hora_registro,
     } = req.body;
     const id_Estabelecimento = req.user.cnpj;
-    console.log(req.body)
-    // Buscar etapa vinculada + meta
     const etapaRelacionada = await prisma.pecasEtapas.findUnique({
       where: {
         id_da_op_id_da_funcao: {

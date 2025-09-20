@@ -63,6 +63,7 @@ import DashboardCard from '@/components/DashboardCard.vue';
 import draggable from 'vuedraggable';
 import api from '@/Axios';
 import carregandoTela from '@/components/carregandoTela.vue';
+import Swal from 'sweetalert2';
 
 export default {
   name: 'DashboardTecidos',
@@ -136,11 +137,33 @@ export default {
 
     async atualizarStatusNoServidor(itemId, novoStatus) {
       const token = this.store.pegar_token;
-      await api.post(
+      const resposta = await api.post(
         `/update/status`,
         { id_da_op: itemId, status: novoStatus },
         { headers: { Authorization: `${token}` } }
       );
+      if(resposta.status === 200){
+        Swal.fire({
+          toast: true,               // ativa estilo de notificação
+          position: 'top-end',       // canto superior direito
+          icon: 'success',           // 'success', 'error', 'warning', 'info', 'question'
+          title: 'Status da peça atualizado!',
+          showConfirmButton: false,  // sem botão de confirmação
+          timer: 5000,               // desaparece sozinho em 3s
+          timerProgressBar: true,    // barra de tempo
+        });
+      }
+      else{
+        Swal.fire({
+          toast: true,               // ativa estilo de notificação
+          position: 'top-end',       // canto superior direito
+          icon: 'error',           // 'success', 'error', 'warning', 'info', 'question'
+          title: 'Peça cadastrada com sucesso!',
+          showConfirmButton: false,  // sem botão de confirmação
+          timer: 5000,               // desaparece sozinho em 3s
+          timerProgressBar: true,    // barra de tempo
+        });
+      }
     },
 
     async onKanbanChange(evt, colunaDestino) {

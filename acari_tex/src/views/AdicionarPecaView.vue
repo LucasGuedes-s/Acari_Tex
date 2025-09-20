@@ -138,7 +138,9 @@
                     <i class="bi bi-calendar-check info-icon"></i>
                     <div>
                       <span class="info-label">Data de Entrega</span>
-                      <p class="info-value">{{ novaPeca.data_entrega }}</p>
+                        <p class="info-value">
+                          {{ novaPeca.data_entrega.split('T')[0].split('-').reverse().join('/') }}
+                        </p>
                     </div>
                   </div>
                 </div>

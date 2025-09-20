@@ -50,7 +50,6 @@ async function getProducao(req, res, next){
 async function updatePecaStatus(req, res, next){
     try {
         const { id_da_op, status } = req.body;
-        console.log(`ID da OP: ${id_da_op}, Novo Status: ${status}`);
         if (!id_da_op || !status) {
             return res.status(400).json({ mensagem: 'ID da OP e novo status são obrigatórios.' });
         }
