@@ -127,11 +127,11 @@ async function getProducaoFuncionario(req) {
     return { error: error.message };
   }
 }
+
 async function criarEquipe(req, res) {
   try {
     const { nome, descricao, funcionarios } = req.body;
     const cnpj = req.user.cnpj;
-    // Busca os funcionários que realmente pertencem ao estabelecimento
     const usuarios = await prisma.usuarios.findMany({
       where: {
         email: { in: funcionarios },
@@ -169,6 +169,59 @@ async function criarEquipe(req, res) {
     return "Erro ao criar a equipe." ;
   }
 }
+async function moverFuncionario(req) {
+  const { email, novaEquipeId } = req.body;
+  const cnpj = req.user.cnpj;
+
+  // Verifica se usuário existe
+  const usuario = await prisma.usuarios.findUnique({
+    where: { email },
+  });
+  if (!usuario) {
+    throw new Error('Funcionário não encontrado.');
+  }
+
+  // Verifica se a nova equipe existe e pertence ao mesmo estabelecimento
+  const equipe = await prisma.equipesGrupos.findFirst({
+    where: {
+      id: novaEquipeId,
+      estabelecimentoCnpj: cnpj,
+    },
+  });
+  if (!equipe) {
+    throw new Error('Equipe não encontrada ou não pertence ao seu estabelecimento.');
+  }
+
+  // Verifica se já existe vínculo do usuário em alguma equipe desse CNPJ
+  const vinculoExistente = await prisma.equipesUsuarios.findFirst({
+    where: {
+      usuarioEmail: email,
+      equipe: {
+        estabelecimentoCnpj: cnpj,
+      },
+    },
+  });
+
+  let resultado;
+  if (vinculoExistente) {
+    // Atualiza vínculo para a nova equipe
+    resultado = await prisma.equipesUsuarios.update({
+      where: { id: vinculoExistente.id },
+      data: { equipeId: novaEquipeId },
+    });
+  } else {
+    // Cria novo vínculo se não existir
+    resultado = await prisma.equipesUsuarios.create({
+      data: {
+        usuarioEmail: email,
+        equipeId: novaEquipeId,
+      },
+    });
+  }
+  console.log("Funcionário movido com sucesso:", resultado);
+  return resultado;
+}
+
 async function getEquipes(req, res) {
   const cnpj = req.user.cnpj;
 
@@ -182,6 +235,8 @@ async function getEquipes(req, res) {
               select: {
                 nome: true,
                 email: true,
+                foto: true,
+                funcoes: true
               }
             }
           }
@@ -195,6 +250,29 @@ async function getEquipes(req, res) {
     return "Erro ao buscar as equipes.";
   }
 }
+async function tempoDeProducao(req) {
+   const {
+    id_funcionario,
+    id_da_funcao,
+    tempo_minutos,
+    quantidade_pecas,
+    observacoes,
+    registradoPor,
+  } = req.body;
+  const estabelecimentoCnpj = req.user.cnpj
+  const tempoRef = await prisma.tempoReferencia.create({
+    data: {
+      estabelecimentoCnpj,
+      id_funcionario,
+      id_da_funcao,
+      tempo_minutos,
+      quantidade_pecas,
+      observacoes,
+      registradoPor,
+    },
+  });
+  return tempoRef
+}
 
 module.exports = {
   getFuncionarios,
@@ -202,5 +280,7 @@ module.exports = {
   postFuncionario,
   getProducaoFuncionario,
   criarEquipe,
-  getEquipes
+  getEquipes,
+  moverFuncionario,
+  tempoDeProducao
 };

@@ -26,9 +26,13 @@ async function postProducaoPeca(req, res, next){
         req.io.emit('nova_producao', peca);
         res.status(200).json({peca});
     } catch (err) {
-        res.status(400).json({ error: err });
-        console.error(`Erro ao cadastrar produção de peças.`, err.message);
-        next(err);
+        try {
+            const parsed = JSON.parse(err.message);
+            return res.status(400).json(parsed);
+        } catch {
+            // se não for JSON
+            return res.status(400).json({ error: err.message });
+        }
     }
 }
 async function getProducao(req, res, next){
@@ -46,7 +50,6 @@ async function getProducao(req, res, next){
 async function updatePecaStatus(req, res, next){
     try {
         const { id_da_op, status } = req.body;
-        console.log(`ID da OP: ${id_da_op}, Novo Status: ${status}`);
         if (!id_da_op || !status) {
             return res.status(400).json({ mensagem: 'ID da OP e novo status são obrigatórios.' });
         }
@@ -109,6 +112,15 @@ async function voltarPeca(req, res, next){
         next(err);
     }
 }
+async function getProducaoEquipeDia(req, res, next) {
+    try {
+        const producao = await pecas.getProducaoEquipeDia(req);
+        res.status(200).json({ producao });
+    } catch (err) {
+        console.error(`Erro ao obter produção.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     getOPs,
@@ -118,5 +130,6 @@ module.exports = {
     getProducaoEquipe,
     getEstatisticasPeca,
     deletarPeca,
-    voltarPeca
+    voltarPeca,
+    getProducaoEquipeDia
 };

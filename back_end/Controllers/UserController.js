@@ -23,6 +23,18 @@ async function login(req, res, next){
     }
 }
 
+async function criarTempoReferencia(req, res, next) {
+    try {
+        const tempo = await Login.criarTempoReferencia(req);
+        res.status(201).json(tempo);
+    } catch (err) {
+        console.error("Erro ao criar tempo de referência:", err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}
+
 module.exports = { 
-    login
+    login,
+    criarTempoReferencia
 };

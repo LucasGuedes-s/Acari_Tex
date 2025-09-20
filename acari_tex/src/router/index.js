@@ -5,7 +5,10 @@ const routes = [
   {
     path: '/',
     name: 'home',
-    component: HomeView
+    component: HomeView,
+    meta: {
+      title: 'Linha Tex'
+    }
   },
     {
     path: '/login',
@@ -13,7 +16,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/Login.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/Login.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/dashboard',
@@ -21,7 +27,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/DashboardView.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/DashboardView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/adicionar-peca',
@@ -29,7 +38,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/AdicionarPecaView.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/AdicionarPecaView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/adicionar-profissional',
@@ -37,7 +49,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/AdicionarFuncionario.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/AdicionarFuncionario.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/Producao',
@@ -45,7 +60,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/ProducaoView.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/ProducaoView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/Producao/Funcionario/:emailFuncionario',
@@ -54,7 +72,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/ProduçãoPorFuncionario.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/ProduçãoPorFuncionario.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/MinhaEquipe',
@@ -62,7 +83,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/EquipeView.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/EquipeView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/relatorios',
@@ -70,7 +94,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/RelatoriosView.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/RelatoriosView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/pecas/:id',
@@ -78,7 +105,10 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/EstatisticaPorPecaView.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/EstatisticaPorPecaView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
     path: '/nao-autorizado',
@@ -86,15 +116,32 @@ const routes = [
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/NaoAutorizado.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/NaoAutorizado.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   },
   {
-    path: '/criar-equipe',
-    name: 'CriarEquipe',
+    path: '/minha-equipe',
+    name: 'minhaEquipe',
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/CriarEquipe.vue')
+    component: () => import(/* webpackChunkName: "about" */ '../views/MinhaEquipeview.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
+  },
+    {
+    path: '/tempo-producao/:emailFuncionario',
+    name: 'tempoProducao',
+    // route level code-splitting
+    // this generates a separate chunk (about.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () => import(/* webpackChunkName: "about" */ '../views/TempodeProducao.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   }
 ]
 

@@ -11,13 +11,8 @@
           <div class="search">
             <!-- 🔎 Versão mobile -->
             <div class="search-mobile d-md-none w-100 mb-3">
-              <input 
-                type="text" 
-                id="search-input" 
-                placeholder="Pesquisar nome do profissional..." 
-                v-model="pesquisa"
-                class="form-control mb-2" 
-              />
+              <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa"
+                class="form-control mb-2" />
               <div class="d-flex w-100 gap-2 justify-content-between">
                 <button @click="cadastrar" class="btn-button w-80 py-2">Novo profissional</button>
                 <button class="btn-button w-50 py-2" @click="criarEquipe">
@@ -28,30 +23,16 @@
 
             <!-- 💻 Versão desktop -->
             <div class="search-desktop d-none d-md-flex align-items-center gap-2 w-100 mb-3">
-              <select 
-                name="Pesquisar" 
-                id="hora" 
-                v-model="equipe" 
-                class="form-select flex-shrink-0"
-                style="max-width: 220px;"
-              >
+              <select name="Pesquisar" id="hora" v-model="equipe" class="form-select flex-shrink-0"
+                style="max-width: 220px;">
                 <option :value="''" disabled>Pesquisar por grupo</option>
-                <option 
-                  v-for="equipeItem in equipesDisponiveis" 
-                  :key="equipeItem.id" 
-                  :value="equipeItem.id"
-                >
+                <option v-for="equipeItem in equipesDisponiveis" :key="equipeItem.id" :value="equipeItem.id">
                   {{ equipeItem.nome }}
                 </option>
               </select>
 
-              <input 
-                type="text" 
-                id="search-input" 
-                placeholder="Pesquisar nome do profissional..." 
-                v-model="pesquisa"
-                class="form-control flex-grow-1" 
-              />
+              <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa"
+                class="form-control flex-grow-1" />
 
               <RouterLink to="/adicionar-profissional" class="flex-fill">
                 <button class="btn-button w-100 py-2">Novo profissional</button>
@@ -87,104 +68,101 @@
         </div>
       </div>
 
-<!-- Modal Funcionário -->
-    <div v-if="showModalFuncionario" class="modal-background">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h2>Detalhes do Funcionário</h2>
-          <img 
-            class="modal-close" 
-            @click="showModalFuncionario = false" 
-            src="@/assets/close.png" 
-            alt="Fechar" 
-          />
-        </div>
-        <div class="modal-body">
-          <div class="modal-foto">
-            <img :src="funcionario?.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
+      <!-- Modal Funcionário -->
+      <div v-if="showModalFuncionario" class="modal-background">
+        <div class="modal-container">
+          <div class="modal-header">
+            <h2>Detalhes do Funcionário</h2>
+            <img class="modal-close" @click="showModalFuncionario = false" src="@/assets/close.png" alt="Fechar" />
           </div>
-          <div class="modal-info">
-            <div class="info-row"><span class="label">Nome:</span><span class="value">{{ funcionario?.nome }}</span></div>
-            <div class="info-row"><span class="label">ID:</span><span class="value">{{ funcionario?.id }}</span></div>
-            <div class="info-row"><span class="label">Funções:</span><span class="value">{{ funcionario?.funcoes }}</span></div>
-            <div class="info-row"><span class="label">Aniversário:</span><span class="value">{{ funcionario?.aniversario }}</span></div>
-            <div class="info-row"><span class="label">PIS:</span><span class="value">{{ funcionario?.pis }}</span></div>
-            <div class="info-row"><span class="label">PIX:</span><span class="value">{{ funcionario?.pix }}</span></div>
-            <div class="info-row"><span class="label">Notas:</span><span class="value">{{ funcionario?.notas }}</span></div>
+          <div class="modal-body">
+            <div class="modal-foto">
+              <img :src="funcionario?.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
+            </div>
+            <div class="modal-info">
+              <div class="info-row"><span class="label">Nome:</span><span class="value">{{ funcionario?.nome }}</span>
+              </div>
+              <div class="info-row"><span class="label">ID:</span><span class="value">{{ funcionario?.id }}</span></div>
+              <div class="info-row"><span class="label">Funções:</span><span class="value">{{ funcionario?.funcoes
+                  }}</span></div>
+              <div class="info-row"><span class="label">Aniversário:</span><span class="value">{{
+                funcionario?.aniversario }}</span></div>
+              <div class="info-row"><span class="label">PIS:</span><span class="value">{{ funcionario?.pis }}</span>
+              </div>
+              <div class="info-row"><span class="label">PIX:</span><span class="value">{{ funcionario?.pix }}</span>
+              </div>
+              <div class="info-row"><span class="label">Notas:</span><span class="value">{{ funcionario?.notas }}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div>
+            </div>
+            <button class="btn w-40 py-2 flex-fill">Ver produção</button>
+            <button class="btn w-40 py-2 flex-fill">Ver produção</button>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Modal Registro Produção -->
-    <div v-if="showModalRegistro" class="modal-background">
-      <div class="modal-container registro">
-        <div class="modal-header registro">
-          <h2>Registrar Produção - {{ funcionario?.nome }}</h2>
-          <img 
-            class="modal-close" 
-            @click="fecharModal" 
-            src="@/assets/close.png" 
-            alt="Fechar" 
-          />
-        </div>
-        <div class="modal-body registro">
-          <div class="modal-info registro">
-            <div class="info-row">
-              <label class="label" for="peca">Peça:</label>
-              <select id="peca" v-model="pecaRegistro" class="input-select">
-                <option v-for="peca in pecas" :key="peca.id_da_op" :value="peca.id_da_op">
-                  {{ peca.descricao }}
-                </option>
-              </select>
-            </div>
-            <div class="info-row">
-              <label class="label" for="funcao">Etapa:</label>
-              <select id="funcao" v-model="funcao" class="input-select">
-                <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
-                  {{ etapa.etapa.descricao }}
-                </option>
-              </select>
-            </div>
-            <div class="info-row">
-              <label class="label" for="quantidade">Quantidade:</label>
-              <input 
-                placeholder="Ex: 50" 
-                type="number" 
-                min="1" 
-                id="quantidade" 
-                v-model="quantidadeRegistro" 
-                class="input-field" 
-              />
-            </div>
-            <div class="info-row">
-              <label class="label" for="hora">Hora:</label>
-              <select id="hora" v-model="horaRegistro" class="input-select">
-                <option value="" disabled>Selecione a hora</option>
-                <option value="07:00">07:00</option>
-                <option value="08:00">08:00</option>
-                <option value="09:00">09:00</option>
-                <option value="10:00">10:00</option>
-                <option value="11:00">11:00</option>
-                <option value="12:00">12:00</option>
-                <option value="13:00">13:00</option>
-                <option value="14:00">14:00</option>
-                <option value="15:00">15:00</option>
-                <option value="16:00">16:00</option>
-                <option value="17:00">17:00</option>
-                <option value="18:00">18:00</option>
-                <option value="1h extra">1h extra</option>
-                <option value="outro">Outro</option>
-              </select>
+      <!-- Modal Registro Produção -->
+      <div v-if="showModalRegistro" class="modal-background">
+        <div class="modal-container registro">
+          <div class="modal-header registro">
+            <h2>Registrar Produção - {{ funcionario?.nome }}</h2>
+            <img class="modal-close" @click="fecharModal" src="@/assets/close.png" alt="Fechar" />
+          </div>
+          <div class="modal-body registro">
+            <div class="modal-info registro">
+              <div class="info-row">
+                <label class="label" for="peca">Peça:</label>
+                <select id="peca" v-model="pecaRegistro" class="input-select">
+                  <option v-for="peca in pecas" :key="peca.id_da_op" :value="peca.id_da_op">
+                    {{ peca.descricao }}
+                  </option>
+                </select>
+              </div>
+              <div class="info-row">
+                <label class="label" for="funcao">Etapa:</label>
+                <select id="funcao" v-model="funcao" class="input-select">
+                  <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
+                    {{ etapa.etapa.descricao }}
+                  </option>
+                </select>
+              </div>
+              <div class="info-row">
+                <label class="label" for="quantidade">Quantidade:</label>
+                <input placeholder="Ex: 50" type="number" min="1" id="quantidade" v-model="quantidadeRegistro"
+                  class="input-field" />
+              </div>
+              <div class="info-row">
+                <label class="label" for="hora">Hora:</label>
+                <select id="hora" v-model="horaRegistro" class="input-select">
+                  <option value="" disabled>Selecione a hora</option>
+                  <option value="07:00">07:00</option>
+                  <option value="08:00">08:00</option>
+                  <option value="09:00">09:00</option>
+                  <option value="10:00">10:00</option>
+                  <option value="11:00">11:00</option>
+                  <option value="12:00">12:00</option>
+                  <option value="13:00">13:00</option>
+                  <option value="14:00">14:00</option>
+                  <option value="15:00">15:00</option>
+                  <option value="16:00">16:00</option>
+                  <option value="17:00">17:00</option>
+                  <option value="18:00">18:00</option>
+                  <option value="1h extra">1h extra</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="modal-footer registro">
-          <button class="btn-cancel" @click="fecharModal">Cancelar</button>
-          <button class="btn-save" @click="postProdução">Registrar</button>
+          <div class="modal-footer registro">
+            <button class="btn-cancel" @click="tempodeProducao">Tempo de produção</button>
+            <button class="btn-cancel" @click="fecharModal">Cancelar</button>
+            <button class="btn-save" @click="postProdução">Registrar</button>
+          </div>
         </div>
       </div>
-    </div>
     </main>
   </div>
 </template>
@@ -258,6 +236,12 @@ export default {
     }
   },
   methods: {
+    resetRegistroModal() {
+      this.pecaRegistro = null;      
+      this.funcao = null;            
+      this.quantidadeRegistro = null;
+      this.horaRegistro = "";       
+    },
     async validarToken() {
       if (!this.store.pegar_token) {
         Swal.fire('Não autorizado', 'Sua sessão expirou. Faça login novamente.', 'warning')
@@ -269,7 +253,12 @@ export default {
     async cadastrar() {
       this.$router.push('/adicionar-profissional')
     },
-
+    async tempodeProducao() {
+      this.$router.push({
+        name: 'tempoProducao',
+        params: { emailFuncionario: this.registroFuncionario }
+      })
+    },
     async getFuncionario(id) {
       if (!(await this.validarToken())) return
       try {
@@ -294,7 +283,6 @@ export default {
         const { data } = await api.get('/Funcionarios', {
           headers: { Authorization: this.store.pegar_token }
         })
-        // opcional: garantir emails normalizados nos funcionários
         this.funcionarios = (data.funcionarios || []).map(u => ({
           ...u,
           email: u.email ? String(u.email).toLowerCase().trim() : ''
@@ -333,15 +321,14 @@ export default {
         })
         this.showModalRegistro = false
         Swal.fire('Sucesso', 'Produção registrada com sucesso!', 'success')
+        this.resetRegistroModal()
         this.getPecasProducao()
       } catch (err) {
-        if(err.status === 400 && err.response && err.response.data && err.response.data.error) {
-          const errorMsg = err.response.data.error;
-          Swal.fire('Erro', errorMsg, 'error');
-          return;
-        }
-        console.error(err)
-        Swal.fire('Erro', 'Erro ao registrar produção.', 'error')
+        console.log(err)
+        this.resetRegistroModal()
+        console.error(err.response.data.error)
+        Swal.fire('Erro', `Erro ao registrar produção. ${err.response.data.error}, 
+        Já foram produzidos ${err.response.data.jaProduzido} a essa peça`, 'error')
       }
     },
 
@@ -402,10 +389,11 @@ export default {
     },
 
     fecharModal() {
+      this.resetRegistroModal()
       this.showModalRegistro = false
     },
     criarEquipe() {
-      this.$router.push('/criar-equipe')
+      this.$router.push('/minha-equipe')
     }
   },
   mounted() {

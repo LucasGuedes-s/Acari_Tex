@@ -15,10 +15,8 @@ function getData() {
 async function postPecaOP(req, user) {
   const etapas = req.peca.etapas || [];
 
-  // Primeiro, garantir que cada etapa existe na tabela Etapa
   const etapasIds = await Promise.all(
     etapas.map(async (etapaItem) => {
-      // Verifica se é string ou objeto
       const descricao = typeof etapaItem === "string" ? etapaItem : etapaItem.descricao;
 
       if (!descricao) throw new Error("Descrição da etapa inválida");
@@ -39,7 +37,6 @@ async function postPecaOP(req, user) {
     })
   );
 
-  // Criar a nova OP
   const novaPeca = await prisma.pecasOP.create({
     data: {
       status: "nao_iniciado",
@@ -55,7 +52,6 @@ async function postPecaOP(req, user) {
     },
   });
 
-  // Criar as etapas da OP com metas e status inicial
   await prisma.pecasEtapas.createMany({
     data: etapasIds.map((etapa) => ({
       id_da_op: novaPeca.id_da_op,
@@ -69,7 +65,6 @@ async function postPecaOP(req, user) {
 }
 
 async function postProducaoPeca(req, res) {
-  try {
     const {
       id_da_op,
       id_funcionario,
@@ -78,8 +73,6 @@ async function postProducaoPeca(req, res) {
       hora_registro,
     } = req.body;
     const id_Estabelecimento = req.user.cnpj;
-    console.log(req.body)
-    // Buscar etapa vinculada + meta
     const etapaRelacionada = await prisma.pecasEtapas.findUnique({
       where: {
         id_da_op_id_da_funcao: {
@@ -93,7 +86,6 @@ async function postProducaoPeca(req, res) {
       return  "Etapa não encontrada para essa OP.";
     }
 
-    // Soma da produção até agora
     const totalEtapaProduzido = await prisma.producao.aggregate({
       _sum: { quantidade_pecas: true },
       where: { id_da_op, id_da_funcao }
@@ -102,16 +94,14 @@ async function postProducaoPeca(req, res) {
     const jaProduzido = totalEtapaProduzido._sum.quantidade_pecas || 0;
     const novaQuantidade = jaProduzido + quantidade_pecas;
 
-    // Verificar meta da etapa
     if (novaQuantidade > etapaRelacionada.quantidade_meta) {
-      return ({
+      throw new Error(JSON.stringify({
         error: "A produção dessa etapa excede a meta.",
         jaProduzido,
         meta: etapaRelacionada.quantidade_meta
-      });
+      }));
     }
 
-    // Criar registro
     const producao = await prisma.producao.create({
       data: {
         id_da_op,
@@ -123,7 +113,7 @@ async function postProducaoPeca(req, res) {
         data_inicio: getData(),
       }
     });
-    // Se bateu a meta → atualizar status
+
     if (novaQuantidade === etapaRelacionada.quantidade_meta) {
       await prisma.pecasEtapas.update({
         where: {
@@ -137,11 +127,6 @@ async function postProducaoPeca(req, res) {
     }
 
     return producao;
-
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Erro ao registrar produção." });
-  }
 }
 
 async function getPecasOP(req) {
@@ -153,7 +138,7 @@ async function getPecasOP(req) {
       producao_peca: true,
       etapas: {
         include: {
-          etapa: true, // descrição da etapa
+          etapa: true,
         },
       },
     },
@@ -185,11 +170,11 @@ async function getEtapasProducaoPorPeca(req, res) {
         id_da_op: Number(id_da_op)
       },
       include: {
-        producao_etapa: true,         // Etapa (ex: Corte, Costura...)
+        producao_etapa: true,         
         producao_funcionario: {
           select: {
-            nome: true,    // Seleciona apenas o nome do funcionário
-            email: true    // Seleciona apenas o e-mail do funcionário
+            nome: true,    
+            email: true  
           }
         }
       }
@@ -257,7 +242,6 @@ async function getProducaoEquipe(req) {
     const cnpjEstabelecimento = req.user.cnpj;
     const fusoSP = "America/Sao_Paulo";
 
-    // Pegar data atual no fuso de SP
     const agora = new Date();
     const dtf = new Intl.DateTimeFormat("pt-BR", {
       timeZone: fusoSP,
@@ -353,6 +337,105 @@ async function getProducaoEquipe(req) {
   }
 }
 
+async function getProducaoEquipeDia(req) {
+  try {
+    const cnpjEstabelecimento = req.user.cnpj;
+    const fusoSP = "America/Sao_Paulo";
+
+    const agora = new Date();
+    const dtf = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: fusoSP,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    const partes = dtf.formatToParts(agora);
+    const dia = partes.find(p => p.type === "day").value;
+    const mes = partes.find(p => p.type === "month").value;
+    const ano = partes.find(p => p.type === "year").value;
+
+    // Limite do dia em UTC
+    const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
+    const fimDiaUTC    = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
+
+    // Buscar produção do dia com JOIN no funcionário -> equipe
+    const producoesDia = await prisma.producao.findMany({
+      where: {
+        id_Estabelecimento: cnpjEstabelecimento,
+        data_inicio: { gte: inicioDiaUTC, lte: fimDiaUTC },
+      },
+      select: {
+        id_funcionario: true,
+        quantidade_pecas: true,
+        hora_registro: true,
+        producao_funcionario: { 
+          select: { 
+            nome: true,
+            equipes: {
+              select: {
+                equipe: { select: { id: true, nome: true } }
+              }
+            }
+          } 
+        },
+        producao_etapa: { select: { descricao: true } },
+      },
+    });
+
+    const agrupadoEquipe = {};
+
+    for (const p of producoesDia) {
+      const funcionario = p.id_funcionario;
+      const nomeFuncionario = p.producao_funcionario?.nome || funcionario;
+      const etapa = p.producao_etapa?.descricao || "Sem Etapa";
+      const hora = p.hora_registro || "00:00";
+
+      const equipesDoUsuario = p.producao_funcionario?.equipes?.map(e => e.equipe) || [];
+
+      if (equipesDoUsuario.length === 0) {
+        equipesDoUsuario.push({ id: 0, nome: "Sem Equipe" });
+      }
+
+      for (const equipe of equipesDoUsuario) {
+        if (!agrupadoEquipe[equipe.nome]) {
+          agrupadoEquipe[equipe.nome] = {};
+        }
+
+        if (!agrupadoEquipe[equipe.nome][funcionario]) {
+          agrupadoEquipe[equipe.nome][funcionario] = { nome: nomeFuncionario, etapas: {} };
+        }
+
+        if (!agrupadoEquipe[equipe.nome][funcionario].etapas[etapa]) {
+          agrupadoEquipe[equipe.nome][funcionario].etapas[etapa] = [];
+        }
+
+        agrupadoEquipe[equipe.nome][funcionario].etapas[etapa].push({
+          hora,
+          quantidade: p.quantidade_pecas || 0,
+          data: `${ano}-${mes}-${dia}`
+        });
+      }
+    }
+
+    const resultado = Object.entries(agrupadoEquipe).map(([equipe, funcionarios]) => ({
+      equipe,
+      funcionarios: Object.entries(funcionarios).map(([email, dados]) => ({
+        funcionario: email,
+        nome: dados.nome,
+        etapas: dados.etapas
+      }))
+    }));
+
+    return { producaoDiaEquipe: resultado };
+
+  } catch (error) {
+    console.error("Erro ao buscar produção da equipe:", error);
+    return { error: error.message };
+  }
+}
+
+
 function getDataInicioBrasil() {
   const agora = new Date();
   const fusoHorarioBrasil = new Intl.DateTimeFormat('pt-BR', {
@@ -383,8 +466,8 @@ async function getEstatisticasPeca(id) {
         etapas: { include: { etapa: true } },
         producao_peca: {
           include: {
-            producao_funcionario: true, // carrega dados do funcionário
-            producao_etapa: true        // carrega dados da etapa
+            producao_funcionario: true, 
+            producao_etapa: true        
           }
         }
       },
@@ -439,9 +522,9 @@ async function getEstatisticasPeca(id) {
       descricao: peca.descricao,
       status: peca.status,
       quantidade_pecas: metaTotal,
-      totalProduzido: totalLiquido,   // podendo ser menor por conta de estornos
-      totalPositivo,                  // soma apenas dos lançamentos positivos
-      totalNegativo,                  // soma dos estornos (valor absoluto)
+      totalProduzido: totalLiquido,   
+      totalPositivo,                
+      totalNegativo,                 
       saldo,
       pedido_por: peca.pedido_por,
       valor_peca: peca.valor_peca,
@@ -584,5 +667,6 @@ module.exports = {
     getProducaoEquipe,
     getEstatisticasPeca,
     deletarPeca,
-    voltarPeca
+    voltarPeca,
+    getProducaoEquipeDia
 };
