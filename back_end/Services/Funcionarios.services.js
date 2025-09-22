@@ -257,8 +257,8 @@ async function tempoDeProducao(req) {
     tempo_minutos,
     quantidade_pecas,
     observacoes,
-    registradoPor,
   } = req.body;
+  const registradoPor = req.user.email
   const estabelecimentoCnpj = req.user.cnpj
   const tempoRef = await prisma.tempoReferencia.create({
     data: {
@@ -274,6 +274,33 @@ async function tempoDeProducao(req) {
   return tempoRef
 }
 
+async function getTempodeReferencia(id_funcionario, req) {
+  const cnpjEstabelecimento = req.user.cnpj
+  const tempoRef = await prisma.tempoReferencia.findMany({
+      where: {
+        id_funcionario,         
+        estabelecimentoCnpj: cnpjEstabelecimento, 
+      },
+      include:{
+        etapa: true
+      }
+    });
+
+    if (!tempoRef) return res.status(404).json({ error: "Registro não encontrado" });
+
+    const producaoPorMinuto = tempoRef.quantidade_pecas / tempoRef.tempo_minutos;
+    const tempoDisponivel = 480;
+    const eficiencia = 0.85; 
+
+    const producaoProjetada = producaoPorMinuto * tempoDisponivel * eficiencia;
+
+    return {
+      ...tempoRef,
+      producaoPorMinuto,
+      producaoProjetada,
+    };
+}
+
 module.exports = {
   getFuncionarios,
   getFuncionario,
@@ -282,5 +309,6 @@ module.exports = {
   criarEquipe,
   getEquipes,
   moverFuncionario,
-  tempoDeProducao
+  tempoDeProducao,
+  getTempodeReferencia
 };

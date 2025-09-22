@@ -1,4 +1,5 @@
 <template>
+  <carregandoTela v-if="loading" />
   <div class="grafico-container">
     <div class="chart-wrapper doughnut-wrapper">
       <canvas ref="doughnutChart"></canvas>
@@ -15,12 +16,16 @@ import { useAuthStore } from '@/store/store';
 import { io } from 'socket.io-client';
 import api from '@/Axios';
 Chart.register(...registerables);
+import carregandoTela from './carregandoTela.vue';
 
 export default {
   name: 'GraficoProducao7Dias',
   setup() {
     const store = useAuthStore();
     return { store };
+  },
+  components:{
+    carregandoTela
   },
   data() {
     return {
@@ -225,6 +230,7 @@ export default {
 canvas {
   width: 100% !important;
   height: 100% !important;
+  margin-top: 18px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);

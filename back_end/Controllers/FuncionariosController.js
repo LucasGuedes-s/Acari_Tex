@@ -79,6 +79,17 @@ async function tempoDeProducao(req, res, next) {
         next(err);
     }
 }
+async function getTempodeReferencia(req, res, next) {
+    try{
+        const email = req.params.email;
+        const tempoReferencia = await Funcionarios.getTempodeReferencia(email, req)
+        res.status(200).json({tempo: tempoReferencia });
+    }
+    catch (err) {
+        console.error('Erro ao resgatar tempo de referencia.', err.message);
+        next(err);
+    }
+}
 
 module.exports = {
     getEquipe,
@@ -88,5 +99,6 @@ module.exports = {
     adicionarFuncionarioAgrupo,
     getEquipes,
     moverFuncionario,
-    tempoDeProducao
+    tempoDeProducao,
+    getTempodeReferencia
 }

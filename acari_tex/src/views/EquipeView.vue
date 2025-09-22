@@ -61,46 +61,10 @@
         </div>
 
         <div class="acoes-funcionario">
-          <button @click="getFuncionario(funcionario.email)">Ver mais</button>
+          <button @click="tempodeProducao(funcionario.email)">Ver mais / Tempo por peça</button>
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
             Registrar Produção
           </button>
-        </div>
-      </div>
-
-      <!-- Modal Funcionário -->
-      <div v-if="showModalFuncionario" class="modal-background">
-        <div class="modal-container">
-          <div class="modal-header">
-            <h2>Detalhes do Funcionário</h2>
-            <img class="modal-close" @click="showModalFuncionario = false" src="@/assets/close.png" alt="Fechar" />
-          </div>
-          <div class="modal-body">
-            <div class="modal-foto">
-              <img :src="funcionario?.foto || '/default-avatar.png'" alt="Foto do Funcionário" />
-            </div>
-            <div class="modal-info">
-              <div class="info-row"><span class="label">Nome:</span><span class="value">{{ funcionario?.nome }}</span>
-              </div>
-              <div class="info-row"><span class="label">ID:</span><span class="value">{{ funcionario?.id }}</span></div>
-              <div class="info-row"><span class="label">Funções:</span><span class="value">{{ funcionario?.funcoes
-                  }}</span></div>
-              <div class="info-row"><span class="label">Aniversário:</span><span class="value">{{
-                funcionario?.aniversario }}</span></div>
-              <div class="info-row"><span class="label">PIS:</span><span class="value">{{ funcionario?.pis }}</span>
-              </div>
-              <div class="info-row"><span class="label">PIX:</span><span class="value">{{ funcionario?.pix }}</span>
-              </div>
-              <div class="info-row"><span class="label">Notas:</span><span class="value">{{ funcionario?.notas }}</span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <div>
-            </div>
-            <button class="btn w-40 py-2 flex-fill">Ver produção</button>
-            <button class="btn w-40 py-2 flex-fill">Ver produção</button>
-          </div>
         </div>
       </div>
 
@@ -157,7 +121,6 @@
             </div>
           </div>
           <div class="modal-footer registro">
-            <button class="btn-cancel" @click="tempodeProducao">Tempo de produção</button>
             <button class="btn-cancel" @click="fecharModal">Cancelar</button>
             <button class="btn-save" @click="postProdução">Registrar</button>
           </div>
@@ -230,7 +193,6 @@ export default {
     }
   },
   watch: {
-    // quando trocar equipe, atualiza o conjunto de emails
     equipe(newVal) {
       this.updateSelectedEquipeEmails(newVal)
     }
@@ -253,28 +215,11 @@ export default {
     async cadastrar() {
       this.$router.push('/adicionar-profissional')
     },
-    async tempodeProducao() {
+    async tempodeProducao(email) {
       this.$router.push({
         name: 'tempoProducao',
-        params: { emailFuncionario: this.registroFuncionario }
+        params: { emailFuncionario: email }
       })
-    },
-    async getFuncionario(id) {
-      if (!(await this.validarToken())) return
-      try {
-        const { data } = await api.get(`/Funcionario/${id}`, {
-          headers: { Authorization: this.store.pegar_token }
-        })
-        if (!data?.funcionario) {
-          Swal.fire('Atenção', 'Funcionário não encontrado.', 'info')
-          return
-        }
-        this.funcionario = data.funcionario
-        this.showModalFuncionario = true
-      } catch (err) {
-        console.error(err)
-        Swal.fire('Erro', 'Erro ao carregar funcionário.', 'error')
-      }
     },
 
     async getFuncionarios() {
@@ -504,11 +449,6 @@ export default {
   background-color: #00692b;
 }
 
-.acoes-funcionario .demitir:hover {
-  background-color: #ff484b;
-  color: white;
-}
-
 .modal-background {
   position: fixed;
   top: 0;
@@ -559,27 +499,6 @@ export default {
   padding: 20px;
   gap: 20px;
   flex-wrap: wrap;
-}
-
-.modal-foto img {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid var(--verde-escuro);
-}
-
-.modal-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 16px;
 }
 
 .label {
@@ -704,20 +623,6 @@ select {
     flex-direction: column;
     align-items: center;
     text-align: left;
-    /* mantém alinhamento à esquerda */
-  }
-
-  .modal-info {
-    width: 100%;
-  }
-
-  .info-row {
-    flex-direction: row;
-    /* label e value lado a lado */
-    justify-content: space-between;
-    flex-wrap: wrap;
-    /* quebra linha se necessário */
-    gap: 8px;
   }
 
   .label {
@@ -726,7 +631,6 @@ select {
 
   .value {
     flex: 1 1 55%;
-    /* value ocupa o restante */
     text-align: left;
   }
 
@@ -753,6 +657,7 @@ select {
 
   .acoes-funcionario button {
     width: 90%;
+    font-size: 11px;
   }
 }
 

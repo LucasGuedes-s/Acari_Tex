@@ -121,6 +121,17 @@ async function getProducaoEquipeDia(req, res, next) {
         next(err);
     }
 }
+async function getEtapas(req, res, next) {
+    try{
+        const etapas = await pecas.getEtapas(req);
+        res.status(200).json({ etapas });
+    }
+    catch (err) {
+        console.error(`Erro ao receber etapas.`, err.message);
+        next(err);
+    }
+}
+
 module.exports = { 
     postOP, 
     getOPs,
@@ -131,5 +142,6 @@ module.exports = {
     getEstatisticasPeca,
     deletarPeca,
     voltarPeca,
-    getProducaoEquipeDia
+    getProducaoEquipeDia,
+    getEtapas
 };
