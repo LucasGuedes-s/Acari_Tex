@@ -14,27 +14,33 @@
 
           <!-- Dados do Funcionário -->
           <div v-if="funcionario" class="card shadow-lg border-2 mt-4 position-relative">
-            <div class="card-header bg-light fw-bold border-bottom">
-              👤 Dados do Funcionário
-            </div>
-            <div class="card-body d-flex align-items-center gap-3">
-              <img :src="funcionario.foto || 'https://via.placeholder.com/100'"
-                   alt="Foto do Funcionário"
-                   class="rounded-circle border shadow-sm"
-                   style="width: 100px; height: 100px; object-fit: cover;" />
-              <div class="text-start flex-grow-1">
-                <p class="mb-1"><b>Nome:</b> {{ funcionario.nome }}</p>
-                <p class="mb-1"><b>Email:</b> {{ funcionario.email }}</p>
-                <p class="mb-0"><b>Função:</b> {{ funcionario.funcao }}</p>
-              </div>
-              <!-- Botão abrir modal no canto direito -->
-              <div class="ms-auto">
-                <button class="btn btn-primary" @click="abrirModal">
-                  Registrar Produção
-                </button>
-              </div>
-            </div>
-          </div>
+  <div class="card-header bg-light fw-bold border-bottom">
+    👤 Dados do Funcionário
+  </div>
+  <div class="card-body d-flex flex-row align-items-center gap-3">
+  <!-- Foto -->
+  <img :src="funcionario.foto || 'https://via.placeholder.com/100'"
+       alt="Foto do Funcionário"
+       class="rounded-circle border shadow-sm"
+       style="width: 100px; height: 100px; object-fit: cover;" />
+
+  <!-- Dados ao lado -->
+  <div class="flex-grow-1 text-start">
+    <p class="mb-1"><b>Nome:</b> {{ funcionario.nome }}</p>
+    <p class="mb-1"><b>Email:</b> {{ funcionario.email }}</p>
+    <p class="mb-0"><b>Função:</b> {{ funcionario.funcao }}</p>
+  </div>
+
+  <!-- Botão -->
+
+</div>
+  <div class="ms-auto">
+    <button class="btn btn-primary" @click="abrirModal">
+      Registrar Produção
+    </button>
+  </div>
+</div>
+
 
           <!-- Produção do Funcionário -->
           <div v-if="producao.length" class="card shadow-sm border-0 mt-4">

@@ -1,4 +1,5 @@
 <template>
+  <carregandoTela v-if="loading"/>
   <div class="grafico-equipe">
     <GChart v-if="chartData.length > 1 && chartData[0].length > 1" type="LineChart" :data="chartData"
       :options="chartOptions" style="width: 100%; height: 400px" />
@@ -11,10 +12,10 @@ import { GChart } from 'vue-google-charts'
 import { useAuthStore } from '@/store/store'
 import { io } from 'socket.io-client'
 import api from '@/Axios';
-
+import carregandoTela from './carregandoTela.vue';
 export default {
   name: 'GraficoEquipeProducao',
-  components: { GChart },
+  components: { GChart, carregandoTela },
   setup() {
     const store = useAuthStore();
     return { store };
@@ -114,7 +115,7 @@ export default {
         }
 
         this.chartData = dataMatrix;
-
+        this.loading = false;
       } catch (err) {
         console.error('Erro ao carregar gráfico da equipe:', err);
       } finally {
@@ -130,11 +131,8 @@ export default {
   max-width: 100%;
   margin: 0 auto;
   border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-
 }
 GChart{
   border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 </style>

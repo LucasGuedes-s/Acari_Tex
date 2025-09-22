@@ -657,6 +657,7 @@ select {
 
   .acoes-funcionario button {
     width: 90%;
+    font-size: 11px;
   }
 }
 
