@@ -56,7 +56,7 @@ async function postPecaOP(req, user) {
     data: etapasIds.map((etapa) => ({
       id_da_op: novaPeca.id_da_op,
       id_da_funcao: etapa.id_da_funcao,
-      quantidade_meta: req.peca.quantidade_pecas || 0, 
+      quantidade_meta: req.peca.quantidade_pecas || 0,
       status: "PENDENTE"
     })),
   });
@@ -65,72 +65,72 @@ async function postPecaOP(req, user) {
 }
 
 async function postProducaoPeca(req, res) {
-    const {
+  const {
+    id_da_op,
+    id_funcionario,
+    id_da_funcao,
+    quantidade_pecas,
+    hora_registro,
+  } = req.body;
+  const id_Estabelecimento = req.user.cnpj;
+  const etapaRelacionada = await prisma.pecasEtapas.findUnique({
+    where: {
+      id_da_op_id_da_funcao: {
+        id_da_op,
+        id_da_funcao
+      }
+    }
+  });
+
+  if (!etapaRelacionada) {
+    return "Etapa não encontrada para essa OP.";
+  }
+
+  const totalEtapaProduzido = await prisma.producao.aggregate({
+    _sum: { quantidade_pecas: true },
+    where: { id_da_op, id_da_funcao }
+  });
+
+  const jaProduzido = totalEtapaProduzido._sum.quantidade_pecas || 0;
+  const novaQuantidade = jaProduzido + quantidade_pecas;
+
+  if (novaQuantidade > etapaRelacionada.quantidade_meta) {
+    throw new Error(JSON.stringify({
+      error: "A produção dessa etapa excede a meta.",
+      jaProduzido,
+      meta: etapaRelacionada.quantidade_meta
+    }));
+  }
+
+  const producao = await prisma.producao.create({
+    data: {
       id_da_op,
       id_funcionario,
+      id_Estabelecimento,
       id_da_funcao,
-      quantidade_pecas,
       hora_registro,
-    } = req.body;
-    const id_Estabelecimento = req.user.cnpj;
-    const etapaRelacionada = await prisma.pecasEtapas.findUnique({
+      quantidade_pecas,
+      data_inicio: getData(),
+    }
+  });
+
+  if (novaQuantidade === etapaRelacionada.quantidade_meta) {
+    await prisma.pecasEtapas.update({
       where: {
         id_da_op_id_da_funcao: {
           id_da_op,
           id_da_funcao
         }
-      }
+      },
+      data: { status: "CONCLUIDA" }
     });
+  }
 
-    if (!etapaRelacionada) {
-      return  "Etapa não encontrada para essa OP.";
-    }
-
-    const totalEtapaProduzido = await prisma.producao.aggregate({
-      _sum: { quantidade_pecas: true },
-      where: { id_da_op, id_da_funcao }
-    });
-
-    const jaProduzido = totalEtapaProduzido._sum.quantidade_pecas || 0;
-    const novaQuantidade = jaProduzido + quantidade_pecas;
-
-    if (novaQuantidade > etapaRelacionada.quantidade_meta) {
-      throw new Error(JSON.stringify({
-        error: "A produção dessa etapa excede a meta.",
-        jaProduzido,
-        meta: etapaRelacionada.quantidade_meta
-      }));
-    }
-
-    const producao = await prisma.producao.create({
-      data: {
-        id_da_op,
-        id_funcionario,
-        id_Estabelecimento,
-        id_da_funcao,
-        hora_registro,
-        quantidade_pecas,
-        data_inicio: getData(),
-      }
-    });
-
-    if (novaQuantidade === etapaRelacionada.quantidade_meta) {
-      await prisma.pecasEtapas.update({
-        where: {
-          id_da_op_id_da_funcao: {
-            id_da_op,
-            id_da_funcao
-          }
-        },
-        data: { status: "CONCLUIDA" }
-      });
-    }
-
-    return producao;
+  return producao;
 }
 
 async function getPecasOP(req) {
-  const cnpj  = req.cnpj;
+  const cnpj = req.cnpj;
   const pecasOp = await prisma.pecasOP.findMany({
     where: { id_Estabelecimento: cnpj },
     include: {
@@ -163,18 +163,18 @@ async function getPecasOP(req) {
 
 async function getEtapasProducaoPorPeca(req, res) {
   try {
-    const id_da_op  = req;
+    const id_da_op = req;
 
     const producao = await prisma.producao.findMany({
       where: {
         id_da_op: Number(id_da_op)
       },
       include: {
-        producao_etapa: true,         
+        producao_etapa: true,
         producao_funcionario: {
           select: {
-            nome: true,    
-            email: true  
+            nome: true,
+            email: true
           }
         }
       }
@@ -193,19 +193,19 @@ async function getEtapasProducaoPorPeca(req, res) {
 
 async function getEtapasProducaoPorEstabelecimento(req, res) {
   try {
-    const cnpj = req.cnpj;  
+    const cnpj = req.cnpj;
     const producao = await prisma.producao.findMany({
       where: {
         Estabelecimento: {
-          cnpj: cnpj 
+          cnpj: cnpj
         }
       },
       include: {
-        producao_etapa: true,        
+        producao_etapa: true,
         producao_funcionario: {
           select: {
-            nome: true,    
-            email: true   
+            nome: true,
+            email: true
           }
         }
       }
@@ -222,20 +222,20 @@ async function getEtapasProducaoPorEstabelecimento(req, res) {
   }
 }
 async function updatePecaStatus(id_da_op, status) {
-    try {
-        let data = {status: status}
-        if(status == "finalizado"){
-          data = {status: status, data_de_entrega: new Date().toISOString()}
-        }
-        const peca = await prisma.PecasOP.update({
-            where: { id_da_op },
-            data
-        });
-        return peca;
-    } catch (error) {
-        console.error("Erro ao atualizar status da peça:", error);
-        throw new Error("Erro ao atualizar status da peça.");
+  try {
+    let data = { status: status }
+    if (status == "finalizado") {
+      data = { status: status, data_de_entrega: new Date().toISOString() }
     }
+    const peca = await prisma.PecasOP.update({
+      where: { id_da_op },
+      data
+    });
+    return peca;
+  } catch (error) {
+    console.error("Erro ao atualizar status da peça:", error);
+    throw new Error("Erro ao atualizar status da peça.");
+  }
 }
 async function getProducaoEquipe(req) {
   try {
@@ -256,12 +256,12 @@ async function getProducaoEquipe(req) {
     const ano = partes.find(p => p.type === "year").value;
 
     // Limites do dia (UTC)
-    const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0)); 
-    const fimDiaUTC    = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59)); 
+    const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
+    const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
 
     // Limites do mês (UTC)
     const inicioMesUTC = new Date(Date.UTC(ano, mes - 1, 1, 0, 0, 0));
-    const fimMesUTC    = new Date(Date.UTC(ano, mes, 0, 23, 59, 59)); // último dia do mês
+    const fimMesUTC = new Date(Date.UTC(ano, mes, 0, 23, 59, 59)); // último dia do mês
 
     const producoesDia = await prisma.producao.findMany({
       where: {
@@ -357,7 +357,7 @@ async function getProducaoEquipeDia(req) {
 
     // Limite do dia em UTC
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
-    const fimDiaUTC    = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
+    const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
 
     // Buscar produção do dia com JOIN no funcionário -> equipe
     const producoesDia = await prisma.producao.findMany({
@@ -369,15 +369,15 @@ async function getProducaoEquipeDia(req) {
         id_funcionario: true,
         quantidade_pecas: true,
         hora_registro: true,
-        producao_funcionario: { 
-          select: { 
+        producao_funcionario: {
+          select: {
             nome: true,
             equipes: {
               select: {
                 equipe: { select: { id: true, nome: true } }
               }
             }
-          } 
+          }
         },
         producao_etapa: { select: { descricao: true } },
       },
@@ -466,8 +466,8 @@ async function getEstatisticasPeca(id) {
         etapas: { include: { etapa: true } },
         producao_peca: {
           include: {
-            producao_funcionario: true, 
-            producao_etapa: true        
+            producao_funcionario: true,
+            producao_etapa: true
           }
         }
       },
@@ -522,21 +522,21 @@ async function getEstatisticasPeca(id) {
       descricao: peca.descricao,
       status: peca.status,
       quantidade_pecas: metaTotal,
-      totalProduzido: totalLiquido,   
-      totalPositivo,                
-      totalNegativo,                 
+      totalProduzido: totalLiquido,
+      totalPositivo,
+      totalNegativo,
       saldo,
       pedido_por: peca.pedido_por,
       valor_peca: peca.valor_peca,
       data_do_pedido: peca.data_do_pedido,
       data_de_entrega: peca.data_de_entrega,
       notas: peca.notas,
-      producaoPorEtapa, 
+      producaoPorEtapa,
       pecasEtapas: peca.etapas.map(e => ({
         id_da_funcao: e.id_da_funcao,
-        descricao: e.etapa?.descricao || "Desconhecida",   
-      })),         
-      somaPorEtapa     
+        descricao: e.etapa?.descricao || "Desconhecida",
+      })),
+      somaPorEtapa
     };
 
   } catch (error) {
@@ -653,20 +653,70 @@ async function voltarPeca(req, res) {
 
   } catch (err) {
     console.error("Erro ao voltar peça:", err.message);
-    throw new Error("Erro ao voltar peça" );
+    throw new Error("Erro ao voltar peça");
   }
+}async function getEtapas(req) {
+  const cnpj = req.user.cnpj;
+
+  // Pega todas as etapas com suas relações
+  const pecasEtapas = await prisma.pecasEtapas.findMany({
+    where: {
+      peca_op: {
+        Estabelecimento: { cnpj }
+      }
+    },
+    include: {
+      etapa: true,
+    }
+  });
+
+  // Pega tempos de referência ligados a esse estabelecimento
+  const tempos = await prisma.tempoReferencia.findMany({
+    where: { estabelecimentoCnpj: cnpj },
+    include: { usuario: true, etapa: true }
+  });
+
+  // Calcula melhor funcionário por etapa
+  const melhorPorEtapa = {};
+  tempos.forEach(t => {
+    if (!t.tempo_minutos || !t.quantidade_pecas) return;
+    const ppm = t.quantidade_pecas / t.tempo_minutos;
+    const etapaId = t.id_da_funcao;
+    if (!melhorPorEtapa[etapaId] || ppm > melhorPorEtapa[etapaId].ppm) {
+      melhorPorEtapa[etapaId] = {
+        funcionario: t.usuario,
+        ppm,
+        quantidade_pecas: t.quantidade_pecas,
+        tempo_minutos: t.tempo_minutos,
+      };
+    }
+  });
+
+  // Remove duplicados mantendo array
+  const etapasUnicas = pecasEtapas.filter((etapa, index, self) =>
+    index === self.findIndex(e => e.id_da_funcao === etapa.id_da_funcao)
+  );
+
+  // Adiciona melhor funcionário
+  const resultado = etapasUnicas.map(e => ({
+    ...e,
+    melhorFuncionario: melhorPorEtapa[e.id_da_funcao] || null
+  }));
+
+  return resultado;
 }
 
 module.exports = {
-    postPecaOP,
-    getPecasOP,
-    postProducaoPeca,
-    getEtapasProducaoPorPeca,
-    getEtapasProducaoPorEstabelecimento,
-    updatePecaStatus,
-    getProducaoEquipe,
-    getEstatisticasPeca,
-    deletarPeca,
-    voltarPeca,
-    getProducaoEquipeDia
+  postPecaOP,
+  getPecasOP,
+  postProducaoPeca,
+  getEtapasProducaoPorPeca,
+  getEtapasProducaoPorEstabelecimento,
+  updatePecaStatus,
+  getProducaoEquipe,
+  getEstatisticasPeca,
+  deletarPeca,
+  voltarPeca,
+  getProducaoEquipeDia,
+  getEtapas
 };

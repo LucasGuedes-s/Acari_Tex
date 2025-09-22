@@ -5,10 +5,10 @@ const jwtMiddleware = require('../middlewares/auth')
 const permissao = require('../Services/permissoes.services.js')
 
 router.get('/Funcionarios', [jwtMiddleware, permissao.getProfissionais], ControllerFuncionarios.getEquipe);
-router.get('/funcionario/:id', [jwtMiddleware, permissao.getProfissionais], ControllerFuncionarios.getFuncionario);
+router.get('/funcionario/:id', [jwtMiddleware], ControllerFuncionarios.getFuncionario);
 router.get('/Producao/funcionario/:email', [jwtMiddleware], ControllerFuncionarios.getProducaoFuncionario);
 router.get('/equipes', [jwtMiddleware, permissao.getProfissionais], ControllerFuncionarios.getEquipes);
-
+router.get('/tempo/referencia/:email', [jwtMiddleware], ControllerFuncionarios.getTempodeReferencia)
 
 router.post('/registrar/tempo', [jwtMiddleware], ControllerFuncionarios.tempoDeProducao)
 router.post('/adicionar/funcionario', [jwtMiddleware, permissao.postProfissionais],  ControllerFuncionarios.postEquipe);

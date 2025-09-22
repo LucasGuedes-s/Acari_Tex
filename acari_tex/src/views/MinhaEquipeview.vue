@@ -275,11 +275,21 @@ export default {
           }
 
           // Envia para backend: { email, novaEquipeId }
-          await api.post('/funcionarios/mover', {
+          const res = await api.post('/funcionarios/mover', {
             email,
             novaEquipeId
           }, { headers: { Authorization: token } });
-
+          if(res.status === 200){
+            Swal.fire({
+              toast: true,               // ativa estilo de notificação
+              position: 'top-end',       // canto superior direito
+              icon: 'success',           // 'success', 'error', 'warning', 'info', 'question'
+              title: 'Profissional movido de equipe',
+              showConfirmButton: false,  // sem botão de confirmação
+              timer: 5000,               // desaparece sozinho em 3s
+              timerProgressBar: true,    // barra de tempo
+            });
+          }
           console.log(`Funcionário ${email} movido para equipe ${novaEquipeId || 'Disponíveis'}`);
 
           // opcional: se desejar atualizar somente as colunas afetadas localmente,

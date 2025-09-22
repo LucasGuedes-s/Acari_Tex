@@ -32,11 +32,13 @@
 
                 <div class="col-md-6">
                   <label for="data" class="form-label">Valor da peça</label>
-                  <input placeholder="4,00" v-model="novaPeca.valor_peca" id="data" type="number" class="form-control" required />
+                  <input placeholder="4,00" v-model="novaPeca.valor_peca" id="data" type="number" class="form-control"
+                    required />
                 </div>
                 <div class="col-md-6">
                   <label for="fornecedor" class="form-label">Pedido por</label>
-                  <input type="text" placeholder="Ex: Guararapes" v-model="novaPeca.pedido_por" id="fornecedor" class="form-control" />
+                  <input type="text" placeholder="Ex: Guararapes" v-model="novaPeca.pedido_por" id="fornecedor"
+                    class="form-control" />
                 </div>
               </div>
 
@@ -63,10 +65,11 @@
               <!-- Etapas disponíveis -->
               <div class="mb-4">
                 <div class="etapas-disponiveis">
-                  <div v-for="local in locaisPredefinidos" :key="local" class="etapa-card" draggable="true"
-                    @dragstart="onDragStart(local)" @click="adicionarEtapa(local)">
-                    {{ local }}
+                  <div v-for="etapa in locaisPredefinidos" :key="etapa.id" class="etapa-card" draggable="true"
+                    @dragstart="onDragStart(etapa.etapa.descricao)" @click="adicionarEtapa(etapa.etapa.descricao)">
+                    {{ etapa.etapa.descricao }}
                   </div>
+
                 </div>
               </div>
 
@@ -103,54 +106,52 @@
               <h3 class="section-title mb-4">3 - Revisão e Cadastro</h3>
 
               <div class="row g-3">
-                <div class="col-md-6">
+                <!-- Dados principais -->
+                <div class="col-md-6" v-for="(info, index) in [
+                  { icon: 'bi-card-text', label: 'Descrição', value: novaPeca.descricao },
+                  { icon: 'bi-hash', label: 'Quantidade', value: novaPeca.quantidade_pecas },
+                  { icon: 'bi-person-badge', label: 'Pedido por', value: novaPeca.pedido_por },
+                  { icon: 'bi-cash', label: 'Valor da peça', value: novaPeca.valor_peca ? `R$ ${novaPeca.valor_peca}` : '' },
+                  { icon: 'bi-calendar-check', label: 'Data de Entrega', value: novaPeca.data_entrega ? novaPeca.data_entrega.split('T')[0].split('-').reverse().join('/') : '' }
+                ]" :key="index">
                   <div class="info-card">
-                    <i class="bi bi-card-text info-icon"></i>
+                    <i :class="`bi ${info.icon} info-icon`"></i>
                     <div>
-                      <span class="info-label">Descrição</span>
-                      <p class="info-value">{{ novaPeca.descricao }}</p>
+                      <span class="info-label">{{ info.label }}</span>
+                      <p class="info-value">{{ info.value || '—' }}</p>
                     </div>
                   </div>
                 </div>
 
-                <div class="col-md-6">
-                  <div class="info-card">
-                    <i class="bi bi-hash info-icon"></i>
-                    <div>
-                      <span class="info-label">Quantidade</span>
-                      <p class="info-value">{{ novaPeca.quantidade_pecas }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="col-md-6">
-                  <div class="info-card">
-                    <i class="bi bi-person-badge info-icon"></i>
-                    <div>
-                      <span class="info-label">Pedido por</span>
-                      <p class="info-value">{{ novaPeca.pedido_por }}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="col-md-6">
-                  <div class="info-card">
-                    <i class="bi bi-calendar-check info-icon"></i>
-                    <div>
-                      <span class="info-label">Data de Entrega</span>
-                        <p class="info-value">
-                          {{ novaPeca.data_entrega.split('T')[0].split('-').reverse().join('/') }}
-                        </p>
-                    </div>
-                  </div>
-                </div>
-
+                <!-- Processo -->
                 <div class="col-12">
                   <div class="info-card">
                     <i class="bi bi-gear info-icon"></i>
                     <div>
                       <span class="info-label">Processo de Produção</span>
-                      <p class="info-value">{{ novaPeca.producao.join(' → ') }}</p>
+                      <p class="info-value processo">{{ novaPeca.producao.join(' → ') }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Profissionais -->
+                <div class="col-12">
+                  <div class="info-card">
+                    <i class="bi bi-people info-icon"></i>
+                    <div class="w-100">
+                      <span class="info-label">Profissionais indicados para melhor produção</span>
+                      <div class="profissionais-list mt-2">
+                        <div v-for="etapaNome in novaPeca.producao" :key="etapaNome" class="profissional-item">
+                          <strong class="prof-etapa">{{ etapaNome }}:</strong>
+                          <template v-if="getMelhorFuncionario(etapaNome)">
+                            <img :src="getMelhorFuncionario(etapaNome).foto" alt="Foto" class="prof-foto" />
+                            <span class="prof-nome">
+                              {{ getMelhorFuncionario(etapaNome).nome }}
+                            </span>
+                          </template>
+                          <span v-else class="prof-nome vazio">Nenhum profissional indicado</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -200,7 +201,8 @@ export default {
         producao: [],
         valor_peca: null,
       },
-      locaisPredefinidos: ["Fechar lateral", "Pregar bolso", "Pespontar lapela", "Fechar ombro", "Pregar zíper", "Fazer bainha", "Pregar lapela", "Montar braguilha", "Montar cós", "Fechar entrepernas"],
+
+      locaisPredefinidos: [],
       draggedItem: null,
       draggedIndex: null,
       targetIndex: null,
@@ -220,8 +222,22 @@ export default {
         valor_peca: null,
       };
       this.novaEtapa = "";
+
+    },
+    getMelhorFuncionario(etapaNome) {
+      const etapa = this.locaisPredefinidos.find(e => e.etapa.descricao === etapaNome)
+      return etapa && etapa.melhorFuncionario && etapa.melhorFuncionario.funcionario
+        ? etapa.melhorFuncionario.funcionario
+        : null
     },
     proximaEtapa() { this.etapa++; },
+    async getEtpas() {
+      const token = this.store.pegar_token;
+      const etapas = await api.get('/etapas', { headers: { Authorization: `${token}` } })
+      console.log("Etapas recebidas:", etapas.data.etapas)
+      this.locaisPredefinidos = etapas.data.etapas
+
+    },
     async adicionarPeca() {
       try {
         this.loading = true
@@ -246,19 +262,19 @@ export default {
             showConfirmButton: false,
           });
         }
-          else {
-            Swal.fire({
-              icon: "error",
-              title: "Erro ao adicionar peça",
-              text: "Tente novamente mais tarde.",
-              timer: 2000,
-              timerProgressBar: true,
-              showConfirmButton: false,
-            });
-          }
-          this.resetForm()
-          this.loading = false
-          router.push("/dashboard");
+        else {
+          Swal.fire({
+            icon: "error",
+            title: "Erro ao adicionar peça",
+            text: "Tente novamente mais tarde.",
+            timer: 2000,
+            timerProgressBar: true,
+            showConfirmButton: false,
+          });
+        }
+        this.resetForm()
+        this.loading = false
+        router.push("/dashboard");
       } catch (error) {
         this.resetForm()
         this.loading = false
@@ -284,16 +300,78 @@ export default {
       }
     },
     adicionarNovaEtapa() {
-      if (this.novaEtapa.trim() !== "" && !this.locaisPredefinidos.includes(this.novaEtapa)) {
-        this.locaisPredefinidos.push(this.novaEtapa);
+      if (this.novaEtapa.trim() !== "" && 
+          !this.locaisPredefinidos.some(e => e.etapa?.descricao === this.novaEtapa)) {
+        
+        this.locaisPredefinidos.push({
+          etapa: { descricao: this.novaEtapa },
+          melhorFuncionario: null
+        });
+
         this.novaEtapa = "";
       }
     }
+
+  },
+  mounted() {
+    this.getEtpas()
   }
 };
 </script>
 
 <style scoped>
+.processo {
+  font-weight: 500;
+  color: #2e7d32;
+}
+
+.profissionais-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profissional-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f9f9f9;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  transition: 0.2s;
+}
+
+.profissional-item:hover {
+  background: #eef7ee;
+  transform: translateY(-2px);
+}
+
+.prof-etapa {
+  min-width: 120px;
+  font-weight: 600;
+  color: #444;
+}
+
+.prof-foto {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--verde-escuro);
+}
+
+.prof-nome {
+  font-size: 0.95rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.prof-nome.vazio {
+  color: #9e9e9e;
+  font-style: italic;
+}
+
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
@@ -400,7 +478,7 @@ export default {
 }
 
 .etapa1-section {
-  
+
   padding: 30px;
   border-radius: 12px;
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
@@ -419,11 +497,12 @@ export default {
   font-size: 0.95rem;
   transition: 0.2s;
 }
+
 .etapa3-section {
-  background: #f7f7f7; 
+  background: #f7f7f7;
   padding: 30px;
   border-radius: 12px;
-  box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
 }
 
 .info-card {
@@ -434,7 +513,7 @@ export default {
   border-radius: 10px;
   background: white;
   border-left: 5px solid var(--verde-escuro);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   transition: transform 0.2s ease;
 }
 
@@ -459,18 +538,22 @@ export default {
   color: #333;
   display: flex;
 }
-.container-fluid, .content-wrapper, main {
+
+.container-fluid,
+.content-wrapper,
+main {
   overflow-x: hidden;
 }
 
 .linha-producao {
-  overflow-x: auto; 
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.pipeline-inner, .etapas-disponiveis {
+.pipeline-inner,
+.etapas-disponiveis {
   display: flex;
-  flex-wrap: nowrap; 
+  flex-wrap: nowrap;
   gap: 12px;
 }
 
@@ -496,6 +579,7 @@ export default {
     max-width: 100%;
   }
 }
+
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
@@ -520,7 +604,7 @@ export default {
 
   .etapas-disponiveis {
     display: grid;
-    grid-template-columns: 1fr 1fr; 
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
 
