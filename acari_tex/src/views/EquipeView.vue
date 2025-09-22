@@ -61,7 +61,7 @@
         </div>
 
         <div class="acoes-funcionario">
-          <button @click="tempodeProducao(funcionario.email)">Ver mais / Tempo por peça</button>
+          <button @click="tempodeProducao(funcionario.email)">Ver mais / Prod. por peça</button>
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
             Registrar Produção
           </button>
@@ -428,6 +428,7 @@ export default {
   cursor: pointer;
   font-size: 14px;
   background-color: #eee;
+  color:#333;
   transition: background-color 0.3s;
   width: 180px;
 }
@@ -657,7 +658,7 @@ select {
 
   .acoes-funcionario button {
     width: 90%;
-    font-size: 11px;
+    font-size: 12px;
   }
 }
 

@@ -6,70 +6,70 @@
         <div class="form col-12">
 
           <!-- Título -->
-          <TituloSubtitulo 
-            titulo="Produção por Funcionário"
-            subtitulo="Visualize a produção diária de cada funcionário"
-            icone="fa-solid fa-chart-bar"
-          />
+          <TituloSubtitulo titulo="Produção por Funcionário" subtitulo="Visualize a produção diária de cada funcionário"
+            icone="fa-solid fa-chart-bar" />
 
           <!-- Dados do Funcionário -->
           <div v-if="funcionario" class="card shadow-lg border-2 mt-4 position-relative">
-  <div class="card-header bg-light fw-bold border-bottom">
-    👤 Dados do Funcionário
-  </div>
-  <div class="card-body d-flex flex-row align-items-center gap-3">
-  <!-- Foto -->
-  <img :src="funcionario.foto || 'https://via.placeholder.com/100'"
-       alt="Foto do Funcionário"
-       class="rounded-circle border shadow-sm"
-       style="width: 100px; height: 100px; object-fit: cover;" />
+            <div class="card-header bg-light fw-bold border-bottom">
+              👤 Dados do Funcionário
+            </div>
+            <div class="card-body d-flex flex-row align-items-center gap-3">
+              <!-- Foto -->
+              <img :src="funcionario.foto || 'https://via.placeholder.com/100'" alt="Foto do Funcionário"
+                class="rounded-circle border shadow-sm" style="width: 100px; height: 100px; object-fit: cover;" />
 
-  <!-- Dados ao lado -->
-  <div class="flex-grow-1 text-start">
-    <p class="mb-1"><b>Nome:</b> {{ funcionario.nome }}</p>
-    <p class="mb-1"><b>Email:</b> {{ funcionario.email }}</p>
-    <p class="mb-0"><b>Função:</b> {{ funcionario.funcao }}</p>
-  </div>
+              <!-- Dados ao lado -->
+              <div class="flex-grow-1 text-start">
+                <p class="mb-1"><b>Nome:</b> {{ funcionario.nome }}</p>
+                <p class="mb-1"><b>Email:</b> {{ funcionario.email }}</p>
+                <p class="mb-0"><b>Função:</b> {{ funcionario.funcao }}</p>
+              </div>
 
-  <!-- Botão -->
+              <!-- Botão -->
 
-</div>
-  <div class="ms-auto">
-    <button class="btn btn-primary" @click="abrirModal">
-      Registrar Produção
-    </button>
-  </div>
-</div>
+            </div>
+            <div class="ms-auto">
+              <button class="btn btn-primary" @click="abrirModal">
+                Registrar Produção
+              </button>
+            </div>
+          </div>
 
 
+          <!-- Produção do Funcionário -->
           <!-- Produção do Funcionário -->
           <div v-if="producao.length" class="card shadow-sm border-0 mt-4">
             <div class="card-header bg-light fw-bold border-bottom">
               📊 Produção Registrada
             </div>
             <div class="card-body">
-              <table class="table table-sm table-striped align-middle text-center">
-                <thead class="table-primary">
-                  <tr>
-                    <th>Etapa</th>
-                    <th>Tempo (min)</th>
-                    <th>Qtd. Peças</th>
-                    <th>Prod./min</th>
-                    <th>Projeção Turno</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(item, i) in producao" :key="i">
-                    <td class="text-start">{{ item.etapa?.descricao || item.observacoes }}</td>
-                    <td>{{ formatarMinutosDecimais(item.tempo_minutos) }}</td>
-                    <td>{{ item.quantidade_pecas }}</td>
-                    <td>{{ item.producaoPorMinuto.toFixed(2) }}</td>
-                    <td>{{ item.producaoProjetada }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <!-- Container para scroll horizontal -->
+              <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle text-center">
+                  <thead class="table-primary">
+                    <tr>
+                      <th>Etapa</th>
+                      <th>Tempo (min)</th>
+                      <th>Qtd. Peças</th>
+                      <th>Prod./min</th>
+                      <th>Projeção Turno</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(item, i) in producao" :key="i">
+                      <td class="text-start">{{ item.etapa?.descricao || item.observacoes }}</td>
+                      <td>{{ formatarMinutosDecimais(item.tempo_minutos) }}</td>
+                      <td>{{ item.quantidade_pecas }}</td>
+                      <td>{{ item.producaoPorMinuto.toFixed(2) }}</td>
+                      <td>{{ item.producaoProjetada }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
+
 
         </div>
       </div>
@@ -104,7 +104,7 @@
           <!-- Quantidade -->
           <div class="mb-3 flex-grow-1">
             <label class="label">Quantidade Produzida</label>
-            <input v-model="quantidadeProduzida" type="number" class="form-control form-control-sm" min="1"/>
+            <input v-model="quantidadeProduzida" type="number" class="form-control form-control-sm" min="1" />
           </div>
 
           <!-- Botões cronômetro -->
@@ -122,7 +122,7 @@
 
 
           <!-- Botão salvar -->
-          <div >
+          <div>
             <button class="btn-save" @click="registrarProducao">Salvar Produção</button>
           </div>
         </div>
@@ -191,10 +191,10 @@ export default {
           .map(key => temposObj[key]);
 
         this.producao = tempos.map(item => {
-          const producaoPorMinuto = item.tempo_minutos 
+          const producaoPorMinuto = item.tempo_minutos
             ? item.quantidade_pecas / item.tempo_minutos
             : 0;
-          const tempoDisponivel = 480; 
+          const tempoDisponivel = 480;
           const eficiencia = 0.85;
           const producaoProjetada = Math.round(producaoPorMinuto * tempoDisponivel * eficiencia);
 
@@ -242,7 +242,7 @@ export default {
     async registrarProducao() {
       try {
         const minutos = this.tempo / 60;
-        await api.post("/registrar/tempo", { 
+        await api.post("/registrar/tempo", {
           id_funcionario: this.idFuncionario,
           id_da_funcao: this.funcaoSelecionada,
           tempo_minutos: minutos,
@@ -254,7 +254,7 @@ export default {
         this.quantidadeProduzida = 0;
         this.carregarDados();
         this.fecharModal();
-                Swal.fire({
+        Swal.fire({
           toast: true,               // ativa estilo de notificação
           position: 'top-end',       // canto superior direito
           icon: 'success',           // 'success', 'error', 'warning', 'info', 'question'
@@ -290,6 +290,7 @@ export default {
   padding-left: 200px;
   width: 100%;
 }
+
 .modal-background {
   position: fixed;
   top: 0;
@@ -349,6 +350,16 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table td,
+.table th {
+  white-space: nowrap;
 }
 
 .input-field,
@@ -414,22 +425,27 @@ export default {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-label{
+
+label {
   display: flex;
 }
+
 .cronometro-buttons {
   display: flex;
-  gap: 10px; /* espaço entre os botões */
+  gap: 10px;
+  /* espaço entre os botões */
   width: 100%;
 }
 
 .cronometro-buttons button {
-  flex: 1; /* cada botão ocupa mesma largura */
+  flex: 1;
+  /* cada botão ocupa mesma largura */
   padding: 12px 0;
   border: none;
   border-radius: 8px;
@@ -444,6 +460,7 @@ label{
 .cronometro-buttons .btn-iniciar {
   background-color: #145a32;
 }
+
 .cronometro-buttons .btn-iniciar:hover {
   background-color: #0f4d28;
 }
@@ -452,6 +469,7 @@ label{
   background-color: #ffc107;
   color: #333;
 }
+
 .cronometro-buttons .btn-pausar:hover {
   background-color: #e0ac06;
 }
@@ -459,6 +477,7 @@ label{
 .cronometro-buttons .btn-resetar {
   background-color: #dc3545;
 }
+
 .cronometro-buttons .btn-resetar:hover {
   background-color: #a71d2a;
 }
@@ -476,8 +495,8 @@ label{
   font-weight: bold;
   font-family: 'Courier New', monospace;
   color: #333;
-  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.1),
-              inset -2px -2px 6px rgba(255,255,255,0.7);
+  box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.1),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.7);
   transition: all 0.3s ease;
   margin: auto;
 }
@@ -485,8 +504,8 @@ label{
 .cronometro-box.running {
   background: #e9f7ef;
   color: #145a32;
-  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.15),
-              inset -2px -2px 6px rgba(255,255,255,0.9);
+  box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.15),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.9);
 }
 
 /* Botão Salvar */

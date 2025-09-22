@@ -324,52 +324,56 @@ export default {
   font-weight: 500;
   color: #2e7d32;
 }
+.info-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap; /* permite quebrar linha em telas pequenas */
+  padding: 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.info-icon {
+  font-size: 2rem;
+  flex-shrink: 0; /* ícone não encolhe */
+}
 
 .profissionais-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  width: 100%;
+  overflow-wrap: break-word; /* evita estouro de texto */
 }
 
 .profissional-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: #f9f9f9;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
-  transition: 0.2s;
-}
-
-.profissional-item:hover {
-  background: #eef7ee;
-  transform: translateY(-2px);
-}
-
-.prof-etapa {
-  min-width: 120px;
-  font-weight: 600;
-  color: #444;
+  gap: 8px;
+  flex-wrap: wrap; /* quebras de linha se não couber */
 }
 
 .prof-foto {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--verde-escuro);
+  flex-shrink: 0;
 }
 
 .prof-nome {
-  font-size: 0.95rem;
-  color: #333;
-  font-weight: 500;
+  font-size: 0.9rem;
+  max-width: calc(100% - 40px); /* evita ultrapassar a tela */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .prof-nome.vazio {
-  color: #9e9e9e;
   font-style: italic;
+  color: #888;
 }
 
 .content-wrapper {
