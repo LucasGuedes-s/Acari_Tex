@@ -211,7 +211,7 @@ export default {
           headers: { Authorization: this.store.pegar_token }
         })
         this.funcoes = etapas.data.etapas
-        console.log(etapas.data.etapas)
+        
       } catch (err) {
         console.error("Erro ao carregar funções", err);
       }

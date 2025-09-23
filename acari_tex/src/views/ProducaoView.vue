@@ -42,11 +42,12 @@
             <draggable class="kanban-column" :list="pecas[status]" :group="{ name: 'pecas' }" item-key="id"
               @change="onKanbanChange($event, status)">
               <template #item="{ element }">
-                <div class="kanban-item" :class="element.status">
+                <div class="kanban-item" :class="element.status" @click="abrirOpcoesStatus(element)">
                   <i class="bi bi-box-seam me-2"></i>
                   {{ element.descricao }}
                 </div>
               </template>
+
             </draggable>
           </div>
         </div>
@@ -134,6 +135,32 @@ export default {
         console.error("Erro ao buscar os dados:", error);
       }
     },
+    async abrirOpcoesStatus(item) {
+      const { value: novoStatus } = await Swal.fire({
+        title: 'Alterar Status',
+        input: 'select',
+        inputOptions: {
+          nao_iniciado: 'Não iniciadas',
+          em_progresso: 'Em andamento',
+          coleta: 'Aguardando coleta',
+          finalizado: 'Concluídas'
+        },
+        inputValue: item.status,
+        showCancelButton: true,
+        confirmButtonText: 'Alterar',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (novoStatus && novoStatus !== item.status) {
+        try {
+          await this.atualizarStatusNoServidor(item.id, novoStatus);
+          item.status = novoStatus;
+          this.fetchData();
+        } catch (error) {
+          console.error('Erro ao alterar status por clique:', error);
+        }
+      }
+    },
 
     async atualizarStatusNoServidor(itemId, novoStatus) {
       const token = this.store.pegar_token;
@@ -142,7 +169,7 @@ export default {
         { id_da_op: itemId, status: novoStatus },
         { headers: { Authorization: `${token}` } }
       );
-      if(resposta.status === 200){
+      if (resposta.status === 200) {
         Swal.fire({
           toast: true,               // ativa estilo de notificação
           position: 'top-end',       // canto superior direito
@@ -153,7 +180,7 @@ export default {
           timerProgressBar: true,    // barra de tempo
         });
       }
-      else{
+      else {
         Swal.fire({
           toast: true,               // ativa estilo de notificação
           position: 'top-end',       // canto superior direito

@@ -98,26 +98,6 @@
                 <input placeholder="Ex: 50" type="number" min="1" id="quantidade" v-model="quantidadeRegistro"
                   class="input-field" />
               </div>
-              <div class="info-row">
-                <label class="label" for="hora">Hora:</label>
-                <select id="hora" v-model="horaRegistro" class="input-select">
-                  <option value="" disabled>Selecione a hora</option>
-                  <option value="07:00">07:00</option>
-                  <option value="08:00">08:00</option>
-                  <option value="09:00">09:00</option>
-                  <option value="10:00">10:00</option>
-                  <option value="11:00">11:00</option>
-                  <option value="12:00">12:00</option>
-                  <option value="13:00">13:00</option>
-                  <option value="14:00">14:00</option>
-                  <option value="15:00">15:00</option>
-                  <option value="16:00">16:00</option>
-                  <option value="17:00">17:00</option>
-                  <option value="18:00">18:00</option>
-                  <option value="1h extra">1h extra</option>
-                  <option value="outro">Outro</option>
-                </select>
-              </div>
             </div>
           </div>
           <div class="modal-footer registro">
@@ -155,13 +135,12 @@ export default {
       etapas: [],
       pecaRegistro: null,
       quantidadeRegistro: null,
-      horaRegistro: null,
       funcao: null,
       pesquisa: '',
       loading: true,
       equipesDisponiveis: [],
-      equipe: '', // id selecionado (ou '' sem seleção)
-      selectedEquipeEmails: new Set() // conjunto de emails (lowercase) da equipe selecionada
+      equipe: '', 
+      selectedEquipeEmails: new Set() 
     }
   },
   computed: {
@@ -255,12 +234,15 @@ export default {
 
     async postProdução() {
       try {
+        const agora = new Date();
+        const horaRegistro = String(agora.getHours()).padStart(2, '0') + ":00";
+
         await api.post('/registrar/producao', {
           id_da_op: this.pecaRegistro,
           id_funcionario: this.registroFuncionario,
           id_da_funcao: this.funcao,
           quantidade_pecas: this.quantidadeRegistro,
-          hora_registro: this.horaRegistro
+          hora_registro: horaRegistro
         }, {
           headers: { Authorization: this.store.pegar_token }
         })
