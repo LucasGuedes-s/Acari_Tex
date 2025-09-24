@@ -118,7 +118,6 @@ export default {
           quantidade_pecas: this.novoTempo.quantidade_pecas,
           observacoes: `Etapa: ${this.novoTempo.etapa}`,
           registradoPor: this.emailFuncionario,
-          estabelecimentoCnpj: '12345678000199',
           id_da_funcao: 1 // pode ser dinâmico se você tiver funções mapeadas
         });
 

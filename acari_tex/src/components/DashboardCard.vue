@@ -7,6 +7,7 @@
           </div>
           <h3 class="card-title mb-1">{{ count }}</h3>
           <p class="card-text">{{ title }}</p>
+          <p v-if="subcount">OPs: {{ subcount }}</p>
         </div>
       </div>
     </div>
@@ -18,6 +19,7 @@
       icon: String,
       title: String,
       count: Number,
+      subcount: Number,
       bgClass: String,
     },
   };

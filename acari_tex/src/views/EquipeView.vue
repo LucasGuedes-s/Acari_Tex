@@ -81,7 +81,7 @@
                 <label class="label" for="peca">Peça:</label>
                 <select id="peca" v-model="pecaRegistro" class="input-select">
                   <option v-for="peca in pecas" :key="peca.id_da_op" :value="peca.id_da_op">
-                    {{ peca.descricao }}
+                    {{ peca.descricao }} - {{ peca.quantidade_pecas }} peças
                   </option>
                 </select>
               </div>
@@ -89,12 +89,12 @@
                 <label class="label" for="funcao">Etapa:</label>
                 <select id="funcao" v-model="funcao" class="input-select">
                   <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
-                    {{ etapa.etapa.descricao }}
+                    {{ etapa.etapa.descricao }} 
                   </option>
                 </select>
               </div>
               <div class="info-row">
-                <label class="label" for="quantidade">Quantidade:</label>
+                <label class="label" for="quantidade">Quantidade produzida:</label>
                 <input placeholder="Ex: 50" type="number" min="1" id="quantidade" v-model="quantidadeRegistro"
                   class="input-field" />
               </div>
@@ -223,6 +223,7 @@ export default {
           headers: { Authorization: this.store.pegar_token }
         })
         this.pecas = data.peca.em_progresso
+        console.log(this.pecas)
         this.etapas = data.peca.em_progresso.map(p => p.etapas)
       } catch (err) {
         console.error(err)

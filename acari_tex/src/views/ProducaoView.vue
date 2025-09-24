@@ -25,14 +25,14 @@
             <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
           </div>
 
-          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Não iniciadas"
-            :count="pecasNaoIniciadas" />
+          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Peças não iniciadas"
+            :subcount="pecasNaoIniciadas.op" :count="pecasNaoIniciadas.pecas" />
           <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento"
-            :count="pecasEmProgresso" />
+            :subcount="pecasEmProgresso.op" :count="pecasEmProgresso.pecas" />
           <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta"
-            :count="pecasColeta" />
+            :subcount="pecasColeta.op" :count="pecasColeta.pecas" />
           <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
-            :count="pecasConcluidas" />
+            :subcount="pecasConcluidas.op" :count="pecasConcluidas.pecas" />
         </section>
 
         <div class="row mt-4 kanban-board">
@@ -91,10 +91,26 @@ export default {
     };
   },
   computed: {
-    pecasNaoIniciadas() { return this.pecas?.nao_iniciado?.length || 0; },
-    pecasEmProgresso() { return this.pecas?.em_progresso?.length || 0; },
-    pecasConcluidas() { return this.pecas?.finalizado?.length || 0; },
-    pecasColeta() { return this.pecas?.coleta?.length || 0; },
+    pecasNaoIniciadas() {
+      const lista = this.pecas?.nao_iniciado || [];
+      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
+      return { op: lista.length, pecas: totalPecas };
+    },
+    pecasEmProgresso() {
+      const lista = this.pecas?.em_progresso || [];
+      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
+      return { op: lista.length, pecas: totalPecas };
+    },
+    pecasColeta() {
+      const lista = this.pecas?.coleta || [];
+      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
+      return { op: lista.length, pecas: totalPecas };
+    },
+    pecasConcluidas() {
+      const lista = this.pecas?.finalizado || [];
+      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
+      return { op: lista.length, pecas: totalPecas };
+    },
   },
   methods: {
     traduzStatus(status) {
@@ -128,6 +144,7 @@ export default {
         const { data } = await api.get("/pecas", {
           headers: { Authorization: `${token}` },
         });
+        console.log(data.peca)
         this.pecas = this.normalizePecas(data.peca);
         this.loading = false;
       } catch (error) {

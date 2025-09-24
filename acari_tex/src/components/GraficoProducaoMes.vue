@@ -57,10 +57,9 @@ export default {
         const res = await api.get('/producao/equipe', {
           headers: { Authorization: `${token}` }
         });
-
+        console.log(res.data.producaoMes)
         const equipe = res.data.producao.producaoMes;
         const hoje = new Date();
-
         // Últimos 7 dias
         const dias7 = Array.from({ length: 7 }, (_, i) => {
           const d = new Date(hoje);
@@ -219,12 +218,10 @@ export default {
 
 .bar-wrapper {
   flex: 2;
-  /* Gráfico de barras maior */
 }
 
 .doughnut-wrapper {
   flex: 1;
-  /* Doughnut menor */
 }
 
 canvas {
@@ -235,4 +232,27 @@ canvas {
   border-radius: 12px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
+@media screen and (min-width: 1600px) {
+  .grafico-container {
+    gap: 60px;
+    padding: 40px 80px;
+  }
+
+  .chart-wrapper {
+    height: 600px;      /* aumenta altura */
+    max-width: 1200px;  /* impede ficar estreito */
+    flex: 1 1 auto;     /* permite expandir bem */
+  }
+
+  .bar-wrapper {
+    flex: 3;
+    max-width: 1600px; /* barra mais larga */
+  }
+
+  .doughnut-wrapper {
+    flex: 2;
+    max-width: 800px;  /* doughnut proporcional */
+  }
+}
+
 </style>

@@ -286,7 +286,8 @@ async function getProducaoEquipe(req) {
       select: {
         id_funcionario: true,
         quantidade_pecas: true,
-        data_inicio: true
+        data_inicio: true,
+        producao_funcionario: { select: { nome: true } },
       },
     });
 
@@ -315,21 +316,33 @@ async function getProducaoEquipe(req) {
       nome: dados.nome,
       etapas: dados.etapas
     }));
-
     const agrupadoMes = {};
     producoesMes.forEach(p => {
       const funcionario = p.id_funcionario;
-      if (!agrupadoMes[funcionario]) agrupadoMes[funcionario] = {};
+      const nome = p.producao_funcionario?.nome || funcionario;
+
+      if (!agrupadoMes[funcionario]) {
+        agrupadoMes[funcionario] = {
+          nome,
+          dias: {}
+        };
+      }
+
       const data = new Date(p.data_inicio);
       const diaDoMes = String(data.getDate()); // "1", "2", ..., "31"
-      if (!agrupadoMes[funcionario][diaDoMes]) agrupadoMes[funcionario][diaDoMes] = 0;
-      agrupadoMes[funcionario][diaDoMes] += p.quantidade_pecas || 0;
+
+      if (!agrupadoMes[funcionario].dias[diaDoMes]) {
+        agrupadoMes[funcionario].dias[diaDoMes] = 0;
+      }
+
+      agrupadoMes[funcionario].dias[diaDoMes] += p.quantidade_pecas || 0;
     });
 
     return {
       producaoDia: resultadoDia,
       producaoMes: agrupadoMes
     };
+
 
   } catch (error) {
     console.error("Erro ao buscar produção da equipe:", error);
@@ -426,7 +439,7 @@ async function getProducaoEquipeDia(req) {
         etapas: dados.etapas
       }))
     }));
-
+    console.log(resultado)
     return { producaoDiaEquipe: resultado };
 
   } catch (error) {

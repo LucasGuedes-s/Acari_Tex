@@ -22,7 +22,7 @@
                 <div class="col-md-6">
                   <label for="quantidade" class="form-label">Quantidade</label>
                   <input v-model="novaPeca.quantidade_pecas" id="quantidade" type="number" class="form-control"
-                    placeholder="Ex: 50" required />
+                    placeholder="Ex: 50" required min="0" />
                 </div>
 
                 <div class="col-md-6">
@@ -32,8 +32,8 @@
 
                 <div class="col-md-6">
                   <label for="data" class="form-label">Valor da peça</label>
-                  <input placeholder="4,00" v-model="novaPeca.valor_peca" id="data" type="number" class="form-control"
-                    required />
+                  <input placeholder="4,00" min="0" v-model="novaPeca.valor_peca" id="data" type="number"
+                    class="form-control" required />
                 </div>
                 <div class="col-md-6">
                   <label for="fornecedor" class="form-label">Pedido por</label>
@@ -142,21 +142,25 @@
                       <span class="info-label">Profissionais indicados para melhor produção</span>
                       <div class="profissionais-list mt-2">
                         <div v-for="etapaNome in novaPeca.producao" :key="etapaNome" class="profissional-item">
+                          <!-- Coluna da etapa com largura fixa -->
                           <strong class="prof-etapa">{{ etapaNome }}:</strong>
-                          <template v-if="getMelhorFuncionario(etapaNome)">
-                            <img :src="getMelhorFuncionario(etapaNome).foto" alt="Foto" class="prof-foto" />
-                            <span class="prof-nome">
-                              {{ getMelhorFuncionario(etapaNome).nome }}
-                            </span>
-                          </template>
-                          <span v-else class="prof-nome vazio">Nenhum profissional indicado</span>
+
+                          <!-- Coluna do profissional, flexível -->
+                          <div class="prof-indicado">
+                            <template v-if="getMelhorFuncionario(etapaNome)">
+                              <img :src="getMelhorFuncionario(etapaNome).foto" alt="Foto" class="prof-foto" />
+                              <span class="prof-nome">
+                                {{ getMelhorFuncionario(etapaNome).nome }}
+                              </span>
+                            </template>
+                            <span v-else class="prof-nome vazio">Nenhum profissional indicado</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
               <!-- Botões -->
               <div class="d-flex justify-content-between mt-4">
                 <button @click="etapa--" class="btn btn-secondary btn-lg">
@@ -300,9 +304,9 @@ export default {
       }
     },
     adicionarNovaEtapa() {
-      if (this.novaEtapa.trim() !== "" && 
-          !this.locaisPredefinidos.some(e => e.etapa?.descricao === this.novaEtapa)) {
-        
+      if (this.novaEtapa.trim() !== "" &&
+        !this.locaisPredefinidos.some(e => e.etapa?.descricao === this.novaEtapa)) {
+
         this.locaisPredefinidos.push({
           etapa: { descricao: this.novaEtapa },
           melhorFuncionario: null
@@ -324,35 +328,51 @@ export default {
   font-weight: 500;
   color: #2e7d32;
 }
+
 .info-card {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  flex-wrap: wrap; /* permite quebrar linha em telas pequenas */
+  flex-wrap: wrap;
+  /* permite quebrar linha em telas pequenas */
   padding: 16px;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .info-icon {
   font-size: 2rem;
-  flex-shrink: 0; /* ícone não encolhe */
+  flex-shrink: 0;
+  /* ícone não encolhe */
 }
 
 .profissionais-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  overflow-wrap: break-word; /* evita estouro de texto */
+  gap: 10px;
+  /* espaçamento entre as linhas */
 }
 
 .profissional-item {
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.prof-etapa {
+  display: inline-block;
+  width: 200px;
+  text-align: left;
+  padding-right: 10px;
+  font-weight: 600;
+}
+
+.prof-indicado {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap; /* quebras de linha se não couber */
+  /* espaço entre foto e nome */
 }
 
 .prof-foto {
@@ -360,21 +380,13 @@ export default {
   height: 32px;
   border-radius: 50%;
   object-fit: cover;
-  flex-shrink: 0;
-}
-
-.prof-nome {
-  font-size: 0.9rem;
-  max-width: calc(100% - 40px); /* evita ultrapassar a tela */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .prof-nome.vazio {
   font-style: italic;
-  color: #888;
+  color: #999;
 }
+
 
 .content-wrapper {
   flex-grow: 1;
@@ -400,12 +412,6 @@ export default {
 
 .nova-etapa .etapa-input {
   max-width: 300px;
-}
-
-.etapas-disponiveis {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .etapa-card {
@@ -557,8 +563,9 @@ main {
 .pipeline-inner,
 .etapas-disponiveis {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-start;
 }
 
 @media (max-width: 767px) {

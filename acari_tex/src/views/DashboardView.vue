@@ -133,6 +133,10 @@ export default {
   justify-content: center;
 }
 
+section.row > * {
+  flex: 1 1 220px; /* cada card cresce, mas respeita mínimo */
+  max-width: 300px; /* evita cards gigantes */
+}
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
@@ -142,6 +146,16 @@ export default {
   .content-wrapper {
     padding-left: 0px;
     z-index: 0;
+  }
+}
+@media (min-width: 1600px) {
+  .row.graficos > * {
+    min-height: 500px; /* gráficos mais altos */
+  }
+
+  .content-wrapper {
+    padding-left: 250px;
+    padding-right: 80px;
   }
 }
 </style>
