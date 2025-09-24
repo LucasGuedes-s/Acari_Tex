@@ -190,26 +190,4 @@ canvas {
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
-@media screen and (min-width: 1600px) {
-  .grafico-container {
-    gap: 60px;
-    padding: 40px 80px;
-  }
-
-  .chart-wrapper {
-    height: 600px;
-    max-width: 1200px;
-    flex: 1 1 auto;
-  }
-
-  .bar-wrapper {
-    flex: 3;
-    max-width: 1600px;
-  }
-
-  .doughnut-wrapper {
-    flex: 2;
-    max-width: 800px;
-  }
-}
 </style>

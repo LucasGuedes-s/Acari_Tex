@@ -49,8 +49,8 @@ export default {
 </script>
 <style>
 .chart-container {
-  width: 100%; /* Defina a largura desejada aqui */
-  height: 500px; /* Defina a altura desejada aqui */
+  width: 100%;
+  height: 500px;
 }
 .conteiner-graficos{
   width: 50%;

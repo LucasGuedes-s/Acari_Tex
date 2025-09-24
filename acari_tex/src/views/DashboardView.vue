@@ -148,14 +148,5 @@ section.row > * {
     z-index: 0;
   }
 }
-@media (min-width: 1600px) {
-  .row.graficos > * {
-    min-height: 500px; /* gráficos mais altos */
-  }
 
-  .content-wrapper {
-    padding-left: 250px;
-    padding-right: 80px;
-  }
-}
 </style>
