@@ -15,18 +15,16 @@ import { Chart, registerables } from 'chart.js';
 import { useAuthStore } from '@/store/store';
 import { io } from 'socket.io-client';
 import api from '@/Axios';
-Chart.register(...registerables);
 import carregandoTela from './carregandoTela.vue';
+Chart.register(...registerables);
 
 export default {
-  name: 'GraficoProducao7Dias',
+  name: 'GraficoProducaoMes',
   setup() {
     const store = useAuthStore();
     return { store };
   },
-  components:{
-    carregandoTela
-  },
+  components: { carregandoTela },
   data() {
     return {
       barChartInstance: null,
@@ -36,7 +34,10 @@ export default {
     };
   },
   mounted() {
-    this.carregarDados();
+    this.$nextTick(() => {
+      this.carregarDados();
+    });
+
     this.socket = io('https://acari-tex.onrender.com');
     this.socket.on('nova_producao', () => {
       if (!this.loading) this.carregarDados();
@@ -57,137 +58,92 @@ export default {
         const res = await api.get('/producao/equipe', {
           headers: { Authorization: `${token}` }
         });
-        console.log(res.data.producaoMes)
-        const equipe = res.data.producao.producaoMes;
+
+        const equipe = res.data.producao.producaoMes; // backend já envia { email: { nome, dias } }
         const hoje = new Date();
-        // Últimos 7 dias
+
+        // últimos 7 dias
         const dias7 = Array.from({ length: 7 }, (_, i) => {
           const d = new Date(hoje);
           d.setDate(hoje.getDate() - (6 - i));
           return `${d.getDate()}/${d.getMonth() + 1}`;
         });
 
-        const funcionarios = Object.keys(equipe);
+        const nomes = Object.values(equipe).map(f => f.nome); // array de nomes
         const barDatasets = [];
         const totalPorFuncionario = {};
 
-        // Inicializa total
-        funcionarios.forEach(func => totalPorFuncionario[func] = 0);
-
         // Gera cores variantes de verde
-        const gerarVerde = (idx, total) => {
-          const gBase = 50; // verde base bem escuro
-          const step = Math.floor(50 / (total || 1)); // variação suave
+        const gerarVerde = (idx) => {
+          const gBase = 50;
+          const step = Math.floor(50 / (nomes.length || 1));
           const g = gBase + step * idx;
-          const r = Math.floor(Math.random() * 20);   // toque sutil de vermelho
-          const b = Math.floor(Math.random() * 20);   // toque sutil de azul
-          return `rgba(${r}, ${g}, ${b}, 0.9)`;       // opacidade alta
-        }
+          const r = Math.floor(Math.random() * 20);
+          const b = Math.floor(Math.random() * 20);
+          return `rgba(${r}, ${g}, ${b}, 0.9)`;
+        };
 
-        // Caso não haja funcionários
-        if (funcionarios.length === 0) {
-          // Destrói gráficos antigos se existirem
-          if (this.barChartInstance) this.barChartInstance.destroy();
-          if (this.doughnutChartInstance) this.doughnutChartInstance.destroy();
-
-          // Cria um gráfico "vazio" com valor 0
-          const ctxBar = this.$refs.barChart.getContext('2d');
-          this.barChartInstance = new Chart(ctxBar, {
-            type: 'bar',
-            data: {
-              labels: ['Sem produção'],
-              datasets: [{
-                label: 'Produção',
-                data: [0],
-                backgroundColor: 'rgba(50,150,50,0.7)',
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: { title: { display: true, text: 'Nenhuma produção nos últimos 7 dias' } },
-              scales: { y: { beginAtZero: true } }
-            }
-          });
-
-          const ctxDoughnut = this.$refs.doughnutChart.getContext('2d');
-          this.doughnutChartInstance = new Chart(ctxDoughnut, {
-            type: 'doughnut',
-            data: {
-              labels: ['Sem produção'],
-              datasets: [{
-                data: [1],
-                backgroundColor: ['rgba(50,150,50,0.7)']
-              }]
-            },
-            options: {
-              responsive: true,
-              plugins: { title: { display: true, text: 'Nenhuma produção nos últimos 7 dias' } }
-            }
-          });
-
-          this.loading = false;
-          return; // não executa o restante do método
-        }
-
-        funcionarios.forEach((func, idx) => {
-          const data = dias7.map((dia, i) => {
-            const valor = equipe[func][String(new Date(hoje).getDate() - (6 - i))] || 0;
-            totalPorFuncionario[func] += valor;
-            return valor;
-          });
-
+        // Monta datasets
+        Object.entries(equipe).forEach(([email, dados], idx) => {
+          const data = dias7.map(dia => dados.dias[dia.split('/')[0]] || 0); // pega produção do dia
           barDatasets.push({
-            label: func,
+            label: dados.nome, // usa o nome
             data,
             backgroundColor: gerarVerde(idx),
             stack: 'Stack 0'
           });
+
+          totalPorFuncionario[dados.nome] = Object.values(dados.dias).reduce((a,b) => a+b, 0);
         });
 
         // --- Gráfico de barras ---
         if (this.barChartInstance) this.barChartInstance.destroy();
-        const barCtx = this.$refs.barChart.getContext('2d');
-        this.barChartInstance = new Chart(barCtx, {
-          type: 'bar',
-          data: { labels: dias7, datasets: barDatasets },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { position: 'top' },
-              tooltip: { mode: 'index', intersect: false },
-              title: { display: true, text: 'Produção por Funcionário (Últimos 7 dias)' }
-            },
-            scales: {
-              x: { stacked: true },
-              y: { stacked: true, beginAtZero: true }
+        const barCanvas = this.$refs.barChart;
+        if (barCanvas) {
+          const barCtx = barCanvas.getContext('2d');
+          this.barChartInstance = new Chart(barCtx, {
+            type: 'bar',
+            data: { labels: dias7, datasets: barDatasets },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index', intersect: false },
+                title: { display: true, text: 'Produção por Funcionário (Últimos 7 dias)' }
+              },
+              scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+              }
             }
-          }
-        });
+          });
+        }
 
         // --- Gráfico Doughnut ---
-        const doughnutData = {
-          labels: Object.keys(totalPorFuncionario),
-          datasets: [{
-            data: Object.values(totalPorFuncionario),
-            backgroundColor: Object.keys(totalPorFuncionario).map((_, idx) => gerarVerde(idx)),
-            borderColor: '#fff',
-            borderWidth: 2
-          }]
-        };
-
         if (this.doughnutChartInstance) this.doughnutChartInstance.destroy();
-        const doughnutCtx = this.$refs.doughnutChart.getContext('2d');
-        this.doughnutChartInstance = new Chart(doughnutCtx, {
-          type: 'doughnut',
-          data: doughnutData,
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { position: 'right' },
-              title: { display: true, text: 'Produção Total por Funcionário (Últimos 7 dias)' }
+        const doughnutCanvas = this.$refs.doughnutChart;
+        if (doughnutCanvas) {
+          const doughnutCtx = doughnutCanvas.getContext('2d');
+          this.doughnutChartInstance = new Chart(doughnutCtx, {
+            type: 'doughnut',
+            data: {
+              labels: Object.keys(totalPorFuncionario),
+              datasets: [{
+                data: Object.values(totalPorFuncionario),
+                backgroundColor: Object.keys(totalPorFuncionario).map((_, idx) => gerarVerde(idx)),
+                borderColor: '#fff',
+                borderWidth: 2
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'right' },
+                title: { display: true, text: 'Produção Total por Funcionário (Últimos 7 dias)' }
+              }
             }
-          }
-        });
+          });
+        }
 
       } catch (err) {
         console.error('Erro ao carregar gráfico:', err);
@@ -232,6 +188,7 @@ canvas {
   border-radius: 12px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
+
 @media screen and (min-width: 1600px) {
   .grafico-container {
     gap: 60px;
@@ -239,20 +196,19 @@ canvas {
   }
 
   .chart-wrapper {
-    height: 600px;      /* aumenta altura */
-    max-width: 1200px;  /* impede ficar estreito */
-    flex: 1 1 auto;     /* permite expandir bem */
+    height: 600px;
+    max-width: 1200px;
+    flex: 1 1 auto;
   }
 
   .bar-wrapper {
     flex: 3;
-    max-width: 1600px; /* barra mais larga */
+    max-width: 1600px;
   }
 
   .doughnut-wrapper {
     flex: 2;
-    max-width: 800px;  /* doughnut proporcional */
+    max-width: 800px;
   }
 }
-
 </style>
