@@ -87,10 +87,11 @@ export default {
         Object.entries(equipe).forEach(([email, dados], idx) => {
           const data = dias7.map(dia => dados.dias[dia.split('/')[0]] || 0); // pega produção do dia
           barDatasets.push({
-            label: dados.nome, // usa o nome
+            label: `${dados.nome}`, // usa o nome
             data,
             backgroundColor: gerarVerde(idx),
-            stack: 'Stack 0'
+            stack: 'Stack 0',
+            email
           });
 
           totalPorFuncionario[dados.nome] = Object.values(dados.dias).reduce((a,b) => a+b, 0);
