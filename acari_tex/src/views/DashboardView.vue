@@ -133,10 +133,6 @@ export default {
   justify-content: center;
 }
 
-section.row > * {
-  flex: 1 1 220px; /* cada card cresce, mas respeita mínimo */
-  max-width: 300px; /* evita cards gigantes */
-}
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
