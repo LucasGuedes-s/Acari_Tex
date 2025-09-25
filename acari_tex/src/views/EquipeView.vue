@@ -87,12 +87,32 @@
               </div>
               <div class="info-row">
                 <label class="label" for="funcao">Etapa:</label>
-                <select id="funcao" v-model="funcao" class="input-select">
+                <select id="funcao" v-model="funcao" class="input-select" @change="checkNovaEtapa">
                   <option v-for="etapa in etapasFiltradas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
-                    {{ etapa.etapa.descricao }} 
+                    {{ etapa.etapa.descricao }}
                   </option>
+                  <option value="nova">➕ Cadastrar nova etapa</option>
                 </select>
               </div>
+              <!-- Se selecionar nova etapa -->
+              <div v-if="funcao === 'nova'" class="info-row">
+                <label class="label" for="nova-etapa">Descrição da nova etapa:</label>
+                <input type="text" id="nova-etapa" v-model="novaEtapa" placeholder="Ex: Costura, Acabamento..." class="input-field" />
+                <button class="btn-save mt-2" @click="salvarNovaEtapa">Salvar Etapa</button>
+              </div>
+
+              <!-- Se quiser adicionar etapa já cadastrada -->
+              <div v-if="funcao === 'existente'" class="info-row">
+                <label class="label" for="etapas-existentes">Selecione uma etapa:</label>
+                <select id="etapas-existentes" v-model="etapaExistente" class="input-select">
+                  <option v-for="etapa in todasEtapas" :key="etapa.id_da_funcao" :value="etapa.id_da_funcao">
+                    {{ etapa.descricao }}
+                  </option>
+                </select>
+                <button class="btn-save mt-2" @click="associarEtapaExistente">Adicionar à peça</button>
+              </div>
+
+
               <div class="info-row">
                 <label class="label" for="quantidade">Quantidade produzida:</label>
                 <input placeholder="Ex: 50" type="number" min="1" id="quantidade" v-model="quantidadeRegistro"
@@ -140,6 +160,9 @@ export default {
       loading: true,
       equipesDisponiveis: [],
       equipe: '', 
+      novaEtapa: '',
+      todasEtapas: [],
+      etapaExistente: null,
       selectedEquipeEmails: new Set() 
     }
   },
@@ -177,6 +200,47 @@ export default {
     }
   },
   methods: {
+  checkNovaEtapa() {
+    // se ele trocar o select, você controla o fluxo
+    if (this.funcao === 'nova') {
+      this.novaEtapa = ''
+    }
+    if (this.funcao === 'existente') {
+      this.etapaExistente = null
+      this.buscarTodasEtapas() // carrega lista completa de etapas do sistema
+    }
+  },
+
+  async salvarNovaEtapa() {
+    try {
+      const { data } = await api.post('/adicionar/etapa', {
+        descricao: this.novaEtapa,
+        id_da_op: this.pecaRegistro,
+      }, {
+        headers: { Authorization: this.store.pegar_token }
+      })
+
+      Swal.fire('Sucesso', 'Etapa cadastrada com sucesso!', 'success')
+      this.funcao = data.etapa.id_da_funcao
+      await this.getPecasProducao() // atualiza lista
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Erro', 'Erro ao cadastrar etapa.', 'error')
+    }
+  },
+
+  async buscarTodasEtapas() {
+    try {
+      const { data } = await api.get('/etapas', {
+        headers: { Authorization: this.store.pegar_token }
+      })
+      this.todasEtapas = data.etapas
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Erro', 'Erro ao carregar etapas existentes.', 'error')
+    }
+  },
+
     resetRegistroModal() {
       this.pecaRegistro = null;      
       this.funcao = null;            

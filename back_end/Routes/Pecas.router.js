@@ -12,6 +12,7 @@ router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPec
 router.get('/producao/equipe/dia', [jwtMiddleware], ControllerOp.getProducaoEquipeDia);
 router.get('/etapas', [jwtMiddleware], ControllerOp.getEtapas)
 
+router.post('/adicionar/etapa', [jwtMiddleware], ControllerOp.postEtapa)
 router.post('/registrar/producao', [jwtMiddleware], ControllerOp.postProducaoPeca);
 router.post('/update/status', [jwtMiddleware], ControllerOp.updatePecaStatus);
 router.post('/deletar/peca/:id', [jwtMiddleware], ControllerOp.deletarPeca);

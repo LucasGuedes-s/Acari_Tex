@@ -719,6 +719,56 @@ async function voltarPeca(req, res) {
   return resultado;
 }
 
+async function postEtapa(req) {
+  const cnpj = req.user.cnpj;
+  const { descricao, id_da_op } = req.body;
+
+  // busca OP dentro do estabelecimento do usuário
+  const op = await prisma.pecasOP.findFirst({
+    where: {
+      id_da_op,
+      id_Estabelecimento: cnpj,
+    },
+  });
+
+  if (!op) {
+    throw new Error("OP não encontrada para este estabelecimento");
+  }
+
+  // busca ou cria a etapa
+  let etapa = await prisma.etapa.findUnique({
+    where: { descricao },
+  });
+
+  if (!etapa) {
+    etapa = await prisma.etapa.create({
+      data: { descricao },
+    });
+  }
+
+  // verifica se já existe o vínculo OP + Etapa
+  let pecaEtapa = await prisma.pecasEtapas.findUnique({
+    where: {
+      id_da_op_id_da_funcao: {
+        id_da_op,
+        id_da_funcao: etapa.id_da_funcao,
+      },
+    },
+  });
+
+  if (!pecaEtapa) {
+    pecaEtapa = await prisma.pecasEtapas.create({
+      data: {
+        id_da_op,
+        id_da_funcao: etapa.id_da_funcao,
+        quantidade_meta: op.quantidade_pecas ?? 0,
+      },
+    });
+  }
+
+  return pecaEtapa;
+}
+
 module.exports = {
   postPecaOP,
   getPecasOP,
@@ -731,5 +781,6 @@ module.exports = {
   deletarPeca,
   voltarPeca,
   getProducaoEquipeDia,
-  getEtapas
+  getEtapas,
+  postEtapa
 };

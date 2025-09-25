@@ -132,6 +132,16 @@ async function getEtapas(req, res, next) {
     }
 }
 
+async function postEtapa(req, res, next) {
+    try{
+        const etapa = await pecas.postEtapa(req);
+        res.status(200).json({ etapa });
+    }
+    catch (err) {
+        console.error(`Erro ao cadastrar etapa.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     getOPs,
@@ -143,5 +153,6 @@ module.exports = {
     deletarPeca,
     voltarPeca,
     getProducaoEquipeDia,
-    getEtapas
+    getEtapas,
+    postEtapa
 };
