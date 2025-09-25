@@ -12,17 +12,17 @@
 
         <section class="row justify-content-center text-center">
           <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
+            <DashboardCard icon="bi-kanban" title="Não iniciadas" :subcount="pecasNaoIniciadas.op" :count="pecasNaoIniciadas.pecas" class="bg-light-pink" />
           </div>
           <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
+            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :subcount="pecasEmProgresso.op" :count="pecasEmProgresso.pecas"
               class="bg-light-blue" />
           </div>
           <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
+            <DashboardCard icon="bi-truck" title="Aguardando coleta" :subcount="pecasColeta.op" :count="pecasColeta.pecas"  class="bg-green" />
           </div>
           <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+            <DashboardCard icon="bi-check-circle" title="Concluídas" :subcount="pecasConcluidas.op" :count="pecasConcluidas.pecas"  class="bg-light-green" />
           </div>
 
           <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Peças não iniciadas"
