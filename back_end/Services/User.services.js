@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken')
 const config = require('../config/app.config.js');
 prisma = new PrismaClient()
-
+const { enviarEmailAlteracaoSenha } = require('./Email.services.js')
 const bcrypt = require('bcrypt');
 const permissoes = require('../config/permissions.config.js');
 
@@ -75,9 +75,43 @@ async function criarTempoReferencia(req) {
     throw new Error("Erro ao criar tempo de referência.");
   }
 }
+async function SolicitacaoalterarSenha(req) {
+  const email = req
+   const usuario = await prisma.Usuarios.findFirst({ //A função findFirst faz uma busca na tabela usuários do banco de dados pelo email digitado pelo usuário 
+        where: {
+            email
+        },
+   })
+   if(usuario){
+    await enviarEmailAlteracaoSenha(usuario.email, usuario.nome)
+   }
+   else{
+    throw new Error("Erro")
+   }
+   return "Senha alterada"
+}
+async function alterarSenha(email, novaSenha) {
+  const usuario = await prisma.Usuarios.findUnique({
+    where: { email },
+  });
 
+  if (!usuario) {
+    throw new Error('E-mail não encontrado');
+  }
+
+  const senhaCriptografada = await bcrypt.hashSync(novaSenha, 10);
+
+  const usuario_atualizado = await prisma.Usuarios.update({
+    where: { email },
+    data: { senha: senhaCriptografada },
+  });
+
+  return usuario_atualizado;
+}
 
 module.exports = {
     loginUser,
-    criarTempoReferencia
+    criarTempoReferencia,
+    SolicitacaoalterarSenha,
+    alterarSenha
 }

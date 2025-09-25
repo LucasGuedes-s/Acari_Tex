@@ -66,13 +66,25 @@ const routes = [
     }
   },
   {
-    path: '/alterar-senha',
-    name: 'ProducaoFuncionario',
+    path: '/solicitar/alterar-senha',
+    name: 'alterarSenhaUser',
     props: true,
     // route level code-splitting
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
     component: () => import(/* webpackChunkName: "about" */ '../views/AlterarSenha.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
+  },
+    {
+    path: '/alterar-senha',
+    name: 'alterarSenha',
+    props: true,
+    // route level code-splitting
+    // this generates a separate chunk (about.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () => import(/* webpackChunkName: "about" */ '../views/AlterarSenhaView.vue'),
     meta: {
       title: 'Linha Tex'
     }

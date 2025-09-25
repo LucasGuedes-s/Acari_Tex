@@ -33,8 +33,33 @@ async function criarTempoReferencia(req, res, next) {
         next(err);
     }
 }
-
+async function SolicitacaoalterarSenha(req, res, next) {
+    try{
+        const email = req.params.email
+        const senha = await Login.SolicitacaoalterarSenha(email)
+        res.status(201).json(senha);
+    }
+    catch (err){
+        console.error("Erro ao solicitar alteração da senha", err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}
+async function alterarSenha(req, res, next) {
+    try{
+        const { email, novaSenha } = req.body
+        const nova_senha = await Login.alterarSenha(email, novaSenha)
+        res.status(201).json(nova_senha);
+    }
+    catch (err){
+        console.error("Erro ao realizar a alteração da senha", err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}
 module.exports = { 
     login,
-    criarTempoReferencia
+    criarTempoReferencia,
+    SolicitacaoalterarSenha,
+    alterarSenha
 };

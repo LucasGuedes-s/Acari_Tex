@@ -1,312 +1,99 @@
 <template>
-  <div>
-    <div>
-      <SidebarNav style="z-index: 1" />
+  <div class="d-flex vh-100">
+    <!-- Lado esquerdo (verde com logo) -->
+    <div class="col-12 col-md-6 bg-green d-flex flex-column justify-content-center align-items-center text-white p-4">
+      <img src="@/assets/Logofundo.png" alt="Logo" class="logo mb-3" />
+      <h2 class="fw-bold text-center">Bem-vindo de volta</h2>
+      <p class="text-center mt-2">
+        Solicite a alteração de senha e recupere seu acesso.
+      </p>
     </div>
-    <carregandoTela v-if="loading" />
-    <main v-else class="content-wrapper flex-grow-1">
-      <div class="container-fluid my-4 mt-md-0 mt-3">
-        <div class="row justify-content-center">
-          <NavBarUser class="d-none d-md-block" />
-        </div>
 
-        <section class="row justify-content-center text-center">
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
-          </div>
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
-              class="bg-light-blue" />
-          </div>
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
-          </div>
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
+    <!-- Lado direito (formulário) -->
+    <div class="col-12 col-md-6 d-flex justify-content-center align-items-center bg-light">
+      <div class="card shadow p-4 w-75" style="max-width: 400px;">
+        <h4 class="text-center mb-3">Esqueceu sua senha?</h4>
+        <p class="text-center text-muted mb-4">
+          Informe seu e-mail e enviaremos um link para redefinir sua senha.
+        </p>
+
+        <form @submit.prevent="solicitarAlteracao">
+          <div class="mb-3">
+            <label for="email" class="form-label">E-mail</label>
+            <input
+              type="email"
+              v-model="email"
+              class="form-control"
+              id="email"
+              placeholder="Digite seu e-mail"
+              required
+            />
           </div>
 
-          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Peças não iniciadas"
-            :subcount="pecasNaoIniciadas.op" :count="pecasNaoIniciadas.pecas" />
-          <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento"
-            :subcount="pecasEmProgresso.op" :count="pecasEmProgresso.pecas" />
-          <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta"
-            :subcount="pecasColeta.op" :count="pecasColeta.pecas" />
-          <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
-            :subcount="pecasConcluidas.op" :count="pecasConcluidas.pecas" />
-        </section>
+          <button type="submit" class="btn w-100 botao" :disabled="loading">
+            <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
+            Solicitar Alteração
+          </button>
+        </form>
 
-        <div class="row mt-4 kanban-board">
-          <div class="col" v-for="(lista, status) in pecas" :key="status">
-            <h5 class="text-center mb-3">{{ traduzStatus(status) }}</h5>
-
-            <draggable class="kanban-column" :list="pecas[status]" :group="{ name: 'pecas' }" item-key="id"
-              @change="onKanbanChange($event, status)">
-              <template #item="{ element }">
-                <div class="kanban-item" :class="element.status" @click="abrirOpcoesStatus(element)">
-                  <i class="bi bi-box-seam me-2"></i>
-                  {{ element.descricao }}
-                </div>
-              </template>
-
-            </draggable>
-          </div>
+        <div v-if="mensagem" class="alert alert-info mt-3 text-center">
+          {{ mensagem }}
         </div>
       </div>
-    </main>
+    </div>
   </div>
 </template>
 
 <script>
-import SidebarNav from '@/components/Sidebar.vue';
-import NavBarUser from '@/components/NavBarUser.vue';
-import { useAuthStore } from '@/store/store';
-import DashboardCard from '@/components/DashboardCard.vue';
-import draggable from 'vuedraggable';
 import api from '@/Axios';
-import carregandoTela from '@/components/carregandoTela.vue';
 import Swal from 'sweetalert2';
 
 export default {
-  name: 'DashboardTecidos',
-  components: {
-    SidebarNav,
-    NavBarUser,
-    DashboardCard,
-    draggable,
-    carregandoTela
-  },
-  setup() {
-    const store = useAuthStore();
-    return { store };
-  },
+  name: "TelaSolicitarSenha",
   data() {
     return {
-      loading: true,
-      pecas: {
-        nao_iniciado: [],
-        em_progresso: [],
-        coleta: [],
-        finalizado: [],
-      },
+      email: "",
+      loading: false,
+      mensagem: "",
     };
   },
-  computed: {
-    pecasNaoIniciadas() {
-      const lista = this.pecas?.nao_iniciado || [];
-      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
-      return { op: lista.length, pecas: totalPecas };
-    },
-    pecasEmProgresso() {
-      const lista = this.pecas?.em_progresso || [];
-      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
-      return { op: lista.length, pecas: totalPecas };
-    },
-    pecasColeta() {
-      const lista = this.pecas?.coleta || [];
-      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
-      return { op: lista.length, pecas: totalPecas };
-    },
-    pecasConcluidas() {
-      const lista = this.pecas?.finalizado || [];
-      const totalPecas = lista.reduce((sum, item) => sum + (item.quantidade_pecas || 0), 0);
-      return { op: lista.length, pecas: totalPecas };
-    },
-  },
   methods: {
-    traduzStatus(status) {
-      const mapa = {
-        nao_iniciado: "Não iniciadas",
-        em_progresso: "Em andamento",
-        coleta: "Aguardando coleta",
-        finalizado: "Concluídas",
-      };
-      return mapa[status] || status;
-    },
-
-    normalizePecas(raw) {
-      const keys = ['nao_iniciado', 'em_progresso', 'coleta', 'finalizado'];
-      const out = {};
-      for (const k of keys) {
-        const list = Array.isArray(raw?.[k]) ? raw[k] : [];
-        out[k] = list.map(item => ({
-          ...item,
-          id: item.id ?? item.id_da_op ?? item._id ?? item.codigo, // garante um id
-          status: k,
-        }));
-      }
-      return out;
-    },
-
-    async fetchData() {
+    async solicitarAlteracao() {
+      this.loading = true;
+      this.mensagem = "";
+      const email = ""
       try {
-        this.loading = true;
-        const token = this.store.pegar_token;
-        const { data } = await api.get("/pecas", {
-          headers: { Authorization: `${token}` },
-        });
-        console.log(data.peca)
-        this.pecas = this.normalizePecas(data.peca);
-        this.loading = false;
-      } catch (error) {
-        this.loading = false;
-        console.error("Erro ao buscar os dados:", error);
-      }
-    },
-    async abrirOpcoesStatus(item) {
-      const { value: novoStatus } = await Swal.fire({
-        title: 'Alterar Status',
-        input: 'select',
-        inputOptions: {
-          nao_iniciado: 'Não iniciadas',
-          em_progresso: 'Em andamento',
-          coleta: 'Aguardando coleta',
-          finalizado: 'Concluídas'
-        },
-        inputValue: item.status,
-        showCancelButton: true,
-        confirmButtonText: 'Alterar',
-        cancelButtonText: 'Cancelar'
-      });
-
-      if (novoStatus && novoStatus !== item.status) {
-        try {
-          await this.atualizarStatusNoServidor(item.id, novoStatus);
-          item.status = novoStatus;
-          this.fetchData();
-        } catch (error) {
-          console.error('Erro ao alterar status por clique:', error);
+        const res = await api.post(`/solicitar/alteracao-senha/${email}`)
+        if(res.data.status === 201){
+          Swal.fire('Sucesso', 'Foi enviado ao seu E-mail o link de alteração', 'success')
         }
-      }
-    },
-
-    async atualizarStatusNoServidor(itemId, novoStatus) {
-      const token = this.store.pegar_token;
-      const resposta = await api.post(
-        `/update/status`,
-        { id_da_op: itemId, status: novoStatus },
-        { headers: { Authorization: `${token}` } }
-      );
-      if (resposta.status === 200) {
-        Swal.fire({
-          toast: true,               // ativa estilo de notificação
-          position: 'top-end',       // canto superior direito
-          icon: 'success',           // 'success', 'error', 'warning', 'info', 'question'
-          title: 'Status da peça atualizado!',
-          showConfirmButton: false,  // sem botão de confirmação
-          timer: 5000,               // desaparece sozinho em 3s
-          timerProgressBar: true,    // barra de tempo
-        });
-      }
-      else {
-        Swal.fire({
-          toast: true,               // ativa estilo de notificação
-          position: 'top-end',       // canto superior direito
-          icon: 'error',           // 'success', 'error', 'warning', 'info', 'question'
-          title: 'Peça cadastrada com sucesso!',
-          showConfirmButton: false,  // sem botão de confirmação
-          timer: 5000,               // desaparece sozinho em 3s
-          timerProgressBar: true,    // barra de tempo
-        });
-      }
-    },
-
-    async onKanbanChange(evt, colunaDestino) {
-      // evt tem { added, moved, removed } dependendo da ação
-      try {
-        if (evt?.added) {
-          const movedItem = evt.added.element;
-          if (!movedItem) return;
-
-          // só atualiza no backend se realmente trocou de coluna
-          if (movedItem.status !== colunaDestino) {
-            await this.atualizarStatusNoServidor(movedItem.id, colunaDestino);
-            movedItem.status = colunaDestino; // atualiza localmente para refletir a cor
-          }
+        else{
+          Swal.fire('Erro', `Erro ao solicitar alteração de senha`)
         }
-        // evt.moved => reordenação dentro da mesma coluna (não precisa chamar API)
-        // evt.removed => saiu de uma coluna (a confirmação é tratada no 'added' da coluna destino)
       } catch (error) {
-        console.error('Erro ao atualizar status:', error);
-        // rollback simples: recarrega do servidor
-        this.fetchData();
+        Swal.fire('Erro', `Erro ao solicitar alteração de senha`)
+        this.mensagem = "Ocorreu um erro. Tente novamente mais tarde.";
+      } finally {
+        this.loading = false;
       }
     },
-  },
-  mounted() {
-    this.fetchData();
   },
 };
 </script>
 
 <style scoped>
-.content-wrapper {
-  flex-grow: 1;
-  padding-left: 200px;
-  width: 100%;
+.bg-green {
+  background-color: var(--verde-escuro); /* verde escuro elegante */
 }
 
-.row {
-  margin-top: 30px;
+.logo {
+  max-width: 180px;
+}
+label{
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
 }
-
-.kanban-board {
-  display: flex;
-  gap: 1rem;
-}
-
-.kanban-column {
-  background: #f9f9f9;
-  border-radius: 8px;
-  min-height: 300px;
-  padding: 10px;
-  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.kanban-item {
-  border-radius: 6px;
-  padding: 10px;
-  margin-bottom: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  display: flex;
-  align-items: center;
-  cursor: grab;
-  transition: 0.2s;
-  color: #fff;
-  font-weight: 500;
-}
-
-.kanban-item:hover {
-  opacity: 0.9;
-  transform: scale(1.02);
-}
-
-/* Cores por status */
-.kanban-item.nao_iniciado {
-  background: #ffb3b3;
-  /* rosa claro */
-}
-
-.kanban-item.em_progresso {
-  background: #4da6ff;
-  /* azul */
-}
-
-.kanban-item.coleta {
-  background: #66cc66;
-  /* verde médio */
-}
-
-.kanban-item.finalizado {
-  background: #66cc99;
-  /* verde suave */
-}
-
-@media (max-width: 768px) {
-  .content-wrapper {
-    padding-left: 0px;
-  }
+.botao{
+  background-color: var(--verde-escuro);
+  color: white;
 }
 </style>

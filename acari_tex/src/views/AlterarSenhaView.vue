@@ -3,8 +3,8 @@
     <div class="bg-wave"></div>
 
     <div class="login-form-container">
-      <form class="login-form" @submit.prevent="getlogin">
-        <h2 class="title">Bem-vindo 👋</h2>
+      <form class="login-form" @submit.prevent="alterSenha">
+        <h2 class="title">Alterar Senha 👋</h2>
         <p class="subtitle">Entre para acessar sua conta</p>
         <div class="form-group">
           <label for="username">E-mail</label>
@@ -17,15 +17,23 @@
         </div>
 
         <div class="form-group">
-          <label for="password">Senha</label>
+          <label for="password">Nova senha</label>
           <input
+            type="password"
+            id="senha"
+            v-model="senha"
+            placeholder="Digite sua senha"
+          />
+            <label for="password">Repita a nova senha</label>
+
+            <input
             type="password"
             id="password"
             v-model="password"
             placeholder="Digite sua senha"
           />
         </div>
-        <router-link to="/solicitar/alterar-senha"><a>Esqueceu sua senha?</a></router-link>
+
         <button type="submit" class="btn-login">Entrar</button>
       </form>
     </div>
@@ -44,6 +52,7 @@ export default {
     return {
       email: "",
       password: "",
+      senha: ""
     };
   },
 
@@ -53,25 +62,27 @@ export default {
     return store;
   },
   methods: {
-    async getlogin() {
+    async alterSenha() {
       try {
-        const response = await api.post("/user/login", {
-          usuario: {
-            email: this.email,
-            senha: this.password,
-          },
-        });
+        if(this.senha === this.password){
+            const response = await api.post("/alterar/senha",
+                {
+                    email: this.email,
+                    novaSenha: this.password,
+                },
+            );
+            if(response.status === 201){
+                Swal.fire('Sucesso', 'Senha alterada com sucesso', 'success')
+                router.push('/login')
+            }
 
-        const authStore = useAuthStore();
-        authStore.setToken(response.headers.authorization);
-        authStore.setUsuario(response.data.usuario);
+        }
 
-        router.push("/Dashboard");
       } catch (error) {
         console.error(error);
         Swal.fire({
           icon: "error",
-          title: "E-mail ou senha incorretos",
+          title: "Não foi possível alterar sua senha",
           timer: 4000,
         });
       }
@@ -81,12 +92,6 @@ export default {
 </script>
 
 <style scoped>
-a{
-  display: flex;
-  text-decoration: none;
-  color: #0d3927;
-  padding-bottom: 10px;
-}
 .login-wrapper {
   display: flex;
   flex-direction: column;

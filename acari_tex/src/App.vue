@@ -11,7 +11,7 @@
   color: #2c3e50;
 }
 :root {
-  --verde-escuro: #145a32;
+  --verde-escuro: #0d3927;
   --verde-claro: #266c44;
   --cinza-claro: #dedede;
   --bs-primary: #145a32
