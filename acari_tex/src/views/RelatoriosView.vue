@@ -22,6 +22,9 @@
                             <option value="finalizado">Concluídas</option>
                         </select>
                     </div>
+                    <div class="col-md-4 mb-2">
+                        <input class="form-control" @click="gerarPDF" type="button" value="Gerar PDF">
+                    </div>
                     <!--
                     <div class="col-md-4 mb-2">
                         <input type="date" class="form-control" v-model="filtroData" />
@@ -38,7 +41,7 @@
                                 </span>
                             </p>
 
-                            <p>Quantidade: {{ peca.quantidade }}</p>
+                            <p>Quantidade: {{ peca.quantidade_pecas }}</p>
                             <p>Data de Criação: {{ formatarData(peca.data_do_pedido) }}</p>
                             <div class="mt-3 d-flex flex-row gap-2">
                                 <button 
@@ -68,6 +71,7 @@ import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
 import api from '@/Axios';
 import Swal from 'sweetalert2';
 import carregandoTela from '@/components/carregandoTela.vue';
+import { gerarPDF } from '@/utils/functions/GerarPDF';
 
 export default {
     name: 'DetalhesPecas',
@@ -129,6 +133,10 @@ export default {
         },
         formatarData(dataStr) {
             return new Date(dataStr).toLocaleDateString('pt-BR');
+        },
+        async gerarPDF(){
+            console.log(this.pecas)
+            await gerarPDF(this.pecas, 'Relatório de produção')
         },
         async fetchPecas() {
             this.loading = true;
