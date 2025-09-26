@@ -66,39 +66,45 @@
     </div>
 
     <!-- Planos -->
-    <div class="plans container">
-      <h2>Nossos Planos</h2>
-      <div class="plans-grid">
-        <div class="plan-card">
-          <h3>Básico</h3>
-          <p>Ideal para pequenas confecções</p>
-          <span class="price">R$ 249,90/mês</span>
-          <ul>
-            <li>✔️ Controle de produção</li>
-            <li>✔️ Gestão de equipes</li>
-          </ul>
-        </div>
-        <div class="plan-card destaque">
-          <h3>Plano anual</h3>
-          <p>Para fábricas em crescimento</p>
-          <span class="price">R$ 2799,9/ano</span>
-          <ul>
-            <li>✔️ Tudo do Básico</li>
-            <li>✔️ Relatórios avançados</li>
-            <li>✔️ Suporte prioritário</li>
-          </ul>
-        </div>
-        <div class="plan-card">
-          <h3>Enterprise</h3>
-          <p>Grandes indústrias têxteis</p>
-          <span class="price">Sob consulta</span>
-          <ul>
-            <li>✔️ Personalização completa</li>
-            <li>✔️ Treinamento da equipe</li>
-          </ul>
-        </div>
-      </div>
+<div class="plans container">
+  <h2>Nossos Planos</h2>
+  <div class="plans-grid">
+    
+    <div class="plan-card">
+      <h3>Semestral</h3>
+      <p>Ideal para pequenas e médias confecções</p>
+      <span class="price">R$ 1.499,90/semestre</span>
+      <ul>
+        <li>✔️ Controle de produção</li>
+        <li>✔️ Gestão de equipes</li>
+        <li>✔️ Relatórios básicos</li>
+      </ul>
     </div>
+    
+    <div class="plan-card destaque">
+      <h3>Anual</h3>
+      <p>Para fábricas em crescimento</p>
+      <span class="price">R$ 2.799,90/ano</span>
+      <ul>
+        <li>✔️ Tudo do Semestral</li>
+        <li>✔️ Relatórios avançados</li>
+        <li>✔️ Suporte prioritário</li>
+      </ul>
+    </div>
+    
+    <div class="plan-card">
+      <h3>Sob Demanda</h3>
+      <p>Grandes indústrias têxteis</p>
+      <span class="price">Sob consulta</span>
+      <ul>
+        <li>✔️ Personalização completa</li>
+        <li>✔️ Treinamento da equipe</li>
+        <li>✔️ Consultoria dedicada</li>
+      </ul>
+    </div>
+    
+  </div>
+  </div>
     <Footer />
   </section>
 </template>
