@@ -10,7 +10,7 @@ async function enviarEmailAlteracaoSenha(destinatario, nomeUsuario) {
     },
   });
 
-  const linkRedefinicao = `http://acari-tex.vercel.app/alterar-senha`;
+  const linkRedefinicao = `https://linhatex.com.br/alterar-senha`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #f9f9f9; padding: 20px; border-radius: 10px; color: #333;">

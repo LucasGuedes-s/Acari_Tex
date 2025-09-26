@@ -9,14 +9,12 @@
     <!-- Onda só aparece no desktop -->
     <div class="wave-top desktop-only" aria-hidden="true">
       <svg viewBox="0 0 1440 200" preserveAspectRatio="none">
-        <path
-          fill="url(#gradiente)"
-          d="M0,160L48,154.7C96,149,192,139,288,154.7C384,171,480,213,576,224C672,235,768,213,864,192C960,171,1056,149,1152,154.7C1248,160,1344,192,1392,208L1440,224L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z"
-        />
+        <path fill="url(#gradiente)"
+          d="M0,160L48,154.7C96,149,192,139,288,154.7C384,171,480,213,576,224C672,235,768,213,864,192C960,171,1056,149,1152,154.7C1248,160,1344,192,1392,208L1440,224L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z" />
         <defs>
           <linearGradient id="gradiente" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stop-color="#0d3927"/>
-            <stop offset="100%" stop-color="#145a32"/>
+            <stop offset="0%" stop-color="#0d3927" />
+            <stop offset="100%" stop-color="#145a32" />
           </linearGradient>
         </defs>
       </svg>
@@ -66,45 +64,45 @@
     </div>
 
     <!-- Planos -->
-<div class="plans container">
-  <h2>Nossos Planos</h2>
-  <div class="plans-grid">
-    
-    <div class="plan-card">
-      <h3>Semestral</h3>
-      <p>Ideal para pequenas e médias confecções</p>
-      <span class="price">R$ 1.499,90/semestre</span>
-      <ul>
-        <li>✔️ Controle de produção</li>
-        <li>✔️ Gestão de equipes</li>
-        <li>✔️ Relatórios básicos</li>
-      </ul>
+    <div class="plans container">
+      <h2>Nossos Planos</h2>
+      <div class="plans-grid">
+
+        <div class="plan-card">
+          <h3>Semestral</h3>
+          <p>Ideal para pequenas e médias confecções</p>
+          <span class="price">R$ 1.799,90/semestre</span>
+          <ul>
+            <li>✔️ Controle de produção</li>
+            <li>✔️ Gestão de equipes</li>
+            <li>✔️ Relatórios básicos</li>
+          </ul>
+        </div>
+
+        <div class="plan-card destaque">
+          <h3>Anual</h3>
+          <p>Para fábricas em crescimento</p>
+          <span class="price">R$ 2.799,90/ano</span>
+          <ul>
+            <li>✔️ Tudo do Semestral</li>
+            <li>✔️ Relatórios avançados</li>
+            <li>✔️ Suporte prioritário</li>
+          </ul>
+        </div>
+
+        <div class="plan-card">
+          <h3>Sob Demanda</h3>
+          <p>Grandes indústrias têxteis</p>
+          <span class="price">Sob consulta</span>
+          <ul>
+            <li>✔️ Personalização completa</li>
+            <li>✔️ Treinamento da equipe</li>
+            <li>✔️ Consultoria dedicada</li>
+          </ul>
+        </div>
+
+      </div>
     </div>
-    
-    <div class="plan-card destaque">
-      <h3>Anual</h3>
-      <p>Para fábricas em crescimento</p>
-      <span class="price">R$ 2.799,90/ano</span>
-      <ul>
-        <li>✔️ Tudo do Semestral</li>
-        <li>✔️ Relatórios avançados</li>
-        <li>✔️ Suporte prioritário</li>
-      </ul>
-    </div>
-    
-    <div class="plan-card">
-      <h3>Sob Demanda</h3>
-      <p>Grandes indústrias têxteis</p>
-      <span class="price">Sob consulta</span>
-      <ul>
-        <li>✔️ Personalização completa</li>
-        <li>✔️ Treinamento da equipe</li>
-        <li>✔️ Consultoria dedicada</li>
-      </ul>
-    </div>
-    
-  </div>
-  </div>
     <Footer />
   </section>
 </template>
@@ -136,6 +134,7 @@ export default {
   overflow: hidden;
   position: relative;
 }
+
 .top-actions {
   position: absolute;
   top: 15px;
@@ -144,6 +143,7 @@ export default {
   gap: 12px;
   z-index: 10;
 }
+
 .top-actions .btn-outline,
 .top-actions .btn-solid {
   padding: 8px 16px;
@@ -154,18 +154,22 @@ export default {
   border: none;
   transition: all 0.3s ease;
 }
+
 .btn-outline {
   background: transparent;
   border: 2px solid white;
   color: white;
 }
+
 .btn-outline:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+
 .btn-solid {
   background: white;
   color: var(--verde-escuro);
 }
+
 .btn-solid:hover {
   background: #f0f0f0;
 }
@@ -175,16 +179,19 @@ export default {
     display: flex;
     margin-right: 40px;
     justify-content: flex-end;
-    position: static; /* não mais absoluto */
-    margin-bottom: 20px; 
+    position: static;
+    /* não mais absoluto */
+    margin-bottom: 20px;
     margin-top: 10px;
   }
+
   .btn-outline,
   .btn-solid {
     border: 2px solid var(--verde-claro);
     color: white;
     background: var(--verde-claro);
   }
+
   .btn-solid {
     background: var(--verde-claro);
     color: white;
@@ -196,9 +203,11 @@ export default {
   width: 100%;
   height: 120px;
 }
+
 .desktop-only {
   display: block;
 }
+
 @media (max-width: 768px) {
   .desktop-only {
     display: none;
@@ -222,12 +231,14 @@ export default {
 .content {
   max-width: 500px;
 }
+
 .headline {
   font-size: 2.8rem;
   font-weight: 800;
   color: var(--verde-escuro);
   margin-bottom: 15px;
 }
+
 .lead {
   font-size: 1.25rem;
   color: #444;
@@ -241,6 +252,7 @@ export default {
   max-width: 100%;
   filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.25));
 }
+
 .phone-wrap img {
   width: 100%;
   display: block;
@@ -250,16 +262,33 @@ export default {
 .fade-in-left {
   animation: fadeInLeft 1s ease forwards;
 }
+
 .fade-in-right {
   animation: fadeInRight 1s ease forwards;
 }
+
 @keyframes fadeInLeft {
-  from { opacity: 0; transform: translateX(-60px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
+
 @keyframes fadeInRight {
-  from { opacity: 0; transform: translateX(60px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Funcionalidades */
@@ -269,21 +298,25 @@ export default {
   padding: 60px 20px;
   text-align: center;
 }
+
 .features h2 {
   font-size: 2rem;
   margin-bottom: 40px;
 }
+
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 30px;
 }
+
 .feature-card {
   background: white;
-  color:#0d3927;
+  color: #0d3927;
   border-radius: 12px;
   padding: 20px;
 }
+
 .icon {
   font-size: 2rem;
   display: block;
@@ -295,17 +328,20 @@ export default {
   padding: 60px 20px;
   text-align: center;
 }
+
 .plans h2 {
   font-size: 1.8rem;
   font-weight: 700;
   margin-bottom: 30px;
   color: var(--verde-escuro);
 }
+
 .plans-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 20px;
 }
+
 .plan-card {
   background: var(--card);
   border-radius: 12px;
@@ -314,15 +350,18 @@ export default {
   text-align: center;
   transition: transform 0.2s;
 }
+
 .plan-card:hover {
   transform: translateY(-5px);
 }
+
 .plan-card h3 {
   margin: 0 0 10px;
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--verde-claro);
 }
+
 .plan-card .price {
   display: block;
   font-size: 1.4rem;
@@ -330,6 +369,7 @@ export default {
   margin: 10px 0;
   color: var(--verde-escuro);
 }
+
 .plan-card ul {
   list-style: none;
   padding: 0;
@@ -337,9 +377,11 @@ export default {
   color: #444;
   font-size: 0.95rem;
 }
+
 .plan-card ul li {
   margin: 6px 0;
 }
+
 .plan-card.destaque {
   border: 2px solid var(--verde-escuro);
   transform: scale(1.05);
@@ -353,9 +395,11 @@ export default {
     text-align: center;
     gap: 20px;
   }
+
   .headline {
     font-size: 2rem;
   }
+
   .phone-wrap {
     width: 300px;
     margin: 0 auto;

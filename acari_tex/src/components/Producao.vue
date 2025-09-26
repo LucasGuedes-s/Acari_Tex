@@ -65,6 +65,7 @@ canvas {
 import { Chart } from 'chart.js';
 import { useAuthStore } from '@/store/store';
 import api from '@/Axios';
+import { io } from 'socket.io-client';
 
 export default {
   name: 'ProducaoCharts',
@@ -81,8 +82,12 @@ export default {
       chartInstances: {},      // Instâncias dos gráficos
     };
   },
-  async mounted() {
-    await this.fetchData();
+  mounted() {
+    this.fetchData();
+    this.socket = io('https://acari-tex.onrender.com');
+    this.socket.on('nova_producao', () => {
+      if (!this.loading) this.fetchData();
+    });
   },
   methods: {
     async fetchData() {

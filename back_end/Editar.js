@@ -9,7 +9,6 @@ async function adicionarPecaEtapa() {
         id_da_op: 19,          // ID da peça
         id_da_funcao: 17,      // ID da etapa
         quantidade_meta: 47,    // define a meta inicial (ajuste se necessário)
-        status: "pendente"     // ou outro status inicial
       }
     });
 

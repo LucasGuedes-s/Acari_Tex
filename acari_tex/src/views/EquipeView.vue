@@ -701,12 +701,15 @@ select {
     align-items: center;
     justify-content: center;
     margin-top: 1rem;
+    gap: 8px; /* espaço entre os botões */
   }
 
   .acoes-funcionario button {
-    width: 90%;
+    flex: 1;        
     font-size: 12px;
+    width: auto;   
   }
+
 }
 
 /* Responsivo para telas maiores */
