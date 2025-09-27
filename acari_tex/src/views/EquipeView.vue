@@ -61,7 +61,7 @@
         </div>
 
         <div class="acoes-funcionario">
-          <button @click="tempodeProducao(funcionario.email)">Ver mais / Prod. por peça</button>
+          <button @click="tempodeProducao(funcionario.email)">Prod. por peça</button>
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
             Registrar Produção
           </button>
@@ -72,7 +72,7 @@
       <div v-if="showModalRegistro" class="modal-background">
         <div class="modal-container registro">
           <div class="modal-header registro">
-            <h2>Registrar Produção - {{ funcionario?.nome }}</h2>
+            <h2>Registrar Produção</h2>
             <img class="modal-close" @click="fecharModal" src="@/assets/close.png" alt="Fechar" />
           </div>
           <div class="modal-body registro">
@@ -97,7 +97,8 @@
               <!-- Se selecionar nova etapa -->
               <div v-if="funcao === 'nova'" class="info-row">
                 <label class="label" for="nova-etapa">Descrição da nova etapa:</label>
-                <input type="text" id="nova-etapa" v-model="novaEtapa" placeholder="Ex: Costura, Acabamento..." class="input-field" />
+                <input type="text" id="nova-etapa" v-model="novaEtapa" placeholder="Ex: Costura, Acabamento..."
+                  class="input-field" />
                 <button class="btn-save mt-2" @click="salvarNovaEtapa">Salvar Etapa</button>
               </div>
 
@@ -119,12 +120,29 @@
                   class="input-field" />
               </div>
             </div>
+
+            <!-- Campo da hora (só aparece se mostrarHora = true) -->
+            <div class="info-row" v-if="mostrarHora">
+              <label class="label" for="hora">Hora do registro:</label>
+              <select id="hora" v-model="horaRegistro" class="input-select">
+                <option disabled value="">Selecione a hora</option>
+                <option v-for="hora in horasFixas" :key="hora" :value="hora">
+                  {{ hora }}
+                </option>
+              </select>
+            </div>
+
           </div>
           <div class="modal-footer registro">
-            <button class="btn-cancel" @click="fecharModal">Cancelar</button>
+            <div class="btn-group">
+              <button type="button" class="btn-cancel" @click="mostrarHora = !mostrarHora">
+                {{ mostrarHora ? 'Cancelar escolha da hora' : 'Definir hora manualmente' }}
+              </button>
+              <button class="btn-cancel" @click="fecharModal">Cancelar</button>
+            </div>
             <button class="btn-save" @click="postProdução">Registrar</button>
           </div>
-        </div>
+          </div>
       </div>
     </main>
   </div>
@@ -151,7 +169,15 @@ export default {
       registroFuncionario: null,
       funcionarios: [],
       funcionario: null,
+      mostrarHora: false,
+      horaRegistro: "",
       pecas: [],
+      horasFixas: [
+        "06:00", "07:00", "08:00", "09:00", "10:00",
+        "11:00", "12:00", "13:00", "14:00", "15:00",
+        "16:00", "17:00", "18:00", "19:00", "20:00",
+        "21:00", "22:00"
+      ],
       etapas: [],
       pecaRegistro: null,
       quantidadeRegistro: null,
@@ -159,11 +185,11 @@ export default {
       pesquisa: '',
       loading: true,
       equipesDisponiveis: [],
-      equipe: '', 
+      equipe: '',
       novaEtapa: '',
       todasEtapas: [],
       etapaExistente: null,
-      selectedEquipeEmails: new Set() 
+      selectedEquipeEmails: new Set()
     }
   },
   computed: {
@@ -200,52 +226,50 @@ export default {
     }
   },
   methods: {
-  checkNovaEtapa() {
-    // se ele trocar o select, você controla o fluxo
-    if (this.funcao === 'nova') {
-      this.novaEtapa = ''
-    }
-    if (this.funcao === 'existente') {
-      this.etapaExistente = null
-      this.buscarTodasEtapas() // carrega lista completa de etapas do sistema
-    }
-  },
+    checkNovaEtapa() {
+      if (this.funcao === 'nova') {
+        this.novaEtapa = ''
+      }
+      if (this.funcao === 'existente') {
+        this.etapaExistente = null
+        this.buscarTodasEtapas() // carrega lista completa de etapas do sistema
+      }
+    },
 
-  async salvarNovaEtapa() {
-    try {
-      const { data } = await api.post('/adicionar/etapa', {
-        descricao: this.novaEtapa,
-        id_da_op: this.pecaRegistro,
-      }, {
-        headers: { Authorization: this.store.pegar_token }
-      })
+    async salvarNovaEtapa() {
+      try {
+        const { data } = await api.post('/adicionar/etapa', {
+          descricao: this.novaEtapa,
+          id_da_op: this.pecaRegistro,
+        }, {
+          headers: { Authorization: this.store.pegar_token }
+        })
 
-      Swal.fire('Sucesso', 'Etapa cadastrada com sucesso!', 'success')
-      this.funcao = data.etapa.id_da_funcao
-      await this.getPecasProducao() // atualiza lista
-    } catch (err) {
-      console.error(err)
-      Swal.fire('Erro', 'Erro ao cadastrar etapa.', 'error')
-    }
-  },
+        Swal.fire('Sucesso', 'Etapa cadastrada com sucesso!', 'success')
+        this.funcao = data.etapa.id_da_funcao
+        await this.getPecasProducao() // atualiza lista
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao cadastrar etapa.', 'error')
+      }
+    },
 
-  async buscarTodasEtapas() {
-    try {
-      const { data } = await api.get('/etapas', {
-        headers: { Authorization: this.store.pegar_token }
-      })
-      this.todasEtapas = data.etapas
-    } catch (err) {
-      console.error(err)
-      Swal.fire('Erro', 'Erro ao carregar etapas existentes.', 'error')
-    }
-  },
-
+    async buscarTodasEtapas() {
+      try {
+        const { data } = await api.get('/etapas', {
+          headers: { Authorization: this.store.pegar_token }
+        })
+        this.todasEtapas = data.etapas
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Erro ao carregar etapas existentes.', 'error')
+      }
+    },
     resetRegistroModal() {
-      this.pecaRegistro = null;      
-      this.funcao = null;            
+      this.pecaRegistro = null;
+      this.funcao = null;
       this.quantidadeRegistro = null;
-      this.horaRegistro = "";       
+      this.horaRegistro = "";
     },
     async validarToken() {
       if (!this.store.pegar_token) {
@@ -299,9 +323,10 @@ export default {
 
     async postProdução() {
       try {
-        const agora = new Date();
-        const horaRegistro = String(agora.getHours()).padStart(2, '0') + ":00";
-
+        //const agora = new Date();
+        //const horaRegistro = String(agora.getHours()).padStart(2, '0') + ":00";
+        const horaRegistro = this.horaRegistro ||
+          (String(new Date().getHours()).padStart(2, '0') + ":00");
         await api.post('/registrar/producao', {
           id_da_op: this.pecaRegistro,
           id_funcionario: this.registroFuncionario,
@@ -475,17 +500,13 @@ export default {
   cursor: pointer;
   font-size: 14px;
   background-color: #eee;
-  color:#333;
+  color: #333;
   transition: background-color 0.3s;
   width: 180px;
 }
 
 .acoes-funcionario button:hover {
   background-color: #ccc;
-}
-
-.acoes-funcionario .demitir {
-  background-color: #eee;
 }
 
 .acoes-funcionario .registro {
@@ -594,7 +615,7 @@ export default {
 
 label {
   align-self: self-start;
-
+  display: flex;
 }
 
 .search {
@@ -637,7 +658,6 @@ label {
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   white-space: nowrap;
-  /* evita quebrar texto */
 }
 
 input {
@@ -669,7 +689,6 @@ select {
 @media (max-width: 600px) {
   .modal-body {
     flex-direction: column;
-    align-items: center;
     text-align: left;
   }
 
@@ -701,18 +720,47 @@ select {
     align-items: center;
     justify-content: center;
     margin-top: 1rem;
-    gap: 8px; /* espaço entre os botões */
+    gap: 8px;
   }
 
   .acoes-funcionario button {
-    flex: 1;        
-    font-size: 12px;
-    width: auto;   
+    flex: 1;
+    font-size: 14px;
+    width: auto;
   }
 
+  .search {
+    margin-bottom: 0px;
+  }
+  .info-row{
+    display: block;
+  }
+  .input-field,
+  .input-select {
+    width: 100% !important;
+  }
+
+  .modal-footer.registro {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .modal-footer.registro button {
+    width: 100%; 
+    font-size: 12px;
+  }
+
+  .modal-footer.registro .btn-group {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .modal-footer.registro .btn-group button {
+    flex: 1; /* divide igualmente o espaço */
+  }
 }
 
-/* Responsivo para telas maiores */
 @media (min-width: 601px) {
   .container_profissional {
     flex-direction: row;
@@ -758,7 +806,6 @@ select {
   overflow: hidden;
   font-family: 'Montserrat', sans-serif;
   animation: fadeInUp 0.3s ease;
-  display: flex;
   flex-direction: column;
 }
 
@@ -784,11 +831,6 @@ select {
   gap: 18px;
 }
 
-.modal-info.registro .info-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 
 .modal-footer.registro {
   padding: 15px 20px;
@@ -807,6 +849,7 @@ select {
   font-weight: 600;
   cursor: pointer;
   transition: 0.3s;
+  margin: 5px;
 }
 
 .btn-cancel:hover {

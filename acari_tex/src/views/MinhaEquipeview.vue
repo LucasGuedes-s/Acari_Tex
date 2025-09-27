@@ -10,7 +10,7 @@
       <div class="kanban-container">
         <!-- Header -->
         <div class="kanban-header d-flex justify-content-end align-items-center">
-          <button class="btn btn-success" @click="criarEquipe">+ Nova Equipe</button>
+          <button class="btn botao" @click="criarEquipe">+ Nova Equipe</button>
         </div>
 
         <!-- Board -->
@@ -310,6 +310,12 @@ export default {
 h2{
   color: var(--verde-escuro);
 }
+.botao{
+  color: white;
+  margin: 0px;
+  background-color: var(--verde-escuro);
+
+}
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
@@ -383,6 +389,9 @@ h2{
   .content-wrapper {
     padding-left: 0px;
     z-index: 0;
+  }
+  .kanban-column {
+    max-width: 380px;
   }
 }
 </style>

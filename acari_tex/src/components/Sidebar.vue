@@ -111,7 +111,9 @@ export default {
   width: 200px;
   transition: width 0.3s;
 }
-
+.btn{
+  background-color: var(--verde-escuro);
+}
 .minimized {
   width: 80px;
 }

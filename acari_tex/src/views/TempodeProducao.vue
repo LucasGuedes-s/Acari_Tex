@@ -30,14 +30,13 @@
 
             </div>
             <div class="ms-auto">
-              <button class="btn btn-primary" @click="abrirModal">
+              <button class="btn" @click="abrirModal">
                 Registrar Produção
               </button>
             </div>
           </div>
 
 
-          <!-- Produção do Funcionário -->
           <!-- Produção do Funcionário -->
           <div v-if="producao.length" class="card shadow-sm border-0 mt-4">
             <div class="card-header bg-light fw-bold border-bottom">
@@ -290,7 +289,9 @@ export default {
   padding-left: 200px;
   width: 100%;
 }
-
+.btn{
+  background-color: var(--verde-escuro);
+}
 .modal-background {
   position: fixed;
   top: 0;

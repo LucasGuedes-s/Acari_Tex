@@ -2,7 +2,7 @@
   <section class="landing-root">
     <!-- Botões topo -->
     <div class="top-actions">
-      <button class="btn-outline">Cadastre-se</button>
+      <!--<button class="btn-outline">Cadastre-se</button> -->
       <button class="btn-solid" @click="Login()">Entre</button>
     </div>
 
@@ -82,7 +82,7 @@
         <div class="plan-card destaque">
           <h3>Anual</h3>
           <p>Para fábricas em crescimento</p>
-          <span class="price">R$ 2.799,90/ano</span>
+          <span class="price">R$ 2.999,90/ano</span>
           <ul>
             <li>✔️ Tudo do Semestral</li>
             <li>✔️ Relatórios avançados</li>
