@@ -69,7 +69,8 @@ export default {
         em_progresso: [],
         nao_iniciado: [],
         coleta: [],
-      }
+      },
+      
     };
   },
   computed: {

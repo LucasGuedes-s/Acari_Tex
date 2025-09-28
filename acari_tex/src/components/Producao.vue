@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="row justify-content-center charts-container">
+    <div v-if="temProducao" class="row justify-content-center charts-container">
       <div class="chart-wrapper bar-chart-wrapper">
         <canvas ref="funcionarioBarChart"></canvas>
       </div>
@@ -79,7 +79,8 @@ export default {
       equipeData: [],          // Dados para gráfico de equipes
       funcionarioLabels: [],   // Labels para gráfico de funcionários
       funcionarioData: [],     // Dados para gráfico de funcionários
-      chartInstances: {},      // Instâncias dos gráficos
+      chartInstances: {}, 
+      temProducao: false,     
     };
   },
   mounted() {
@@ -151,13 +152,20 @@ export default {
 
       this.funcionarioLabels = Object.keys(pecasPorFuncionario);
       this.funcionarioData = Object.values(pecasPorFuncionario);
+      this.temProducao = this.equipeData.some(v => v > 0) || this.funcionarioData.some(v => v > 0);
+
     },
 
     renderCharts() {
-      const equipePieCtx = this.$refs.equipePieChart.getContext('2d');
-      const funcionarioBarCtx = this.$refs.funcionarioBarChart.getContext('2d');
+      const equipePieCanvas = this.$refs.equipePieChart;
+      const funcionarioBarCanvas = this.$refs.funcionarioBarChart;
 
-      // Destroi gráficos anteriores
+      if (!equipePieCanvas || !funcionarioBarCanvas) return; // <--- evita o erro
+
+      const equipePieCtx = equipePieCanvas.getContext('2d');
+      const funcionarioBarCtx = funcionarioBarCanvas.getContext('2d');
+
+      // destrói gráficos antigos...
       if (this.chartInstances.equipePieChart) {
         this.chartInstances.equipePieChart.destroy();
       }

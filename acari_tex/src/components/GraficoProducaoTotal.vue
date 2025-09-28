@@ -3,7 +3,6 @@
   <div class="grafico-equipe">
     <GChart v-if="chartData.length > 1 && chartData[0].length > 1" type="LineChart" :data="chartData"
       :options="chartOptions" style="width: 100%; height: 400px" />
-    <p v-else>Carregando dados da produção...</p>
   </div>
 </template>
 
