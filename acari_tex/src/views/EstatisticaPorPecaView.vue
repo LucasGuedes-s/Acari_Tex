@@ -61,11 +61,11 @@
             </div>
           </div>
 
-          <div class="mt-5">
+          <div class="mt-5" v-if="pecaDetalhes.totalProduzido > 0">
             <h5 class="mb-3">Detalhamento da Produção por Etapa</h5>
 
             <!-- wrapper para responsividade -->
-            <div class="table-responsive" v-if="pecaDetalhes.totalProduzido > 0">
+            <div class="table-responsive" >
               <table class="table table-striped table-hover table-bordered align-middle">
                 <thead class="table-dark">
                   <tr>
