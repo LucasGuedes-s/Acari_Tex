@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-column flex-md-row">
+  <div class="d-flex flex-column flex-xl-row">
     <Sidebar />
     <main class="content-wrapper flex-grow-1">
       <carregandoTela v-if="loading" />
@@ -324,6 +324,7 @@ export default {
 </script>
 
 <style scoped>
+
 .processo {
   font-weight: 500;
   color: #2e7d32;
@@ -372,7 +373,6 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  /* espaço entre foto e nome */
 }
 
 .prof-foto {

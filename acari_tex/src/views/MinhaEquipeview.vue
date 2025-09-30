@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-column flex-md-row">
+  <div class="d-flex flex-column flex-xl-row">
     <!-- Sidebar -->
     <SidebarNav />
 
@@ -290,10 +290,7 @@ export default {
               timerProgressBar: true,    // barra de tempo
             });
           }
-          console.log(`Funcionário ${email} movido para equipe ${novaEquipeId || 'Disponíveis'}`);
-
-          // opcional: se desejar atualizar somente as colunas afetadas localmente,
-          // já foi feito pela v-model; se quiser refrescar do servidor, chame this.carregarDados()
+      
         }
       } catch (err) {
         console.error('Erro mover funcionário', err);
@@ -392,6 +389,15 @@ h2{
   }
   .kanban-column {
     max-width: 380px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+
+  .content-wrapper {
+    padding-left: 0px;
+  }
+  .kanban-board{
+    justify-content: space-evenly;
   }
 }
 </style>

@@ -4,6 +4,7 @@
       <div class="footer-brand">
         <h2>Linha Tex</h2>
         <p>Simplificando a gestão da sua produção têxtil.</p>
+        <p>62.912.102/0001-30</p>
       </div>
 
       <!-- Links -->

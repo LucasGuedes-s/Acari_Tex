@@ -6,8 +6,8 @@
     <carregandoTela v-if="loading" />
     <main v-else class="content-wrapper flex-grow-1">
       <div class="container-fluid my-4 mt-md-0 mt-3">
-        <div class="row justify-content-center">
-          <NavBarUser class="d-none d-md-block" />
+        <div class="row justify-content-center userinfor">
+          <NavBarUser class="d-none d-md-block"  />
         </div>
 
         <section class="row justify-content-center text-center">
@@ -312,17 +312,26 @@ export default {
 
 .kanban-item.coleta {
   background: #66cc66;
-  /* verde médio */
 }
 
 .kanban-item.finalizado {
   background: #66cc99;
-  /* verde suave */
 }
 
 @media (max-width: 768px) {
   .content-wrapper {
     padding-left: 0px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+  .content-wrapper {
+    padding-left: 0px;
+  }
+  .user{
+    display: none;
+  }
+  .userinfor{
+    display: none;
   }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-column flex-md-row">
+  <div class="d-flex flex-column flex-xl-row">
     <SidebarNav />
     <main class="content-wrapper flex-grow-1">
       <div v-if="loading">
@@ -41,7 +41,7 @@
                 Nova equipe
               </button>
 
-              <NavBarUser class="ms-2" />
+              <NavBarUser class="ms-2 prof" />
             </div>
           </div>
         </div>
@@ -68,7 +68,6 @@
         </div>
       </div>
 
-      <!-- Modal Registro Produção -->
       <div v-if="showModalRegistro" class="modal-background">
         <div class="modal-container registro">
           <div class="modal-header registro">
@@ -869,6 +868,16 @@ select {
 
 .btn-save:hover {
   background: #006f2e;
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+
+  .content-wrapper {
+    padding-left: 0px; 
+  }
+
+  .prof{
+    display: none;
+  }
 }
 
 @keyframes fadeInUp {

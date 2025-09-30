@@ -5,7 +5,7 @@
       <h3 class="subtitulo">{{ subtitulo }}</h3>
     </div>
 
-    <NavBarUser v-if="!isMobile" />
+    <NavBarUser v-if="!isMobile" class="user"/>
   </div>
 </template>
 
@@ -65,7 +65,7 @@ export default {
 }
 
 .titulo {
-  font-size: 1.5rem; /* menor que antes */
+  font-size: 1.5rem; 
   color: var(--verde-escuro);
   font-weight: 600;
   margin: 0;
@@ -78,5 +78,10 @@ export default {
   font-weight: 400;
   margin-top: 3px;
   margin-bottom: 0;
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+  .user{
+    display: none;
+  }
 }
 </style>

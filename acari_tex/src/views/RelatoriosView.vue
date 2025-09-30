@@ -101,7 +101,6 @@ export default {
     },
     computed: {
         pecasFiltradas() {
-            // transforma objeto {status: [...] } em array
             const todasPecas = Object.keys(this.pecas).flatMap(status =>
                 this.pecas[status].map(peca => ({ ...peca, status }))
             );
@@ -135,7 +134,7 @@ export default {
             return new Date(dataStr).toLocaleDateString('pt-BR');
         },
         async gerarPDF(){
-            console.log(this.pecas)
+            //console.log(this.pecas)
             await gerarPDF(this.pecas, 'Relatório de produção')
         },
         async fetchPecas() {
@@ -343,6 +342,11 @@ export default {
 }
 
 @media (max-width: 768px) {
+    .content-wrapper {
+        padding-left: 0px;
+    }
+}
+@media (min-width: 768px) and (max-width: 1024px) {
     .content-wrapper {
         padding-left: 0px;
     }

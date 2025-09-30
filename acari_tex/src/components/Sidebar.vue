@@ -1,18 +1,21 @@
 <template>
   <div>
-    <nav class="mobile-navbar d-md-none d-flex justify-content-end align-items-center p-2">
+    <!-- Navbar (hamburguer + user) -->
+    <nav class="mobile-navbar d-flex justify-content-between align-items-center p-2">
       <button class="btn btn-outline-secondary" @click="isMinimized = !isMinimized">
         <i class="bi bi-list"></i>
       </button>
       <NavBarUser class="ms-2" />
     </nav>
 
+    <!-- Sidebar -->
     <div :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
         <div @click="irPara()">
           <img class="icon-logo"
-            :src="isMinimized ? require('@/assets/Logo.png') : require('@/assets/Logo.png')"
-            :class="{ 'logo-minimized': isMinimized }" alt="Logo">
+            :src="require('@/assets/Logo.png')"
+            :class="{ 'logo-minimized': isMinimized }"
+            alt="Logo">
         </div>
         
         <div class="list-group">
@@ -62,7 +65,7 @@
       </div>
     </div>
 
-    <!-- Overlay mobile -->
+    <!-- Overlay mobile/tablet -->
     <div v-if="isMinimized" class="overlay" @click="isMinimized = false"></div>
   </div>
 </template>
@@ -83,7 +86,7 @@ export default {
   },
   methods: {
     toggleSidebar() {
-      if (window.innerWidth <= 600) {
+      if (window.innerWidth <= 992) { // agora também pega tablet
         this.isMinimized = !this.isMinimized;
       }
     },
@@ -93,7 +96,6 @@ export default {
   },
 };
 </script>
-
 <style scoped>
 .icon-logo {
   margin-top: 20px;
@@ -111,9 +113,11 @@ export default {
   width: 200px;
   transition: width 0.3s;
 }
-.btn{
+
+.btn {
   background-color: var(--verde-escuro);
 }
+
 .minimized {
   width: 80px;
 }
@@ -121,6 +125,7 @@ export default {
 .logo-minimized {
   width: 80px;
 }
+
 .icon {
   font-size: 1.5em;
   margin-right: 10px;
@@ -142,19 +147,10 @@ export default {
   color: rgb(41, 41, 41);
 }
 
-.arrasta img {
-  display: none;
-  margin-left: 10px;
-  margin-top: 70px;
-  width: 50px;
-  cursor: pointer;
-}
-
 a {
   text-decoration: none;
 }
 
-/* Mobile navbar e off-canvas */
 .mobile-navbar {
   display: none;
   background-color: #fff;
@@ -171,12 +167,8 @@ a {
   background: rgba(0, 0, 0, 0.3);
   z-index: 900;
 }
-
-.mobile-open {
-  left: 0;
-}
-
-@media screen and (max-width: 600px) {
+/* 📱 + 📟 Celular e Tablet */
+@media screen and (max-width: 1025px) {
   .mobile-navbar {
     display: flex;
   }
@@ -201,7 +193,6 @@ a {
     width: 150px;
   }
 
-  /* Overlay */
   .overlay {
     position: fixed;
     top: 0;
@@ -212,4 +203,17 @@ a {
     z-index: 1000;
   }
 }
+
+@media screen and (min-width: 993px) {
+  .mobile-navbar {
+    display: none !important;
+  }
+
+  .sidebar {
+    left: 0 !important;
+    width: 200px;
+    position: fixed;
+  }
+}
+
 </style>

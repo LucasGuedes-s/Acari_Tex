@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-column flex-md-row">
+  <div class="d-flex flex-column flex-xl-row">
     <SidebarNav style="z-index: 1" />
     <main  class="content-wrapper flex-grow-1">
       <div v-if="loading">
@@ -54,6 +54,7 @@ import { io } from 'socket.io-client';
 import CarregandoTela from '@/components/carregandoTela.vue';
 import GraficoProducaoMes from '@/components/GraficoProducaoMes.vue';
 import router from '@/router';
+import Swal from 'sweetalert2';
 export default {
   name: 'DashboardHome',
   components: { GraficoProducaoMes, SidebarNav, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
@@ -91,7 +92,16 @@ export default {
     this.fetchData();
     this.socket = io('https://acari-tex.onrender.com'); // Conecta ao servidor Socket.IO
     this.socket.on('nova_peca', () => {
-      this.fetchData(); // Recarrega os dados quando uma nova peça é adicionada
+      this.fetchData(); 
+      Swal.fire({
+          toast: true,              
+          position: 'top-end',      
+          icon: 'success',          
+          title: 'Gráficos atualizados, nova produção registrada',
+          showConfirmButton: false,  
+          timer: 8000,               
+          timerProgressBar: true,    
+        });
     });
   },
   methods: {
@@ -145,5 +155,11 @@ export default {
     z-index: 0;
   }
 }
+@media (min-width: 768px) and (max-width: 1024px) {
 
+  .content-wrapper {
+    padding-left: 0px; 
+  }
+
+}
 </style>

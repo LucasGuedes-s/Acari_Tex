@@ -530,4 +530,9 @@ label {
     padding-left: 0px;
   }
 }
+@media (min-width: 768px) and (max-width: 1024px) {
+    .content-wrapper {
+        padding-left: 0px;
+    }
+}
 </style>
