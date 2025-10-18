@@ -1,17 +1,50 @@
 <template>
   <div class="row align-items-stretch">
+    <!-- COLUNA DE NOTIFICAÇÕES -->
     <div class="col-12 col-md-4 mb-3">
-      <div class="card border-0 shadow-sm h-100 text-start p-4 bg-white">
-        <div class="card-body">
-          <div class="d-flex align-items-center mb-3">
-            <i :class="['bi', notifIcon, 'me-2']" style="font-size: 1.8rem;"></i>
-            <h5 class="card-title mb-0">{{ notifTitle }}</h5>
+      <div class="card border-0 shadow-sm h-100 text-start p-3 bg-white">
+        <div class="card-body d-flex flex-column p-2">
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-bell me-2" style="font-size: 1.5rem;"></i>
+            <h6 class="card-title mb-0">Notificações</h6>
           </div>
-          <p class="text-muted mb-0">{{ notifMessage }}</p>
+
+          <div v-if="loading" class="text-center text-muted small">
+            Carregando notificações...
+          </div>
+
+          <div v-else-if="notificacoes.length === 0" class="text-center text-muted small">
+            Nenhuma notificação no momento.
+          </div>
+
+          <div v-else class="notificacoes-list">
+            <div
+              v-for="notif in notificacoes"
+              :key="notif.id"
+              class="notificacao-item mb-2 p-2 rounded shadow-sm"
+              :class="{ 'bg-light': !notif.lida, 'bg-body-tertiary': notif.lida }"
+            >
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1 fw-semibold small">{{ notif.titulo }}</h6>
+                  <p class="mb-1 text-muted very-small">{{ notif.mensagem }}</p>
+                  <small class="text-secondary">{{ formatarData(notif.criadaEm) }}</small>
+                </div>
+                <button
+                  v-if="!notif.lida"
+                  class="btn btn-sm btn-outline-primary btn-sm-notif"
+                  @click="marcarComoLida(notif.id)"
+                >
+                  ✔
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- COLUNA DE RESUMO -->
     <div class="col-12 col-md-8 mb-3">
       <div class="card border-0 shadow h-100 p-4 text-start bg-white">
         <div class="card-body">
@@ -23,25 +56,42 @@
   </div>
 </template>
 
+<style scoped>
+.notificacoes-list {
+  max-height: 300px; 
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.notificacao-item {
+  background-color: #f9f9f9;
+  border-left: 3px solid var(--verde-escuro);
+  transition: background-color 0.2s;
+  font-size: 0.85rem; /* texto menor */
+}
+
+.notificacao-item:hover {
+  background-color: #eef5ff;
+}
+
+.btn-sm-notif {
+  border-radius: 6px;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.very-small {
+  font-size: 0.75rem;
+}
+</style>
+
 <script>
+import { useAuthStore } from "@/store/store";
+import api from "@/Axios";
+
 export default {
   name: "ContainersGerais",
   props: {
-    // Notificações
-    notifIcon: {
-      type: String,
-      default: "bi-bell"
-    },
-    notifTitle: {
-      type: String,
-      default: "Notificações"
-    },
-    notifMessage: {
-      type: String,
-      default: "Nenhuma notificação no momento."
-    },
-
-    // Texto
     textTitle: {
       type: String,
       default: "Resumo"
@@ -50,27 +100,61 @@ export default {
       type: String,
       default: "Nenhum dado disponível para exibição."
     }
+  },
+  data() {
+    return {
+      notificacoes: [],
+      loading: true
+    };
+  },
+  methods: {
+    async carregarNotificacoes() {
+      try {
+        const store = useAuthStore();
+        const token = store.pegar_token;
+
+        const response = await api.get("/notificacoes", {
+          headers: { Authorization: `${token}` }
+        });
+
+        this.notificacoes = response.data.notificacoes || [];
+      } catch (error) {
+        console.error("Erro ao carregar notificações:", error);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async marcarComoLida(id) {
+      try {
+        const store = useAuthStore();
+        const token = store.pegar_token;
+
+        await api.patch(`/notificacoes/${id}`, { lida: true }, {
+          headers: { Authorization: `${token}` }
+        });
+
+        // Atualiza localmente
+        this.notificacoes = this.notificacoes.map(n =>
+          n.id === id ? { ...n, lida: true } : n
+        );
+      } catch (error) {
+        console.error("Erro ao marcar como lida:", error);
+      }
+    },
+
+    formatarData(data) {
+      const d = new Date(data);
+      return d.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+  },
+  mounted() {
+    this.carregarNotificacoes();
   }
 };
 </script>
-
-<style scoped>
-.card {
-  border-radius: 12px;
-  transition: transform 0.2s, box-shadow 0.2s;
-  background: #fff;
-}
-
-.card:hover {
-  transform: scale(1.02);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
-}
-
-.card-title {
-  font-weight: 600;
-}
-
-.text-muted {
-  font-size: 0.95rem;
-}
-</style>

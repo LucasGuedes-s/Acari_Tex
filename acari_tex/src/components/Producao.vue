@@ -101,7 +101,6 @@ export default {
         });
 
         const producao = response.data.producao.producaoDiaEquipe;
-        console.log('Produção recebida:', producao);
 
         // Processa os dados
         this.aggregateProducaoData(producao);
