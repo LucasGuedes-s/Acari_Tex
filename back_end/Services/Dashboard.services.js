@@ -1,59 +1,17 @@
 const { PrismaClient } = require('@prisma/client');
 prisma = new PrismaClient()
 
-async function getTarefas(req) {
-    const status = 'Em andamento'
-    const tarefas = await prisma.Tarefas.findMany({
-        where:{
-            id_estabelecimento: req.user.estabelecimento,
-            status: status
-        }
-    });
-    if (!tarefas) {
-        // Caso não exista nenhum produto com o ID especificado, você pode retornar uma resposta de erro
-        throw new Error('tarefas não encontrado no estoque.');
-    }
-    return tarefas;
-}
-
-async function postTarefa(tarefa) {
-    const dataAtual = new Date()
-    const data = dataAtual.toISOString();
-
-    const tarefas = await prisma.Tarefas.create({
-        data: {
-            tarefa: tarefa.tarefa,
-            status: 'Em andamento',
-            data_abertura: data,
-            notas: tarefa.notas,
-            estabelecimento: {
-                connect: { email: estabelecimentoId } // Conectar ao Estabelecimento existente pelo ID
-            }
-        }
-    });
-    return tarefas;
-}
-
-async function updateTarefa(id) {
-    const dataAtual = new Date()
-    const data = dataAtual.toISOString();
-    const id_da_tarefa = parseInt(id);
-
-    const tarefas = await prisma.Tarefas.update({
-        where:{
-            id: id_da_tarefa
-        },
-        data: {
-            status: 'Concluida',
-            data_conclusao: data,
-        }
-    });
-    console.log('tarefa alterada com sucesso')
+async function getNotificacoes(req) {
+    const cnpj = req.user.cnpj;
     
-    return tarefas;
+    const notificacoes = await prisma.notificacoes.findMany({
+        orderBy: { criadaEm: 'desc' },
+        where: { lida: false, estabelecimentoCnpj: cnpj },
+        take: 50 
+    });
+    return notificacoes;
+
 }
 module.exports = {
-    updateTarefa,
-    getTarefas,
-    postTarefa
+    getNotificacoes
 }

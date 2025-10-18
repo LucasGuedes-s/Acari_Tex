@@ -1,5 +1,5 @@
 const pecas = require('../Services/OP.services');
-
+const Estatisticas = require('../Controllers/EstatisticasController');
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
@@ -23,6 +23,9 @@ async function getOPs(req, res, next){
 async function postProducaoPeca(req, res, next){
     try {
         const peca = await pecas.postProducaoPeca(req);
+        Estatisticas.estatisticasEquipe(req, req.body.id_funcionario).catch(err => {
+            console.error("Erro ao atualizar estatísticas:", err);
+        });
         req.io.emit('nova_producao', peca);
         res.status(200).json({peca});
     } catch (err) {

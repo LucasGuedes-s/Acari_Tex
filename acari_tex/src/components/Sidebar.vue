@@ -20,43 +20,50 @@
         
         <div class="list-group">
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/dashboard" class="d-flex align-items-center text-reset">
-              <i class="bi bi-house-door-fill icon"></i>
+            <router-link to="/dashboard" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-house-up icon"></i>
               <span>Dashboard</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/MinhaEquipe" class="d-flex align-items-center text-reset">
-              <i class="bi bi-person-fill icon"></i>
+            <router-link to="/MinhaEquipe" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-people icon"></i>
               <span>Funcionários</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/Producao" class="d-flex align-items-center text-reset">
-              <i class="bi bi-bar-chart-line-fill icon"></i>
+            <router-link to="/Producao" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-bar-chart icon"></i>
               <span>Produção</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/adicionar-peca" class="d-flex align-items-center text-reset">
-              <i class="bi bi-plus-circle-fill icon"></i>
+            <router-link to="/adicionar-peca" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-plus-circle icon"></i>
               <span>Adicionar OP</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/minha-equipe" class="d-flex align-items-center text-reset">
-              <i class="bi bi-people-fill icon"></i>
-              <span>Equipes</span>
+            <router-link to="/minha-equipe" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-cash-coin icon"></i>
+              <span>Financeiro</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/relatorios" class="d-flex align-items-center text-reset">
+            <router-link to="/relatorios" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-graph-up-arrow icon"></i>
               <span>Relatórios</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/" class="d-flex align-items-center text-reset">
+            <router-link to="/minha-equipe" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-bell icon"></i>
+              <span>Notificações</span>
+            </router-link>
+          </div>
+
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-box-arrow-left icon"></i>
               <span>Sair</span>
             </router-link>
@@ -64,7 +71,7 @@
         </div>
       </div>
     </div>
-
+    <NotificacoesProd />
     <!-- Overlay mobile/tablet -->
     <div v-if="isMinimized" class="overlay" @click="isMinimized = false"></div>
   </div>
@@ -73,6 +80,7 @@
 <script>
 import router from '@/router';
 import NavBarUser from './NavBarUser.vue';
+import NotificacoesProd from './NotificacoesProd.vue';
 
 export default {
   name: 'Sidebar-menu',
@@ -83,6 +91,7 @@ export default {
   },
   components: {
     NavBarUser,
+    NotificacoesProd
   },
   methods: {
     toggleSidebar() {
@@ -97,6 +106,19 @@ export default {
 };
 </script>
 <style scoped>
+.ativo {
+  background-color: #f2f4f7; 
+  color: #2b2b2b !important; 
+  border-left: 4px solid var(--verde-escuro); 
+  font-weight: 500;
+  border-radius: 0 8px 8px 0;
+  padding-left: 10px;
+}
+
+.ativo i {
+  color: var(--verde-escuro) !important;
+}
+
 .icon-logo {
   margin-top: 20px;
   margin-bottom: 20px;

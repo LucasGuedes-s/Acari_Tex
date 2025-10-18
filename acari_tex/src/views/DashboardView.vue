@@ -30,7 +30,7 @@
           <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
             :count="pecasConcluidas" />
         </section>
-
+        <ConteinersDashboard />
         <div class="row justify-content-center" v-if="loading === false">
           <Producao class="mb-4"  />
           <GraficoProducaoTotal class="mb-4" />
@@ -55,9 +55,11 @@ import CarregandoTela from '@/components/carregandoTela.vue';
 import GraficoProducaoMes from '@/components/GraficoProducaoMes.vue';
 import router from '@/router';
 import Swal from 'sweetalert2';
+import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
+
 export default {
   name: 'DashboardHome',
-  components: { GraficoProducaoMes, SidebarNav, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela },
+  components: { GraficoProducaoMes, SidebarNav, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela, ConteinersDashboard },
   setup() {
     const store = useAuthStore();
     return { store };

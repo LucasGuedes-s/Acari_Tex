@@ -12,10 +12,10 @@ async function main() {
   const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);
   */
 
-  const cnpjEstabelecimento = "12345678000199";
-  const senhaTexto = "admin123";
-  const nomeUsuario = 'Mara Guedes';
-  const emailUsuario = 'mara.acari@hotmail.com';
+  const cnpjEstabelecimento = "12.373.991/0001-37";
+  const senhaTexto = "senha123";
+  const nomeUsuario = 'Mailton';
+  const emailUsuario = 'mailton@gmail.com';
 
   const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);
 

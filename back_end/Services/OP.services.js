@@ -668,7 +668,8 @@ async function voltarPeca(req, res) {
     console.error("Erro ao voltar peça:", err.message);
     throw new Error("Erro ao voltar peça");
   }
-}async function getEtapas(req) {
+}
+async function getEtapas(req) {
   const cnpj = req.user.cnpj;
 
   // Pega todas as etapas com suas relações

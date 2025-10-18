@@ -11,7 +11,7 @@ lerna-debug.log*
 node_modules/
 back_end/node_modules/
 .pnpm-store/
-
+.firstRun.util.js
 # Dependências de build
 dist/
 build/

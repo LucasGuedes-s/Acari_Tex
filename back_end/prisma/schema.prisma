@@ -39,6 +39,7 @@ model Estabelecimento {
   PecasOP             PecasOP[]
   Producao            Producao[]
   tempo_referencia   TempoReferencia[]
+  notificacoes        Notificacoes[]
 }
 
 model PecasOP {
@@ -179,4 +180,15 @@ model TempoReferencia {
   @@unique([estabelecimentoCnpj, id_funcionario, id_da_funcao])
   @@index([id_da_funcao])
   @@index([id_funcionario])
+}
+model Notificacoes {
+  id                  Int      @id @default(autoincrement())
+  estabelecimentoCnpj String
+  titulo              String
+  mensagem            String
+  lida                Boolean  @default(false)
+  criadaEm            DateTime @default(now())
+
+  estabelecimento    Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
 }

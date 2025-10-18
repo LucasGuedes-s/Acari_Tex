@@ -1,38 +1,14 @@
-const Tarefas = require('../Services/Dashboard.services');
+const Notificacoes = require('../Services/Dashboard.services');
 
-async function getTarefas(req, res, next){  
-
+async function getNotificacoes(req, res, next){
     try {
-        const tarefas = await Tarefas.getTarefas();
-        res.status(200).json({tarefas: tarefas});
+        const notificacoes = await Notificacoes.getNotificacoes(req);
+        res.status(200).json({notificacoes});
     } catch (err) {
-        console.error(`Erro ao obter as tarefas.`, err.message);
-        next(err);
-    }
-}
-
-async function postTarefa(req, res, next){  
-    try {
-        const tarefa = req.body.tarefa;
-        const Adicionar = await Tarefas.postTarefa(tarefa);
-        res.status(200).json({tarefa: Adicionar});
-    } catch (err) {
-        console.error(`Erro ao adicionar a tarefa.`, err.message);
-        next(err);
-    }
-}
-async function updateTarefa(req, res, next){  
-    try {
-        const id = req.params.id;
-        const atualizar = await Tarefas.updateTarefa(id);
-        res.status(200).json({tarefa: atualizar});
-    } catch (err) {
-        console.error(`Erro ao atualizar a tarefa.`, err.message);
+        console.error(`Erro ao obter notificações:`, err.message);
         next(err);
     }
 }
 module.exports = { 
-    updateTarefa,
-    getTarefas,
-    postTarefa
+    getNotificacoes
 };

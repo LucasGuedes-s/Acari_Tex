@@ -10,7 +10,12 @@ const routes = [
       title: 'Linha Tex'
     }
   },
-    {
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('@/views/NotFound.vue')
+  },
+  {
     path: '/login',
     name: 'login',
     // route level code-splitting
@@ -77,7 +82,7 @@ const routes = [
       title: 'Linha Tex'
     }
   },
-    {
+  {
     path: '/alterar-senha',
     name: 'alterarSenha',
     props: true,
@@ -144,7 +149,7 @@ const routes = [
       title: 'Linha Tex'
     }
   },
-    {
+  {
     path: '/tempo-producao/:emailFuncionario',
     name: 'tempoProducao',
     // route level code-splitting
