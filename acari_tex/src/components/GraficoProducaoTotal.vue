@@ -1,126 +1,131 @@
 <template>
-  <carregandoTela v-if="loading"/>
   <div class="grafico-equipe">
-    <GChart v-if="chartData.length > 1 && chartData[0].length > 1" type="LineChart" :data="chartData"
-      :options="chartOptions" style="width: 100%; height: 400px" />
+    <canvas ref="chartCanvas" style="width: 100%; height: 400px; background-color: white;"></canvas>
   </div>
 </template>
 
 <script>
-import { GChart } from 'vue-google-charts'
-import { useAuthStore } from '@/store/store'
-import { io } from 'socket.io-client'
+import { ref, onMounted } from 'vue';
+import Chart from 'chart.js/auto';
+import { useAuthStore } from '@/store/store';
 import api from '@/Axios';
-import carregandoTela from './carregandoTela.vue';
+import { io } from 'socket.io-client';
+
 export default {
-  name: 'GraficoEquipeProducao',
-  components: { GChart, carregandoTela },
+  name: 'LineUsersBarMedia',
   setup() {
+    const chartCanvas = ref(null);
+    const chart = ref(null);
     const store = useAuthStore();
-    return { store };
-  },
-  data() {
-    return {
-      chartData: [['Hora', 'Sem dados']],
-      loading: false,
-      socket: null,
-      chartOptions: {
-        title: 'Produção por Funcionário (Hoje)',
-        curveType: 'function',
-        legend: { position: 'bottom', maxLines: 4 },
-        hAxis: {
-          title: 'Hora',
-          slantedText: true,
-        },
-        vAxis: {
-          title: 'Peças Produzidas',
-          minValue: 0,
-          viewWindow: { min: 0 }
-        },
-        colors: [
-          '#004d20', '#3366CC', '#DC3912', '#FF9900', '#109618',
-          '#990099', '#3B3EAC', '#0099C6', '#DD4477', '#66AA00',
-          '#B82E2E', '#006400', '#008000', '#228B22', '#2E8B57',
-          '#3CB371', '#32CD32', '#00FF7F', '#66CDAA', '#20B2AA',
-          '#9ACD32', '#ADFF2F', '#7FFF00', '#98FB98', '#90EE90',
-          '#1E90FF', '#4682B4', '#5F9EA0', '#87CEEB', '#8A2BE2',
-          '#9370DB', '#BA55D3', '#DA70D6', '#FF4500', '#FF6347',
-          '#FF7F50', '#FFD700', '#FFA500', '#FFE135', '#F0E68C'
-        ]
+    const socket = ref(null);
 
-      }
-    };
-  },
-  mounted() {
-    this.carregarDados();
-    this.socket = io('https://acari-tex.onrender.com');
+    // Paleta de cores
+    const cores = [
+      '#004d20', '#3366CC', '#DC3912', '#FF9900', '#109618',
+      '#990099', '#3B3EAC', '#0099C6', '#DD4477', '#66AA00',
+      '#B82E2E', '#006400', '#008000', '#228B22', '#2E8B57',
+      '#3CB371', '#32CD32', '#00FF7F', '#66CDAA', '#20B2AA',
+      '#9ACD32', '#ADFF2F', '#7FFF00', '#98FB98', '#90EE90',
+      '#1E90FF', '#4682B4', '#5F9EA0', '#87CEEB', '#8A2BE2',
+      '#9370DB', '#BA55D3', '#DA70D6', '#FF4500', '#FF6347',
+      '#FF7F50', '#FFD700', '#FFA500', '#FFE135', '#F0E68C'
+    ];
 
-    this.socket.on('nova_producao', () => {
-      if (!this.loading) {
-        this.carregarDados();
-      }
-    });
-  },
-  unmounted() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
-  },
-  methods: {
-    async carregarDados() {
-      if (this.loading) return;
-      this.loading = true;
-
+    const fetchData = async () => {
       try {
-        const token = this.store.pegar_token;
-        const res = await api.get('/producao/equipe', {
-          headers: { Authorization: `${token}` }
+        const token = store.pegar_token;
+        const res = await api.get('/producao/equipe', { headers: { Authorization: token } });
+        const equipe = res.data.producao.producaoDia;
+
+        // Horas de 06:00 a 23:00
+        const horasPadrao = Array.from({ length: 18 }, (_, i) => String(i + 6).padStart(2, '0') + ':00');
+
+        const nomes = equipe.map(f => f.nome);
+        const datasets = [];
+
+        // Linha para cada funcionário
+        nomes.forEach((nome, idx) => {
+          const data = horasPadrao.map(hora => {
+            let total = 0;
+            const funcionario = equipe[idx];
+            if (funcionario.etapas) {
+              Object.values(funcionario.etapas).forEach(etapaArray => {
+                total += etapaArray
+                  .filter(p => p.hora === hora)
+                  .reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0);
+              });
+            }
+            return total;
+          });
+
+          datasets.push({
+            type: 'line',
+            label: nome,
+            data,
+            borderColor: cores[idx % cores.length],
+            backgroundColor: cores[idx % cores.length],
+            borderWidth: 2,
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0, // remove os pontos
+          });
         });
 
-        const equipe = res.data.producao.producaoDia;
-        console.log('Produção do dia recebida:', equipe);
-        // Criando matriz de horas de 06:00 até 23:00
-        const horasPadrao = Array.from({ length: 18 }, (_, i) =>
-          String(i + 6).padStart(2, '0') + ':00'
-        );
+        // Barras da média
+        const mediaData = horasPadrao.map((_, i) => {
+          const soma = datasets.reduce((acc, ds) => acc + ds.data[i], 0);
+          return datasets.length ? soma / datasets.length : 0;
+        });
 
-        // Nome dos funcionários
-        const nomes = equipe.map(f => f.nome);
-        if (nomes.length === 0) {
-          // Nenhum funcionário com produção hoje
-          this.chartData = [['Hora', 'Sem produção']];
-          return;
-        }
+        datasets.push({
+          type: 'bar',
+          label: 'Média',
+          data: mediaData,
+          backgroundColor: 'rgba(0, 141, 59, 0.3)', // cor mais clara
+          borderColor: '#008d3b',
+          borderWidth: 1,
+          stack: 'media'
+        });
 
-        const dataMatrix = [['Hora', ...nomes]];
-        // Para cada hora, soma as produções de todas as etapas do funcionário
-        for (const hora of horasPadrao) {
-          const linha = [hora];
-
-          for (const funcionario of equipe) {
-            let totalHora = 0;
-            if (funcionario.etapas) {
-              for (const etapaNome in funcionario.etapas) {
-                const etapaArray = funcionario.etapas[etapaNome];
-                const itemHora = etapaArray.find(p => p.hora === hora);
-                if (itemHora) totalHora += itemHora.quantidade;
+        if (chart.value) chart.value.destroy();
+        chart.value = new Chart(chartCanvas.value.getContext('2d'), {
+          data: { labels: horasPadrao, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              tooltip: { mode: 'index', intersect: false },
+              legend: {
+                display: true,
+                onClick: (e, legendItem, legend) => {
+                  const ci = legend.chart;
+                  const index = legendItem.datasetIndex;
+                  const meta = ci.getDatasetMeta(index);
+                  meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                  ci.update();
+                }
               }
+            },
+            scales: {
+              x: { stacked: true, title: { display: true, text: 'Hora' } },
+              y: { stacked: false, title: { display: true, text: 'Peças Produzidas' }, beginAtZero: true }
             }
-            linha.push(totalHora);
           }
+        });
 
-          dataMatrix.push(linha);
-        }
-
-        this.chartData = dataMatrix;
-        this.loading = false;
       } catch (err) {
-        console.error('Erro ao carregar gráfico da equipe:', err);
-      } finally {
-        this.loading = false;
+        console.error('Erro ao carregar gráfico:', err);
       }
-    }
+    };
+
+    onMounted(() => {
+      fetchData();
+      socket.value = io('https://acari-tex.onrender.com');
+      socket.value.on('nova_producao', () => fetchData());
+    });
+
+    return { chartCanvas };
   }
 };
 </script>
@@ -133,5 +138,6 @@ export default {
 }
 GChart{
   border-radius: 8px;
+  background-color: aquamarine;
 }
-</style>
+</style>  
