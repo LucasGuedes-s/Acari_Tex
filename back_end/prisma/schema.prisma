@@ -188,7 +188,8 @@ model Notificacoes {
   mensagem            String
   lida                Boolean  @default(false)
   criadaEm            DateTime @default(now())
-
+  etapa               String?  
+  
   estabelecimento    Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
 }

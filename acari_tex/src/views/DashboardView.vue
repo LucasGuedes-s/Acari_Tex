@@ -32,8 +32,9 @@
         </section>
         <ConteinersDashboard />
         <div class="row justify-content-center" v-if="loading === false">
-          <Producao class="mb-4"  />
           <GraficoProducaoTotal class="mb-4" />
+          <Producao class="mb-4"  />
+
           <GraficoProducaoMes class="mb-4" />
         </div>
       </div>

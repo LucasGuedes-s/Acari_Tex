@@ -439,7 +439,6 @@ async function getProducaoEquipeDia(req) {
         etapas: dados.etapas
       }))
     }));
-    console.log(resultado)
     return { producaoDiaEquipe: resultado };
 
   } catch (error) {

@@ -43,8 +43,9 @@
               <span>Adicionar OP</span>
             </router-link>
           </div>
+
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/minha-equipe" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+            <router-link to="/not-found" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-cash-coin icon"></i>
               <span>Financeiro</span>
             </router-link>
@@ -55,12 +56,13 @@
               <span>Relatórios</span>
             </router-link>
           </div>
+          <!-- 
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/minha-equipe" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-bell icon"></i>
               <span>Notificações</span>
             </router-link>
-          </div>
+          </div>-->
 
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/" class="d-flex align-items-center text-reset" exact-active-class="ativo">

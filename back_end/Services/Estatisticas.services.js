@@ -71,7 +71,6 @@ async function analisarProducaoFuncionarioDia(req, idFuncionario) {
   // Agora comparamos o funcionário com a média geral
   const resultado = [];
   const nomeFuncionario = producaoDia.find(r => r.id_funcionario === idFuncionario)?.producao_funcionario?.nome || idFuncionario;
-
   for (const [idEtapa, dados] of Object.entries(etapas)) {
     for (const [hora, funcionariosMap] of Object.entries(dados.horas)) {
       const funcionarios = Object.values(funcionariosMap);
