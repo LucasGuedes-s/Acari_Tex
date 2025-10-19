@@ -60,12 +60,12 @@
     </div>
 </template>
 <script>
-import Axios from 'axios';
 import Swal from 'sweetalert2'
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from '../firebase.js'; // Certifique-se de ajustar o caminho conforme necessário
 import 'jspdf-autotable';
 import { v4 as uuidv4 } from 'uuid';
+import api from '@/Axios.js';
 
 export default {
     data() {
@@ -102,7 +102,7 @@ export default {
             // Obtém a URL pública da imagem
             const imageUrl = await getDownloadURL(snapshot.ref);
 
-            await Axios.post("http://localhost:3333/AdicionarFuncionario", {
+            await api.post("/AdicionarFuncionario", {
                 funcionario: {
                     nome_do_funcionario: this.nome,
                     idade: this.idade,
