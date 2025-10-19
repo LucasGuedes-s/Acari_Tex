@@ -32,7 +32,7 @@
                 </div>
                 <button
                   v-if="!notif.lida"
-                  class="btn btn-sm btn-outline-primary btn-sm-notif"
+                  class="btn btn-sm btn-sm-notif"
                   @click="marcarComoLida(notif.id)"
                 >
                   ✔
@@ -88,7 +88,13 @@
 .btn-sm-notif {
   border-radius: 6px;
   font-size: 0.7rem;
+  background-color: var(--verde-escuro);
+  color: white;
   padding: 0.25rem 0.4rem;
+}
+.btn-sm-notif:hover{
+  background-color: #076d00;
+  color: white;
 }
 
 .very-small {
@@ -143,6 +149,7 @@
 <script>
 import { useAuthStore } from "@/store/store";
 import api from "@/Axios";
+import Swal from "sweetalert2";
 
 export default {
   name: "ContainersGerais",
@@ -190,10 +197,15 @@ export default {
         const store = useAuthStore();
         const token = store.pegar_token;
 
-        await api.patch(`/notificacoes/${id}`, { lida: true }, {
+        await api.put(`/notificacoes/${id}/lida`, { lida: true }, {
           headers: { Authorization: `${token}` }
         });
-
+        Swal.fire({
+          icon: "success",
+          title: "Notificação marcada como lida!",
+          timer: 1500,
+          showConfirmButton: false
+        });
         // Atualiza localmente
         this.notificacoes = this.notificacoes.map(n =>
           n.id === id ? { ...n, lida: true } : n

@@ -215,6 +215,14 @@ export default {
     };
   },
   methods: {
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        router.push('/');
+      }
+    },
     resetForm() {
       this.etapa = 1;
       this.novaPeca = {
@@ -318,6 +326,7 @@ export default {
 
   },
   mounted() {
+    this.verificarAutenticacao()
     this.getEtpas()
   }
 };

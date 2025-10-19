@@ -150,6 +150,15 @@ const routes = [
     }
   },
   {
+    path: '/financeiro',
+    name: 'financeiro',
+    // route level code-splitting
+    // this generates a separate chunk (about.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () => import(/* webpackChunkName: "about" */ '../views/FinanceiroFabricaView.vue')
+
+  },
+  {
     path: '/tempo-producao/:emailFuncionario',
     name: 'tempoProducao',
     // route level code-splitting

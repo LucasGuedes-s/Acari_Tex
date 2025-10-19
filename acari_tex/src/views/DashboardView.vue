@@ -92,6 +92,7 @@ export default {
     }
   },
   mounted() {
+    this.verificarAutenticacao();
     this.fetchData();
     this.socket = io('https://acari-tex.onrender.com'); // Conecta ao servidor Socket.IO
     this.socket.on('nova_peca', () => {
@@ -108,6 +109,15 @@ export default {
     });
   },
   methods: {
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        console.warn('Usuário não autenticado. Redirecionando...');
+        router.push('/');
+      }
+    },
     async irPara(){
       router.push('/Producao')
     },

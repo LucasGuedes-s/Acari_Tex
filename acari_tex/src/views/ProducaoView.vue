@@ -73,7 +73,7 @@ import draggable from 'vuedraggable';
 import api from '@/Axios';
 import carregandoTela from '@/components/carregandoTela.vue';
 import Swal from 'sweetalert2';
-
+import router from '@/router';
 export default {
   name: 'DashboardTecidos',
   components: {
@@ -129,6 +129,14 @@ export default {
     },
   },
   methods: {
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        router.push('/');
+      }
+    },
     traduzStatus(status) {
       const mapa = {
         nao_iniciado: "Não iniciadas",
@@ -227,28 +235,25 @@ export default {
     },
 
     async onKanbanChange(evt, colunaDestino) {
-      // evt tem { added, moved, removed } dependendo da ação
       try {
         if (evt?.added) {
           const movedItem = evt.added.element;
           if (!movedItem) return;
 
-          // só atualiza no backend se realmente trocou de coluna
           if (movedItem.status !== colunaDestino) {
             await this.atualizarStatusNoServidor(movedItem.id, colunaDestino);
             movedItem.status = colunaDestino; // atualiza localmente para refletir a cor
           }
         }
-        // evt.moved => reordenação dentro da mesma coluna (não precisa chamar API)
-        // evt.removed => saiu de uma coluna (a confirmação é tratada no 'added' da coluna destino)
+
       } catch (error) {
         console.error('Erro ao atualizar status:', error);
-        // rollback simples: recarrega do servidor
         this.fetchData();
       }
     },
   },
   mounted() {
+    this.verificarAutenticacao();
     this.fetchData();
   },
 };

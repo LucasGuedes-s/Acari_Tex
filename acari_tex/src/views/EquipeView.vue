@@ -154,7 +154,7 @@ import { useAuthStore } from '@/store/store'
 import NavBarUser from '@/components/NavBarUser.vue'
 import api from '@/Axios'
 import CarregandoTela from '@/components/carregandoTela.vue'
-
+import router from '@/router';
 export default {
   name: 'funcionarios-equipe',
   setup() {
@@ -225,6 +225,14 @@ export default {
     }
   },
   methods: {
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        router.push('/');
+      }
+    },
     checkNovaEtapa() {
       if (this.funcao === 'nova') {
         this.novaEtapa = ''
@@ -413,6 +421,7 @@ export default {
     }
   },
   mounted() {
+    this.verificarAutenticacao()
     this.getFuncionarios()
     this.getPecasProducao()
     this.buscarEquipes()

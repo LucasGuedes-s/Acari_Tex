@@ -9,6 +9,16 @@ async function getNotificacoes(req, res, next){
         next(err);
     }
 }
+async function putNotificacaoLida(req, res, next){
+    try {
+        const resultado = await Notificacoes.putNotificacaoLida(req);  
+        res.status(200).json({message: resultado});
+    } catch (err) {
+        console.error(`Erro ao atualizar notificação:`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
-    getNotificacoes
+    getNotificacoes,
+    putNotificacaoLida
 };

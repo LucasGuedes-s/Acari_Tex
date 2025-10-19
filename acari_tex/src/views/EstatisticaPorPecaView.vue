@@ -138,7 +138,7 @@ import { GChart } from "vue-google-charts";
 import { useAuthStore } from "@/store/store";
 import api from "@/Axios";
 import Swal from "sweetalert2";
-
+import router from "@/router";
 export default {
   name: "DetalhesProducao",
   components: { SidebarNav, TituloSubtitulo, GChart },
@@ -176,6 +176,14 @@ export default {
   },
 
   methods: {
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        router.push('/');
+      }
+    },
     badgeClass(status) {
       return {
         nao_iniciado: "bg-secondary",
@@ -280,6 +288,7 @@ export default {
     },
   },
   mounted() {
+    this.verificarAutenticacao();
     this.buscarEstatisticas();
   },
 };

@@ -72,7 +72,7 @@ import api from '@/Axios';
 import Swal from 'sweetalert2';
 import carregandoTela from '@/components/carregandoTela.vue';
 import { gerarPDF } from '@/utils/functions/GerarPDF';
-
+import router from '@/router';
 export default {
     name: 'DetalhesPecas',
     components: { SidebarNav, TituloSubtitulo, carregandoTela },
@@ -113,6 +113,14 @@ export default {
         },
     },
     methods: {
+        verificarAutenticacao() {
+            const token = this.store.pegar_token;
+            const usuario = this.store.pegar_usuario;
+
+            if (!token || !usuario) {
+                router.push('/');
+            }
+        },
         traduzStatus(status) {
             const mapa = {
                 nao_iniciado: 'Não iniciadas',
@@ -223,6 +231,7 @@ export default {
         },
     },
     mounted() {
+        this.verificarAutenticacao();
         this.fetchPecas();
     },
 };

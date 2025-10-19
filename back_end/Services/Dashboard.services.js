@@ -90,7 +90,16 @@ async function getNotificacoes(req) {
         melhorFuncionario // inclui foto, nome, quantidade
     };
 }
-
+async function putNotificacaoLida(req) {
+    const { id } = req.params;
+    const cnpj = req.user.cnpj;
+    await prisma.notificacoes.updateMany({
+        where: { id: parseInt(id), estabelecimentoCnpj: cnpj },
+        data: { lida: true }
+    });
+    return 'Notificação marcada como lida com sucesso.';
+}
 module.exports = {
-    getNotificacoes
+    getNotificacoes,
+    putNotificacaoLida
 }

@@ -60,6 +60,7 @@ import api from '@/Axios'
 import Swal from 'sweetalert2'
 import { useAuthStore } from '@/store/store'
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue'
+import router from '@/router'
 
 export default {
   components: {
@@ -74,16 +75,23 @@ export default {
     }
   },
   mounted() {
+    this.verificarAutenticacao()
     this.carregarDados()
   },
   methods: {
-    // retorna string email de um objeto de funcionário (robusto)
+   verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        router.push('/');
+      }
+    },
     extractEmail(obj) {
       if (!obj) return null;
       if (typeof obj === 'string' && obj.includes('@')) return obj;
       if (obj.email && typeof obj.email === 'string') return obj.email;
       if (obj.id && typeof obj.id === 'string' && obj.id.includes('@')) return obj.id;
-      // se veio vindo como usuario.email aninhado
       if (obj.usuario && obj.usuario.email) return obj.usuario.email;
       if (obj.usuarioEmail) return obj.usuarioEmail;
       return null;
@@ -93,29 +101,12 @@ export default {
       try {
         const token = this.store.pegar_token;
 
-        // Buscar equipes (cada equipe tem .usuarios => array de relações)
         const resEquipes = await api.get('/equipes', { headers: { Authorization: token } });
         const equipes = resEquipes.data.equipes || [];
 
-        // Buscar funcionários (lista separada)
         const resFunc = await api.get('/funcionarios', { headers: { Authorization: token } });
         const funcionarios = resFunc.data.funcionarios || [];
 
-        /* Obter emails já alocados nas equipes (normalizando)
-        const alocadosEmails = equipes.flatMap(eq => (eq.usuarios || []).map(u => {
-          // u pode ter formato { id: <relId>, usuario: { email, nome, ... } } ou { usuarioEmail, ... }
-          return (u.usuario && u.usuario.email) || u.usuarioEmail || u.email || String(u.id || '');
-        })).filter(Boolean);
-
-        // Coluna “Disponíveis” com todos os funcionários que NÃO estão em equipes (usando email)
-        const disponiveis = funcionarios
-          .map(f => ({
-            id: f.email,          // usamos email como id
-            email: f.email,
-            nome: f.nome || f.email || '—',
-            funcao: f.funcoes || f.funcao || '—'
-          }))
-          .filter(f => !alocadosEmails.includes(f.email)); */
         const disponiveis = funcionarios.map(f => ({
           id: f.email,          // usamos email como id
           email: f.email,
@@ -125,12 +116,10 @@ export default {
         }));
 
 
-        // Monta primeiro a coluna de disponíveis
         this.board = [
           { id: 'disponiveis', nome: 'Disponíveis', funcionarios: disponiveis }
         ];
         console.log(equipes)
-        // Agora mapear as equipes: cada eq.usuarios é relação -> pegamos o usuario dentro
         equipes.forEach(eq => {
           const funcs = (eq.usuarios || []).map(u => {
             const usuarioObj = u.usuario || u; // suporte para formatos diferentes
@@ -159,7 +148,6 @@ export default {
 
     async criarEquipe() {
       try {
-        // Passo 1: pedir nome da equipe
         const { value: nome } = await Swal.fire({
           title: 'Nova Equipe',
           input: 'text',
@@ -208,18 +196,16 @@ export default {
 
         if (!funcionariosSelecionados || funcionariosSelecionados.length === 0) return;
 
-        // Montar payload e enviar ao backend
         const payload = {
           nome,
           descricao: '',
-          funcionarios: funcionariosSelecionados // array de emails
+          funcionarios: funcionariosSelecionados 
         };
 
         const token = this.store.pegar_token;
         const res = await api.post('/funcionario/grupo', payload, { headers: { Authorization: token } });
         const novaEquipe = res.data;
 
-        // mapear usuários retornados (tenta vários formatos)
         const funcs = (novaEquipe.usuarios || []).map(u => {
           const usuarioObj = u.usuario || u;
           const email = usuarioObj?.email || u.usuarioEmail || u.email || String(usuarioObj?.id || '');
@@ -231,14 +217,12 @@ export default {
           }
         });
 
-        // Adicionar nova equipe ao board
         this.board.push({
           id: novaEquipe.id,
           nome: novaEquipe.nome,
           funcionarios: funcs
         });
 
-        // Remover os funcionários selecionados da coluna “Disponíveis”
         this.board[0].funcionarios = this.board[0].funcionarios
           .filter(f => !funcionariosSelecionados.includes(f.email));
         Swal.fire('Sucesso', 'Equipe criada com sucesso', 'success');
@@ -250,7 +234,6 @@ export default {
       }
     },
 
-    // Escape simples para ids no HTML gerado dinamicamente
     escapeId(s) {
       return String(s || '').replace(/[^a-zA-Z0-9-_:.]/g, '_');
     },
@@ -262,10 +245,8 @@ export default {
       try {
         const token = this.store.pegar_token;
 
-        // Se algo foi adicionado para a coluna destino, tratamos apenas o 'added'
         if (event && event.added) {
           const funcionario = event.added.element;
-          // pegamos o email de forma robusta
           const email = this.extractEmail(funcionario) || funcionario.email || funcionario.id;
           const novaEquipeId = colunaDestino.id === 'disponiveis' ? null : colunaDestino.id;
 
@@ -274,7 +255,6 @@ export default {
             return;
           }
 
-          // Envia para backend: { email, novaEquipeId }
           const res = await api.post('/funcionarios/mover', {
             email,
             novaEquipeId
@@ -295,8 +275,7 @@ export default {
       } catch (err) {
         console.error('Erro mover funcionário', err);
         Swal.fire('Erro', 'Não foi possível salvar a movimentação', 'error');
-        // opcional: recarregar board para evitar inconsistências:
-        // await this.carregarDados();
+       
       }
     }
   }

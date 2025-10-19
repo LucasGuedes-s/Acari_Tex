@@ -3,8 +3,9 @@ import { io } from "socket.io-client";
 import { onMounted, reactive } from "vue";
 import { useAuthStore } from "@/store/store";
 import { v4 as uuidv4 } from "uuid"; // se não tiver, instale: npm i uuid
+import router from "@/router";
 
-const socket = io("http://localhost:3333"); // ajuste se necessário
+const socket = io("https://acari-tex.onrender.com"); // ajuste se necessário
 
 // estado local de toasts
 const toasts = reactive([]);
@@ -92,15 +93,25 @@ function iconFor(tipo) {
 }
 
 onMounted(() => {
-  const cnpj = useAuthStore().usuario.cnpj;
-  socket.on(`notificacao_${cnpj}`, (dados) => {
-    // dados = { tipo, mensagem, titulo? }
-    pushToast({
-      tipo: dados.tipo || "warning",
-      titulo: dados.titulo || "Notificação",
-      mensagem: dados.mensagem || "",
+  try{
+    const cnpj = useAuthStore().usuario.cnpj;
+    if (!cnpj){
+      router.push('/'); 
+      console.log("CNPJ do usuário não encontrado para notificações.");
+    }
+    socket.on(`notificacao_${cnpj}`, (dados) => {
+      // dados = { tipo, mensagem, titulo? }
+      pushToast({
+        tipo: dados.tipo || "warning",
+        titulo: dados.titulo || "Notificação",
+        mensagem: dados.mensagem || "",
+      });
     });
-  });
+  }catch(e){
+    console.error("Erro ao obter CNPJ do usuário:", e);
+    router.push('/');
+  }
+  
 });
 </script>
 

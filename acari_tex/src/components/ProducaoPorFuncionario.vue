@@ -72,7 +72,7 @@ export default {
   },
   mounted() {
     this.carregarDados();
-    this.socket = io('http://localhost:3333');
+    this.socket = io('https://acari-tex.onrender.com');
 
     /* Garante que o evento não é registrado múltiplas vezes
     this.socket.off('nova_producao_funcionario');

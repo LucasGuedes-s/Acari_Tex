@@ -110,9 +110,18 @@ export default {
     }
   },
   mounted() {
+    this.verificarAutenticacao()
     this.buscarEquipes()
   },
   methods: {
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+
+      if (!token || !usuario) {
+        router.push('/');
+      }
+    },
     async buscarEquipes() {
       try {
         const token = this.store.pegar_token

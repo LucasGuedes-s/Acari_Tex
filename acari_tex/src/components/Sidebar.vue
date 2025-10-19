@@ -9,7 +9,7 @@
     </nav>
 
     <!-- Sidebar -->
-    <div :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
+    <div  v-if="usuario" :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
         <div @click="irPara()">
           <img class="icon-logo"
@@ -44,25 +44,27 @@
             </router-link>
           </div>
 
-          <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/not-found" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+          <div class="list-group-item" @click="toggleSidebar" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'">
+            <router-link to="/financeiro" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-cash-coin icon"></i>
               <span>Financeiro</span>
             </router-link>
           </div>
+
+          
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/not-found" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-graph-up-arrow icon"></i>
+              <span>Desempenho</span>
+            </router-link>
+          </div>
+
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/relatorios" class="d-flex align-items-center text-reset" exact-active-class="ativo">
-              <i class="bi bi-graph-up-arrow icon"></i>
+              <i class="bi bi-clipboard-data icon"></i>
               <span>Relatórios</span>
             </router-link>
           </div>
-          <!-- 
-          <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/minha-equipe" class="d-flex align-items-center text-reset" exact-active-class="ativo">
-              <i class="bi bi-bell icon"></i>
-              <span>Notificações</span>
-            </router-link>
-          </div>-->
 
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/" class="d-flex align-items-center text-reset" exact-active-class="ativo">
@@ -83,13 +85,18 @@
 import router from '@/router';
 import NavBarUser from './NavBarUser.vue';
 import NotificacoesProd from './NotificacoesProd.vue';
-
+import { useAuthStore } from '@/store/store';
 export default {
   name: 'Sidebar-menu',
   data() {
     return {
       isMinimized: false,
     };
+  },
+  setup() {
+    const store = useAuthStore();
+    const usuario = store.pegar_usuario;
+    return { store, usuario };
   },
   components: {
     NavBarUser,
@@ -103,8 +110,20 @@ export default {
     },
     irPara(){
       router.push('/dashboard')
-    }
+    },
+    verificarAutenticacao() {
+      const token = this.store.pegar_token;
+      const usuario = this.store.pegar_usuario;
+       
+      if (!token || !usuario || usuario.permissoes === null) {
+        console.warn('Usuário não autenticado. Redirecionando...');
+        router.push('/'); // redireciona para login
+      }
+    },
   },
+  mounted() {
+    this.verificarAutenticacao();
+  }
 };
 </script>
 <style scoped>
