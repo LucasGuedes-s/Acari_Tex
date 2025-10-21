@@ -12,7 +12,7 @@ async function getNotificacoes(req) {
 
     // 2️⃣ Define hoje e ontem
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    hoje.setHours(hoje.getHours() - 3, 0, 0, 0);
 
     const amanha = new Date(hoje);
     amanha.setDate(hoje.getDate() + 1);
