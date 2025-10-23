@@ -55,8 +55,8 @@ model PecasOP {
   data_de_entrega    String?
   notas              String?
   tempo_estimado     Float?
-  tempo_padrao       Float?
-  
+  tempo_esperado     Float?
+  tempo_padrao     Float?
   producao_peca      Producao[]
 
   etapas             PecasEtapas[]
