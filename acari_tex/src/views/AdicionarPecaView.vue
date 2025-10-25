@@ -40,6 +40,11 @@
                   <input type="text" placeholder="Ex: Guararapes" v-model="novaPeca.pedido_por" id="fornecedor"
                     class="form-control" />
                 </div>
+                <div class="col-md-6">
+                  <label for="fornecedor" class="form-label">Tempo padrão</label>
+                  <input type="number" placeholder="5" v-model="novaPeca.tempo_padrao" min="0" id="tempo_padrao"
+                    class="form-control" />
+                </div>
               </div>
 
               <div class="d-flex justify-content-end mt-4">
@@ -111,6 +116,7 @@
                   { icon: 'bi-card-text', label: 'Descrição', value: novaPeca.descricao },
                   { icon: 'bi-hash', label: 'Quantidade', value: novaPeca.quantidade_pecas },
                   { icon: 'bi-person-badge', label: 'Pedido por', value: novaPeca.pedido_por },
+                  { icon: 'bi-clock-history', label: 'Tempo Padrão', value: novaPeca.tempo_padrao },
                   { icon: 'bi-cash', label: 'Valor da peça', value: novaPeca.valor_peca ? `R$ ${novaPeca.valor_peca}` : '' },
                   { icon: 'bi-calendar-check', label: 'Data de Entrega', value: novaPeca.data_entrega ? novaPeca.data_entrega.split('T')[0].split('-').reverse().join('/') : '' }
                 ]" :key="index">
@@ -204,6 +210,7 @@ export default {
         data_entrega: null,
         producao: [],
         valor_peca: null,
+        tempo_padrao: null,
       },
 
       locaisPredefinidos: [],
@@ -260,7 +267,8 @@ export default {
             quantidade_pecas: this.novaPeca.quantidade_pecas,
             pedido_por: this.novaPeca.pedido_por,
             data_entrega: this.novaPeca.data_entrega,
-            etapas: this.novaPeca.producao
+            etapas: this.novaPeca.producao,
+            tempo_padrao: this.novaPeca.tempo_padrao
           }
         }, { headers: { Authorization: `${token}` } });
 

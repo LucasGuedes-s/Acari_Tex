@@ -8,43 +8,43 @@ datasource db {
 }
 
 model Usuarios {
-  nome                String
-  email               String @id
-  senha               String
-  foto                String   @db.VarChar(2048)
-  idade               Int
-  funcoes             String?
-  identidade          String?
-  permissoes          Int?
-  cpf                 String?
-  pis                 String?
-  pix                 String?     
-  notas               String?
-  status              String? @default("ativo")
-  equipes             EquipesUsuarios[] 
-  estabelecimentoCnpj String
-  Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-
+  nome                 String
+  email                String            @id
+  senha                String
+  foto                 String            @db.VarChar(2048)
+  idade                Int
+  funcoes              String?
+  identidade           String?
+  permissoes           Int?
+  cpf                  String?
+  pis                  String?
+  pix                  String?
+  notas                String?
+  status               String?           @default("ativo")
+  estabelecimentoCnpj  String
+  equipes              EquipesUsuarios[]
   producao_funcionario Producao[]
   tempo_referencia     TempoReferencia[]
+  Estabelecimento      Estabelecimento   @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  @@index([estabelecimentoCnpj], map: "Usuarios_estabelecimentoCnpj_fkey")
 }
 
 model Estabelecimento {
-  cnpj                String @id
-  usuarios            Usuarios[]
-  EquipesGrupos       EquipesGrupos[]
-  estoque_tecidos     Estoque_Tecidos[]
-  estoque_agulhas     Estoque_Agulhas[]
-  tarefas             Tarefas[]
-  PecasOP             PecasOP[]
-  Producao            Producao[]
-  tempo_referencia   TempoReferencia[]
-  notificacoes        Notificacoes[]
+  cnpj             String            @id
+  nome             String?
+  eficiencia_turma EficienciaTurma?
+  EquipesGrupos    EquipesGrupos[]
+  notificacoes     Notificacoes[]
+  PecasOP          PecasOP[]
+  Producao         Producao[]
+  tarefas          Tarefas[]
+  tempo_referencia TempoReferencia[]
+  usuarios         Usuarios[]
 }
 
 model PecasOP {
-  id_da_op           Int       @id @default(autoincrement())
-  Estabelecimento    Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
+  id_da_op           Int             @id @default(autoincrement())
   id_Estabelecimento String
   status             String?
   descricao          String?
@@ -54,143 +54,131 @@ model PecasOP {
   data_do_pedido     String?
   data_de_entrega    String?
   notas              String?
-  tempo_estimado     Float?
-  tempo_esperado     Float?
-  tempo_padrao     Float?
+  tempo_padrao       Float?
+  cem_porcento       Float?
+  etapas             PecasEtapas[]
+  Estabelecimento    Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_peca      Producao[]
 
-  etapas             PecasEtapas[]
+  @@index([id_Estabelecimento], map: "PecasOP_id_Estabelecimento_fkey")
+}
+
+model EficienciaTurma {
+  id                   Int             @id @default(autoincrement())
+  estabelecimentoCnpj  String          @unique
+  tempo_padrao         Int
+  minutos_disponiveis  Float
+  quantidade_produzida Int
+  quantidade_pessoas   Float
+  eficiencia_percent   Float
+  calculadoEm          DateTime        @default(now())
+  estabelecimento      Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 }
 
 model Etapa {
-  id_da_funcao  Int     @id @default(autoincrement())
-  descricao     String  @unique 
-  pecas         PecasEtapas[]  
-  producao_etapa Producao[] 
+  id_da_funcao     Int               @id @default(autoincrement())
+  descricao        String            @unique
+  pecas            PecasEtapas[]
+  producao_etapa   Producao[]
   tempo_referencia TempoReferencia[]
 }
 
 model PecasEtapas {
-  id            Int @id @default(autoincrement())
-  id_da_op      Int 
-  id_da_funcao  Int
-  quantidade_meta Int     
-  status         String?  @default("pendente")
-
-  peca_op       PecasOP @relation(fields: [id_da_op], references: [id_da_op], onDelete: Cascade)
-  etapa         Etapa   @relation(fields: [id_da_funcao], references: [id_da_funcao], onDelete: Cascade)
+  id              Int     @id @default(autoincrement())
+  id_da_op        Int
+  id_da_funcao    Int
+  quantidade_meta Int
+  status          String? @default("pendente")
+  etapa           Etapa   @relation(fields: [id_da_funcao], references: [id_da_funcao], onDelete: Cascade)
+  peca_op         PecasOP @relation(fields: [id_da_op], references: [id_da_op], onDelete: Cascade)
 
   @@unique([id_da_op, id_da_funcao])
+  @@index([id_da_funcao], map: "PecasEtapas_id_da_funcao_fkey")
 }
 
 model Producao {
-  id_da_producao         Int       @id @default(autoincrement())
-  quantidade_pecas       Int?
-  id_Estabelecimento     String
-  id_da_op               Int
-  id_funcionario         String
-  id_da_funcao           Int     
-
-  data_inicio            DateTime?
-  hora_registro          String?
-
-  Estabelecimento        Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
-  producao_peca          PecasOP          @relation(fields: [id_da_op], references: [id_da_op])
-  producao_funcionario   Usuarios         @relation(fields: [id_funcionario], references: [email])
-  producao_etapa         Etapa            @relation(fields: [id_da_funcao], references: [id_da_funcao])
+  id_da_producao       Int             @id @default(autoincrement())
+  quantidade_pecas     Int?
+  id_Estabelecimento   String
+  id_da_op             Int
+  id_funcionario       String
+  id_da_funcao         Int
+  data_inicio          DateTime?
+  hora_registro        String?
+  Estabelecimento      Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
+  producao_etapa       Etapa           @relation(fields: [id_da_funcao], references: [id_da_funcao])
+  producao_peca        PecasOP         @relation(fields: [id_da_op], references: [id_da_op])
+  producao_funcionario Usuarios        @relation(fields: [id_funcionario], references: [email])
 
   @@index([id_da_op])
   @@index([id_da_funcao])
+  @@index([id_Estabelecimento], map: "Producao_id_Estabelecimento_fkey")
+  @@index([id_funcionario], map: "Producao_id_funcionario_fkey")
 }
 
-
-model Estoque_Tecidos {
-  id_do_tecido       Int     @id @default(autoincrement())
-  Estabelecimento    Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
-  id_Estabelecimento String
-  nome_do_tecido     String
-  valor              Float
-  fornecedor         String
-  composicao         String?
-  largura            Float?
-  peso               Float?
-  estoque            Int
-  data_              DateTime
-  tamanho            Float?
-  notas              String?
-}
-
-model Estoque_Agulhas {
-  id_da_agulha       Int     @id @default(autoincrement())
-  Estabelecimento    Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
-  id_Estabelecimento String
-  valor              Float
-  fornecedor         String?
-  numeracao          String?
-  estoque            Int
-  data               DateTime
-  notas              String?
-}
 model Tarefas {
-  id                  Int     @id @default(autoincrement())
-  Estabelecimento     Estabelecimento  @relation(fields: [id_Estabelecimento], references: [cnpj])
-  id_Estabelecimento  String
-  tarefa              String
-  status              String
-  data_abertura       DateTime
-  data_conclusao      DateTime?
-  notas               String?
+  id                 Int             @id @default(autoincrement())
+  id_Estabelecimento String
+  tarefa             String
+  status             String
+  data_abertura      DateTime
+  data_conclusao     DateTime?
+  notas              String?
+  Estabelecimento    Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
+
+  @@index([id_Estabelecimento], map: "Tarefas_id_Estabelecimento_fkey")
 }
 
 model EquipesGrupos {
-  id                  Int   @id @default(autoincrement())
+  id                  Int               @id @default(autoincrement())
   nome                String
   descricao           String?
   estabelecimentoCnpj String
-  Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-
+  Estabelecimento     Estabelecimento   @relation(fields: [estabelecimentoCnpj], references: [cnpj])
   usuarios            EquipesUsuarios[]
+
+  @@index([estabelecimentoCnpj], map: "EquipesGrupos_estabelecimentoCnpj_fkey")
 }
 
 model EquipesUsuarios {
-  id           Int @id @default(autoincrement())
-  usuarioEmail  String
-  equipeId      Int
-
-  usuario       Usuarios      @relation(fields: [usuarioEmail], references: [email], onDelete: Cascade)
-  equipe        EquipesGrupos @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  id           Int           @id @default(autoincrement())
+  usuarioEmail String
+  equipeId     Int
+  equipe       EquipesGrupos @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  usuario      Usuarios      @relation(fields: [usuarioEmail], references: [email], onDelete: Cascade)
 
   @@unique([usuarioEmail, equipeId])
+  @@index([equipeId], map: "EquipesUsuarios_equipeId_fkey")
 }
 
 model TempoReferencia {
-  id                   Int       @id @default(autoincrement())
-  estabelecimentoCnpj  String
-  id_funcionario       String
-  id_da_funcao         Int
-  tempo_minutos        Float?       
-  quantidade_pecas     Int?      
-  observacoes          String?  
-  criadoEm             DateTime  @default(now())
-  registradoPor        String?
-
-  usuario      Usuarios     @relation(fields: [id_funcionario], references: [email])
-  etapa        Etapa        @relation(fields: [id_da_funcao], references: [id_da_funcao])
-  estabelecimento Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  id                  Int             @id @default(autoincrement())
+  estabelecimentoCnpj String
+  id_funcionario      String
+  id_da_funcao        Int
+  tempo_minutos       Float?
+  quantidade_pecas    Int?
+  observacoes         String?
+  criadoEm            DateTime        @default(now())
+  registradoPor       String?
+  estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  etapa               Etapa           @relation(fields: [id_da_funcao], references: [id_da_funcao])
+  usuario             Usuarios        @relation(fields: [id_funcionario], references: [email])
 
   @@unique([estabelecimentoCnpj, id_funcionario, id_da_funcao])
   @@index([id_da_funcao])
   @@index([id_funcionario])
 }
+
 model Notificacoes {
-  id                  Int      @id @default(autoincrement())
+  id                  Int             @id @default(autoincrement())
   estabelecimentoCnpj String
   titulo              String
   mensagem            String
-  lida                Boolean  @default(false)
-  criadaEm            DateTime @default(now())
-  etapa               String?  
-  
-  estabelecimento    Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  lida                Boolean         @default(false)
+  criadaEm            DateTime        @default(now())
+  etapa               String?
+  estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
+  @@index([estabelecimentoCnpj], map: "Notificacoes_estabelecimentoCnpj_fkey")
 }

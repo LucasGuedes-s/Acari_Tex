@@ -53,7 +53,7 @@
 
           
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/not-found" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+            <router-link to="/eficiencia" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-graph-up-arrow icon"></i>
               <span>Desempenho</span>
             </router-link>

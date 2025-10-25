@@ -1,2 +1,0 @@
--- migration.sql
--- Dummy migration to satisfy Prisma
