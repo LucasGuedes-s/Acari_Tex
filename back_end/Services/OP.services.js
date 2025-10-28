@@ -237,8 +237,7 @@ async function updatePecaStatus(id_da_op, status) {
     console.error("Erro ao atualizar status da peça:", error);
     throw new Error("Erro ao atualizar status da peça.");
   }
-}
-async function getProducaoEquipe(req) {
+}async function getProducaoEquipe(req) {
   try {
     const cnpjEstabelecimento = req.user.cnpj;
     const fusoSP = "America/Sao_Paulo";
@@ -256,14 +255,14 @@ async function getProducaoEquipe(req) {
     const mes = partes.find(p => p.type === "month").value;
     const ano = partes.find(p => p.type === "year").value;
 
-    // Limites do dia (UTC)
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
     const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
-
-    // Limites do mês (UTC)
     const inicioMesUTC = new Date(Date.UTC(ano, mes - 1, 1, 0, 0, 0));
-    const fimMesUTC = new Date(Date.UTC(ano, mes, 0, 23, 59, 59)); // último dia do mês
+    const fimMesUTC = new Date(Date.UTC(ano, mes, 0, 23, 59, 59));
 
+    // -------------------------
+    // Produções do DIA
+    // -------------------------
     const producoesDia = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -271,14 +270,90 @@ async function getProducaoEquipe(req) {
       },
       select: {
         id_funcionario: true,
-        id_da_funcao: true,
         quantidade_pecas: true,
         hora_registro: true,
         producao_funcionario: { select: { nome: true } },
         producao_etapa: { select: { descricao: true } },
+        producao_peca: { select: { tempo_padrao: true } },
       },
     });
 
+    // -------------------------
+    // Agrupamento do DIA
+    // -------------------------
+    const agrupadoDia = {};
+
+    for (const p of producoesDia) {
+      const funcionario = p.id_funcionario;
+      const nome = p.producao_funcionario?.nome || funcionario;
+      const etapa = p.producao_etapa?.descricao || "Sem Etapa";
+      const quantidade = p.quantidade_pecas || 0;
+      const tempoPadrao = p.producao_peca?.tempo_padrao ?? 0;
+
+      if (!agrupadoDia[funcionario]) {
+        agrupadoDia[funcionario] = {
+          nome,
+          etapas: {},
+          totalPonderado: 0,
+          totalQuantidade: 0,
+        };
+      }
+
+      if (!agrupadoDia[funcionario].etapas[etapa]) {
+        agrupadoDia[funcionario].etapas[etapa] = [];
+      }
+
+      agrupadoDia[funcionario].etapas[etapa].push({
+        hora: p.hora_registro,
+        quantidade,
+        tempo_padrao: tempoPadrao,
+        producao_hora: quantidade, // já que cada registro = 1 hora
+      });
+
+      agrupadoDia[funcionario].totalPonderado += quantidade * tempoPadrao;
+      agrupadoDia[funcionario].totalQuantidade += quantidade;
+    }
+
+    // -------------------------
+    // Cálculo produtividade e média da turma
+    // -------------------------
+    const resultadoDia = [];
+    let totalPonderadoTurma = 0;
+    let totalQuantidadeTurma = 0;
+
+    for (const [id, dados] of Object.entries(agrupadoDia)) {
+      const media_ponderada = dados.totalQuantidade > 0
+        ? dados.totalPonderado / dados.totalQuantidade
+        : 0;
+
+      totalPonderadoTurma += dados.totalPonderado;
+      totalQuantidadeTurma += dados.totalQuantidade;
+
+      resultadoDia.push({
+        funcionario: id,
+        nome: dados.nome,
+        total_pecas: dados.totalQuantidade,
+        total_ponderado: dados.totalPonderado,
+        media_ponderada_funcionario: media_ponderada,
+        etapas: dados.etapas,
+      });
+    }
+
+    const mediaPonderadaTurma =
+      totalQuantidadeTurma > 0
+        ? totalPonderadoTurma / totalQuantidadeTurma
+        : 0;
+
+    // Percentual relativo da produção
+    for (const f of resultadoDia) {
+      f.producao_relativa_percentual = totalPonderadoTurma > 0
+        ? ((f.total_ponderado / totalPonderadoTurma) * 100).toFixed(2) + "%"
+        : "0.00%";
+    }
+
+    // -------------------------
+    // Produções do MÊS
+    // -------------------------
     const producoesMes = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -289,62 +364,69 @@ async function getProducaoEquipe(req) {
         quantidade_pecas: true,
         data_inicio: true,
         producao_funcionario: { select: { nome: true } },
+        producao_peca: { select: { tempo_padrao: true } },
       },
     });
 
-    const agrupadoDia = {};
-    for (const p of producoesDia) {
-      const funcionario = p.id_funcionario;
-      const nome = p.producao_funcionario?.nome || funcionario;
-      const etapa = p.producao_etapa?.descricao || "Sem Etapa";
-      const hora = p.hora_registro || "00:00";
-
-      if (!agrupadoDia[funcionario]) {
-        agrupadoDia[funcionario] = { nome, etapas: {} };
-      }
-      if (!agrupadoDia[funcionario].etapas[etapa]) {
-        agrupadoDia[funcionario].etapas[etapa] = [];
-      }
-      agrupadoDia[funcionario].etapas[etapa].push({
-        hora,
-        quantidade: p.quantidade_pecas || 0,
-        data: `${ano}-${mes}-${dia}`
-      });
-    }
-
-    const resultadoDia = Object.entries(agrupadoDia).map(([email, dados]) => ({
-      funcionario: email,
-      nome: dados.nome,
-      etapas: dados.etapas
-    }));
     const agrupadoMes = {};
-    producoesMes.forEach(p => {
+
+    for (const p of producoesMes) {
       const funcionario = p.id_funcionario;
       const nome = p.producao_funcionario?.nome || funcionario;
+      const quantidade = p.quantidade_pecas || 0;
+      const tempoPadrao = p.producao_peca?.tempo_padrao ?? 0;
 
       if (!agrupadoMes[funcionario]) {
         agrupadoMes[funcionario] = {
           nome,
-          dias: {}
+          dias: {},
+          totalPonderadoMes: 0,
+          totalQuantidadeMes: 0,
         };
       }
 
-      const data = new Date(p.data_inicio);
-      const diaDoMes = String(data.getDate()); // "1", "2", ..., "31"
+      const dataObj = new Date(p.data_inicio);
+      const diaStr = String(dataObj.getDate()).padStart(2, "0");
+      const mesStr = String(dataObj.getMonth() + 1).padStart(2, "0");
+      const keyDia = `${diaStr}/${mesStr}`;
 
-      if (!agrupadoMes[funcionario].dias[diaDoMes]) {
-        agrupadoMes[funcionario].dias[diaDoMes] = 0;
+      if (!agrupadoMes[funcionario].dias[keyDia]) {
+        agrupadoMes[funcionario].dias[keyDia] = {
+          totalPonderado: 0,
+          totalQuantidade: 0,
+          media_ponderada: 0,
+        };
       }
 
-      agrupadoMes[funcionario].dias[diaDoMes] += p.quantidade_pecas || 0;
-    });
+      agrupadoMes[funcionario].dias[keyDia].totalPonderado += quantidade * tempoPadrao;
+      agrupadoMes[funcionario].dias[keyDia].totalQuantidade += quantidade;
+      agrupadoMes[funcionario].dias[keyDia].media_ponderada = agrupadoMes[funcionario].dias[keyDia].totalQuantidade > 0
+        ? agrupadoMes[funcionario].dias[keyDia].totalPonderado / agrupadoMes[funcionario].dias[keyDia].totalQuantidade
+        : 0;
+
+      agrupadoMes[funcionario].totalPonderadoMes += quantidade * tempoPadrao;
+      agrupadoMes[funcionario].totalQuantidadeMes += quantidade;
+    }
+
+    // Média mensal
+    for (const f in agrupadoMes) {
+      const info = agrupadoMes[f];
+      info.media_ponderada_mes = info.totalQuantidadeMes > 0
+        ? info.totalPonderadoMes / info.totalQuantidadeMes
+        : 0;
+    }
 
     return {
-      producaoDia: resultadoDia,
-      producaoMes: agrupadoMes
+      producao: {
+        producaoDia: {
+          mediaPonderadaTurma,
+          totalPonderadoTurma,
+          totalQuantidadeTurma,
+          funcionarios: resultadoDia,
+        },
+        producaoMes: agrupadoMes,
+      },
     };
-
-
   } catch (error) {
     console.error("Erro ao buscar produção da equipe:", error);
     return { error: error.message };
@@ -769,7 +851,89 @@ async function postEtapa(req) {
 
   return pecaEtapa;
 }
+async function getEficiencia(req, res) {
+    const cnpj = req.user.cnpj;
+    const hoje = new Date();
+    const inicioDoDia = new Date(hoje.setHours(0, 0, 0, 0));
+    const fimDoDia = new Date(hoje.setHours(23, 59, 59, 999));
 
+    // 🔹 1️⃣ Buscar produções do dia
+    const producoes = await prisma.producao.findMany({
+      where: {
+        id_Estabelecimento: cnpj,
+        data_inicio: {
+          gte: inicioDoDia,
+          lte: fimDoDia
+        }
+      },
+      select: {
+        quantidade_pecas: true,
+        id_funcionario: true,
+        hora_registro: true,
+        producao_peca: {
+          select: {
+            tempo_padrao: true,
+            descricao: true
+          }
+        }
+      }
+    });
+
+    if (producoes.length === 0) {
+      return {mensagem:"Nenhuma produção registrada hoje."} ;
+    }
+
+    const quantidadeProduzida = producoes.reduce((acc, p) => acc + (p.quantidade_pecas || 0), 0);
+
+    const pessoasUnicas = new Set(producoes.map(p => p.id_funcionario));
+    const quantidadePessoas = pessoasUnicas.size;
+
+    const tempoPadraoPeca = producoes[0].producao_peca?.tempo_padrao || 0;
+
+    // Exemplo: jornada de 8h = 480 min
+    const minutosDisponiveis = 552;
+
+    // 🔹 4️⃣ Calcular produção padrão (produção100)
+    const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
+
+    // 🔹 5️⃣ Calcular eficiência
+    const eficiencia = (quantidadeProduzida / producao100) * 100;
+    console.log(cnpj)
+    // 🔹 6️⃣ Salvar ou atualizar na tabela EficienciaTurma
+    const eficienciaAtualizada = await prisma.eficienciaTurma.upsert({
+      where: { estabelecimentoCnpj: cnpj },
+      update: {
+        tempo_padrao: tempoPadraoPeca,
+        minutos_disponiveis: minutosDisponiveis,
+        quantidade_produzida: quantidadeProduzida,
+        quantidade_pessoas: quantidadePessoas,
+        eficiencia_percent: eficiencia,
+        calculadoEm: new Date()
+      },
+      create: {
+        estabelecimentoCnpj: cnpj,
+        tempo_padrao: tempoPadraoPeca,
+        minutos_disponiveis: minutosDisponiveis,
+        quantidade_produzida: quantidadeProduzida,
+        quantidade_pessoas: quantidadePessoas,
+        eficiencia_percent: eficiencia
+      }
+    });
+    console.log("Eficiência atualizada:", eficienciaAtualizada);
+
+     return {
+      data: {
+        descricaoPeca: producoes[0].producao_peca?.descricao,
+        tempoPadraoPeca,
+        minutosDisponiveis,
+        quantidadePessoas,
+        quantidadeProduzida,
+        producao100: producao100.toFixed(2),
+        eficiencia: eficiencia.toFixed(2) + "%",
+        calculadoEm: eficienciaAtualizada.calculadoEm
+      }
+    };
+  }
 module.exports = {
   postPecaOP,
   getPecasOP,
@@ -783,5 +947,6 @@ module.exports = {
   voltarPeca,
   getProducaoEquipeDia,
   getEtapas,
-  postEtapa
+  postEtapa,
+  getEficiencia
 };

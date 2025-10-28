@@ -69,6 +69,7 @@ async function updatePecaStatus(req, res, next){
 async function getProducaoEquipe(req, res, next) {
     try {
         const producao = await pecas.getProducaoEquipe(req);
+        //console.log(producao);
         res.status(200).json({ producao });
     } catch (err) {
         console.error(`Erro ao obter produção.`, err.message);
@@ -145,6 +146,15 @@ async function postEtapa(req, res, next) {
         next(err);
     }
 }
+async function getEficiencia(req, res, next) {
+    try {
+        const eficiencia = await pecas.getEficiencia(req);
+        res.status(200).json({ eficiencia });
+    } catch (err) {
+        console.error(`Erro ao obter eficiência da peça.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     getOPs,
@@ -157,5 +167,6 @@ module.exports = {
     voltarPeca,
     getProducaoEquipeDia,
     getEtapas,
-    postEtapa
+    postEtapa,
+    getEficiencia
 };
