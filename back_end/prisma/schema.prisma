@@ -31,8 +31,12 @@ model Usuarios {
 }
 
 model Estabelecimento {
-  cnpj             String            @id
-  nome             String?
+  cnpj                  String            @id
+  nome                  String?
+  endereco              String?
+  telefone              String?
+  tempo_de_producao     Int? @default(480)
+
   eficiencia_turma EficienciaTurma?
   EquipesGrupos    EquipesGrupos[]
   notificacoes     Notificacoes[]
@@ -41,6 +45,7 @@ model Estabelecimento {
   tarefas          Tarefas[]
   tempo_referencia TempoReferencia[]
   usuarios         Usuarios[]
+  Intercorrencias   Intercorrencias[]
 }
 
 model PecasOP {
@@ -181,4 +186,17 @@ model Notificacoes {
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
   @@index([estabelecimentoCnpj], map: "Notificacoes_estabelecimentoCnpj_fkey")
+}
+
+model Intercorrencias{
+  id                  Int             @id @default(autoincrement())
+  estabelecimentoCnpj String
+  descricao           String
+  registradaPor       String?
+  tempo_perda         Float?
+  data_ocorrencia     DateTime
+  notas               String?
+  estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  @@index([estabelecimentoCnpj], map: "Intercorrencias_estabelecimentoCnpj_fkey")
 }
