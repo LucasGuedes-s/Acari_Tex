@@ -1,143 +1,168 @@
 <template>
-  <div class="grafico-equipe">
-    <canvas ref="chartCanvas" style="width: 100%; height: 400px; background-color: white;"></canvas>
+  <div class="grafico-eficiencia">
+    <canvas ref="chartCanvas" v-show="temDados" style="width: 100%; height: 100%;"></canvas>
+    <p v-if="!temDados" class="sem-dados">Sem dados para o período selecionado</p>
   </div>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import Chart from 'chart.js/auto';
 import { useAuthStore } from '@/store/store';
 import api from '@/Axios';
 import { io } from 'socket.io-client';
 
 export default {
-  name: 'LineUsersBarMedia',
-  setup() {
+  name: 'GraficoEficiencia',
+  props: { filtro: { type: String, default: 'hoje' } },
+  setup(props) {
     const chartCanvas = ref(null);
-    const chart = ref(null);
+    const chartInstance = ref(null);
     const store = useAuthStore();
     const socket = ref(null);
+    const temDados = ref(false);
 
-    // Paleta de cores
     const cores = [
-      '#004d20', '#3366CC', '#DC3912', '#FF9900', '#109618',
-      '#990099', '#3B3EAC', '#0099C6', '#DD4477', '#66AA00',
-      '#B82E2E', '#006400', '#008000', '#228B22', '#2E8B57',
-      '#3CB371', '#32CD32', '#00FF7F', '#66CDAA', '#20B2AA',
-      '#9ACD32', '#ADFF2F', '#7FFF00', '#98FB98', '#90EE90',
-      '#1E90FF', '#4682B4', '#5F9EA0', '#87CEEB', '#8A2BE2',
-      '#9370DB', '#BA55D3', '#DA70D6', '#FF4500', '#FF6347',
-      '#FF7F50', '#FFD700', '#FFA500', '#FFE135', '#F0E68C'
+      '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
+      '#EC4899','#14B8A6','#6366F1','#84CC16','#FB923C'
     ];
+
+    const destruirGrafico = () => {
+      if (chartInstance.value) {
+        chartInstance.value.destroy();
+        chartInstance.value = null;
+      }
+    };
 
     const fetchData = async () => {
       try {
+        destruirGrafico();
         const token = store.pegar_token;
-        const res = await api.get('/producao/equipe', { headers: { Authorization: token } });
-        const equipe = res.data.producao.producaoDia;
-
-        // Horas de 06:00 a 23:00
-        const horasPadrao = Array.from({ length: 18 }, (_, i) => String(i + 6).padStart(2, '0') + ':00');
-
-        const nomes = equipe.map(f => f.nome);
-        const datasets = [];
-
-        // Linha para cada funcionário
-        nomes.forEach((nome, idx) => {
-          const data = horasPadrao.map(hora => {
-            let total = 0;
-            const funcionario = equipe[idx];
-            if (funcionario.etapas) {
-              Object.values(funcionario.etapas).forEach(etapaArray => {
-                total += etapaArray
-                  .filter(p => p.hora === hora)
-                  .reduce((sum, p) => sum + (Number(p.quantidade) || 0), 0);
-              });
-            }
-            return total;
-          });
-
-          datasets.push({
-            type: 'line',
-            label: nome,
-            data,
-            borderColor: cores[idx % cores.length],
-            backgroundColor: cores[idx % cores.length],
-            borderWidth: 2,
-            fill: false,
-            tension: 0.3,
-            pointRadius: 0, // remove os pontos
-          });
+        const res = await api.get('/producao/equipe', {
+          headers: { Authorization: token },
+          params: { filtro: props.filtro }
         });
 
-        // Barras da média
-        const mediaData = horasPadrao.map((_, i) => {
-          const soma = datasets.reduce((acc, ds) => acc + ds.data[i], 0);
-          return datasets.length ? soma / datasets.length : 0;
-        });
+        const producaoDia = res.data.producao?.producaoDia;
+        const funcionarios = producaoDia?.funcionarios || [];
 
-        datasets.push({
+        if (!funcionarios.length) {
+          temDados.value = false;
+          return;
+        }
+
+        temDados.value = true;
+
+        // espera o canvas existir
+        if (!chartCanvas.value) return;
+
+        const eficienciaMediaTurma = parseFloat(producaoDia.eficienciaMediaTurma) || 0;
+        const nomes = funcionarios.map(f => f.nome);
+        const eficiencias = funcionarios.map(f => parseFloat(f.eficiencia_pessoal));
+
+        chartInstance.value = new Chart(chartCanvas.value.getContext('2d'), {
           type: 'bar',
-          label: 'Média',
-          data: mediaData,
-          backgroundColor: 'rgba(0, 141, 59, 0.3)', // cor mais clara
-          borderColor: '#008d3b',
-          borderWidth: 1,
-          stack: 'media'
-        });
-
-        if (chart.value) chart.value.destroy();
-        chart.value = new Chart(chartCanvas.value.getContext('2d'), {
-          data: { labels: horasPadrao, datasets },
+          data: {
+            labels: nomes,
+            datasets: [
+              {
+                label: 'Eficiência Individual (%)',
+                data: eficiencias,
+                backgroundColor: nomes.map((_, i) => cores[i % cores.length]),
+                borderColor: nomes.map((_, i) => cores[i % cores.length]),
+                borderWidth: 2,
+                borderRadius: 10,
+                barPercentage: 0.6,
+                categoryPercentage: 0.7
+              },
+              {
+                type: 'line',
+                label: 'Média da Turma (%)',
+                data: Array(nomes.length).fill(eficienciaMediaTurma),
+                borderColor: '#004d20',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                tension: 0.3,
+                fill: false,
+                pointRadius: 3
+              }
+            ]
+          },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
+            layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
             plugins: {
-              tooltip: { mode: 'index', intersect: false },
-              legend: {
+              legend: { position: 'bottom', labels: { boxWidth: 14, color: '#333' } },
+              title: {
                 display: true,
-                onClick: (e, legendItem, legend) => {
-                  const ci = legend.chart;
-                  const index = legendItem.datasetIndex;
-                  const meta = ci.getDatasetMeta(index);
-                  meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
-                  ci.update();
-                }
+                text: 'Eficiência Individual e Média da Turma',
+                color: '#222',
+                font: { size: 18, weight: '600' },
+                padding: { bottom: 20 }
+              },
+              tooltip: {
+                backgroundColor: '#fff',
+                titleColor: '#333',
+                bodyColor: '#333',
+                borderColor: '#ccc',
+                borderWidth: 1,
+                callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(2)}%` }
               }
             },
             scales: {
-              x: { stacked: true, title: { display: true, text: 'Hora' } },
-              y: { stacked: false, title: { display: true, text: 'Peças Produzidas' }, beginAtZero: true }
+              x: { grid: { display: false }, ticks: { color: '#555', font: { size: 13 } } },
+              y: { beginAtZero: true, ticks: { color: '#555', callback: value => value + '%' } }
             }
           }
         });
-
       } catch (err) {
-        console.error('Erro ao carregar gráfico:', err);
+        console.error('Erro ao carregar gráfico de eficiência:', err);
+        temDados.value = false;
+        destruirGrafico();
       }
     };
 
     onMounted(() => {
       fetchData();
       socket.value = io('https://acari-tex.onrender.com');
-      socket.value.on('nova_producao', () => fetchData());
+      socket.value.on('nova_producao', fetchData);
     });
 
-    return { chartCanvas };
+    onBeforeUnmount(() => {
+      destruirGrafico();
+      if (socket.value) socket.value.disconnect();
+    });
+
+    watch(() => props.filtro, fetchData);
+
+    return { chartCanvas, temDados };
   }
 };
 </script>
 
 <style scoped>
-.grafico-equipe {
+.grafico-eficiencia {
   max-width: 100%;
-  margin: 0 auto;
-  border-radius: 8px;
+  margin: 20px auto;
+  border-radius: 12px;
+  background-color: #fff;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  height: 280px;
+  position: relative;
 }
-GChart{
-  border-radius: 8px;
-  background-color: aquamarine;
+.grafico-eficiencia canvas {
+  width: 100%;
+  height: 100% !important;
 }
-</style>  
+.sem-dados {
+  text-align: center;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #888;
+  font-size: 16px;
+}
+</style>

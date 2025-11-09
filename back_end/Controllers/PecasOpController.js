@@ -146,6 +146,16 @@ async function postEtapa(req, res, next) {
         next(err);
     }
 }
+async function getEtapasEstabelecimento(req, res, next) {
+    try{
+        const etapa = await pecas.getEtapasEstabelecimento(req);
+        res.status(200).json({ etapa });
+    }
+    catch (err) {
+        console.error(`Erro ao encontrar etapas.`, err.message);
+        next(err);
+    }
+}
 async function getEficiencia(req, res, next) {
     try {
         const eficiencia = await pecas.getEficiencia(req);
@@ -167,6 +177,7 @@ module.exports = {
     voltarPeca,
     getProducaoEquipeDia,
     getEtapas,
+    getEtapasEstabelecimento,
     postEtapa,
     getEficiencia
 };

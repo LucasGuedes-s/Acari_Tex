@@ -36,7 +36,7 @@ model Estabelecimento {
   endereco              String?
   telefone              String?
   tempo_de_producao     Int? @default(480)
-
+  logo                  String? @db.VarChar(2048)
   eficiencia_turma EficienciaTurma?
   EquipesGrupos    EquipesGrupos[]
   notificacoes     Notificacoes[]
@@ -46,6 +46,7 @@ model Estabelecimento {
   tempo_referencia TempoReferencia[]
   usuarios         Usuarios[]
   Intercorrencias   Intercorrencias[]
+  Etapas            Etapa[]
 }
 
 model PecasOP {
@@ -82,7 +83,10 @@ model EficienciaTurma {
 
 model Etapa {
   id_da_funcao     Int               @id @default(autoincrement())
-  descricao        String            @unique
+  descricao        String            
+  tempo_padrao     Float?
+  id_Estabelecimento String?
+  Estabelecimento    Estabelecimento? @relation(fields: [id_Estabelecimento], references: [cnpj])  
   pecas            PecasEtapas[]
   producao_etapa   Producao[]
   tempo_referencia TempoReferencia[]

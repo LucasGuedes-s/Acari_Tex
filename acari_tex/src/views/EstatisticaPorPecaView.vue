@@ -3,14 +3,20 @@
     <SidebarNav />
     <main class="content-wrapper flex-grow-1">
       <div class="container-fluid py-4">
-        <TituloSubtitulo titulo="📊 Estatísticas da Peça"
-          subtitulo="Veja todos os detalhes e dados da produção desta peça" />
+        <TituloSubtitulo 
+          titulo="📊 Estatísticas da Peça"
+          subtitulo="Veja todos os detalhes e dados da produção desta peça" 
+        />
 
         <div v-if="pecaDetalhes" class="card p-4 shadow-sm border-0 rounded-3">
-          <div
-            class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
             <h4 class="mb-3 fw-bold">{{ pecaDetalhes.descricao }}</h4>
-            <button class="btn btn-secondary mb-4" @click="showModalEstorno = true">Estornar produção</button>
+
+            <div class="d-flex gap-2">
+              <button class="btn btn-dark">Estornar produção</button>
+              <button class="bot btn btn-secondary" @click="exportarPDF">Exportar PDF</button>
+              <button class="bot btn btn-success">Exportar XLS</button>
+            </div>
           </div>
 
           <!-- Infos gerais -->
@@ -42,30 +48,41 @@
             <div class="col-12">
               <div class="card p-3 shadow-sm border-0">
                 <h5 class="mb-3">👷 Produção por Funcionário</h5>
-                <GChart v-if="graficoFuncionarios.length > 1" type="BarChart" :data="graficoFuncionarios"
+                <GChart 
+                  ref="chartFuncionariosRef"
+                  v-if="graficoFuncionarios.length > 1" 
+                  type="BarChart" 
+                  :data="graficoFuncionarios"
                   :options="{ title: 'Funcionários', legend: { position: 'none' } }"
-                  style="width: 100%; height: 500px;" />
+                  style="width: 100%; height: 500px;" 
+                />
               </div>
             </div>
 
             <div class="col-12">
               <div class="card p-3 shadow-sm border-0">
                 <h5 class="mb-3">⚙️ Produção por Etapa</h5>
-                <GChart v-if="graficoEtapas.length > 1" type="BarChart" :data="graficoEtapas" :options="{
-                  title: 'Etapas',
-                  isStacked: true,
-                  hAxis: { title: 'Quantidade' },
-                  vAxis: { title: 'Etapas' },
-                }" style="width: 100%; height: 500px;" />
+                <GChart 
+                  ref="chartEtapasRef"
+                  v-if="graficoEtapas.length > 1" 
+                  type="BarChart" 
+                  :data="graficoEtapas" 
+                  :options="{ 
+                    title: 'Etapas', 
+                    isStacked: true, 
+                    hAxis: { title: 'Quantidade' }, 
+                    vAxis: { title: 'Etapas' } 
+                  }"
+                  style="width: 100%; height: 500px;" 
+                />
               </div>
             </div>
           </div>
 
+          <!-- Detalhamento da Produção -->
           <div class="mt-5" v-if="pecaDetalhes.totalProduzido > 0">
             <h5 class="mb-3">Detalhamento da Produção por Etapa</h5>
-
-            <!-- wrapper para responsividade -->
-            <div class="table-responsive" >
+            <div class="table-responsive">
               <table class="table table-striped table-hover table-bordered align-middle">
                 <thead class="table-dark">
                   <tr>
@@ -93,40 +110,6 @@
 
         </div>
       </div>
-
-      <!-- Modal de estorno -->
-      <div v-if="showModalEstorno" class="modal-background">
-        <div class="modal-container registro">
-          <div class="modal-header registro">
-            <h2>Estornar Produção</h2>
-            <img class="modal-close" @click="showModalEstorno = false" src="@/assets/close.png" alt="Fechar" />
-          </div>
-
-          <div class="modal-body registro">
-            <div class="modal-info registro">
-              <div class="info-row">
-                <label class="label">Etapa</label>
-                <select v-model="etapaSelecionada" class="input-select">
-                  <option v-for="etapa in etapas" :key="etapa" :value="etapa.id_da_funcao">
-                    {{ etapa.descricao }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="info-row">
-                <label class="label">Quantidade a estornar</label>
-                <input type="number" v-model.number="quantidadeEstorno" class="input-field" min="1"
-                  :max="quantidadeMaxima" />
-              </div>
-            </div>
-          </div>
-
-          <div class="modal-footer registro">
-            <button class="btn btn-secondary" @click="showModalEstorno = false">Cancelar</button>
-            <button class="btn btn-success" @click="confirmarEstorno">Estornar</button>
-          </div>
-        </div>
-      </div>
     </main>
   </div>
 </template>
@@ -137,52 +120,45 @@ import TituloSubtitulo from "@/components/TituloSubtitulo.vue";
 import { GChart } from "vue-google-charts";
 import { useAuthStore } from "@/store/store";
 import api from "@/Axios";
-import Swal from "sweetalert2";
-import router from "@/router";
+import { exportarProducaoPDF } from "@/utils/functions/GerarPDFPeca";
+
 export default {
   name: "DetalhesProducao",
   components: { SidebarNav, TituloSubtitulo, GChart },
-  setup() {
-    const store = useAuthStore();
-    return { store };
-  },
   data() {
     return {
       pecaDetalhes: null,
-      graficoTotal: [["Status", "Quantidade"]],
       graficoFuncionarios: [["Funcionário", "Quantidade"]],
       graficoEtapas: [["Etapa", "Produzido", "Faltando"]],
-      showModalEstorno: false,
-      etapaSelecionada: null,
-      quantidadeEstorno: 1,
-      etapas: [],
     };
   },
-  computed: {
-    quantidadeMaxima() {
-      if (!this.pecaDetalhes || !this.pecaDetalhes.etapas) return 0;
-
-      const etapa = this.pecaDetalhes.etapas.find(
-        (e) => e.etapa.id_da_funcao === this.etapaSelecionada
-      );
-
-      if (!etapa) return 0;
-
-      const registrosEtapa = this.pecaDetalhes.producaoPorEtapa?.[etapa.etapa.descricao] || [];
-      const totalNaEtapa = registrosEtapa.reduce((sum, r) => sum + (r.quantidade || 0), 0);
-
-      return totalNaEtapa;
-    },
-  },
-
   methods: {
-    verificarAutenticacao() {
-      const token = this.store.pegar_token;
-      const usuario = this.store.pegar_usuario;
+    async buscarEstatisticas() {
+      const store = useAuthStore();
+      const token = store.pegar_token;
+      const { data } = await api.get(`/estatisticas/${this.$route.params.id}`, {
+        headers: { Authorization: token },
+      });
 
-      if (!token || !usuario) {
-        router.push('/');
-      }
+      this.pecaDetalhes = data.estatisticas;
+
+      // Gráfico por funcionário
+      const funcionarios = {};
+      Object.values(this.pecaDetalhes.producaoPorEtapa).forEach((registros) => {
+        registros.forEach((r) => {
+          if (!funcionarios[r.funcionario]) funcionarios[r.funcionario] = 0;
+          funcionarios[r.funcionario] += r.quantidade;
+        });
+      });
+      this.graficoFuncionarios = [["Funcionário", "Quantidade"], ...Object.entries(funcionarios)];
+
+      // Gráfico por etapa
+      const etapas = [];
+      Object.entries(this.pecaDetalhes.producaoPorEtapa).forEach(([etapa, registros]) => {
+        const totalEtapa = registros.reduce((sum, r) => sum + (r.quantidade || 0), 0);
+        etapas.push([etapa, totalEtapa, this.pecaDetalhes.quantidade_pecas - totalEtapa]);
+      });
+      this.graficoEtapas = [["Etapa", "Produzido", "Faltando"], ...etapas];
     },
     badgeClass(status) {
       return {
@@ -204,98 +180,26 @@ export default {
     formatarData(dataStr) {
       if (!dataStr) return "-";
       const data = new Date(dataStr);
-      return new Intl.DateTimeFormat("pt-BR", {
-        timeZone: "UTC",
-      }).format(data);
+      return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(data);
     },
-    async confirmarEstorno() {
-      if (!this.etapaSelecionada || this.quantidadeEstorno < 1) {
-        Swal.fire({
-          icon: "error",
-          title: "Erro",
-          text: "Selecione uma etapa válida e uma quantidade maior que zero.",
-        });
-        return;
-      }
+    async exportarPDF() {
+      if (!this.pecaDetalhes) return;
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      try {
-        const token = this.store.pegar_token;
-        await api.post(
-          "/voltar/peca",
-          {
-            id_da_op: this.pecaDetalhes.id_da_op,
-            id_da_funcao: this.etapaSelecionada,
-            quantidade: this.quantidadeEstorno,
-          },
-          { headers: { Authorization: token } }
-        );
-
-        Swal.fire({
-          icon: "success",
-          title: "Produção estornada com sucesso!",
-          showConfirmButton: false,
-          timer: 1500,
-        });
-        this.showModalEstorno = false;
-        this.buscarEstatisticas();
-      } catch (err) {
-        console.error("Erro ao estornar produção:", err);
-        Swal.fire({
-          icon: "error",
-          title: "Erro ao estornar produção",
-          text: err.response?.data?.mensagem || "Tente novamente mais tarde.",
-        });
-        this.showModalEstorno = false;
-        this.buscarEstatisticas();
-      }
-    },
-    async buscarEstatisticas() {
-      const token = this.store.pegar_token;
-      const { data } = await api.get(
-        `/estatisticas/${this.$route.params.id}`,
-        { headers: { Authorization: token } }
+      await exportarProducaoPDF(
+        this.pecaDetalhes,
+        this.$refs.chartFuncionariosRef,
+        this.$refs.chartEtapasRef
       );
-
-      this.pecaDetalhes = data.estatisticas;
-      this.etapas = this.pecaDetalhes.pecasEtapas || [];
-      // Gráfico total
-      this.graficoTotal = [
-        ["Status", "Quantidade"],
-        ["Produzido", this.pecaDetalhes.totalProduzido],
-        ["Saldo", this.pecaDetalhes.saldo],
-      ];
-
-      // Gráfico por funcionário
-      const funcionarios = {};
-      Object.values(this.pecaDetalhes.producaoPorEtapa).forEach((registros) => {
-        registros.forEach((r) => {
-          if (!funcionarios[r.funcionario]) funcionarios[r.funcionario] = 0;
-          funcionarios[r.funcionario] += r.quantidade;
-        });
-      });
-      this.graficoFuncionarios = [
-        ["Funcionário", "Quantidade"],
-        ...Object.entries(funcionarios),
-      ];
-
-      // Gráfico por etapa
-      const etapas = [];
-      Object.entries(this.pecaDetalhes.producaoPorEtapa).forEach(([etapa, registros]) => {
-        const totalEtapa = registros.reduce((sum, r) => sum + (r.quantidade || 0), 0);
-        etapas.push([etapa, totalEtapa, this.pecaDetalhes.quantidade_pecas - totalEtapa]);
-      });
-      this.graficoEtapas = [["Etapa", "Produzido", "Faltando"], ...etapas];
     },
   },
   mounted() {
-    this.verificarAutenticacao();
     this.buscarEstatisticas();
   },
 };
 </script>
-
 <style scoped>
-.btn {
+.bot {
   background-color: var(--verde-escuro);
 }
 
@@ -443,9 +347,10 @@ export default {
     z-index: 0;
   }
 }
+
 @media (min-width: 768px) and (max-width: 1024px) {
-    .content-wrapper {
-        padding-left: 0px;
-    }
+  .content-wrapper {
+    padding-left: 0px;
+  }
 }
 </style>

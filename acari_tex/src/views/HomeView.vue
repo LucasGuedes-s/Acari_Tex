@@ -71,7 +71,7 @@
         <div class="plan-card">
           <h3>Semestral</h3>
           <p>Ideal para pequenas e médias confecções</p>
-          <span class="price">R$ 1.799,90/semestre</span>
+          <span class="price">6x de R$ 299,90</span>
           <ul>
             <li>✔️ Controle de produção</li>
             <li>✔️ Gestão de equipes</li>
@@ -82,7 +82,7 @@
         <div class="plan-card destaque">
           <h3>Anual</h3>
           <p>Para fábricas em crescimento</p>
-          <span class="price">R$ 2.999,90/ano</span>
+          <span class="price">12x de R$279,90 </span>
           <ul>
             <li>✔️ Tudo do Semestral</li>
             <li>✔️ Relatórios avançados</li>

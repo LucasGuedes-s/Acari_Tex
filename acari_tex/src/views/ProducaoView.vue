@@ -5,10 +5,7 @@
     </div>
     <carregandoTela v-if="loading" />
     <main v-else class="content-wrapper flex-grow-1">
-      <div class="container-fluid my-4 mt-md-0 mt-3">
-        <div class="row justify-content-center userinfor">
-          <NavBarUser class="d-none d-md-block"  />
-        </div>
+      <div class="container-fluid my-4 mt-md-4 mt-3">
 
         <section class="row justify-content-center text-center">
           <div class="d-block d-md-none col-6 mb-3">
@@ -58,7 +55,7 @@
             </div>
           </div>
         </div>
-
+        
       </div>
     </main>
   </div>
@@ -66,7 +63,6 @@
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import NavBarUser from '@/components/NavBarUser.vue';
 import { useAuthStore } from '@/store/store';
 import DashboardCard from '@/components/DashboardCard.vue';
 import draggable from 'vuedraggable';
@@ -74,11 +70,11 @@ import api from '@/Axios';
 import carregandoTela from '@/components/carregandoTela.vue';
 import Swal from 'sweetalert2';
 import router from '@/router';
+
 export default {
   name: 'DashboardTecidos',
   components: {
     SidebarNav,
-    NavBarUser,
     DashboardCard,
     draggable,
     carregandoTela
@@ -95,7 +91,7 @@ export default {
         em_progresso: [],
         coleta: [],
         finalizado: [],
-      },
+      }
     };
   },
   computed: {
@@ -129,6 +125,7 @@ export default {
     },
   },
   methods: {
+
     verificarAutenticacao() {
       const token = this.store.pegar_token;
       const usuario = this.store.pegar_usuario;
@@ -154,14 +151,14 @@ export default {
         const list = Array.isArray(raw?.[k]) ? raw[k] : [];
         out[k] = list.map(item => ({
           ...item,
-          id: item.id ?? item.id_da_op ?? item._id ?? item.codigo, // garante um id
+          id: item.id ?? item.id_da_op ?? item._id ?? item.codigo,
           status: k,
         }));
       }
       return out;
     },
-
-    async fetchData() {
+    
+    async buscarPecas() {
       try {
         this.loading = true;
         const token = this.store.pegar_token;
@@ -176,6 +173,7 @@ export default {
         console.error("Erro ao buscar os dados:", error);
       }
     },
+    
     async abrirOpcoesStatus(item) {
       const { value: novoStatus } = await Swal.fire({
         title: 'Alterar Status',
@@ -212,24 +210,24 @@ export default {
       );
       if (resposta.status === 200) {
         Swal.fire({
-          toast: true,               // ativa estilo de notificação
-          position: 'top-end',       // canto superior direito
-          icon: 'success',           // 'success', 'error', 'warning', 'info', 'question'
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
           title: 'Status da peça atualizado!',
-          showConfirmButton: false,  // sem botão de confirmação
-          timer: 5000,               // desaparece sozinho em 3s
-          timerProgressBar: true,    // barra de tempo
+          showConfirmButton: false,
+          timer: 5000,
+          timerProgressBar: true,
         });
       }
       else {
         Swal.fire({
-          toast: true,               // ativa estilo de notificação
-          position: 'top-end',       // canto superior direito
-          icon: 'error',           // 'success', 'error', 'warning', 'info', 'question'
+          toast: true,
+          position: 'top-end',
+          icon: 'error',
           title: 'Peça cadastrada com sucesso!',
-          showConfirmButton: false,  // sem botão de confirmação
-          timer: 5000,               // desaparece sozinho em 3s
-          timerProgressBar: true,    // barra de tempo
+          showConfirmButton: false,
+          timer: 5000,
+          timerProgressBar: true,
         });
       }
     },
@@ -248,18 +246,35 @@ export default {
 
       } catch (error) {
         console.error('Erro ao atualizar status:', error);
-        this.fetchData();
+        this.buscarPecas();
       }
     },
   },
   mounted() {
     this.verificarAutenticacao();
-    this.fetchData();
+    this.buscarPecas();
   },
 };
 </script>
 
 <style scoped>
+label{
+  display: flex;
+}
+.etapa-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.etapa-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn-outline-primary i,
+.btn-outline-danger i {
+  font-size: 1rem;
+}
+
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
@@ -328,14 +343,17 @@ export default {
     padding-left: 0px;
   }
 }
+
 @media (min-width: 768px) and (max-width: 1024px) {
   .content-wrapper {
     padding-left: 0px;
   }
-  .user{
+
+  .user {
     display: none;
   }
-  .userinfor{
+
+  .userinfor {
     display: none;
   }
 }

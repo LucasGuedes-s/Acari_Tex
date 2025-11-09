@@ -44,6 +44,13 @@
             </router-link>
           </div>
 
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/etapas" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-grid-1x2 icon"></i>
+              <span>Etapas</span>
+            </router-link>
+          </div>
+
           <div class="list-group-item" @click="toggleSidebar" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'">
             <router-link to="/financeiro" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-cash-coin icon"></i>
@@ -65,9 +72,14 @@
               <span>Relatórios</span>
             </router-link>
           </div>
-
           <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+            <router-link to="/configuracoes" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-gear icon"></i>
+              <span>Configurações</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/login" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-box-arrow-left icon"></i>
               <span>Sair</span>
             </router-link>

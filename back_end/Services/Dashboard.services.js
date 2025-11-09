@@ -107,7 +107,15 @@ async function putNotificacaoLida(req) {
     });
     return 'Notificação marcada como lida com sucesso.';
 }
+async function getEmpresa(req) {
+    const cnpj = req.user.cnpj
+    const empresa = await prisma.Estabelecimento.findUnique({
+      where: {cnpj: cnpj}
+    })
+    return empresa;
+}
 module.exports = {
     getNotificacoes,
-    putNotificacaoLida
+    putNotificacaoLida,
+    getEmpresa
 }

@@ -31,11 +31,25 @@
             :count="pecasConcluidas" />
         </section>
         <ConteinersDashboard />
-        <div class="row justify-content-center" v-if="loading === false">
-          <GraficoProducaoTotal class="mb-4" />
-          <Producao class="mb-4"  />
 
-          <GraficoProducaoMes class="mb-4" />
+        <div>
+          <div class="filtro-container">
+            <label class="filtro-label">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 14.414V19a1 1 0 01-1.447.894l-4-2A1 1 0 019 17v-2.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <select v-model="filtro" @change="atualizarFiltro">
+                <option value="hoje">Hoje</option>
+                <option value="ontem">Ontem</option>
+                <option value="antesDeOntem">Antes de Ontem</option>
+              </select>
+            </label>
+          </div>
+
+          <div v-if="loading === false">
+            <GraficoProducaoTotal :filtro="filtro" class="mb-4" />
+            <GraficoProducaoIndividual :filtro="filtro" class="mb-4" />
+          </div>
         </div>
       </div>
     </main>
@@ -43,9 +57,11 @@
 </template>
 
 <script>
+import { ref } from 'vue';
+
 import SidebarNav from '@/components/Sidebar.vue';
 import DashboardCard from '@/components/DashboardCard.vue';
-import Producao from '@/components/Producao.vue';
+//import Producao from '@/components/Producao.vue';
 import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 import { useAuthStore } from '@/store/store';
 import { Chart, registerables } from 'chart.js';
@@ -53,17 +69,20 @@ import api from '@/Axios'
 Chart.register(...registerables);
 import { io } from 'socket.io-client';
 import CarregandoTela from '@/components/carregandoTela.vue';
-import GraficoProducaoMes from '@/components/GraficoProducaoMes.vue';
+//import GraficoProducaoMes from '@/components/GraficoProducaoMes.vue';
 import router from '@/router';
 import Swal from 'sweetalert2';
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
+import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
 
 export default {
   name: 'DashboardHome',
-  components: { GraficoProducaoMes, SidebarNav, DashboardCard, Producao, GraficoProducaoTotal, CarregandoTela, ConteinersDashboard },
+  components: {  SidebarNav, DashboardCard, GraficoProducaoTotal, CarregandoTela, ConteinersDashboard, GraficoProducaoIndividual },
   setup() {
     const store = useAuthStore();
-    return { store };
+    const filtro = ref('hoje'); // padrão
+    return { store, filtro };
+
   },
   data() {
     return {
@@ -167,6 +186,43 @@ export default {
     padding-left: 0px;
     z-index: 0;
   }
+}
+.filtro-container {
+  margin: 20px 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.filtro-label {
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.filtro-label:hover {
+  transform: translateY(-2px);
+}
+
+.filtro-label .icon {
+  width: 20px;
+  height: 20px;
+  color: #4B5563; /* cinza escuro */
+  margin-right: 8px;
+}
+
+.filtro-label select {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 @media (min-width: 768px) and (max-width: 1024px) {
 
