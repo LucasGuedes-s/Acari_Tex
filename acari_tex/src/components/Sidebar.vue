@@ -58,18 +58,16 @@
             </router-link>
           </div>
 
-          
-          <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/eficiencia" class="d-flex align-items-center text-reset" exact-active-class="ativo">
-              <i class="bi bi-graph-up-arrow icon"></i>
-              <span>Desempenho</span>
-            </router-link>
-          </div>
-
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/relatorios" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-clipboard-data icon"></i>
               <span>Relatórios</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/eficiencia" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-robot icon"></i>
+              <span>Chatbot</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">

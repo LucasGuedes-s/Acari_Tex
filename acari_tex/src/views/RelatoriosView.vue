@@ -73,6 +73,7 @@ import Swal from 'sweetalert2';
 import carregandoTela from '@/components/carregandoTela.vue';
 import { gerarPDF } from '@/utils/functions/GerarPDF';
 import router from '@/router';
+import { toValue } from 'vue';
 export default {
     name: 'DetalhesPecas',
     components: { SidebarNav, TituloSubtitulo, carregandoTela },
@@ -142,8 +143,10 @@ export default {
             return new Date(dataStr).toLocaleDateString('pt-BR');
         },
         async gerarPDF(){
-            //console.log(this.pecas)
-            await gerarPDF(this.pecas, 'Relatório de produção')
+            console.log(this.pecas)
+            const pecasPuras = toValue(this.pecas);
+            console.log(pecasPuras)
+            await gerarPDF(pecasPuras, 'Relatório de produção')
         },
         async fetchPecas() {
             this.loading = true;
@@ -152,6 +155,7 @@ export default {
                 headers: { Authorization: `${token}` },
             });
             this.pecas = data.peca
+            console.log(this.pecas)
             this.loading = false;
         },
         async deletarPeca(pecaId) {

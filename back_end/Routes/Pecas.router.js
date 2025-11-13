@@ -8,8 +8,10 @@ router.post('/adicionar/peca', [jwtMiddleware], ControllerOp.postOP);
 router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);
 router.get('/producao/equipe', [jwtMiddleware],  ControllerOp.getProducaoEquipe);
+router.get('/producao/pecas', [jwtMiddleware],  ControllerOp.getProducaoPorPeca);
+
 router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPeca);
-router.get('/producao/equipe/dia', [jwtMiddleware], ControllerOp.getProducaoEquipeDia);
+//router.get('/producao/equipe/dia', [jwtMiddleware], ControllerOp.getProducaoEquipeDia);
 router.get('/etapas', [jwtMiddleware], ControllerOp.getEtapas)
 router.get('/etapas/estabelecimento', [jwtMiddleware], ControllerOp.getEtapasEstabelecimento)
 

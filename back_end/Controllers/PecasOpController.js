@@ -116,15 +116,7 @@ async function voltarPeca(req, res, next){
         next(err);
     }
 }
-async function getProducaoEquipeDia(req, res, next) {
-    try {
-        const producao = await pecas.getProducaoEquipeDia(req);
-        res.status(200).json({ producao });
-    } catch (err) {
-        console.error(`Erro ao obter produção.`, err.message);
-        next(err);
-    }
-}
+
 async function getEtapas(req, res, next) {
     try{
         const etapas = await pecas.getEtapas(req);
@@ -165,6 +157,16 @@ async function getEficiencia(req, res, next) {
         next(err);
     }
 }
+async function getProducaoPorPeca(req, res, next) {
+    try {
+        const producao = await pecas.getProducaoPorPeca(req);
+        res.status(200).json({ producao });
+    } catch (err) {
+        console.error(`Erro ao obter produção por peça.`, err.message);
+        next(err);
+    } 
+}
+
 module.exports = { 
     postOP, 
     getOPs,
@@ -175,9 +177,9 @@ module.exports = {
     getEstatisticasPeca,
     deletarPeca,
     voltarPeca,
-    getProducaoEquipeDia,
     getEtapas,
     getEtapasEstabelecimento,
     postEtapa,
-    getEficiencia
+    getEficiencia,
+    getProducaoPorPeca
 };

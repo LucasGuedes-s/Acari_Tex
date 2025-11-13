@@ -47,8 +47,9 @@
           </div>
 
           <div v-if="loading === false">
-            <GraficoProducaoTotal :filtro="filtro" class="mb-4" />
+            <GraficoProducaoTotal :filtro="filtro" :producaoDados="producao" class="mb-4" />
             <GraficoProducaoIndividual :filtro="filtro" class="mb-4" />
+            <ProducaoPorPeca class="mb-4"/>
           </div>
         </div>
       </div>
@@ -74,10 +75,10 @@ import router from '@/router';
 import Swal from 'sweetalert2';
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
-
+import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 export default {
   name: 'DashboardHome',
-  components: {  SidebarNav, DashboardCard, GraficoProducaoTotal, CarregandoTela, ConteinersDashboard, GraficoProducaoIndividual },
+  components: {  SidebarNav, DashboardCard, ProducaoPorPeca, GraficoProducaoTotal, CarregandoTela, ConteinersDashboard, GraficoProducaoIndividual },
   setup() {
     const store = useAuthStore();
     const filtro = ref('hoje'); // padrão
@@ -86,7 +87,9 @@ export default {
   },
   data() {
     return {
-      loading: true,
+      loading: true,  
+      producao: [],
+      dadosProducao: null,
       pecas: {
         finalizado: [],
         em_progresso: [],
@@ -112,6 +115,7 @@ export default {
   },
   mounted() {
     this.verificarAutenticacao();
+    this.producaoPecas();
     this.fetchData();
     this.socket = io('https://acari-tex.onrender.com'); // Conecta ao servidor Socket.IO
     this.socket.on('nova_peca', () => {
@@ -149,6 +153,21 @@ export default {
         });
         this.pecas = response.data.peca;
         this.loading = false;
+      } catch (error) {
+        console.error("Erro ao buscar os dados:", error);
+      }
+    },
+    async producaoPecas() {
+      this.loading = true;
+      try {
+        const token = useAuthStore().pegar_token;
+        const res = await api.get("/producao/equipe", {
+          headers: { Authorization: token },
+          params: { filtro: this.filtroSelecionado }
+        });
+        console.log(res.data);
+        this.producao = res.data;
+        console.log(this.producao);
       } catch (error) {
         console.error("Erro ao buscar os dados:", error);
       }

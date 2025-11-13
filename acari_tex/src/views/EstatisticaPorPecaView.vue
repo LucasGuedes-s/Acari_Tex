@@ -15,7 +15,7 @@
             <div class="d-flex gap-2">
               <button class="btn btn-dark">Estornar produção</button>
               <button class="bot btn btn-secondary" @click="exportarPDF">Exportar PDF</button>
-              <button class="bot btn btn-success">Exportar XLS</button>
+              <button class="bot btn btn-success" @click="exportarPlanilha">Exportar excel</button>
             </div>
           </div>
 
@@ -121,6 +121,7 @@ import { GChart } from "vue-google-charts";
 import { useAuthStore } from "@/store/store";
 import api from "@/Axios";
 import { exportarProducaoPDF } from "@/utils/functions/GerarPDFPeca";
+import { exportarProducaoExcel } from "@/utils/functions/GerarExcel";
 
 export default {
   name: "DetalhesProducao",
@@ -139,7 +140,7 @@ export default {
       const { data } = await api.get(`/estatisticas/${this.$route.params.id}`, {
         headers: { Authorization: token },
       });
-
+      console.log("Estatísticas da peça:", data.estatisticas);
       this.pecaDetalhes = data.estatisticas;
 
       // Gráfico por funcionário
@@ -185,11 +186,17 @@ export default {
     async exportarPDF() {
       if (!this.pecaDetalhes) return;
       await new Promise((resolve) => setTimeout(resolve, 500));
-
+      console.log("Exportando PDF da peça:", this.pecaDetalhes);
       await exportarProducaoPDF(
-        this.pecaDetalhes,
-        this.$refs.chartFuncionariosRef,
-        this.$refs.chartEtapasRef
+        this.pecaDetalhes
+      );
+    },
+    async exportarPlanilha() {
+      if (!this.pecaDetalhes) return;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      console.log("Exportando PDF da peça:", this.pecaDetalhes);
+      await exportarProducaoExcel(
+        this.pecaDetalhes
       );
     },
   },

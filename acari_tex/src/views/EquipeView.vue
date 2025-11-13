@@ -61,7 +61,7 @@
         </div>
 
         <div class="acoes-funcionario">
-          <button @click="tempodeProducao(funcionario.email)">Prod. por peça</button>
+          <button @click="tempodeProducao(funcionario.email)">Ver mais</button>
           <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
             Registrar Produção
           </button>

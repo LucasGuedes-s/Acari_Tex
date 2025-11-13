@@ -37,6 +37,7 @@ model Estabelecimento {
   telefone              String?
   tempo_de_producao     Int? @default(480)
   logo                  String? @db.VarChar(2048)
+  peca_final            String?
   eficiencia_turma EficienciaTurma?
   EquipesGrupos    EquipesGrupos[]
   notificacoes     Notificacoes[]
