@@ -2,7 +2,6 @@ const config = require('../config/app.config.js');
 const jwt = require('jsonwebtoken');
 
 function validarJWT(req, res, next) {
-    // Verifica se o token foi fornecido
     if (!req.headers.authorization) {
         return res.status(422).send({
             message: "Token nulo"
@@ -10,7 +9,6 @@ function validarJWT(req, res, next) {
     }
 
     const jwt_token = req.headers.authorization.split(' ')[1];
-    // Verifica se o token está expirado ou válido
     jwt.verify(jwt_token, config.jwtSecret, (err, userInfo) => {
 
         if (err) {
