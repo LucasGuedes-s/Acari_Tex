@@ -200,6 +200,8 @@ model Intercorrencias{
   registradaPor       String?
   tempo_perda         Float?
   data_ocorrencia     DateTime
+  classificacao       String?
+
   notas               String?
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 

@@ -2,8 +2,8 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function postIntercorrencia(req) {
-    console.log('Chegou na service');
-    const { descricao, registradaPor, tempo_perda, data_ocorrencia, notas } = req.body;
+    const { descricao, registradaPor, tempo_perda, data_ocorrencia, notas, classificacao } = req.body;
+    console.log('Dados recebidos:', req.body);
     const cnpj = req.user.cnpj;
     const novaIntercorrencia = await prisma.intercorrencias.create({
         data: {
@@ -12,6 +12,7 @@ async function postIntercorrencia(req) {
             tempo_perda,
             data_ocorrencia: new Date(data_ocorrencia),
             notas,
+            classificacao,
             estabelecimento: {
                 connect: { cnpj } 
             }

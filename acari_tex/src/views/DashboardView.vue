@@ -77,9 +77,61 @@
             <GraficoProducaoIndividual :filtro="filtro" :producaoDados="producao" class="mb-4" />
             <ProducaoPorPeca class="mb-4" />
             <GraficoProducaoPecas class="mb-4" />
+
+            <GraficosIntercorrencias
+              :porClassificacao="porClassificacao"
+              :porNotas="porNotas"
+              :linhaTemporal="linhaTemporal"
+              :porFuncionario="porFuncionario"
+            /> 
           </div>
 
         </div>
+        <!-- MODAL TEMPO IMPRODUTIVO -->
+        <div v-if="modalImprodutivoAberto" class="modal-overlay">
+          <div class="modal-content">
+
+            <h2 class="modal-title">Registrar Tempo Improdutivo</h2>
+
+            <div class="modal-body">
+
+              <label class="modal-label">Descrição*</label>
+              <textarea v-model="formIntercorrencia.descricao" class="modal-input" rows="3"></textarea>
+
+              <label class="modal-label">Tempo de Perda (minutos)*</label>
+              <input type="number" v-model="formIntercorrencia.tempo_perda" class="modal-input" />
+
+              <label class="modal-label">Data da Ocorrência*</label>
+              <input type="datetime-local" v-model="formIntercorrencia.data_ocorrencia" class="modal-input" />
+
+              <label class="modal-label">Notas*</label>
+              <select v-model="formIntercorrencia.notas" class="modal-input">
+                 <option disabled value="">Selecione</option>
+                  <option v-for="motivo in motivosDeParada" :key="motivo" :value="motivo">
+                    {{ motivo }}
+                  </option>
+              </select>
+
+              <label class="modal-label">Classificação*</label>
+              <select v-model="formIntercorrencia.classificacao" class="modal-input">
+                <option disabled value="">Selecione</option>
+                <option>Planejada</option>
+                <option>Não planejada</option>
+                <option>Técnica</option>
+                <option>Pessoal</option>
+              </select>
+
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn-cancelar" @click="fecharModalImprodutivo">Cancelar</button>
+              <button class="btn-salvar" @click="salvarIntercorrencia">Salvar</button>
+            </div>
+
+          </div>
+        </div>
+
+
       </div>
     </main>
   </div>
@@ -92,6 +144,9 @@ import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
 import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
+import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
+
+
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import CarregandoTela from '@/components/carregandoTela.vue';
 
@@ -112,12 +167,43 @@ export default {
     GraficoProducaoPecas,
     ConteinersDashboard,
     CarregandoTela,
+    GraficosIntercorrencias,
   },
-
   data() {
     return {
+      motivosDeParada: [
+        "Espera de mecânico",
+        "Troca de linha",
+        "Quebra de agulha",
+        "Falta de matéria-prima",
+        "Máquina desregulada",
+        "Troca de operador",
+        "Ajuste de tensão",
+        "Quebra de linha",
+        "Limpeza da máquina",
+        "Setup / troca de modelo",
+        "Parada para inspeção",
+        "Falta de energia",
+        "Pano enganchado",
+        "Superaquecimento",
+        "Problema no motor",
+        "Troca de agulha",
+        "Lubrificação",
+        "Parada por segurança",
+        "Falha no compressor",
+        "Parada administrativa",
+      ],
+      formIntercorrencia: {
+        descricao: '',
+        tempo_perda: '',
+        data_ocorrencia: '',
+        notas: '',
+        classificacao: '',
+      },
+      intercorrencias: [],
       filtro: 'hoje',
       loading: true,
+      modalImprodutivoAberto: false,
       producao: { producaoDia: { funcionarios: [] } },
       pecas: {
         finalizado: [],
@@ -141,7 +227,7 @@ export default {
     this.verificarAutenticacao();
     this.producaoPecas();
     this.fetchData();
-
+    this.getIntercorrencias();
     this.socket = io('https://acari-tex.onrender.com');
 
     this.socket.on('nova_peca', () => {
@@ -178,7 +264,89 @@ export default {
     atualizarFiltro() {
       this.producaoPecas();
     },
+    abrirModalImprodutivo() {
+      this.modalImprodutivoAberto = true;
+      this.formIntercorrencia = {
+        descricao: '',
+        tempo_perda: '',
+        data_ocorrencia: '',
+        notas: '',
+      };
+      this.producaoPecas();
+      this.fetchData();
+      this.getIntercorrencias();
+    },
+    fecharModalImprodutivo() {
+      this.modalImprodutivoAberto = false;
+      this.formIntercorrencia = {
+        descricao: '',
+        tempo_perda: '',
+        data_ocorrencia: '',
+        notas: '',
+      };
 
+    },
+    processarDados() {
+        const porClassificacao = {};
+        const porNotas = {};
+        const linhaTemporal = {};
+        const porFuncionario = {};
+
+        this.intercorrencias.forEach(item => {
+          // Classificação
+          porClassificacao[item.classificacao] =
+            (porClassificacao[item.classificacao] || 0) + item.tempo_perda;
+
+          // Notas / Motivo
+          porNotas[item.notas] =
+            (porNotas[item.notas] || 0) + item.tempo_perda;
+
+          // Linha temporal (dia)
+          const dia = new Date(item.data_ocorrencia)
+            .toISOString()
+            .split("T")[0];
+
+          linhaTemporal[dia] =
+            (linhaTemporal[dia] || 0) + item.tempo_perda;
+
+          // Por Funcionário
+          if (item.registradaPor) {
+            porFuncionario[item.registradaPor] =
+              (porFuncionario[item.registradaPor] || 0) + item.tempo_perda;
+          }
+        });
+
+        this.porClassificacao = porClassificacao;
+        this.porNotas = porNotas;
+        this.linhaTemporal = linhaTemporal;
+        this.porFuncionario = porFuncionario;
+      },
+    async salvarIntercorrencia() {
+      if (
+        !this.formIntercorrencia.descricao ||
+        !this.formIntercorrencia.tempo_perda ||
+        !this.formIntercorrencia.data_ocorrencia ||
+        !this.formIntercorrencia.notas ||
+        !this.formIntercorrencia.classificacao
+      ) {
+        Swal.fire('Erro', 'Por favor, preencha todos os campos obrigatórios.', 'error');
+        return;
+      }
+
+      try {
+        const token = this.store.pegar_token;
+        await api.post('/intercorrencias', this.formIntercorrencia, {
+          headers: { Authorization: token },
+        });
+
+        Swal.fire('Sucesso', 'Intercorrência registrada com sucesso!', 'success');
+        this.fecharModalImprodutivo();
+      } catch (err) {
+        this.fecharModalImprodutivo();
+        console.error('Erro ao salvar intercorrência:', err);
+        Swal.fire('Erro', 'Ocorreu um erro ao registrar a intercorrência.', 'error');
+      }
+    },
     async fetchData() {
       this.loading = true;
       try {
@@ -210,12 +378,25 @@ export default {
       }
       this.loading = false;
     },
+    async getIntercorrencias() {
+      try {
+        const token = this.store.pegar_token;
+        const response = await api.get('/intercorrencias', {
+          headers: { Authorization: token },
+        });
+        this.intercorrencias = response.data.intercorrencias;
+        this.processarDados();
+        console.log('Intercorrências carregadas:', this.intercorrencias);
+      } catch (err) {
+        console.error('Erro ao buscar intercorrências:', err);
+        return [];
+      }
+    },
   }
 };
 </script>
 
 <style scoped>
-/* Estilos não foram alterados, apenas incluídos para completude */
 .d-flex {
   display: flex;
   flex-direction: row;
@@ -258,7 +439,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #0A8A38; /* Verde escuro */
+  background: #0A8A38;
   color: white;
   border: none;
   padding: 8px 14px;
@@ -273,7 +454,7 @@ export default {
 }
 
 .botao-improdutivo {
-  background: #b32d00 !important; /* Vermelho queimado */
+  background: #b32d00 !important; 
 }
 
 .botao-improdutivo:hover {
@@ -323,6 +504,121 @@ export default {
   font-weight: 500;
   cursor: pointer;
 }
+/* --- MODAL REFINADO --- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  z-index: 2000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: #ffffff;
+  width: 480px;
+  padding: 26px 28px;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  animation: fadeInModal .25s ease-out;
+  border: 1px solid #ececec;
+}
+
+.modal-title {
+  font-size: 22px;
+  margin-bottom: 18px;
+  font-weight: 700;
+  color: #0A8A38;
+  text-align: left;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #444;
+  text-align: left;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d6d6d6;
+  border-radius: 10px;
+  font-size: 15px;
+  background: #fdfdfd;
+  transition: all 0.2s ease;
+}
+
+.modal-input:focus {
+  border-color: #0A8A38;
+  box-shadow: 0 0 0 3px rgba(10, 138, 56, 0.15);
+  outline: none;
+  background: white;
+}
+
+textarea.modal-input {
+  resize: none;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 22px;
+  gap: 12px;
+}
+
+.btn-cancelar,
+.btn-salvar {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease-out;
+}
+
+.btn-cancelar {
+  background: #e4e4e4;
+  color: #333;
+}
+
+.btn-cancelar:hover {
+  background: #cacaca;
+}
+
+.btn-salvar {
+  background: #0A8A38;
+  color: white;
+}
+
+.btn-salvar:hover {
+  background: #086c2c;
+}
+
+/* Animação suave */
+@keyframes fadeInModal {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
 
 @media (min-width: 768px) and (max-width: 1024px) {
   .content-wrapper {
