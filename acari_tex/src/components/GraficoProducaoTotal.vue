@@ -1,32 +1,39 @@
 <template>
   <div class="grafico-eficiencia">
     <canvas ref="chartCanvas" v-show="temDados" style="width: 100%; height: 100%;"></canvas>
-    <p v-if="!temDados" class="sem-dados">Sem dados disponíveis</p>
+    <p v-if="!temDados" class="sem-dados">Sem dados para o período selecionado</p>
   </div>
 </template>
 
 <script>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'; 
 import Chart from 'chart.js/auto';
 
 export default {
-  name: 'GraficoProducaoTotal',
+  name: 'GraficoEficiencia',
   props: {
+    filtro: { type: String, default: 'hoje' },
     producaoDados: {
-      type: Array,
-      default: () => [],
-    },
+      type: Object,
+      default: () => ({ producaoDia: { funcionarios: [] } })
+    }
   },
   setup(props) {
     const chartCanvas = ref(null);
     const chartInstance = ref(null);
     const temDados = ref(false);
 
-    const coresVerdes = [
-      "#065f46", "#047857", "#059669", "#10b981", "#34d399",
-      "#6ee7b7", "#a7f3d0", "#15803d", "#166534", "#14532d",
-      "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0",
-      "#0f766e", "#115e59", "#134e4a", "#064e3b", "#052e16",
+    const cores = [
+      "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+      "#EC4899", "#14B8A6", "#6366F1", "#84CC16", "#FB923C",
+      "#0EA5E9", "#22C55E", "#EAB308", "#BE123C", "#7C3AED",
+      "#DB2777", "#06B6D4", "#4F46E5", "#65A30D", "#EA580C",
+      "#0284C7", "#15803D", "#CA8A04", "#B91C1C", "#6D28D9",
+      "#9D174D", "#0891B2", "#4338CA", "#4D7C0F", "#C2410C",
+      "#2563EB", "#16A34A", "#D97706", "#DC2626", "#9333EA",
+      "#C026D3", "#0D9488", "#3730A3", "#166534", "#9A3412",
+      "#1D4ED8", "#22C55E", "#FACC15", "#B91C1C", "#7E22CE",
+      "#F472B6", "#06B6D4", "#6366F1", "#84CC16", "#F97316"
     ];
 
     const destruirGrafico = () => {
@@ -36,114 +43,108 @@ export default {
       }
     };
 
-    const montarGrafico = () => {
-      destruirGrafico();
+    const atualizarGrafico = () => {
+      destruirGrafico(); 
+      console.log("Atualizando gráfico com filtro:", props.producaoDados);
+      const producaoDia = props.producaoDados?.producao?.producaoDia || {};
+      const funcionarios = producaoDia?.funcionarios || [];
 
-      const dados = props.producaoDados || [];
-      console.log('Dados recebidos para o gráfico de produção por peça:', dados);
-      if (!Array.isArray(dados) || dados.length === 0) {
+      if (!producaoDia || !funcionarios.length) {
         temDados.value = false;
         return;
       }
 
       temDados.value = true;
-      // Garante que o canvas existe
-      if (!chartCanvas.value) return;
+      setTimeout(() => {
+        
+        if (!chartCanvas.value) return;
 
-      const ctx = chartCanvas.value.getContext('2d');
+        const ctx = chartCanvas.value.getContext('2d');
+        if (!ctx) {
+          console.error("Contexto 2D do Canvas não encontrado.");
+          return;
+        }
 
-      const labels = dados.map(p => p.descricaoPeca || 'Peça');
-      const quantidade = dados.map(p => p.quantidadeTotal || 0);
-      const tempoMedio = dados.map(p => p.tempoPadraoTotal || 0);
+        const eficienciaMediaTurma = parseFloat(producaoDia.eficienciaMediaTurma) || 0;
+        const nomes = funcionarios.map(f => f.nome);
+        const eficiencias = funcionarios.map(f => parseFloat(f.eficiencia_pessoal));
 
-      chartInstance.value = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Quantidade Produzida',
-              data: quantidade,
-              backgroundColor: coresVerdes.map((_, i) => coresVerdes[i % coresVerdes.length]),
-              borderRadius: 8,
-              barPercentage: 0.7,
-              categoryPercentage: 0.6,
-            },
-            {
-              type: 'line',
-              label: 'Tempo Médio (min)',
-              data: tempoMedio,
-              borderColor: '#004d20',
-              borderWidth: 2,
-              tension: 0.3,
-              yAxisID: 'y1',
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: '#333', boxWidth: 14 },
-            },
-            title: {
-              display: true,
-              text: 'Produção por Peça',
-              color: '#222',
-              font: { size: 18, weight: '600' },
-              padding: { bottom: 20 },
-            },
-            tooltip: {
-              backgroundColor: '#fff',
-              titleColor: '#333',
-              bodyColor: '#333',
-              borderColor: '#ccc',
-              borderWidth: 1,
-              callbacks: {
-                label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(2)}${ctx.dataset.label.includes('Tempo') ? ' min' : ''}`,
+        // Criação do Gráfico
+        chartInstance.value = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: nomes,
+            datasets: [
+              {
+                label: 'Eficiência Individual (%)',
+                data: eficiencias,
+                backgroundColor: nomes.map((_, i) => cores[i % cores.length]),
+                borderColor: nomes.map((_, i) => cores[i % cores.length]),
+                borderWidth: 2,
+                borderRadius: 10,
+                barPercentage: 0.6,
+                categoryPercentage: 0.7
               },
-            },
+              {
+                type: 'line',
+                label: 'Média da Turma (%)',
+                data: Array(nomes.length).fill(eficienciaMediaTurma),
+                borderColor: '#004d20',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                tension: 0.3,
+                fill: false,
+                pointRadius: 3
+              }
+            ]
           },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: '#555', font: { size: 13 } },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 20, bottom: 10, left: 10, right: 10 } },
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 14, color: '#333' } },
+              title: {
+                display: true,
+                text: 'Eficiência Individual e Média da Turma',
+                color: '#222',
+                font: { size: 18, weight: '600' },
+                padding: { bottom: 20 }
+              },
+              tooltip: {
+                backgroundColor: '#fff',
+                titleColor: '#333',
+                bodyColor: '#333',
+                borderColor: '#ccc',
+                borderWidth: 1,
+                callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(2)}%` }
+              }
             },
-            y: {
-              beginAtZero: true,
-              ticks: { color: '#555' },
-              title: { display: true, text: 'Quantidade', color: '#333' },
-            },
-            y1: {
-              beginAtZero: true,
-              position: 'right',
-              grid: { drawOnChartArea: false },
-              ticks: { color: '#14532d' },
-              title: { display: true, text: 'Tempo Médio (min)', color: '#14532d' },
-            },
-          },
-        },
-      });
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#555', font: { size: 13 } } },
+              y: { beginAtZero: true, ticks: { color: '#555', callback: value => value + '%' } }
+            }
+          }
+        });
+      }, 0); 
     };
 
+    onMounted(() => {
+      atualizarGrafico();
+    });
+
+    onBeforeUnmount(() => {
+      destruirGrafico();
+    });
+
     watch(
-      /* eslint-disable */ 
-      () => props.producaoDados,
-      async (novoValor) => {
-        await nextTick();
-        montarGrafico();
-      },
-      { deep: true, immediate: true }
+      () => [props.filtro, props.producaoDados],
+      atualizarGrafico,
+      { deep: true }
     );
 
-    onMounted(() => montarGrafico());
-    onBeforeUnmount(() => destruirGrafico());
-
     return { chartCanvas, temDados };
-  },
+  }
 };
 </script>
 
@@ -155,13 +156,15 @@ export default {
   background-color: #fff;
   padding: 20px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  height: 320px;
+  height: 280px;
   position: relative;
 }
+
 .grafico-eficiencia canvas {
   width: 100%;
   height: 100% !important;
 }
+
 .sem-dados {
   text-align: center;
   position: absolute;

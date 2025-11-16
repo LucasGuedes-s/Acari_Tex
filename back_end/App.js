@@ -88,7 +88,7 @@ const routerDashboard = require('./Routes/Dashboard.router.js');
 const routerPecas = require('./Routes/Pecas.router.js');
 const routerUser = require('./Routes/User.router.js');
 const routerRelatorios = require('./Routes/Relatorios.router.js');
-
+const routerIntercorrencias = require('./Routes/Intercorrencias.router.js');
 //ROTAS
 app.get('/teste', (req, res) => {
   res.send('Teste')
@@ -101,7 +101,8 @@ app.use(
   routerDashboard,
   routerPecas,
   routerUser,
-  routerRelatorios
+  routerRelatorios,
+  routerIntercorrencias
 );
 
 // ===== Iniciar servidor =====

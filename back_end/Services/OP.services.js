@@ -892,106 +892,147 @@ async function postEtapa(req, res) {
 }
 
 async function getEtapasEstabelecimento(req) {
-   const cnpj = req.user.cnpj;
+  const cnpj = req.user.cnpj;
 
-    const estabelecimento = await prisma.estabelecimento.findUnique({
-      where: { cnpj },
-    });
+  const estabelecimento = await prisma.estabelecimento.findUnique({
+    where: { cnpj },
+  });
 
-    if (!estabelecimento) {
-      throw new Error("Estabelecimento não encontrado");
-    }
+  if (!estabelecimento) {
+    throw new Error("Estabelecimento não encontrado");
+  }
 
-    const etapas = await prisma.etapa.findMany({
-      where: { id_Estabelecimento: cnpj },
-      orderBy: { descricao: "asc" }, 
-    });
+  const etapas = await prisma.etapa.findMany({
+    where: { id_Estabelecimento: cnpj },
+    orderBy: { descricao: "asc" },
+  });
 
-    return etapas;
+  return etapas;
 }
 
 async function getEficiencia(req, res) {
-    const cnpj = req.user.cnpj;
-    const hoje = new Date();
-    const inicioDoDia = new Date(hoje.setHours(0, 0, 0, 0));
-    const fimDoDia = new Date(hoje.setHours(23, 59, 59, 999));
+  const cnpj = req.user.cnpj;
+  const hoje = new Date();
+  const inicioDoDia = new Date(hoje.setHours(0, 0, 0, 0));
+  const fimDoDia = new Date(hoje.setHours(23, 59, 59, 999));
 
-    const producoes = await prisma.producao.findMany({
-      where: {
-        id_Estabelecimento: cnpj,
-        data_inicio: {
-          gte: inicioDoDia,
-          lte: fimDoDia
+  const producoes = await prisma.producao.findMany({
+    where: {
+      id_Estabelecimento: cnpj,
+      data_inicio: {
+        gte: inicioDoDia,
+        lte: fimDoDia
+      }
+    },
+    select: {
+      quantidade_pecas: true,
+      id_funcionario: true,
+      hora_registro: true,
+      producao_peca: {
+        select: {
+          tempo_padrao: true,
+          descricao: true
         }
+      }
+    }
+  });
+
+  if (producoes.length === 0) {
+    return { mensagem: "Nenhuma produção registrada hoje." };
+  }
+
+  const quantidadeProduzida = producoes.reduce((acc, p) => acc + (p.quantidade_pecas || 0), 0);
+
+  const pessoasUnicas = new Set(producoes.map(p => p.id_funcionario));
+  const quantidadePessoas = pessoasUnicas.size;
+
+  const tempoPadraoPeca = producoes[0].producao_peca?.tempo_padrao || 0;
+  const minutosDisponiveis = 540;
+
+  const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
+  const eficiencia = (quantidadeProduzida / producao100) * 100;
+  console.log(cnpj)
+  const eficienciaAtualizada = await prisma.eficienciaTurma.upsert({
+    where: { estabelecimentoCnpj: cnpj },
+    update: {
+      tempo_padrao: tempoPadraoPeca,
+      minutos_disponiveis: minutosDisponiveis,
+      quantidade_produzida: quantidadeProduzida,
+      quantidade_pessoas: quantidadePessoas,
+      eficiencia_percent: eficiencia,
+      calculadoEm: new Date()
+    },
+    create: {
+      estabelecimentoCnpj: cnpj,
+      tempo_padrao: tempoPadraoPeca,
+      minutos_disponiveis: minutosDisponiveis,
+      quantidade_produzida: quantidadeProduzida,
+      quantidade_pessoas: quantidadePessoas,
+      eficiencia_percent: eficiencia
+    }
+  });
+  console.log("Eficiência atualizada:", eficienciaAtualizada);
+
+  return {
+    data: {
+      descricaoPeca: producoes[0].producao_peca?.descricao,
+      tempoPadraoPeca,
+      minutosDisponiveis,
+      quantidadePessoas,
+      quantidadeProduzida,
+      producao100: producao100.toFixed(2),
+      eficiencia: eficiencia.toFixed(2) + "%",
+      calculadoEm: eficienciaAtualizada.calculadoEm
+    }
+  };
+}
+async function getProducaoTodasPecas(req, res) {
+  const cnpjEstabelecimento = req.user.cnpj;
+
+   const producoes = await prisma.producao.findMany({
+      where: {
+        id_Estabelecimento: cnpjEstabelecimento
       },
       select: {
         quantidade_pecas: true,
-        id_funcionario: true,
-        hora_registro: true,
+        data_inicio: true,
         producao_peca: {
           select: {
-            tempo_padrao: true,
             descricao: true
           }
         }
       }
     });
 
-    if (producoes.length === 0) {
-      return {mensagem:"Nenhuma produção registrada hoje."} ;
+    if (!producoes || producoes.length === 0) {
+      return res.json([]);
     }
 
-    const quantidadeProduzida = producoes.reduce((acc, p) => acc + (p.quantidade_pecas || 0), 0);
+    // Agrupar por peça
+    const agrupado = producoes.reduce((acc, item) => {
+      const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
 
-    const pessoasUnicas = new Set(producoes.map(p => p.id_funcionario));
-    const quantidadePessoas = pessoasUnicas.size;
-
-    const tempoPadraoPeca = producoes[0].producao_peca?.tempo_padrao || 0;
-
-    // Exemplo: jornada de 8h = 480 min
-    const minutosDisponiveis = 540;
-
-    // 🔹 4️⃣ Calcular produção padrão (produção100)
-    const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
-
-    // 🔹 5️⃣ Calcular eficiência
-    const eficiencia = (quantidadeProduzida / producao100) * 100;
-    console.log(cnpj)
-    // 🔹 6️⃣ Salvar ou atualizar na tabela EficienciaTurma
-    const eficienciaAtualizada = await prisma.eficienciaTurma.upsert({
-      where: { estabelecimentoCnpj: cnpj },
-      update: {
-        tempo_padrao: tempoPadraoPeca,
-        minutos_disponiveis: minutosDisponiveis,
-        quantidade_produzida: quantidadeProduzida,
-        quantidade_pessoas: quantidadePessoas,
-        eficiencia_percent: eficiencia,
-        calculadoEm: new Date()
-      },
-      create: {
-        estabelecimentoCnpj: cnpj,
-        tempo_padrao: tempoPadraoPeca,
-        minutos_disponiveis: minutosDisponiveis,
-        quantidade_produzida: quantidadeProduzida,
-        quantidade_pessoas: quantidadePessoas,
-        eficiencia_percent: eficiencia
+      if (!acc[nomePeca]) {
+        acc[nomePeca] = {
+          peca: nomePeca,
+          total: 0,
+          historico: []
+        };
       }
-    });
-    console.log("Eficiência atualizada:", eficienciaAtualizada);
 
-     return {
-      data: {
-        descricaoPeca: producoes[0].producao_peca?.descricao,
-        tempoPadraoPeca,
-        minutosDisponiveis,
-        quantidadePessoas,
-        quantidadeProduzida,
-        producao100: producao100.toFixed(2),
-        eficiencia: eficiencia.toFixed(2) + "%",
-        calculadoEm: eficienciaAtualizada.calculadoEm
-      }
-    };
-  }
+      acc[nomePeca].total += item.quantidade_pecas ?? 0;
+
+      acc[nomePeca].historico.push({
+        data: item.data_inicio,
+        quantidade: item.quantidade_pecas ?? 0
+      });
+
+      return acc;
+    }, {});
+
+
+  return agrupado;
+}
 module.exports = {
   postPecaOP,
   getPecasOP,
@@ -1007,5 +1048,6 @@ module.exports = {
   getEtapas,
   getEtapasEstabelecimento,
   postEtapa,
-  getEficiencia
+  getEficiencia,
+  getProducaoTodasPecas
 };

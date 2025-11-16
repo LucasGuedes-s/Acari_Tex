@@ -18,13 +18,11 @@ async function analisarProducaoFuncionarioDia(req, idFuncionario) {
   const mes = partes.find(p => p.type === "month").value;
   const ano = partes.find(p => p.type === "year").value;
 
-  // Limite do dia em UTC
   const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
   const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
 
   const cnpj = req.user.cnpj;
 
-  // Busca toda a produção do dia do estabelecimento (para calcular médias)
   const producaoDia = await prisma.producao.findMany({
     where: {
       data_inicio: { gte: inicioDiaUTC, lte: fimDiaUTC },
@@ -68,7 +66,6 @@ async function analisarProducaoFuncionarioDia(req, idFuncionario) {
     etapas[etapaId].horas[hora][registro.id_funcionario].pecas += registro.quantidade_pecas || 0;
   }
 
-  // Agora comparamos o funcionário com a média geral
   const resultado = [];
   const nomeFuncionario = producaoDia.find(r => r.id_funcionario === idFuncionario)?.producao_funcionario?.nome || idFuncionario;
   for (const [idEtapa, dados] of Object.entries(etapas)) {
