@@ -58,21 +58,22 @@
             <div v-if="etapa === 2" class="section animate-fade">
               <div class="nova-etapa mb-4 d-flex justify-content-between align-items-center">
                 <h3 class="section-title">2 - Processo de Produção</h3>
-                <section class="d-flex align-items-center gap-2">
+                
+                <!-- <section class="d-flex align-items-center gap-2">
                   <input v-model="novaEtapa" type="text" class="form-control etapa-input"
                     placeholder="Nome da nova etapa" @keyup.enter="adicionarNovaEtapa"
                     style="width: 220px; padding: 6px 10px; font-size: 0.9rem;" />
                   <button class="btn btn-success" style="width: 120px; padding: 6px 10px; font-size: 0.9rem;"
                     @click="adicionarNovaEtapa">Adicionar</button>
-                </section>
+                </section>-->
               </div>
 
               <!-- Etapas disponíveis -->
               <div class="mb-4">
                 <div class="etapas-disponiveis">
                   <div v-for="etapa in locaisPredefinidos" :key="etapa.id" class="etapa-card" draggable="true"
-                    @dragstart="onDragStart(etapa.etapa.descricao)" @click="adicionarEtapa(etapa.etapa.descricao)">
-                    {{ etapa.etapa.descricao }}
+                    @dragstart="onDragStart(etapa.descricao)" @click="adicionarEtapa(etapa.descricao)">
+                    {{ etapa.descricao }}
                   </div>
 
                 </div>
@@ -80,6 +81,13 @@
 
               <!-- Linha de produção -->
               <div class="linha-producao" @dragover.prevent @drop="onDrop($event)">
+                <!-- Gráfico de comparação de tempos -->
+                <GraficoTempoPadrao
+                  :tempoPeca="novaPeca.tempo_padrao"
+                  :etapasSelecionadas="novaPeca.producao"
+                  :etapasDefinidas="locaisPredefinidos"
+                />
+
                 <h5 class="drag-title">Linha de Produção</h5>
                 <div class="pipeline">
                   <transition-group name="fade-list" tag="div" class="pipeline-inner">
@@ -148,10 +156,8 @@
                       <span class="info-label">Profissionais indicados para melhor produção</span>
                       <div class="profissionais-list mt-2">
                         <div v-for="etapaNome in novaPeca.producao" :key="etapaNome" class="profissional-item">
-                          <!-- Coluna da etapa com largura fixa -->
                           <strong class="prof-etapa">{{ etapaNome }}:</strong>
 
-                          <!-- Coluna do profissional, flexível -->
                           <div class="prof-indicado">
                             <template v-if="getMelhorFuncionario(etapaNome)">
                               <img :src="getMelhorFuncionario(etapaNome).foto" alt="Foto" class="prof-foto" />
@@ -193,9 +199,10 @@ import { useAuthStore } from "@/store/store";
 import Swal from "sweetalert2";
 import api from '@/Axios'
 import carregandoTela from "@/components/carregandoTela.vue";
+import GraficoTempoPadrao from "@/components/GraficoTempoPadrao.vue";
 
 export default {
-  components: { Sidebar, TituloSubtitulo, carregandoTela },
+  components: { Sidebar, TituloSubtitulo, carregandoTela, GraficoTempoPadrao },
   setup() {
     const store = useAuthStore();
     return { store };
@@ -244,7 +251,7 @@ export default {
 
     },
     getMelhorFuncionario(etapaNome) {
-      const etapa = this.locaisPredefinidos.find(e => e.etapa.descricao === etapaNome)
+      const etapa = this.locaisPredefinidos.find(e => e.descricao === etapaNome)
       return etapa && etapa.melhorFuncionario && etapa.melhorFuncionario.funcionario
         ? etapa.melhorFuncionario.funcionario
         : null
@@ -252,9 +259,9 @@ export default {
     proximaEtapa() { this.etapa++; },
     async getEtpas() {
       const token = this.store.pegar_token;
-      const etapas = await api.get('/etapas', { headers: { Authorization: `${token}` } })
-      console.log("Etapas recebidas:", etapas.data.etapas)
-      this.locaisPredefinidos = etapas.data.etapas
+      const etapas = await api.get('/etapas/estabelecimento', { headers: { Authorization: `${token}` } })
+      console.log("Etapas recebidas:", etapas.data)
+      this.locaisPredefinidos = etapas.data.etapa
 
     },
     async adicionarPeca() {

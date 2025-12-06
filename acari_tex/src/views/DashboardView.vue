@@ -73,9 +73,11 @@
           </div>
 
           <div>
-            <GraficoProducaoTotal :filtro="filtro" :producaoDados="producao" class="mb-4" />
-            <GraficoProducaoIndividual :filtro="filtro" :producaoDados="producao" class="mb-4" />
-            <ProducaoPorPeca class="mb-4" />
+            <GraficoEtapas class="mb-4" />
+            <GradicoProducaoPorEtapa class="mb-4" />
+            <GraficoProducaoTotal :filtro="filtro"  v-if="producao?.producao?.producaoDia?.funcionarios?.length" :producaoDados="producao" class="mb-4" />
+            <GraficoProducaoIndividual :filtro="filtro"  v-if="producao?.producao?.producaoDia?.funcionarios?.length" :producaoDados="producao" class="mb-4" />
+            <ProducaoPorPeca  v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
             <GraficoProducaoPecas class="mb-4" />
 
             <GraficosIntercorrencias
@@ -145,7 +147,8 @@ import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vu
 import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
-
+import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
+import GraficoEtapas from '@/components/GraficoEtapas.vue';
 
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import CarregandoTela from '@/components/carregandoTela.vue';
@@ -168,6 +171,8 @@ export default {
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
+    GradicoProducaoPorEtapa,
+    GraficoEtapas,
   },
   data() {
     return {
@@ -354,7 +359,6 @@ export default {
         const response = await api.get('/pecas', {
           headers: { Authorization: token },
         });
-
         this.pecas = response.data.peca;
       } catch (err) {
         console.error('Erro ao buscar peças:', err);
@@ -370,7 +374,6 @@ export default {
           headers: { Authorization: token },
           params: { filtro: this.filtro },
         });
-
         this.producao = res.data;
       } catch (err) {
         console.error('Erro ao buscar produção:', err);

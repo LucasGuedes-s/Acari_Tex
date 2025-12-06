@@ -28,7 +28,6 @@
     </div>
 
     <div class="grafico-container bg-white p-4 rounded-lg shadow-lg">
-      <!-- v-show mantém o canvas FIXO no DOM -->
       <canvas ref="chartCanvas" v-show="temDados" style="height: 300px;"></canvas>
 
       <p v-if="!temDados" class="sem-dados">
@@ -172,7 +171,7 @@ export default {
         const res = await api.get("/producao/estabelecimento", {
           headers: { Authorization: `${token}` },
         });
-
+        console.log('Dados de produção recebidos:', res.data);
         const raw = res.data.producao;
 
         pecas.value = raw && typeof raw === "object" ? Object.values(raw) : [];

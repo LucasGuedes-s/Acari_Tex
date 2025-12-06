@@ -855,7 +855,7 @@ async function getEtapas(req) {
     ...e,
     melhorFuncionario: melhorPorEtapa[e.id_da_funcao] || null
   }));
-
+  console.log(resultado);
   return resultado;
 }
 
@@ -989,50 +989,70 @@ async function getEficiencia(req, res) {
 async function getProducaoTodasPecas(req, res) {
   const cnpjEstabelecimento = req.user.cnpj;
 
-   const producoes = await prisma.producao.findMany({
-      where: {
-        id_Estabelecimento: cnpjEstabelecimento
+  // 1️⃣ Buscar todas produções
+  const producoes = await prisma.producao.findMany({
+    where: {
+      id_Estabelecimento: cnpjEstabelecimento
+    },
+    select: {
+      quantidade_pecas: true,
+      data_inicio: true,
+      id_da_op: true,
+      producao_peca: {
+        select: { descricao: true }
       },
-      select: {
-        quantidade_pecas: true,
-        data_inicio: true,
-        producao_peca: {
-          select: {
-            descricao: true
-          }
-        }
+      producao_etapa: {
+        select: { descricao: true }
       }
-    });
+    }
+  });
 
-    if (!producoes || producoes.length === 0) {
-      return res.json([]);
+  if (!producoes || producoes.length === 0) {
+    return res.json([]);
+  }
+
+  // 2️⃣ Coletar todas as OPS únicas
+  const ops = [...new Set(producoes.map(p => p.id_da_op))];
+
+  // 3️⃣ Buscar metas de todas as OPS em UMA consulta
+  const metas = await prisma.pecasEtapas.groupBy({
+    by: ["id_da_op"],
+    _sum: { quantidade_meta: true } 
+  });
+
+  // 4️⃣ Criar mapa: OP → Meta total
+  const metasPorOP = {};
+  metas.forEach(m => {
+    metasPorOP[m.id_da_op] = m._sum.quantidade_meta ?? 0;
+  });
+
+  // 5️⃣ Montar agrupamento
+  const agrupado = {};
+
+  for (const item of producoes) {
+    const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
+
+    if (!agrupado[nomePeca]) {
+      agrupado[nomePeca] = {
+        peca: nomePeca,
+        total: 0,
+        meta: metasPorOP[item.id_da_op] ?? 0,  // ✔ meta da peça inteira
+        historico: []
+      };
     }
 
-    // Agrupar por peça
-    const agrupado = producoes.reduce((acc, item) => {
-      const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
+    agrupado[nomePeca].total += item.quantidade_pecas ?? 0;
 
-      if (!acc[nomePeca]) {
-        acc[nomePeca] = {
-          peca: nomePeca,
-          total: 0,
-          historico: []
-        };
-      }
-
-      acc[nomePeca].total += item.quantidade_pecas ?? 0;
-
-      acc[nomePeca].historico.push({
-        data: item.data_inicio,
-        quantidade: item.quantidade_pecas ?? 0
-      });
-
-      return acc;
-    }, {});
-
+    agrupado[nomePeca].historico.push({
+      data: item.data_inicio,
+      quantidade: item.quantidade_pecas ?? 0,
+      etapa: item.producao_etapa?.descricao || "Etapa não informada"
+    });
+  }
 
   return agrupado;
 }
+
 module.exports = {
   postPecaOP,
   getPecasOP,
