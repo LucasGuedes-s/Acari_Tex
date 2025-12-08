@@ -12,7 +12,7 @@
         class="form-select border-green-500 focus:border-green-700"
         size="5"
       >
-        <option v-for="p in pecas" :key="p.peca" :value="p.peca">
+        <option class="p-2 hover:bg-green-100" v-for="p in pecas" :key="p.peca" :value="p.peca">
           {{ p.peca }} (Total: {{ p.total }})
         </option>
       </select>
