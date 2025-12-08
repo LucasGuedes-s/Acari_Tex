@@ -11,10 +11,10 @@
       <canvas ref="notasCanvas"></canvas>
     </div>
 
-    <!-- Linha Temporal -->
+    <!-- Linha Temporal 
     <div class="grafico-box-large">
       <canvas ref="linhaCanvas"></canvas>
-    </div>
+    </div>-->
 
   </div>
 </template>
