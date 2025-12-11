@@ -175,6 +175,23 @@ async function getProducaoEstabelecimento(req, res, next) {
         next(err);
     }  
 }
+async function deletarEtapa(req, res, next) {  
+    try {
+        const { id } = req.params;
+        console.log("ID recebido para deleção:", id);
+        if (!id) {
+            return res.status(400).json({ mensagem: 'ID da etapa é obrigatório.' });
+        }  
+        const deletada = await pecas.deletarEtapa(id);
+        if (!deletada) {
+            return res.status(404).json({ mensagem: 'Etapa não encontrada.' });
+        }  
+        res.status(200).json({ mensagem: 'Etapa deletada com sucesso.', deletada });
+    } catch (err) {
+        console.error(`Erro ao deletar a etapa.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     getOPs,
@@ -190,5 +207,6 @@ module.exports = {
     postEtapa,
     getEficiencia,
     getProducaoPorPeca,
-    getProducaoEstabelecimento
+    getProducaoEstabelecimento,
+    deletarEtapa
 };

@@ -164,25 +164,31 @@ export default {
 
 <style scoped>
 .grid-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap; /* Permite quebrar no mobile */
   gap: 18px;
 }
-
 .grafico-box {
   background: #fff;
   padding: 20px;
-  height: 320px;
+  height: 320px; /* altura padrão para desktop */
   border-radius: 14px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  flex: 1 1 calc(50% - 18px);
 }
 
-.grafico-box-large {
-  grid-column: span 2;
-  background: #fff;
-  padding: 20px;
-  height: 360px;
-  border-radius: 14px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+@media (max-width: 768px) {
+  .grafico-box {
+    flex: 1 1 100%;
+    height: auto;
+    padding: 16px;
+  }
+
+  .grafico-box canvas {
+    height: auto !important;
+    width: 100% !important;
+  }
 }
+
+
 </style>

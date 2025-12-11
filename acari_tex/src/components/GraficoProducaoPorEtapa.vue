@@ -12,19 +12,31 @@
         class="form-select border-green-500 focus:border-green-700"
         size="5"
       >
-        <option class="p-2 hover:bg-green-100" v-for="p in pecas" :key="p.peca" :value="p.peca">
+        <option
+          v-for="p in pecas"
+          :key="p.peca"
+          :value="p.peca"
+          class="p-2 hover:bg-green-100"
+        >
           {{ p.peca }} (Total: {{ p.total }})
         </option>
       </select>
 
-      <p v-if="pecasSelecionadas.length === 0" class="text-sm text-red-500 mt-2">
+      <p
+        v-if="pecasSelecionadas.length === 0"
+        class="text-sm text-red-500 mt-2"
+      >
         Selecione pelo menos uma peça.
       </p>
     </div>
 
     <!-- GRÁFICO -->
     <div class="grafico-container bg-white p-4 rounded-lg shadow-lg">
-      <canvas ref="chartCanvas" v-show="temDados" style="height: 350px;"></canvas>
+      <canvas
+        ref="chartCanvas"
+        v-show="temDados"
+        style="height: 350px;"
+      ></canvas>
 
       <p v-if="!temDados" class="sem-dados">
         Sem dados disponíveis.
@@ -52,21 +64,39 @@ export default {
     const pecasSelecionadas = ref([]);
     const temDados = ref(true);
 
-    const CORES_ETAPAS = {
-      "Corte": "#ef4444",
-      "Costura": "#3b82f6",
-      "Acabamento": "#eab308",
-      "Qualidade": "#10b981",
-      "Expedição": "#8b5cf6",
-      "Outro": "#6b7280"
+    const PALETA_CORES = [
+      "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6",
+      "#EC4899", "#14B8A6", "#6366F1", "#84CC16", "#FB923C",
+      "#0EA5E9", "#22C55E", "#EAB308", "#BE123C", "#7C3AED",
+      "#DB2777", "#06B6D4", "#4F46E5", "#65A30D", "#EA580C",
+      "#0284C7", "#15803D", "#CA8A04", "#B91C1C", "#6D28D9",
+      "#9D174D", "#0891B2", "#4338CA", "#4D7C0F", "#C2410C",
+      "#2563EB", "#16A34A", "#D97706", "#DC2626", "#9333EA",
+      "#C026D3", "#0D9488", "#3730A3", "#166534", "#9A3412",
+      "#1D4ED8", "#22C55E", "#FACC15", "#B91C1C", "#7E22CE",
+      "#F472B6", "#06B6D4", "#6366F1", "#84CC16", "#F97316"
+    ];
+
+    // Armazena cor aleatória para cada etapa
+    const mapaCoresEtapas = {};
+
+    const pegarCorEtapa = (etapa) => {
+      if (!mapaCoresEtapas[etapa]) {
+        const index = Object.keys(mapaCoresEtapas).length % PALETA_CORES.length;
+        mapaCoresEtapas[etapa] = PALETA_CORES[index];
+      }
+      return mapaCoresEtapas[etapa];
     };
 
-    const formatDate = (date) => new Date(date).toISOString().split("T")[0];
+    const formatDate = (date) =>
+      new Date(date).toISOString().split("T")[0];
 
     const destruirGrafico = () => {
       if (chartInstance.value) {
-        try { chartInstance.value.destroy(); } catch {
-            console.warn("Falha ao destruir instância do gráfico.");
+        try {
+          chartInstance.value.destroy();
+        } catch {
+          console.warn("Falha ao destruir gráfico.");
         }
         chartInstance.value = null;
       }
@@ -102,71 +132,79 @@ export default {
         const labels = Array.from(datas).sort();
         const etapasArray = Array.from(etapas);
 
-        // AGRUPAR DADOS POR ETAPA
-        const datasets = etapasArray.map((etapa) => ({
-          label: `Etapa: ${etapa}`,
-          data: labels.map((d) => {
-            let total = 0;
-            pecas.value.forEach((p) => {
-              if (pecasSelecionadas.value.includes(p.peca)) {
-                const reg = p.historico.find(
-                  (h) => formatDate(h.data) === d && (h.etapa || "Outro") === etapa
-                );
-                if (reg) total += reg.quantidade;
-              }
-            });
-            return total;
-          }),
-          borderColor: CORES_ETAPAS[etapa] || CORES_ETAPAS["Outro"],
-          backgroundColor: (CORES_ETAPAS[etapa] || CORES_ETAPAS["Outro"]) + "55",
-          borderWidth: 3,
-          tension: 0.35,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-        }));
+        // Cria datasets por etapa
+        const datasets = etapasArray.map((etapa) => {
+          const cor = pegarCorEtapa(etapa);
 
-        chartInstance.value = new Chart(chartCanvas.value.getContext("2d"), {
-          type: "line",
-          data: { labels, datasets },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: "index", intersect: false },
-
-            plugins: {
-              title: {
-                display: true,
-                text: "Produção Destacada por Etapas",
-                font: { size: 18, weight: "bold" }
-              },
-
-              tooltip: {
-                callbacks: {
-                  label(context) {
-                    return `${context.dataset.label}: ${context.raw} peças`;
-                  },
-                },
-              },
-
-              legend: {
-                position: "bottom",
-                labels: { usePointStyle: true, pointStyle: "circle" },
-              },
-            },
-
-            scales: {
-              x: {
-                title: { display: true, text: "Data" },
-                ticks: {
-                  callback(value) {
-                    return format(new Date(this.getLabelForValue(value)), "dd/MM", { locale: ptBR });
-                  },
-                },
-              },
-              y: { beginAtZero: true, title: { display: true, text: "Qtd Produzida" } },
-            },
-          },
+          return {
+            label: `Etapa: ${etapa}`,
+            data: labels.map((d) => {
+              let total = 0;
+              pecas.value.forEach((p) => {
+                if (pecasSelecionadas.value.includes(p.peca)) {
+                  const reg = p.historico.find(
+                    (h) =>
+                      formatDate(h.data) === d &&
+                      (h.etapa || "Outro") === etapa
+                  );
+                  if (reg) total += reg.quantidade;
+                }
+              });
+              return total;
+            }),
+            borderColor: cor,
+            backgroundColor: cor + "55",
+            borderWidth: 3,
+            tension: 0.35,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          };
         });
+
+        chartInstance.value = new Chart(
+          chartCanvas.value.getContext("2d"),
+          {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: false,
+              interaction: { mode: "index", intersect: false },
+
+              plugins: {
+                title: {
+                  display: true,
+                  text: "Produção Destacada por Etapas",
+                  font: { size: 18, weight: "bold" }
+                },
+                legend: {
+                  position: "bottom",
+                  labels: { usePointStyle: true, pointStyle: "circle" }
+                }
+              },
+
+              scales: {
+                x: {
+                  title: { display: true, text: "Data" },
+                  ticks: {
+                    callback(value) {
+                      return format(
+                        new Date(this.getLabelForValue(value)),
+                        "dd/MM",
+                        { locale: ptBR }
+                      );
+                    }
+                  }
+                },
+                y: {
+                  beginAtZero: true,
+                  title: { display: true, text: "Qtd Produzida" }
+                }
+              }
+            }
+          }
+        );
       }, 150);
     };
 
@@ -174,7 +212,7 @@ export default {
       try {
         const token = useAuthStore().pegar_token;
         const res = await api.get("/producao/estabelecimento", {
-          headers: { Authorization: `${token}` },
+          headers: { Authorization: `${token}` }
         });
 
         pecas.value = Object.values(res.data.producao || {});
@@ -195,13 +233,30 @@ export default {
     onBeforeUnmount(() => destruirGrafico());
 
     return { chartCanvas, pecas, pecasSelecionadas, temDados };
-  },
+  }
 };
 </script>
 
 <style scoped>
-.grafico-producao { background: #f8fafc; border-radius: 16px; }
-.form-select { border-radius: 8px; padding: 10px; min-height: 120px; }
-.grafico-container { height: 380px; }
-.sem-dados { text-align: center; padding: 40px 0; color: #6b7280; font-style: italic; }
+.grafico-producao {
+  background: #f8fafc;
+  border-radius: 16px;
+}
+
+.form-select {
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 120px;
+}
+
+.grafico-container {
+  height: 380px;
+}
+
+.sem-dados {
+  text-align: center;
+  padding: 40px 0;
+  color: #6b7280;
+  font-style: italic;
+}
 </style>

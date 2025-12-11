@@ -386,9 +386,12 @@ export default {
       if (confirm.isConfirmed) {
         try {
           const token = this.store.pegar_token;
-          await api.delete(`/etapas/${id}`, {
+          console.log("ID da etapa a ser excluída:", id);
+          console.log("Token de autenticação:", token);
+          const response = await api.delete(`/etapa/${id}`, {
             headers: { Authorization: `${token}` },
           });
+          console.log("Resposta da exclusão:", response.data);
           Swal.fire("Excluída!", "A etapa foi removida com sucesso.", "success");
           this.buscarEtapas();
         } catch (error) {

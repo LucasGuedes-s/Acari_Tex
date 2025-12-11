@@ -1052,6 +1052,35 @@ async function getProducaoTodasPecas(req, res) {
 
   return agrupado;
 }
+async function deletarEtapa(id) {
+    const etapaId = Number(id);
+    const etapaExiste = await prisma.etapa.findUnique({
+      where: { id_da_funcao: Number(etapaId) }
+    });
+
+    if (!etapaExiste) {
+      return res.status(404).json({ erro: "Etapa não encontrada." });
+    }
+
+    await prisma.pecasEtapas.deleteMany({
+      where: { id_da_funcao: etapaId }
+    });
+
+    await prisma.producao.deleteMany({
+      where: { id_da_funcao: etapaId }
+    });
+
+    await prisma.tempoReferencia.deleteMany({
+      where: { id_da_funcao: etapaId }
+    });
+
+    await prisma.etapa.delete({
+      where: { id_da_funcao: Number(id) }
+    });
+
+    return { mensagem: "Etapa deletada com sucesso." };
+}
+
 
 module.exports = {
   postPecaOP,
@@ -1069,5 +1098,6 @@ module.exports = {
   getEtapasEstabelecimento,
   postEtapa,
   getEficiencia,
-  getProducaoTodasPecas
+  getProducaoTodasPecas,
+  deletarEtapa
 };

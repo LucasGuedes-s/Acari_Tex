@@ -14,6 +14,8 @@ router.get('/producao/estabelecimento', [jwtMiddleware],  ControllerOp.getProduc
 router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPeca);
 //router.get('/producao/equipe/dia', [jwtMiddleware], ControllerOp.getProducaoEquipeDia);
 router.get('/etapas', [jwtMiddleware], ControllerOp.getEtapas)
+router.delete('/etapa/:id', [jwtMiddleware], ControllerOp.deletarEtapa)
+
 router.get('/etapas/estabelecimento', [jwtMiddleware], ControllerOp.getEtapasEstabelecimento)
 
 router.get('/eficiencia', [jwtMiddleware], ControllerOp.getEficiencia)
