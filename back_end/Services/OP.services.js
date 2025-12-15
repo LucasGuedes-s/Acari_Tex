@@ -947,7 +947,14 @@ async function getEficiencia(req, res) {
   const quantidadePessoas = pessoasUnicas.size;
 
   const tempoPadraoPeca = producoes[0].producao_peca?.tempo_padrao || 0;
-  const minutosDisponiveis = 540;
+  const padroesFabrica = await prisma.Estabelecimento.findUnique({
+    where: { cnpj },
+    select: { tempo_de_producao: true }
+  });
+  const minutosDisponiveis = padroesFabrica?.tempo_de_producao
+    ? padroesFabrica.tempo_de_producao * 60
+    : 480;
+  //const minutosDisponiveis = 540;
 
   const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
   const eficiencia = (quantidadeProduzida / producao100) * 100;

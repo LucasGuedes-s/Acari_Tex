@@ -25,6 +25,6 @@
   "devDependencies": {
     "@prisma/client": "^6.16.2",
     "prisma": "^6.16.2",
-    "prisma-erd-generator": "^2.0.4"
+    "prisma-erd-generator": "^2.4.2"
   }
 }

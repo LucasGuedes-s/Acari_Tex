@@ -5,8 +5,23 @@ require('dotenv').config();
 
 async function getFuncionarios(cnpj) {
   const funcionarios = await prisma.usuarios.findMany({
-    where: { estabelecimentoCnpj: cnpj.cnpj }
+    where: {
+      estabelecimentoCnpj: cnpj.cnpj,
+    },
+    include: {
+      producao_funcionario: {
+        orderBy: {
+          data_inicio: 'desc', // ou id_da_producao: 'desc'
+        },
+        take: 1, // pega apenas a última produção
+        include: {
+          producao_etapa: true,
+          producao_peca: true,
+        },
+      },
+    },
   });
+  
   if (!funcionarios.length) {
     throw new Error('Nenhum funcionário encontrado para este estabelecimento.');
   }
