@@ -251,8 +251,6 @@ export default {
 
       this.pecaRegistro = this.ultimaProducaoSelecionada.id_da_op
       this.funcao = this.ultimaProducaoSelecionada.id_da_funcao
-
-      // NÃO mexe na quantidade nem na hora
       this.usarUltimaEtapa = true
     },
     verificarAutenticacao() {
@@ -474,32 +472,84 @@ export default {
 </script>
 
 <style scoped>
-  .ultima-producao-box {
-  background: #f0fdf4;
+/* 🔁 Box da última produção */
+.ultima-producao-box {
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
   border: 1px solid #86efac;
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 12px;
-  font-size: 14px;
+  border-left: 6px solid #16a34a;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideFadeIn 0.25s ease-out;
 }
 
+/* Texto */
 .ultima-producao-box p {
-  margin: 0 0 8px 0;
+  margin: 0;
+  display: flex;
+  font-size: 14px;
   color: #14532d;
+  line-height: 1.4;
 }
 
+/* Destaque da etapa */
+.ultima-producao-box strong {
+  color: #065f46;
+  font-weight: 700;
+}
+
+/* Botão de ação */
 .btn-ultima {
-  background: #008d3b;
-  color: #fff;
+  align-self: flex-start;
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: #ffffff;
   border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.25);
 }
 
+/* Hover elegante */
 .btn-ultima:hover {
-  background: #006f2e;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(22, 163, 74, 0.35);
+  background: linear-gradient(135deg, #15803d, #16a34a);
+}
+
+/* Active */
+.btn-ultima:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(22, 163, 74, 0.25);
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .ultima-producao-box {
+    padding: 12px;
+  }
+
+  .btn-ultima {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ✨ Animação suave */
+@keyframes slideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .content-wrapper {
