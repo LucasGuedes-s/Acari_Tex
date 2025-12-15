@@ -75,6 +75,23 @@
             <img class="modal-close" @click="fecharModal" src="@/assets/close.png" alt="Fechar" />
           </div>
           <div class="modal-body registro">
+            <div
+                v-if="ultimaProducaoSelecionada"
+                class="ultima-producao-box"
+              >
+                <p>
+                  Última etapa registrada:
+                  <strong>{{ ultimaProducaoSelecionada.producao_etapa.descricao }}</strong>
+                </p>
+
+                <button
+                  class="btn-ultima"
+                  @click="aplicarUltimaEtapa"
+                >
+                  Usar mesma etapa
+                </button>
+              </div>
+
             <div class="modal-info registro">
               <div class="info-row">
                 <label class="label" for="peca">Peça:</label>
@@ -93,6 +110,8 @@
                   <option value="nova">➕ Cadastrar nova etapa</option>
                 </select>
               </div>
+
+              
               <!-- Se selecionar nova etapa -->
               <div v-if="funcao === 'nova'" class="info-row">
                 <label class="label" for="nova-etapa">Descrição da nova etapa:</label>
@@ -188,6 +207,8 @@ export default {
       novaEtapa: '',
       todasEtapas: [],
       etapaExistente: null,
+      ultimaProducaoSelecionada: null,
+      usarUltimaEtapa: false,
       selectedEquipeEmails: new Set()
     }
   },
@@ -225,6 +246,15 @@ export default {
     }
   },
   methods: {
+    aplicarUltimaEtapa() {
+      if (!this.ultimaProducaoSelecionada) return
+
+      this.pecaRegistro = this.ultimaProducaoSelecionada.id_da_op
+      this.funcao = this.ultimaProducaoSelecionada.id_da_funcao
+
+      // NÃO mexe na quantidade nem na hora
+      this.usarUltimaEtapa = true
+    },
     verificarAutenticacao() {
       const token = this.store.pegar_token;
       const usuario = this.store.pegar_usuario;
@@ -302,9 +332,11 @@ export default {
         const { data } = await api.get('/Funcionarios', {
           headers: { Authorization: this.store.pegar_token }
         })
+        console.log(data.funcionarios)
         this.funcionarios = (data.funcionarios || []).map(u => ({
           ...u,
-          email: u.email ? String(u.email).toLowerCase().trim() : ''
+          email: u.email ? String(u.email).toLowerCase().trim() : '',
+          ultimaProducao: u.producao_funcionario?.[0] || null
         }))
       } catch (err) {
         console.error(err)
@@ -406,9 +438,16 @@ export default {
       }
     },
 
-    registrarProducao(id, funcionario) {
+    registrarProducao(id, funcionarioNome) {
+      const funcionario = this.funcionarios.find(f => f.email === id)
+
       this.registroFuncionario = id
-      this.funcionario = funcionario
+      this.funcionario = funcionarioNome
+
+      // 🔥 AQUI ESTÁ O PONTO QUE FALTAVA
+      this.ultimaProducaoSelecionada = funcionario?.ultimaProducao || null
+      this.usarUltimaEtapa = false
+
       this.showModalRegistro = true
     },
 
@@ -435,6 +474,34 @@ export default {
 </script>
 
 <style scoped>
+  .ultima-producao-box {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.ultima-producao-box p {
+  margin: 0 0 8px 0;
+  color: #14532d;
+}
+
+.btn-ultima {
+  background: #008d3b;
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-ultima:hover {
+  background: #006f2e;
+}
+
 .content-wrapper {
   flex-grow: 1;
   padding-left: 200px;
