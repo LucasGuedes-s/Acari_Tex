@@ -104,9 +104,10 @@ async function postProducaoPeca(req, res) {
 
     const jaProduzidoTotal = producaoTotalEtapa._sum.quantidade_pecas || 0;
     const novaQtdTotal = jaProduzidoTotal + quantidade_pecas;
-
+    console.log("Quantidade já produzida na etapa:", jaProduzidoTotal);
+    console.log("Nova quantidade total após registro:", novaQtdTotal);
     if (novaQtdTotal > etapaRelacionada.quantidade_meta) {
-      return res.status(400).json({
+      return ({
         error: "A produção total da etapa excede a meta.",
         jaProduzido: jaProduzidoTotal,
         meta: etapaRelacionada.quantidade_meta
@@ -994,71 +995,72 @@ async function getEficiencia(req, res) {
   };
 }
 async function getProducaoTodasPecas(req, res) {
-  const cnpjEstabelecimento = req.user.cnpj;
+    const cnpjEstabelecimento = req.user.cnpj;
 
-  // 1️⃣ Buscar todas produções
-  const producoes = await prisma.producao.findMany({
-    where: {
-      id_Estabelecimento: cnpjEstabelecimento
-    },
-    select: {
-      quantidade_pecas: true,
-      data_inicio: true,
-      id_da_op: true,
-      producao_peca: {
-        select: { descricao: true }
+    // 1️⃣ Buscar todas as produções do estabelecimento
+    const producoes = await prisma.producao.findMany({
+      where: {
+        id_Estabelecimento: cnpjEstabelecimento
       },
-      producao_etapa: {
-        select: { descricao: true }
+      select: {
+        quantidade_pecas: true,
+        data_inicio: true,
+        id_da_op: true,
+        producao_peca: {
+          select: { descricao: true }
+        },
+        producao_etapa: {
+          select: { descricao: true }
+        }
       }
-    }
-  });
-
-  if (!producoes || producoes.length === 0) {
-    return res.json([]);
-  }
-
-  // 2️⃣ Coletar todas as OPS únicas
-  const ops = [...new Set(producoes.map(p => p.id_da_op))];
-
-  // 3️⃣ Buscar metas de todas as OPS em UMA consulta
-  const metas = await prisma.pecasEtapas.groupBy({
-    by: ["id_da_op"],
-    _sum: { quantidade_meta: true } 
-  });
-
-  // 4️⃣ Criar mapa: OP → Meta total
-  const metasPorOP = {};
-  metas.forEach(m => {
-    metasPorOP[m.id_da_op] = m._sum.quantidade_meta ?? 0;
-  });
-
-  // 5️⃣ Montar agrupamento
-  const agrupado = {};
-
-  for (const item of producoes) {
-    const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
-
-    if (!agrupado[nomePeca]) {
-      agrupado[nomePeca] = {
-        peca: nomePeca,
-        total: 0,
-        meta: metasPorOP[item.id_da_op] ?? 0,  // ✔ meta da peça inteira
-        historico: []
-      };
-    }
-
-    agrupado[nomePeca].total += item.quantidade_pecas ?? 0;
-
-    agrupado[nomePeca].historico.push({
-      data: item.data_inicio,
-      quantidade: item.quantidade_pecas ?? 0,
-      etapa: item.producao_etapa?.descricao || "Etapa não informada"
     });
-  }
 
-  return agrupado;
+    if (!producoes || producoes.length === 0) {
+      return res.json([]);
+    }
+
+    // 2️⃣ Buscar UMA meta por OP (não soma etapas)
+    const metas = await prisma.pecasEtapas.findMany({
+      select: {
+        id_da_op: true,
+        quantidade_meta: true
+      },
+      distinct: ["id_da_op"]
+    });
+
+    // 3️⃣ Criar mapa: OP → Meta
+    const metasPorOP = {};
+    metas.forEach(m => {
+      metasPorOP[m.id_da_op] = m.quantidade_meta ?? 0;
+    });
+
+    // 4️⃣ Agrupar produções por peça
+    const agrupado = {};
+
+    for (const item of producoes) {
+      const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
+
+      if (!agrupado[nomePeca]) {
+        agrupado[nomePeca] = {
+          peca: nomePeca,
+          total: 0,
+          meta: metasPorOP[item.id_da_op] ?? 0, // ✔ meta correta
+          historico: []
+        };
+      }
+
+      agrupado[nomePeca].total += item.quantidade_pecas ?? 0;
+
+      agrupado[nomePeca].historico.push({
+        data: item.data_inicio,
+        quantidade: item.quantidade_pecas ?? 0,
+        etapa: item.producao_etapa?.descricao || "Etapa não informada"
+      });
+    }
+
+    return agrupado;
 }
+
 async function deletarEtapa(id) {
     const etapaId = Number(id);
     const etapaExiste = await prisma.etapa.findUnique({

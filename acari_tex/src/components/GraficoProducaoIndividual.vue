@@ -66,10 +66,24 @@ export default {
         const ctx = cvs.getContext("2d");
         if (!ctx) return;
 
-        const horas = [];
-        for (let h = 6; h <= 21; h++) horas.push(`${String(h).padStart(2,"0")}:00`);
-        horas.splice(horas.indexOf("11:00") + 1, 0, "11:30");
-        horas.splice(horas.indexOf("17:00") + 1, 0, "17:30");
+        let horas = [];
+        for (let h = 6; h <= 21; h++) {
+          horas.push(`${String(h).padStart(2, "0")}:00`);
+        }
+        const existe11 = equipe.some(f =>
+          f.producaoPorHora?.some(p => p.hora === "11:00")
+        );
+
+        const existe17 = equipe.some(f =>
+          f.producaoPorHora?.some(p => p.hora === "17:00")
+        );
+        
+        horas = horas.filter(hora => {
+          if (hora === "11:00" && !existe11) return false;
+          if (hora === "17:00" && !existe17) return false;
+          return true;
+        });
+
 
         const datasets = equipe.map((f, i) => {
           const pontos = horas.map(h => {
@@ -81,9 +95,8 @@ export default {
             label: f.nome,
             data: pontos,
             borderColor: cores[i % cores.length],
-            backgroundColor: cores[i % cores.length] + "30",
             borderWidth: 3,
-            fill: true,
+            fill: false, // 🔥 remove o fundo
             tension: 0.4,
             pointRadius: 4,
             pointHoverRadius: 6,
@@ -91,6 +104,7 @@ export default {
             pointBorderColor: cores[i % cores.length],
             pointBorderWidth: 2
           };
+
         });
 
         chart.value = new Chart(ctx, {
