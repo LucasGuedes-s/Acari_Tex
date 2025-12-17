@@ -1,12 +1,17 @@
 <template>
-  <div class="card p-3 mt-3">
-    <h4 class="mb-3">⏱️ Comparação de Tempos Padrão</h4>
-    <canvas ref="canvas"></canvas>
+  <div class="card p-4 mt-3">
+    <h4 class="mb-3 fw-semibold text-success">
+      ⏱️ Comparação de Tempos Padrão
+    </h4>
+
+    <div class="grafico-wrapper">
+      <canvas ref="canvas"></canvas>
+    </div>
   </div>
 </template>
 
 <script>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount } from "vue";
 import Chart from "chart.js/auto";
 
 export default {
@@ -23,17 +28,20 @@ export default {
     const montarGrafico = () => {
       if (!canvas.value) return;
 
-      if (chart) {
-        chart.destroy();
-      }
+      chart?.destroy();
 
       const labels = ["Peça"];
       const valores = [props.tempoPeca || 0];
+      const cores = ["#16a34a"]; // peça em destaque
 
-      props.etapasSelecionadas.forEach(etapaNome => {
-        const etapa = props.etapasDefinidas.find(e => e.descricao === etapaNome);
-        labels.push(etapaNome);
+      props.etapasSelecionadas.forEach(nomeEtapa => {
+        const etapa = props.etapasDefinidas.find(
+          e => e.descricao === nomeEtapa
+        );
+
+        labels.push(nomeEtapa);
         valores.push(etapa?.tempo_padrao || 0);
+        cores.push("#2563eb");
       });
 
       chart = new Chart(canvas.value, {
@@ -42,42 +50,66 @@ export default {
           labels,
           datasets: [
             {
-              label: "Tempo Padrão (min)",
+              label: "Tempo padrão (min)",
               data: valores,
-              borderWidth: 1,
-              backgroundColor: "#2e7d32",
+              backgroundColor: cores,
+              borderRadius: 12,
+              barThickness: 40,
             },
           ],
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
+            tooltip: {
+              backgroundColor: "#0f172a",
+              titleColor: "#fff",
+              bodyColor: "#e5e7eb",
+              padding: 10,
+              callbacks: {
+                label: ctx => ` ${ctx.raw} min`
+              }
             },
           },
-        },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 13 } }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: "#e5e7eb" },
+              ticks: {
+                callback: v => `${v} min`
+              }
+            }
+          }
+        }
       });
     };
 
-    onMounted(() => montarGrafico());
+    onMounted(montarGrafico);
 
-    watch(() => [props.etapasSelecionadas, props.tempoPeca], () => {
-      montarGrafico();
-    });
+    watch(() => props.tempoPeca, montarGrafico);
+    watch(() => props.etapasSelecionadas, montarGrafico, { deep: true });
+
+    onBeforeUnmount(() => chart?.destroy());
 
     return { canvas };
-  },
+  }
 };
 </script>
 
 <style scoped>
 .card {
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.grafico-wrapper {
+  height: 320px;
 }
 </style>

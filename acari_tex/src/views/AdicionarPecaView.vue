@@ -81,13 +81,7 @@
 
               <!-- Linha de produção -->
               <div class="linha-producao" @dragover.prevent @drop="onDrop($event)">
-                <!-- Gráfico de comparação de tempos -->
-                <GraficoTempoPadrao
-                  :tempoPeca="novaPeca.tempo_padrao"
-                  :etapasSelecionadas="novaPeca.producao"
-                  :etapasDefinidas="locaisPredefinidos"
-                />
-
+              
                 <h5 class="drag-title">Linha de Produção</h5>
                 <div class="pipeline">
                   <transition-group name="fade-list" tag="div" class="pipeline-inner">
@@ -102,8 +96,12 @@
                   </transition-group>
                 </div>
               </div>
+                <GraficoTempoPadrao
+                  :tempoPeca="novaPeca.tempo_padrao"
+                  :etapasSelecionadas="novaPeca.producao"
+                  :etapasDefinidas="locaisPredefinidos"
+                />
 
-              <!-- Navegação -->
               <div class="d-flex gap-2 mt-3 justify-content-between">
                 <button @click="etapa--" class="btn btn-secondary btn-block"
                   style="background-color: #90a4ae; color: white;">
