@@ -995,71 +995,86 @@ async function getEficiencia(req, res) {
   };
 }
 async function getProducaoTodasPecas(req, res) {
-    const cnpjEstabelecimento = req.user.cnpj;
+  const cnpjEstabelecimento = req.user.cnpj;
 
-    // 1️⃣ Buscar todas as produções do estabelecimento
-    const producoes = await prisma.producao.findMany({
-      where: {
-        id_Estabelecimento: cnpjEstabelecimento
+  // 0️⃣ Buscar etapa final do estabelecimento
+  const estabelecimento = await prisma.estabelecimento.findUnique({
+    where: { cnpj: cnpjEstabelecimento },
+    select: { peca_final: true }
+  });
+
+  const etapaFinal = estabelecimento?.peca_final;
+
+  // 1️⃣ Buscar todas as produções do estabelecimento
+  const producoes = await prisma.producao.findMany({
+    where: {
+      id_Estabelecimento: cnpjEstabelecimento
+    },
+    select: {
+      quantidade_pecas: true,
+      data_inicio: true,
+      id_da_op: true,
+      producao_peca: {
+        select: { descricao: true }
       },
-      select: {
-        quantidade_pecas: true,
-        data_inicio: true,
-        id_da_op: true,
-        producao_peca: {
-          select: { descricao: true }
-        },
-        producao_etapa: {
-          select: { descricao: true }
-        }
+      producao_etapa: {
+        select: { descricao: true }
       }
-    });
+    }
+  });
 
-    if (!producoes || producoes.length === 0) {
-      return res.json([]);
+  if (!producoes || producoes.length === 0) {
+    return res.json([]);
+  }
+
+  // 2️⃣ Buscar UMA meta por OP
+  const metas = await prisma.pecasEtapas.findMany({
+    select: {
+      id_da_op: true,
+      quantidade_meta: true
+    },
+    distinct: ["id_da_op"]
+  });
+
+  // 3️⃣ Criar mapa: OP → Meta
+  const metasPorOP = {};
+  metas.forEach(m => {
+    metasPorOP[m.id_da_op] = m.quantidade_meta ?? 0;
+  });
+
+  // 4️⃣ Agrupar produções por peça
+  const agrupado = {};
+
+  for (const item of producoes) {
+    const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
+    const etapa = item.producao_etapa?.descricao || "Etapa não informada";
+    const quantidade = item.quantidade_pecas ?? 0;
+
+    if (!agrupado[nomePeca]) {
+      agrupado[nomePeca] = {
+        peca: nomePeca,
+        total: 0,
+        meta: metasPorOP[item.id_da_op] ?? 0,
+        historico: []
+      };
     }
 
-    // 2️⃣ Buscar UMA meta por OP (não soma etapas)
-    const metas = await prisma.pecasEtapas.findMany({
-      select: {
-        id_da_op: true,
-        quantidade_meta: true
-      },
-      distinct: ["id_da_op"]
-    });
-
-    // 3️⃣ Criar mapa: OP → Meta
-    const metasPorOP = {};
-    metas.forEach(m => {
-      metasPorOP[m.id_da_op] = m.quantidade_meta ?? 0;
-    });
-
-    // 4️⃣ Agrupar produções por peça
-    const agrupado = {};
-
-    for (const item of producoes) {
-      const nomePeca = item.producao_peca?.descricao || "Peça sem descrição";
-
-      if (!agrupado[nomePeca]) {
-        agrupado[nomePeca] = {
-          peca: nomePeca,
-          total: 0,
-          meta: metasPorOP[item.id_da_op] ?? 0, // ✔ meta correta
-          historico: []
-        };
-      }
-
-      agrupado[nomePeca].total += item.quantidade_pecas ?? 0;
-
-      agrupado[nomePeca].historico.push({
-        data: item.data_inicio,
-        quantidade: item.quantidade_pecas ?? 0,
-        etapa: item.producao_etapa?.descricao || "Etapa não informada"
-      });
+    // ✅ SOMA APENAS SE FOR A ETAPA FINAL
+    if (etapaFinal && etapa === etapaFinal) {
+      agrupado[nomePeca].total += quantidade;
     }
 
-    return agrupado;
+    // Histórico continua completo
+    agrupado[nomePeca].historico.push({
+      data: item.data_inicio,
+      quantidade,
+      etapa
+    });
+  }
+
+  return agrupado;
 }
+
 
 async function deletarEtapa(id) {
     const etapaId = Number(id);
