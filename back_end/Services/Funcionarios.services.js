@@ -7,6 +7,7 @@ async function getFuncionarios(cnpj) {
   const funcionarios = await prisma.usuarios.findMany({
     where: {
       estabelecimentoCnpj: cnpj.cnpj,
+      status: 'ativo',
     },
     include: {
       producao_funcionario: {
