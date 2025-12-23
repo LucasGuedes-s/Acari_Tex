@@ -169,7 +169,6 @@ async function getProducaoPorPeca(req, res, next) {
 async function getProducaoEstabelecimento(req, res, next) {
     try {
         const producao = await pecas.getProducaoTodasPecas(req);
-        console.log(producao);
         res.status(200).json({ producao });
     } catch (err) {
         console.error(`Erro ao obter produção por estabelecimento.`, err.message);

@@ -52,7 +52,11 @@ export default {
         const labels = dadosFormatados.map(d => d.descricaoPeca)
         const eficiencia = dadosFormatados.map(d => d.eficiencia)
         const producao100 = dadosFormatados.map(d => d.producao100)
-
+        console.log('Dados formatados para o gráfico:', {
+          labels,
+          eficiencia,
+          producao100
+        })
         // Destroi gráfico anterior
         if (chartInstance) chartInstance.destroy()
 

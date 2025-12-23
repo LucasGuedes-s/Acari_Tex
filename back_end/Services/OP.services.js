@@ -275,10 +275,13 @@ async function getProducaoEquipe(req) {
     const filtro = req.query.filtro || "hoje";
     const cnpjEstabelecimento = req.user.cnpj;
 
-    // Buscar o tempo de expediente (padrão 8h = 480 min)
+    // ================= ESTABELECIMENTO =================
     const estabelecimento = await prisma.estabelecimento.findUnique({
       where: { cnpj: cnpjEstabelecimento },
-      select: { tempo_de_producao: true },
+      select: {
+        tempo_de_producao: true,
+        peca_final: true,
+      },
     });
 
     if (!estabelecimento) {
@@ -286,7 +289,9 @@ async function getProducaoEquipe(req) {
     }
 
     const minutosDisponiveis = estabelecimento.tempo_de_producao || 480;
+    const etapaFinal = estabelecimento.peca_final;
 
+    // ================= DATA =================
     const fusoSP = "America/Sao_Paulo";
     const agora = new Date();
     let diaFiltro = new Date(agora.toLocaleString("en-US", { timeZone: fusoSP }));
@@ -302,14 +307,14 @@ async function getProducaoEquipe(req) {
     });
 
     const partes = dtf.formatToParts(diaFiltro);
-    const dia = partes.find((p) => p.type === "day").value;
-    const mes = partes.find((p) => p.type === "month").value;
-    const ano = partes.find((p) => p.type === "year").value;
+    const dia = partes.find(p => p.type === "day").value;
+    const mes = partes.find(p => p.type === "month").value;
+    const ano = partes.find(p => p.type === "year").value;
 
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
     const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
 
-    // Buscar produções registradas no dia
+    // ================= PRODUÇÕES =================
     const producoesDia = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -318,10 +323,10 @@ async function getProducaoEquipe(req) {
       select: {
         id_funcionario: true,
         quantidade_pecas: true,
-        hora_registro: true, // Ex: "10h", "09h"
+        hora_registro: true,
         producao_funcionario: { select: { nome: true } },
         producao_etapa: { select: { descricao: true, tempo_padrao: true } },
-        producao_peca: { select: { descricao: true } },
+        producao_peca: { select: { descricao: true, tempo_padrao: true } },
       },
     });
 
@@ -329,11 +334,17 @@ async function getProducaoEquipe(req) {
       return { mensagem: "Nenhuma produção registrada no período." };
     }
 
-    // Agrupar por funcionário
+    // ================= BASE DO CÁLCULO =================
+    const tempoPadraoTotalPeca = producoesDia[0].producao_peca?.tempo_padrao;
+
+    if (!tempoPadraoTotalPeca || tempoPadraoTotalPeca <= 0) {
+      return { mensagem: "Tempo padrão da peça inválido." };
+    }
+
+    // ================= AGREGAÇÕES =================
     const agrupadoDia = {};
-    let totalPecas = 0;
-    let totalTempoPadraoTurma = 0;
-    const producaoPorHoraGeral = {}; // { "08h": total, "09h": total, ... }
+    let totalPecasFinalTurma = 0;
+    let producaoPorHoraGeral = {};
 
     for (const p of producoesDia) {
       const funcionario = p.id_funcionario;
@@ -341,79 +352,92 @@ async function getProducaoEquipe(req) {
       const etapa = p.producao_etapa?.descricao || "Sem Etapa";
       const quantidade = p.quantidade_pecas || 0;
       const tempoPadraoEtapa = p.producao_etapa?.tempo_padrao ?? 0;
-      const hora = p.hora_registro?.padStart(3, "0") || "00h"; // Ex: "9h" → "09h"
-
-      totalPecas += quantidade;
-      totalTempoPadraoTurma += quantidade * tempoPadraoEtapa;
-
-      // Acumula produção geral por hora
-      producaoPorHoraGeral[hora] = (producaoPorHoraGeral[hora] || 0) + quantidade;
+      const hora = p.hora_registro?.padStart(3, "0") || "00h";
 
       if (!agrupadoDia[funcionario]) {
         agrupadoDia[funcionario] = {
           nome,
-          etapas: {},
-          tempoPadraoTotalEtapas: 0,
+          tempoPadraoProduzido: 0,
           totalQuantidade: 0,
-          producaoPorHora: {}, // 👈 novo campo
+          etapas: {},
+          producaoPorHora: {},
+          totalPecasFinal: 0,
         };
       }
 
-      if (!agrupadoDia[funcionario].etapas[etapa]) {
-        agrupadoDia[funcionario].etapas[etapa] = 0;
-      }
-
-      agrupadoDia[funcionario].etapas[etapa] += quantidade * tempoPadraoEtapa;
-      agrupadoDia[funcionario].tempoPadraoTotalEtapas += quantidade * tempoPadraoEtapa;
+      // ---- ETAPAS (INDIVIDUAL) ----
+      agrupadoDia[funcionario].tempoPadraoProduzido += quantidade * tempoPadraoEtapa;
       agrupadoDia[funcionario].totalQuantidade += quantidade;
 
-      // Produção horária por funcionário
+      if (!agrupadoDia[funcionario].etapas[etapa]) {
+        agrupadoDia[funcionario].etapas[etapa] = {
+          tempoPadraoTotal: 0,
+          tempoPadraoEtapa,
+        };
+      }
+      agrupadoDia[funcionario].etapas[etapa].tempoPadraoTotal += quantidade * tempoPadraoEtapa;
+
+      // ---- PRODUÇÃO POR HORA ----
       agrupadoDia[funcionario].producaoPorHora[hora] =
         (agrupadoDia[funcionario].producaoPorHora[hora] || 0) + quantidade;
+
+      // ---- PEÇA FINAL (TURMA) ----
+      if (etapa === etapaFinal) {
+        agrupadoDia[funcionario].totalPecasFinal += quantidade;
+        totalPecasFinalTurma += quantidade;
+        producaoPorHoraGeral[hora] = (producaoPorHoraGeral[hora] || 0) + quantidade;
+      }
     }
 
-    // Calcular eficiência individual
-    const funcionarios = [];
-    for (const [id, dados] of Object.entries(agrupadoDia)) {
-      const eficienciaPessoal = (dados.tempoPadraoTotalEtapas / minutosDisponiveis) * 100;
-      const producaoPorHoraArray = Object.entries(dados.producaoPorHora)
-        .sort(([h1], [h2]) => h1.localeCompare(h2))
-        .map(([hora, total]) => ({ hora, total }));
+    // ================= FUNCIONÁRIOS =================
+    const funcionarios = Object.entries(agrupadoDia).map(([id, dados]) => {
+      const eficienciaIndividual = (dados.tempoPadraoProduzido / minutosDisponiveis) * 100;
 
-      funcionarios.push({
+      return {
         funcionario: id,
         nome: dados.nome,
-        eficiencia_pessoal: eficienciaPessoal.toFixed(2) + "%",
-        tempo_padrao_total_etapas: dados.tempoPadraoTotalEtapas,
+        eficiencia_pessoal: eficienciaIndividual.toFixed(2) + "%",
+        tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
         tempo_real_total: minutosDisponiveis,
         total_pecas: dados.totalQuantidade,
-        etapas: Object.entries(dados.etapas).map(([descricao, tempo]) => ({
-          descricao,
-          tempo_padrao_total: tempo,
-        })),
-        producaoPorHora: producaoPorHoraArray, // 👈 lista pronta pra gráfico
-      });
-    }
+        etapas: Object.entries(dados.etapas).map(([descricao, etapaDados]) => {
+          const pecasEtapaFuncionario = etapaDados.tempoPadraoTotal / etapaDados.tempoPadraoEtapa;
+          const producao100EtapaFuncionario = minutosDisponiveis / etapaDados.tempoPadraoEtapa;
+          const eficienciaEtapaFuncionario =
+            (pecasEtapaFuncionario / producao100EtapaFuncionario) * 100;
 
-    // Eficiência média da turma
+          return {
+            descricao,
+            tempo_padrao_total: Number(etapaDados.tempoPadraoTotal.toFixed(2)),
+            pecas_produzidas: Math.round(pecasEtapaFuncionario),
+            eficiencia_etapa: eficienciaEtapaFuncionario.toFixed(2) + "%",
+          };
+        }),
+        producaoPorHora: Object.entries(dados.producaoPorHora)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([hora, total]) => ({ hora, total })),
+      };
+    });
+
+    // ================= EFICIÊNCIA DA TURMA =================
     const quantidadePessoas = funcionarios.length;
-    const tempoTotalRealTurma = minutosDisponiveis * quantidadePessoas;
-    const eficienciaMediaTurma = (totalTempoPadraoTurma / tempoTotalRealTurma) * 100;
+    const producao100Turma = (quantidadePessoas * minutosDisponiveis) / tempoPadraoTotalPeca;
+    const eficienciaMediaTurma =
+      producao100Turma > 0 ? (totalPecasFinalTurma / producao100Turma) * 100 : 0;
 
-    // Produção geral por hora (pra gráfico principal)
-    const producaoPorHoraGeralArray = Object.entries(producaoPorHoraGeral)
-      .sort(([h1], [h2]) => h1.localeCompare(h2))
-      .map(([hora, total]) => ({ hora, total }));
-
+    // ================= RETORNO =================
     return {
       producaoDia: {
         descricaoPeca: producoesDia[0].producao_peca?.descricao || "Peça não informada",
+        tempoPadraoTotalPeca,
         quantidadePessoas,
         minutosDisponiveis,
-        totalPecas,
+        totalPecas: totalPecasFinalTurma,
         eficienciaMediaTurma: eficienciaMediaTurma.toFixed(2) + "%",
         funcionarios,
-        producaoPorHoraGeral: producaoPorHoraGeralArray, // 👈 gráfico geral
+        producaoPorHoraGeral: Object.entries(producaoPorHoraGeral)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([hora, total]) => ({ hora, total })),
       },
     };
   } catch (error) {
@@ -421,6 +445,7 @@ async function getProducaoEquipe(req) {
     return { error: error.message };
   }
 }
+
 
 async function getProducaoPorPeca(req) {
   try {
@@ -959,7 +984,14 @@ async function getEficiencia(req, res) {
 
   const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
   const eficiencia = (quantidadeProduzida / producao100) * 100;
-  console.log(cnpj)
+  console.log(`Cálculo de eficiência:
+    Tempo Padrão da Peça: ${tempoPadraoPeca} min
+    Minutos Disponíveis por Pessoa: ${minutosDisponiveis} min
+    Quantidade de Pessoas: ${quantidadePessoas}
+    Produção 100%: ${producao100.toFixed(2)} peças
+    Quantidade Produzida: ${quantidadeProduzida} peças
+    Eficiência: ${eficiencia.toFixed(2)}%
+  `);
   const eficienciaAtualizada = await prisma.eficienciaTurma.upsert({
     where: { estabelecimentoCnpj: cnpj },
     update: {

@@ -64,10 +64,39 @@ export default {
           console.error("Contexto 2D do Canvas não encontrado.");
           return;
         }
+        console.log("Dados de produção do dia:", producaoDia);
 
-        const eficienciaMediaTurma = parseFloat(producaoDia.eficienciaMediaTurma) || 0;
+        // ================= DADOS BASE =================
+        const totalPecas = Number(producaoDia.totalPecas) || 0;
+        const tempoPadraoTotalPeca = Number(producaoDia.tempoPadraoTotalPeca) || 0;
+        const quantidadePessoas = Number(producaoDia.quantidadePessoas) || 0;
+        const minutosDisponiveis = Number(producaoDia.minutosDisponiveis) || 0;
+
+        // ================= PRODUÇÃO 100% DA TURMA =================
+        let producao100Turma = 0;
+        if (tempoPadraoTotalPeca > 0 && quantidadePessoas > 0) {
+          producao100Turma =
+            (quantidadePessoas * minutosDisponiveis) / tempoPadraoTotalPeca;
+        }
+
+        // ================= EFICIÊNCIA MÉDIA DA TURMA =================
+        let eficienciaMediaTurma = 0;
+        if (producao100Turma > 0) {
+          eficienciaMediaTurma = (totalPecas / producao100Turma) * 100;
+        }
+
+        console.log("Produção para 100% da turma:", producao100Turma);
+        console.log("Total de peças produzidas (FINAL):", totalPecas);
+        console.log("Eficiência média da turma (calculada no front):", eficienciaMediaTurma);
+
+        // ================= DADOS INDIVIDUAIS (GRÁFICOS) =================
         const nomes = funcionarios.map(f => f.nome);
-        const eficiencias = funcionarios.map(f => parseFloat(f.eficiencia_pessoal));
+        const eficiencias = funcionarios.map(f =>
+          Number(String(f.eficiencia_pessoal).replace("%", "")) || 0
+        );
+
+        console.log("Nomes dos funcionários:", nomes);
+        console.log("Eficiências individuais:", eficiencias);
 
         // Criação do Gráfico
         chartInstance.value = new Chart(ctx, {
