@@ -916,6 +916,63 @@ async function postEtapa(req, res) {
 
   return etapa;
 }
+async function postEtapaPeca(req, res) {
+  const cnpj = req.user.cnpj;
+  const { descricao, id_da_op, tempo_padrao } = req.body;
+
+  const estabelecimento = await prisma.estabelecimento.findUnique({
+    where: { cnpj },
+  });
+
+  if (!estabelecimento) {
+    throw new Error("Estabelecimento não encontrado");
+  }
+
+  const op = await prisma.pecasOP.findFirst({
+    where: {
+      id_da_op,
+      id_Estabelecimento: cnpj,
+    },
+  });
+
+  if (!op) {
+    throw new Error("OP não encontrada para este estabelecimento");
+  }
+
+  let etapa = await prisma.etapa.findFirst({
+    where: {
+      descricao,
+      id_Estabelecimento: cnpj,
+    },
+  });
+
+  if (!etapa) {
+    etapa = await prisma.etapa.create({
+      data: {
+        descricao,
+        tempo_padrao: parseFloat(tempo_padrao) ?? null,
+        id_Estabelecimento: cnpj,
+      },
+    });
+  }
+
+  await prisma.pecasEtapas.upsert({
+    where: {
+      id_da_op_id_da_funcao: {
+        id_da_op,
+        id_da_funcao: etapa.id_da_funcao,
+      },
+    },
+    update: {}, // não altera se já existir
+    create: {
+      id_da_op,
+      id_da_funcao: etapa.id_da_funcao,
+      quantidade_meta: op.quantidade_pecas ?? 0,
+    },
+  });
+
+  return etapa;
+}
 
 async function getEtapasEstabelecimento(req) {
   const cnpj = req.user.cnpj;
@@ -1153,6 +1210,7 @@ module.exports = {
   getEtapas,
   getEtapasEstabelecimento,
   postEtapa,
+  postEtapaPeca,
   getEficiencia,
   getProducaoTodasPecas,
   deletarEtapa

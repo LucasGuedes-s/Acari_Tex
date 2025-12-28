@@ -21,6 +21,8 @@ router.get('/etapas/estabelecimento', [jwtMiddleware], ControllerOp.getEtapasEst
 router.get('/eficiencia', [jwtMiddleware], ControllerOp.getEficiencia)
 
 router.post('/adicionar/etapa', [jwtMiddleware], ControllerOp.postEtapa)
+router.post('/nova/etapa', [jwtMiddleware], ControllerOp.postEtapaPeca)
+
 router.post('/registrar/producao', [jwtMiddleware], ControllerOp.postProducaoPeca);
 router.post('/update/status', [jwtMiddleware], ControllerOp.updatePecaStatus);
 router.post('/deletar/peca/:id', [jwtMiddleware], ControllerOp.deletarPeca);

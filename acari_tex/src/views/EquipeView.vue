@@ -113,9 +113,11 @@
 
               
               <!-- Se selecionar nova etapa -->
-              <div v-if="funcao === 'nova'" class="info-row">
+              <div v-if="funcao === 'nova'" class="info-nova-etapa">
                 <label class="label" for="nova-etapa">Descrição da nova etapa:</label>
                 <input type="text" id="nova-etapa" v-model="novaEtapa" placeholder="Ex: Costura, Acabamento..."
+                  class="input-field" />
+                <input type="text" id="nova-tempo" v-model="tempo_padrao" placeholder="Tempo padrão (em minutos): "
                   class="input-field" />
                 <button class="btn-save mt-2" @click="salvarNovaEtapa">Salvar Etapa</button>
               </div>
@@ -197,6 +199,7 @@ export default {
         "21:00"
       ],
       etapas: [],
+      tempo_padrao: null,
       pecaRegistro: null,
       quantidadeRegistro: null,
       funcao: null,
@@ -273,9 +276,10 @@ export default {
 
     async salvarNovaEtapa() {
       try {
-        const { data } = await api.post('/adicionar/etapa', {
+        const { data } = await api.post('/nova/etapa', {
           descricao: this.novaEtapa,
           id_da_op: this.pecaRegistro,
+          tempo_padrao: this.tempo_padrao || 0
         }, {
           headers: { Authorization: this.store.pegar_token }
         })
@@ -472,7 +476,11 @@ export default {
 </script>
 
 <style scoped>
-/* 🔁 Box da última produção */
+.content-wrapper {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 .ultima-producao-box {
   background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
   border: 1px solid #86efac;
@@ -485,7 +493,6 @@ export default {
   animation: slideFadeIn 0.25s ease-out;
 }
 
-/* Texto */
 .ultima-producao-box p {
   margin: 0;
   display: flex;
@@ -494,13 +501,11 @@ export default {
   line-height: 1.4;
 }
 
-/* Destaque da etapa */
 .ultima-producao-box strong {
   color: #065f46;
   font-weight: 700;
 }
 
-/* Botão de ação */
 .btn-ultima {
   align-self: flex-start;
   background: linear-gradient(135deg, #16a34a, #22c55e);
@@ -515,20 +520,74 @@ export default {
   box-shadow: 0 4px 10px rgba(22, 163, 74, 0.25);
 }
 
-/* Hover elegante */
 .btn-ultima:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 14px rgba(22, 163, 74, 0.35);
   background: linear-gradient(135deg, #15803d, #16a34a);
 }
 
-/* Active */
 .btn-ultima:active {
   transform: translateY(0);
   box-shadow: 0 3px 8px rgba(22, 163, 74, 0.25);
 }
 
-/* Mobile */
+.info-nova-etapa {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.info-nova-etapa .label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.info-nova-etapa .input-field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.info-nova-etapa .input-field::placeholder {
+  color: #999;
+}
+
+.info-nova-etapa .input-field:focus {
+  outline: none;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
+}
+
+.info-nova-etapa .btn-save {
+  align-self: flex-start;
+  padding: 8px 18px;
+  background-color: #0d6efd;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.info-nova-etapa .btn-save:hover {
+  background-color: #0b5ed7;
+}
+
+.info-nova-etapa .btn-save:active {
+  transform: scale(0.97);
+}
+
 @media (max-width: 600px) {
   .ultima-producao-box {
     padding: 12px;
@@ -882,8 +941,9 @@ select {
   }
 
   .modal-footer.registro .btn-group button {
-    flex: 1; /* divide igualmente o espaço */
+    flex: 1;
   }
+  
 }
 
 @media (min-width: 601px) {
