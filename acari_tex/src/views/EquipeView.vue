@@ -9,7 +9,6 @@
       <div v-else class="nav row justify-content-center">
         <div class="form col-12 col-md-10 col-lg-8">
           <div class="search">
-            <!-- 🔎 Versão mobile -->
             <div class="search-mobile d-md-none w-100 mb-3">
               <input type="text" id="search-input" placeholder="Pesquisar nome do profissional..." v-model="pesquisa"
                 class="form-control mb-2" />
@@ -21,7 +20,6 @@
               </div>
             </div>
 
-            <!-- 💻 Versão desktop -->
             <div class="search-desktop d-none d-md-flex align-items-center gap-2 w-100 mb-3">
               <select name="Pesquisar" id="hora" v-model="equipe" class="form-select flex-shrink-0"
                 style="max-width: 220px;">
@@ -47,7 +45,6 @@
         </div>
       </div>
 
-      <!-- Lista de funcionários -->
       <div class="container_profissional" v-for="funcionario in filteredProfissional" :key="funcionario.id">
         <div class="card-content">
           <div class="imagem-funcionario">
@@ -62,7 +59,7 @@
 
         <div class="acoes-funcionario">
           <button @click="tempodeProducao(funcionario.email)">Ver mais</button>
-          <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome)">
+          <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome, funcionario.foto)">
             Registrar Produção
           </button>
         </div>
@@ -72,25 +69,30 @@
         <div class="modal-container registro">
           <div class="modal-header registro">
             <h2>Registrar Produção</h2>
+            <div class="d-flex align-items-center gap-3">
+            <img :src="foto || '/default-avatar.png'" alt="Funcionário" class="rounded-circle border border-2 border-success" width="48" height="48"/>
+            <div>
+              <strong class="d-block">{{ nomeProfissional }}</strong>
+            </div>
+          </div>
             <img class="modal-close" @click="fecharModal" src="@/assets/close.png" alt="Fechar" />
           </div>
           <div class="modal-body registro">
-            <div
-                v-if="ultimaProducaoSelecionada"
-                class="ultima-producao-box"
-              >
-                <p>
-                  Última etapa registrada:
-                  <strong>{{ ultimaProducaoSelecionada.producao_etapa.descricao }}</strong>
-                </p>
-
-                <button
-                  class="btn-ultima"
-                  @click="aplicarUltimaEtapa"
-                >
-                  Usar mesma etapa
-                </button>
-              </div>
+            <div v-if="ultimaProducaoSelecionada" class="ultima-producao-box">
+              <p>
+                Última etapa registrada:
+                <strong>{{ ultimaProducaoSelecionada.producao_etapa.descricao }}</strong>
+              </p>
+              <p>
+                Última hora registrada:
+                <span class="hora">
+                  🕒 {{ ultimaProducaoSelecionada.hora_registro || 'Hora não informada' }}
+                </span>
+              </p>
+              <button class="btn-ultima" @click="aplicarUltimaEtapa">
+                Usar mesma etapa
+              </button>
+            </div>
 
             <div class="modal-info registro">
               <div class="info-row">
@@ -110,9 +112,6 @@
                   <option value="nova">➕ Cadastrar nova etapa</option>
                 </select>
               </div>
-
-              
-              <!-- Se selecionar nova etapa -->
               <div v-if="funcao === 'nova'" class="info-nova-etapa">
                 <label class="label" for="nova-etapa">Descrição da nova etapa:</label>
                 <input type="text" id="nova-etapa" v-model="novaEtapa" placeholder="Ex: Costura, Acabamento..."
@@ -121,8 +120,6 @@
                   class="input-field" />
                 <button class="btn-save mt-2" @click="salvarNovaEtapa">Salvar Etapa</button>
               </div>
-
-              <!-- Se quiser adicionar etapa já cadastrada -->
               <div v-if="funcao === 'existente'" class="info-row">
                 <label class="label" for="etapas-existentes">Selecione uma etapa:</label>
                 <select id="etapas-existentes" v-model="etapaExistente" class="input-select">
@@ -141,7 +138,6 @@
               </div>
             </div>
 
-            <!-- Campo da hora (só aparece se mostrarHora = true) -->
             <div class="info-row" v-if="mostrarHora">
               <label class="label" for="hora">Hora do registro:</label>
               <select id="hora" v-model="horaRegistro" class="input-select">
@@ -162,7 +158,7 @@
             </div>
             <button class="btn-save" @click="postProdução">Registrar</button>
           </div>
-          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -199,6 +195,7 @@ export default {
         "21:00"
       ],
       etapas: [],
+      foto: null,
       tempo_padrao: null,
       pecaRegistro: null,
       quantidadeRegistro: null,
@@ -209,6 +206,7 @@ export default {
       equipe: '',
       novaEtapa: '',
       todasEtapas: [],
+      nomeProfissional: '',
       etapaExistente: null,
       ultimaProducaoSelecionada: null,
       usarUltimaEtapa: false,
@@ -364,8 +362,7 @@ export default {
 
     async postProdução() {
       try {
-        //const agora = new Date();
-        //const horaRegistro = String(agora.getHours()).padStart(2, '0') + ":00";
+
         const horaRegistro = this.horaRegistro ||
           (String(new Date().getHours()).padStart(2, '0') + ":00");
         await api.post('/registrar/producao', {
@@ -430,9 +427,7 @@ export default {
         const { data } = await api.get('/equipes', {
           headers: { Authorization: this.store.pegar_token }
         })
-        // normaliza todas as equipes assim que chegam
         this.equipesDisponiveis = (data.equipes || []).map(e => this.normalizeEquipe(e))
-        // atualiza conjunto caso já haja equipe selecionada
         this.updateSelectedEquipeEmails(this.equipe)
       } catch (err) {
         console.error(err)
@@ -440,13 +435,12 @@ export default {
       }
     },
 
-    registrarProducao(id, funcionarioNome) {
+    registrarProducao(id, funcionarioNome, foto) {
       const funcionario = this.funcionarios.find(f => f.email === id)
-
+      this.foto = foto
+      this.nomeProfissional = funcionarioNome
       this.registroFuncionario = id
       this.funcionario = funcionarioNome
-
-      // 🔥 AQUI ESTÁ O PONTO QUE FALTAVA
       this.ultimaProducaoSelecionada = funcionario?.ultimaProducao || null
       this.usarUltimaEtapa = false
 
@@ -605,6 +599,7 @@ export default {
     opacity: 0;
     transform: translateY(-6px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -916,9 +911,11 @@ select {
   .search {
     margin-bottom: 0px;
   }
-  .info-row{
+
+  .info-row {
     display: block;
   }
+
   .input-field,
   .input-select {
     width: 100% !important;
@@ -930,7 +927,7 @@ select {
   }
 
   .modal-footer.registro button {
-    width: 100%; 
+    width: 100%;
     font-size: 12px;
   }
 
@@ -943,7 +940,7 @@ select {
   .modal-footer.registro .btn-group button {
     flex: 1;
   }
-  
+
 }
 
 @media (min-width: 601px) {
@@ -1055,13 +1052,14 @@ select {
 .btn-save:hover {
   background: #006f2e;
 }
+
 @media (min-width: 768px) and (max-width: 1024px) {
 
   .content-wrapper {
-    padding-left: 0px; 
+    padding-left: 0px;
   }
 
-  .prof{
+  .prof {
     display: none;
   }
 }
