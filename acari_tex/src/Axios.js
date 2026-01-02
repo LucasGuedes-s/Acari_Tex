@@ -3,8 +3,8 @@ import Swal from 'sweetalert2';
 import router from './router';
 
 const api = axios.create({
-  //baseURL: 'https://acari-tex.onrender.com',
-  baseURL: 'http://localhost:3333',
+  baseURL: 'https://acari-tex.onrender.com',
+  //baseURL: 'http://localhost:3333',
 });
 
 api.interceptors.response.use(

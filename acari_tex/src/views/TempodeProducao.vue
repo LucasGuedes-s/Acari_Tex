@@ -1,8 +1,8 @@
 <template>
   <div>
     <Sidebar />
-
-    <main class="content-wrapper flex-grow-1">
+    <carregandoTela v-if="carregando" />
+    <main class="content-wrapper" v-else>
       <div class="container-fluid py-3">
 
         <TituloSubtitulo
@@ -17,7 +17,8 @@
             <img
               :src="funcionario.foto || 'https://via.placeholder.com/100'"
               class="rounded-circle"
-              style="width:100px;height:100px"
+              width="100"
+              height="100"
             />
             <div>
               <p><b>Nome:</b> {{ funcionario.nome }}</p>
@@ -30,7 +31,7 @@
         <!-- SELEÇÃO DA PEÇA -->
         <div class="card shadow-sm mt-4">
           <div class="card-body">
-            <label class="fw-bold">Peça (OP)</label>
+            <label class="fw-bold mb-2">Peça (OP) - Registro em lote</label>
             <select v-model="pecaSelecionada" class="form-select">
               <option disabled value="">Selecione a peça</option>
               <option
@@ -44,98 +45,88 @@
           </div>
         </div>
 
-        <!-- TABELA FIXA -->
+        <!-- PRODUÇÃO DO DIA -->
         <div v-if="pecaSelecionada" class="card shadow-sm mt-4">
           <div class="card-header fw-bold">
             📋 Produção do dia
           </div>
 
-          <div class="card-body table-responsive">
-            <table class="table table-sm text-center align-middle">
-              <thead class="table-primary">
-                <tr>
-                  <th>Hora</th>
-                  <th>Etapa</th>
-                  <th>Qtd Produzida</th>
-                </tr>
-              </thead>
+          <div class="card-body">
+            <div class="producao-grid">
 
-              <tbody>
-                <tr
-                  v-for="(linha, i) in tabelaProducao"
-                  :key="i"
-                  :class="{ 'linha-preenchida': linha.quantidade_pecas > 0 }"
-                >
+              <div
+                v-for="(slot, index) in tabelaProducao"
+                :key="index"
+                class="producao-slot"
+                :class="{
+                  preenchido: slot.quantidade_pecas > 0,
+                  'ja-registrado': slot.jaRegistrado
+                }"
+              >
+                <div class="slot-hora">
+                  {{ slot.hora }}
+                </div>
 
-                  <td>
-                    <span class="hora-badge">
-                      {{ linha.hora }}
-                    </span>
-                  </td>
-                  <td>
-                    <select
-                      class="form-select form-select-sm"
-                      v-model="linha.id_da_funcao"
-                    >
-                      <option disabled value="">Selecione</option>
-                      <option
-                        v-for="e in pecaSelecionada.etapas"
-                        :key="e.id"
-                        :value="e.id_da_funcao"
-                      >
-                        {{ e.etapa.descricao }}
-                      </option>
-                    </select>
-                  </td>
+                <select v-model="slot.id_da_funcao">
+                  <option disabled value="">Etapa</option>
+                  <option
+                    v-for="e in pecaSelecionada.etapas"
+                    :key="e.id_da_funcao"
+                    :value="e.id_da_funcao"
+                  >
+                    {{ e.etapa.descricao }}
+                  </option>
+                </select>
 
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      class="form-control form-control-sm"
-                      v-model.number="linha.quantidade_pecas"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Qtd"
+                  v-model.number="slot.quantidade_pecas"
+                />
+              </div>
 
-            <div class="text-end mt-3">
+            </div>
+
+            <div class="text-end mt-4">
               <button class="btn btn-success" @click="salvarProducaoDoDia">
                 💾 Salvar produção do dia
               </button>
             </div>
           </div>
         </div>
-
+        <GraficoProducaoPorDia :dados="producao"  class="mb-4 mt-4"/>
       </div>
     </main>
   </div>
 </template>
+
 <script>
 import Sidebar from '@/components/Sidebar.vue'
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue'
 import api from '@/Axios'
 import { useAuthStore } from '@/store/store'
 import Swal from 'sweetalert2'
+import carregandoTela from '@/components/carregandoTela.vue'
+import GraficoProducaoPorDia from '@/components/GraficoProducaoPorDia.vue'
 
 export default {
   name: 'ProducaoPorFuncionario',
-  components: { Sidebar, TituloSubtitulo },
+  components: { Sidebar, TituloSubtitulo, carregandoTela, GraficoProducaoPorDia },
 
   data() {
     return {
       funcionario: null,
       pecas: [],
       pecaSelecionada: null,
-
+      producao: [],
       horariosFixos: [
         "07:00", "08:00", "09:00", "10:00",
         "11:00", "11:30", "12:00", "13:00",
         "14:00", "15:00", "16:00", "17:00",
         "17:30", "18:00"
       ],
-
+      carregando: false,
       tabelaProducao: [],
       idFuncionario: this.$route.params.emailFuncionario
     }
@@ -147,25 +138,38 @@ export default {
   },
 
   watch: {
-    pecaSelecionada() {
-      if (!this.pecaSelecionada) return
+  pecaSelecionada() {
+    if (!this.pecaSelecionada || !this.funcionario) return
 
-      // monta tabela fixa automaticamente
-      this.tabelaProducao = this.horariosFixos.map(hora => ({
-        hora,
-        id_da_funcao: null,
-        quantidade_pecas: null
-      }))
-    }
-  },
+    this.tabelaProducao = this.horariosFixos.map(hora => ({
+      hora,
+      id_da_funcao: null,
+      quantidade_pecas: null,
+      jaRegistrado: false
+    }))
+
+    this.funcionario.producao_funcionario.forEach(producao => {
+      const slot = this.tabelaProducao.find(
+        s => s.hora === producao.hora_registro
+      )
+
+      if (slot) {
+        slot.id_da_funcao = producao.id_da_funcao
+        slot.quantidade_pecas = producao.quantidade_pecas
+        slot.jaRegistrado = true
+      }
+    })
+  }
+},
 
   methods: {
     async carregarDados() {
+      this.carregando = true
       const res = await api.get(`/funcionario/${this.idFuncionario}`, {
         headers: { Authorization: this.store.pegar_token }
       })
       this.funcionario = res.data.funcionario
-      console.log(this.funcionario)
+      this.carregando = false
     },
 
     async carregarPecas() {
@@ -173,10 +177,16 @@ export default {
         headers: { Authorization: this.store.pegar_token }
       })
       this.pecas = data.peca.em_progresso
-      console.log(this.pecas)
     },
-
+    async producaoFuncionario() {
+      const { data } = await api.get(`/producao/funcionario/${this.idFuncionario}`, {
+        headers: { Authorization: this.store.pegar_token }
+      })
+      this.producao = data
+      console.log(this.producao)  
+    },
     async salvarProducaoDoDia() {
+      this.carregando = true
       const producoes = this.tabelaProducao
         .filter(l => l.id_da_funcao && l.quantidade_pecas > 0)
         .map(l => ({
@@ -197,337 +207,105 @@ export default {
       })
 
       Swal.fire('Sucesso', 'Produção do dia salva!', 'success')
+      this.carregando = false
+      this.carregarPecas()
     }
   },
 
   mounted() {
     this.carregarDados()
     this.carregarPecas()
+    this.producaoFuncionario()
   }
 }
 </script>
 
 
 <style scoped>
+  p{
+    display: flex;
+  }
 .content-wrapper {
-  flex-grow: 1;
   padding-left: 200px;
-  width: 100%;
-}
-
-.btn {
-  background-color: var(--verde-escuro);
-}
-
-.modal-background {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-}
-
-.modal-container {
-  background: #fff;
-  border-radius: 16px;
-  max-width: 520px;
-  width: 90%;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
-  overflow: hidden;
-  font-family: 'Montserrat', sans-serif;
-  animation: fadeInUp 0.3s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  background: linear-gradient(90deg, #145a32, #008d3b);
-  color: white;
-  padding: 16px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h2 {
-  font-size: 20px;
-  margin: 0;
-  font-weight: 600;
-}
-
-.modal-close {
-  width: 24px;
-  height: 24px;
-  cursor: pointer;
-  filter: brightness(0) invert(1);
-}
-
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.modal-body .info-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.input-field,
-.input-select {
-  width: 100%;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  background-color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.input-field:focus,
-.input-select:focus {
-  outline: none;
-  border-color: #008d3b;
-  box-shadow: 0 0 0 2px rgba(0, 141, 59, 0.2);
-}
-
-.modal-footer {
-  padding: 15px 20px;
-  background: #f7f7f7;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.btn-cancel {
-  padding: 10px 18px;
-  border: none;
-  border-radius: 8px;
-  background: #ccc;
-  color: #333;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-.btn-cancel:hover {
-  background: #aaa;
-}
-
-.btn-save {
-  width: 100%;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  background: #145a32;
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-.btn-save:hover {
-  background: #006f2e;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-label {
-  display: flex;
-}
-
-/* Botão Salvar */
-.btn-save {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #145a32, #008d3b);
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-.btn-save:hover {
-  background: linear-gradient(90deg, #0f4d28, #00692b);
 }
 
 @media (max-width: 768px) {
   .content-wrapper {
-    padding-left: 0px;
+    padding-left: 0;
   }
 }
 
-@media (min-width: 768px) and (max-width: 1024px) {
-  .content-wrapper {
-    padding-left: 0px;
-  }
-}
-/* =========================
-   CONTAINER DA TABELA
-========================= */
-.table-responsive {
-  background: #f5f7f9;
-  padding: 16px;
-  border-radius: 14px;
+/* GRID PRINCIPAL */
+.producao-grid {
+  display: flex;
+  flex-wrap: wrap; 
+  gap: 14px;
 }
 
-/* =========================
-   TABELA BASE
-========================= */
-.table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 10px;
-  background: transparent;
-  font-family: 'Montserrat', sans-serif;
-}
-
-/* =========================
-   CABEÇALHO
-========================= */
-.table thead th {
-  background: transparent;
-  color: #5c6b73;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 6px 10px;
-  border: none;
-}
-
-/* =========================
-   LINHAS (CARD HORIZONTAL)
-========================= */
-.table tbody tr {
+/* SLOT DE HORÁRIO */
+.producao-slot {
+  width: 180px;
   background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   transition: all 0.2s ease;
 }
 
-/* Hover */
-.table tbody tr:hover {
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
-}
-
-/* Células */
-.table tbody td {
-  padding: 14px 12px;
-  font-size: 13px;
-  color: #2f2f2f;
-  border: none;
-}
-
-/* Arredondamento lateral */
-.table tbody tr td:first-child {
-  border-top-left-radius: 12px;
-  border-bottom-left-radius: 12px;
-}
-
-.table tbody tr td:last-child {
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
-}
-
-/* =========================
-   LINHA PREENCHIDA
-========================= */
-.linha-preenchida {
-  background: #f0f9f4 !important;
-  border-left: 4px solid #198754;
-}
-
-/* =========================
-   HORA
-========================= */
-.hora-badge {
-  display: inline-block;
-  min-width: 64px;
-  padding: 6px 10px;
-  background: #eef1f4;
-  color: #344054;
-  font-weight: 600;
-  font-size: 13px;
-  border-radius: 8px;
-}
-
-/* =========================
-   SELECT E INPUT
-========================= */
-.form-select-sm,
-.form-control-sm {
-  width: 100%;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid #d0d5dd;
-  background: #ffffff;
-  font-size: 13px;
-  padding: 6px 10px;
-  transition: all 0.15s ease;
-}
-
-/* Focus */
-.form-select-sm:focus,
-.form-control-sm:focus {
-  outline: none;
+/* SLOT PREENCHIDO */
+.producao-slot.preenchido {
   border-color: #198754;
-  box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.15);
+  background: #f0f9f4;
 }
 
-/* Quantidade centralizada */
-.form-control-sm[type="number"] {
+/* HORA */
+.slot-hora {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  background: #eef2f6;
+  color: #344054;
+  border-radius: 999px;
+  padding: 4px 0;
+}
+
+/* SELECT */
+.producao-slot select {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d0d5dd;
+  font-size: 13px;
+}
+
+/* INPUT */
+.producao-slot input {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #d0d5dd;
   text-align: center;
   font-weight: 600;
 }
 
-/* =========================
-   BOTÃO SALVAR
-========================= */
-.btn-success {
-  background: #198754;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 26px;
-  font-size: 14px;
-  font-weight: 600;
+/* FOCUS */
+.producao-slot select:focus,
+.producao-slot input:focus {
+  outline: none;
+  border-color: #198754;
+  box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.15);
+}
+/* Slot já registrado */
+.producao-slot.ja-registrado {
+  background: #eef4ff;
+  border-color: #4c6ef5;
 }
 
-.btn-success:hover {
-  background: #157347;
-}
-
-/* =========================
-   RESPONSIVO
-========================= */
-@media (max-width: 768px) {
-  .table {
-    border-spacing: 0 6px;
-  }
-
-  .table tbody td {
-    padding: 10px 8px;
-  }
+/* Hora destacada */
+.producao-slot.ja-registrado .slot-hora {
+  background: #4c6ef5;
+  color: #fff;
 }
 
 </style>
