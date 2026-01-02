@@ -5,45 +5,28 @@
       <div class="container-fluid py-3">
         <div class="form col-12">
 
-          <!-- Título -->
           <TituloSubtitulo titulo="Produção por Funcionário" subtitulo="Visualize a produção diária de cada funcionário"
             icone="fa-solid fa-chart-bar" />
-
-          <!-- Dados do Funcionário -->
           <div v-if="funcionario" class="card shadow-lg border-2 mt-4 position-relative">
             <div class="card-header bg-light fw-bold border-bottom">
               👤 Dados do Funcionário
             </div>
             <div class="card-body d-flex flex-row align-items-center gap-3">
-              <!-- Foto -->
               <img :src="funcionario.foto || 'https://via.placeholder.com/100'" alt="Foto do Funcionário"
                 class="rounded-circle border shadow-sm" style="width: 100px; height: 100px; object-fit: cover;" />
-
-              <!-- Dados ao lado -->
               <div class="flex-grow-1 text-start">
                 <p class="mb-1"><b>Nome:</b> {{ funcionario.nome }}</p>
                 <p class="mb-1"><b>Email:</b> {{ funcionario.email }}</p>
                 <p class="mb-0"><b>Função:</b> {{ funcionario.funcao }}</p>
               </div>
-
-              <!-- Botão -->
-
-            </div>
-            <div class="ms-auto">
-              <button class="btn" @click="abrirModal">
-                Registrar Produção
-              </button>
             </div>
           </div>
-
-
-          <!-- Produção do Funcionário -->
+          <GraficoProducaoPorDia   :dados="producao" class="mt-4" />
           <div v-if="producao.length" class="card shadow-sm border-0 mt-4">
             <div class="card-header bg-light fw-bold border-bottom">
               📊 Produção Registrada
             </div>
             <div class="card-body">
-              <!-- Container para scroll horizontal -->
               <div class="table-responsive">
                 <table class="table table-sm table-striped align-middle text-center">
                   <thead class="table-primary">
@@ -73,60 +56,6 @@
         </div>
       </div>
     </main>
-
-    <!-- Modal Customizado -->
-    <div v-if="modalAberto" class="modal-background">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h2>⏱ Registrar Produção</h2>
-          <span class="modal-close" @click="fecharModal">×</span>
-        </div>
-
-        <div class="modal-body">
-          <!-- Cronômetro -->
-          <div class="w-100 d-flex justify-content-center mb-3">
-            <div :class="['cronometro-box', { running: rodando }]">
-              {{ formatarTempo(tempo) }}
-            </div>
-          </div>
-
-          <!-- Etapa -->
-          <div class="mb-2 flex-grow-1">
-            <label class="label">Etapa</label>
-            <select v-model="funcaoSelecionada" class="form-select form-select-sm w-100">
-              <option v-for="f in funcoes" :key="f.id_da_funcao" :value="f.etapa.id_da_funcao">
-                {{ f.etapa.descricao }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Quantidade -->
-          <div class="mb-3 flex-grow-1">
-            <label class="label">Quantidade Produzida</label>
-            <input v-model="quantidadeProduzida" type="number" class="form-control form-control-sm" min="1" />
-          </div>
-
-          <!-- Botões cronômetro -->
-          <div class="cronometro-buttons mb-3">
-            <button class="btn-iniciar" @click="iniciarCronometro" :disabled="rodando">
-              <i class="bi bi-play-fill me-1"></i> Iniciar
-            </button>
-            <button class="btn-pausar" @click="pausarCronometro" :disabled="!rodando">
-              <i class="bi bi-pause-fill me-1"></i> Pausar
-            </button>
-            <button class="btn-resetar" @click="resetarCronometro">
-              <i class="bi bi-stop-fill me-1"></i> Resetar
-            </button>
-          </div>
-
-
-          <!-- Botão salvar -->
-          <div>
-            <button class="btn-save" @click="registrarProducao">Salvar Produção</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 <script>
@@ -134,11 +63,11 @@ import Sidebar from '@/components/Sidebar.vue';
 import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
 import api from '@/Axios';
 import { useAuthStore } from '@/store/store';
-import Swal from 'sweetalert2';
+import GraficoProducaoPorDia from '@/components/GraficoProducaoPorDia.vue';
 
 export default {
   name: 'ProducaoPorFuncionario',
-  components: { Sidebar, TituloSubtitulo },
+  components: { Sidebar, TituloSubtitulo, GraficoProducaoPorDia },
   data() {
     return {
       modalAberto: false,
@@ -161,44 +90,17 @@ export default {
     abrirModal() {
       this.modalAberto = true;
     },
-    fecharModal() {
-      this.modalAberto = false;
-      this.resetarCronometro();
-      this.quantidadeProduzida = 0;
-      this.funcaoSelecionada = null;
-    },
-    formatarMinutosDecimais(valor) {
-      console.log(valor)
-      const minutos = Math.floor(valor); // parte inteira
-      const segundos = Math.round((valor - minutos) * 60); // parte decimal * 60
-      return `${minutos}m ${segundos}s`;
-    },
     async carregarDados() {
       try {
         const funcionario = await api.get(`/funcionario/${this.idFuncionario}`, {
           headers: { Authorization: this.store.pegar_token }
         });
         this.funcionario = funcionario.data.funcionario;
-
-        const res = await api.get(`/tempo/referencia/${this.idFuncionario}`, {
+        console.log(this.funcionario);
+        const producao = await api.get(`/producao/funcionario/${this.idFuncionario}`, {
           headers: { Authorization: this.store.pegar_token }
         });
-
-        const temposObj = res.data.tempo || {};
-        const tempos = Object.keys(temposObj)
-          .filter(key => !isNaN(key))
-          .map(key => temposObj[key]);
-
-        this.producao = tempos.map(item => {
-          const producaoPorMinuto = item.tempo_minutos
-            ? item.quantidade_pecas / item.tempo_minutos
-            : 0;
-          const tempoDisponivel = 480;
-          const eficiencia = 0.85;
-          const producaoProjetada = Math.round(producaoPorMinuto * tempoDisponivel * eficiencia);
-
-          return { ...item, producaoPorMinuto, producaoProjetada };
-        });
+        this.producao = producao.data;
 
       } catch (err) {
         console.error('Erro ao carregar dados', err);
@@ -215,66 +117,6 @@ export default {
         console.error("Erro ao carregar funções", err);
       }
     },
-
-    iniciarCronometro() {
-      if (!this.rodando) {
-        this.rodando = true;
-        this.intervalo = setInterval(() => {
-          this.tempo++;
-        }, 1000);
-      }
-    },
-    pausarCronometro() {
-      clearInterval(this.intervalo);
-      this.rodando = false;
-    },
-    resetarCronometro() {
-      clearInterval(this.intervalo);
-      this.tempo = 0;
-      this.rodando = false;
-    },
-    formatarTempo(segundos) {
-      const min = Math.floor(segundos / 60).toString().padStart(2, "0");
-      const sec = (segundos % 60).toString().padStart(2, "0");
-      return `${min}:${sec}`;
-    },
-    async registrarProducao() {
-      try {
-        const minutos = this.tempo / 60;
-        await api.post("/registrar/tempo", {
-          id_funcionario: this.idFuncionario,
-          id_da_funcao: this.funcaoSelecionada,
-          tempo_minutos: minutos,
-          quantidade_pecas: this.quantidadeProduzida,
-        }, {
-          headers: { Authorization: this.store.pegar_token }
-        });
-        this.resetarCronometro();
-        this.quantidadeProduzida = 0;
-        this.carregarDados();
-        this.fecharModal();
-        Swal.fire({
-          toast: true,               // ativa estilo de notificação
-          position: 'top-end',       // canto superior direito
-          icon: 'success',           // 'success', 'error', 'warning', 'info', 'question'
-          title: 'Produção adicionada com sucesso',
-          showConfirmButton: false,  // sem botão de confirmação
-          timer: 5000,               // desaparece sozinho em 3s
-          timerProgressBar: true,    // barra de tempo
-        });
-      } catch (err) {
-        Swal.fire({
-          toast: true,               // ativa estilo de notificação
-          position: 'top-end',       // canto superior direito
-          icon: 'error',           // 'success', 'error', 'warning', 'info', 'question'
-          title: 'Erro ao adicionar produção',
-          showConfirmButton: false,  // sem botão de confirmação
-          timer: 5000,               // desaparece sozinho em 3s
-          timerProgressBar: true,    // barra de tempo
-        });
-        console.error("Erro ao registrar produção", err);
-      }
-    }
   },
   mounted() {
     this.carregarDados();

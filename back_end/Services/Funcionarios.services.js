@@ -28,18 +28,59 @@ async function getFuncionarios(cnpj) {
   }
   return funcionarios;
 }
-
 async function getFuncionario(email) {
+  const inicioHoje = new Date();
+  inicioHoje.setHours(0, 0, 0, 0);
+
+  const fimHoje = new Date();
+  fimHoje.setHours(23, 59, 59, 999);
+
   const funcionario = await prisma.usuarios.findUnique({
-    where: { email }
+    where: { email },
+    include: {
+      producao_funcionario: {
+        where: {
+          data_inicio: {
+            gte: inicioHoje,
+            lte: fimHoje,
+          },
+        },
+        select: {
+          id_da_producao: true,
+          quantidade_pecas: true,
+          data_inicio: true,
+          hora_registro: true,
+
+          producao_etapa: {
+            select: {
+              descricao: true,
+              tempo_padrao: true,
+            },
+          },
+
+          producao_peca: {
+            select: {
+              descricao: true,
+            },
+          },
+        },
+        orderBy: {
+          hora_registro: 'asc',
+        },
+      },
+    },
   });
-  if (!funcionario) throw new Error('Funcionário não encontrado');
+
+  if (!funcionario) {
+    throw new Error('Funcionário não encontrado');
+  }
+
   return funcionario;
 }
 
+
 async function postFuncionario(funcionario, cnpj) {
 
-  // Verifica se o email já existe
   const usuarioExistente = await prisma.usuarios.findUnique({
     where: { email: funcionario.email }
   });
@@ -77,70 +118,116 @@ async function postFuncionario(funcionario, cnpj) {
   return addFuncionario;
 }
 
-async function getProducaoFuncionario(req) {
-  const email = req;
-
+async function getProducaoFuncionario(email, cnpjEstabelecimento) {
   try {
+
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+
+    const inicioPeriodo = new Date();
+    inicioPeriodo.setDate(hoje.getDate() - 29);
+    inicioPeriodo.setHours(0, 0, 0, 0);
+
+    const estabelecimento = await prisma.estabelecimento.findUnique({
+      where: { cnpj: cnpjEstabelecimento },
+      select: { tempo_de_producao: true },
+    });
+
+    const tempoDisponivel = estabelecimento?.tempo_de_producao || 480;
+
     const producoes = await prisma.producao.findMany({
       where: {
         id_funcionario: email,
+        //id_Estabelecimento: cnpjEstabelecimento,
+        data_inicio: {
+          gte: inicioPeriodo,
+          lte: hoje,
+        },
       },
       select: {
         quantidade_pecas: true,
         data_inicio: true,
-        hora_registro: true,
+        producao_etapa: {
+          select: {
+            id_da_funcao: true,
+            descricao: true,
+            tempo_padrao: true,
+          },
+        },
       },
     });
+    const dias = {};
 
-    const hoje = new Date();
-    const diaHoje = hoje.getDate();
-    const mesHoje = hoje.getMonth();
-    const anoHoje = hoje.getFullYear();
+    for (const prod of producoes) {
+      if (!prod.quantidade_pecas || !prod.producao_etapa) continue;
 
-    const agrupadoPorData = {};
-    const producaoHojeSeparada = [];
+      const data = prod.data_inicio.toISOString().split('T')[0];
+      const etapaId = prod.producao_etapa.id_da_funcao;
 
-    for (const producao of producoes) {
-      if (!producao.data_inicio) continue; // ← ignora entradas inválidas
-
-      const dataCompleta = new Date(producao.data_inicio);
-      if (isNaN(dataCompleta.getTime())) continue; // ← ignora se data inválida
-
-      const dataStr = dataCompleta.toISOString().split('T')[0];
-
-      // Agrupamento histórico
-      if (!agrupadoPorData[dataStr]) {
-        agrupadoPorData[dataStr] = 0;
+      if (!dias[data]) {
+        dias[data] = {};
       }
-      agrupadoPorData[dataStr] += producao.quantidade_pecas || 0;
 
-      // Comparar com data de hoje
-      if (
-        dataCompleta.getDate() === diaHoje &&
-        dataCompleta.getMonth() === mesHoje &&
-        dataCompleta.getFullYear() === anoHoje
-      ) {
-        const hora = producao.hora_registro?.substring(0, 5) || '00:00';
-        producaoHojeSeparada.push({
-          hora,
-          quantidade: producao.quantidade_pecas || 0,
-        });
+      if (!dias[data][etapaId]) {
+        dias[data][etapaId] = {
+          etapa: prod.producao_etapa.descricao,
+          tempo_padrao: prod.producao_etapa.tempo_padrao || 0,
+          quantidade_produzida: 0,
+        };
       }
+
+      dias[data][etapaId].quantidade_produzida += prod.quantidade_pecas;
     }
+    const resultado = Object.entries(dias).map(([data, etapas]) => {
+      const eficienciaPorEtapa = Object.values(etapas).map(et => {
+        const tempoNecessario =
+          et.quantidade_produzida * et.tempo_padrao;
 
-    const resultadoHistorico = Object.entries(agrupadoPorData)
-      .filter(([data]) => !isNaN(new Date(data).getTime())) // evita datas inválidas
-      .map(([data, total]) => ({ data, quantidade: total }))
-      .sort((a, b) => new Date(a.data) - new Date(b.data));
+        const eficiencia =
+          tempoDisponivel > 0
+            ? (tempoNecessario / tempoDisponivel) * 100
+            : 0;
 
-    const resultadoHoje = producaoHojeSeparada.sort((a, b) => a.hora.localeCompare(b.hora));
+        return {
+          etapa: et.etapa,
+          quantidade_produzida: et.quantidade_produzida,
+          tempo_padrao: et.tempo_padrao,
+          tempo_necessario: Number(tempoNecessario.toFixed(2)),
+          eficiencia_percentual: Number(eficiencia.toFixed(2)),
+        };
+      });
 
+      const tempoTotalNecessario = eficienciaPorEtapa.reduce(
+        (acc, e) => acc + e.tempo_necessario,
+        0
+      );
+
+      const eficienciaTotal =
+        tempoDisponivel > 0
+          ? (tempoTotalNecessario / tempoDisponivel) * 100
+          : 0;
+
+      return {
+        data,
+        tempo_disponivel_min: tempoDisponivel,
+        eficiencia_total_percentual: Number(eficienciaTotal.toFixed(2)),
+        eficiencia_por_etapa: eficienciaPorEtapa,
+      };
+    });
+
+    resultado.sort((a, b) => new Date(a.data) - new Date(b.data));
     return {
-      historico: resultadoHistorico,
-      producao_hoje: resultadoHoje,
+      funcionario: email,
+      periodo: {
+        inicio: inicioPeriodo.toISOString().split('T')[0],
+        fim: hoje.toISOString().split('T')[0],
+      },
+      dias: resultado,
     };
+
   } catch (error) {
-    return { error: error.message };
+    console.error('Erro ao calcular eficiência:', error);
+    throw new Error('Erro ao calcular eficiência do funcionário');
   }
 }
 

@@ -375,6 +375,7 @@ export default {
           params: { filtro: this.filtro },
         });
         this.producao = res.data;
+        console.log('Produção carregada:', this.producao);
       } catch (err) {
         console.error('Erro ao buscar produção:', err);
         this.producao = { producaoDia: { funcionarios: [] } };

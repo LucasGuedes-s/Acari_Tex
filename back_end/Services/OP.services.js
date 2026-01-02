@@ -881,7 +881,6 @@ async function getEtapas(req) {
     ...e,
     melhorFuncionario: melhorPorEtapa[e.id_da_funcao] || null
   }));
-  console.log(resultado);
   return resultado;
 }
 
