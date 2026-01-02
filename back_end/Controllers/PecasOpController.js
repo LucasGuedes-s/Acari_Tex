@@ -38,6 +38,15 @@ async function postProducaoPeca(req, res, next){
         }
     }
 }
+async function postProducaoPecaLote(req, res, next){
+    try {
+        const resultado = await pecas.postProducaoPecaLote(req);
+        res.status(200).json({ registros: resultado.registros });
+    } catch (err) {
+        console.error("Erro ao registrar produção em lote:", err);
+        next(err);
+    }
+}
 async function getProducao(req, res, next){
     try {
         const peca = await pecas.getEtapasProducaoPorEstabelecimento(req.user);
@@ -206,6 +215,7 @@ module.exports = {
     postOP, 
     getOPs,
     postProducaoPeca,
+    postProducaoPecaLote,
     getProducao,
     updatePecaStatus,
     getProducaoEquipe,

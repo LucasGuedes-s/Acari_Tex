@@ -160,6 +160,113 @@ async function postProducaoPeca(req, res) {
     return res.status(500).json({ error: "Erro ao registrar produção." });
   }
 }
+async function postProducaoPecaLote(req, res) {
+  try {
+    const { producoes } = req.body;
+    const id_Estabelecimento = req.user.cnpj;
+    if (!Array.isArray(producoes) || !producoes.length) {
+      return res.status(400).json({ error: 'Nenhuma produção informada.' });
+    }
+
+    // 🔹 Agrupa por OP + etapa
+    const agrupadas = {};
+
+    for (const p of producoes) {
+      const key = `${p.id_da_op}_${p.id_da_funcao}`;
+      if (!agrupadas[key]) agrupadas[key] = [];
+      agrupadas[key].push(p);
+    }
+
+    // 🔹 Validação de metas por etapa
+    for (const key in agrupadas) {
+      const grupo = agrupadas[key];
+      const { id_da_op, id_da_funcao } = grupo[0];
+
+      const etapa = await prisma.pecasEtapas.findUnique({
+        where: {
+          id_da_op_id_da_funcao: { id_da_op, id_da_funcao }
+        }
+      });
+
+      if (!etapa) {
+        return res.status(404).json({
+          error: `Etapa ${id_da_funcao} não encontrada para OP ${id_da_op}`
+        });
+      }
+
+      const totalNovo = grupo.reduce(
+        (sum, p) => sum + Number(p.quantidade_pecas || 0),
+        0
+      );
+
+      const producaoAtual = await prisma.producao.aggregate({
+        _sum: { quantidade_pecas: true },
+        where: { id_da_op, id_da_funcao }
+      });
+
+      const jaProduzido = producaoAtual._sum.quantidade_pecas || 0;
+
+      if (jaProduzido + totalNovo > etapa.quantidade_meta) {
+        return res.status(400).json({
+          error: 'Produção excede a meta da etapa.',
+          id_da_op,
+          id_da_funcao,
+          jaProduzido,
+          meta: etapa.quantidade_meta
+        });
+      }
+    }
+
+    // 🔹 Criação em TRANSAÇÃO
+    const resultado = await prisma.$transaction(
+      producoes.map(p =>
+        prisma.producao.create({
+          data: {
+            id_da_op: p.id_da_op,
+            id_da_funcao: p.id_da_funcao,
+            id_funcionario: p.id_funcionario,
+            quantidade_pecas: p.quantidade_pecas,
+            hora_registro: p.hora_registro,
+            id_Estabelecimento,
+            data_inicio: getData()
+          }
+        })
+      )
+    );
+
+    // 🔹 Atualiza status das etapas concluídas
+    for (const key in agrupadas) {
+      const grupo = agrupadas[key];
+      const { id_da_op, id_da_funcao } = grupo[0];
+
+      const soma = await prisma.producao.aggregate({
+        _sum: { quantidade_pecas: true },
+        where: { id_da_op, id_da_funcao }
+      });
+
+      const etapa = await prisma.pecasEtapas.findUnique({
+        where: {
+          id_da_op_id_da_funcao: { id_da_op, id_da_funcao }
+        }
+      });
+
+      if (soma._sum.quantidade_pecas === etapa.quantidade_meta) {
+        await prisma.pecasEtapas.update({
+          where: {
+            id_da_op_id_da_funcao: { id_da_op, id_da_funcao }
+          },
+          data: { status: 'CONCLUIDA' }
+        });
+      }
+    }
+
+    return { registros: resultado.length };
+
+  } catch (err) {
+    console.error('Erro ao registrar produção em lote:', err);
+    return res.status(500).json({ error: 'Erro interno ao registrar produção.' });
+  }
+}
 
 async function getPecasOP(req) {
   const cnpj = req.cnpj;
@@ -1198,6 +1305,7 @@ module.exports = {
   postPecaOP,
   getPecasOP,
   postProducaoPeca,
+  postProducaoPecaLote,
   getEtapasProducaoPorPeca,
   getEtapasProducaoPorEstabelecimento,
   updatePecaStatus,
