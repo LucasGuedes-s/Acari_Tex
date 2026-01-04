@@ -243,9 +243,10 @@ export default {
     this.socket = io('https://acari-tex.onrender.com');
     const cnpj = this.store.pegar_usuario?.cnpj || 'desconhecido';
     //console.log('Conectado ao Socket.io com CNPJ:', cnpj);  
-    this.socket.on(`nova_peca_${cnpj}`, () => {
+    this.socket.on(`nova_atualizacao_${cnpj}`, () => {
       this.fetchData();
       this.producaoPecas();
+      this.getIntercorrencias();
       Swal.fire({
         toast: true,
         position: 'top-end',

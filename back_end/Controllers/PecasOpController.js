@@ -3,7 +3,7 @@ const Estatisticas = require('../Controllers/EstatisticasController');
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
-        req.io.emit(`nova_peca_${req.user.cnpj}`, novaPeca); // Notifica todos os clientes conectados sobre a nova peça
+        req.io.emit(`nova_atualizacao_${req.user.cnpj}`, novaPeca); // Notifica todos os clientes conectados sobre a nova peça
         res.status(201).json({novaPeca});
     } catch (err) {
         console.error(`Erro ao adicionar`, err.message);
@@ -26,7 +26,7 @@ async function postProducaoPeca(req, res, next){
         Estatisticas.estatisticasEquipe(req, req.body.id_funcionario).catch(err => {
             console.error("Erro ao atualizar estatísticas:", err);
         });
-        req.io.emit('nova_producao', peca);
+        req.io.emit(`nova_atualizacao_${req.user.cnpj}`, peca);
         res.status(200).json({peca});
     } catch (err) {
         try {
