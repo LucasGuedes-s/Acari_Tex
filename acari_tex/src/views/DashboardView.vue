@@ -14,7 +14,8 @@
             <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
           </div>
           <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso" class="bg-light-blue" />
+            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
+              class="bg-light-blue" />
           </div>
           <div class="d-block d-md-none col-6 mb-3">
             <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
@@ -23,10 +24,14 @@
             <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
           </div>
 
-          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" />
-          <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso" />
-          <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" />
-          <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" />
+          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Não iniciadas"
+            :count="pecasNaoIniciadas" />
+          <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento"
+            :count="pecasEmProgresso" />
+          <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta"
+            :count="pecasColeta" />
+          <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
+            :count="pecasConcluidas" />
         </section>
 
         <ConteinersDashboard />
@@ -36,7 +41,8 @@
 
             <div class="filtro-container">
               <label class="filtro-label">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 14.414V19a1 1 0 01-1.447.894l-4-2A1 1 0 019 17v-2.586L3.293 6.707A1 1 0 013 6V4z" />
                 </svg>
@@ -50,7 +56,8 @@
 
             <button class="botao-acao" @click="exportarPDF">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 2a2 2 0 00-2 2v16c0 1.1.9 2 2 2h6v-2H6V4h12v5h2V4a2 2 0 00-2-2H6zm7 14v2h5v2h2v-2h2v-2h-2v-2h-2v2h-5z"/>
+                <path
+                  d="M6 2a2 2 0 00-2 2v16c0 1.1.9 2 2 2h6v-2H6V4h12v5h2V4a2 2 0 00-2-2H6zm7 14v2h5v2h2v-2h2v-2h-2v-2h-2v2h-5z" />
               </svg>
               Exportar PDF
             </button>
@@ -64,8 +71,9 @@
             </button>-->
 
             <button class="botao-acao botao-improdutivo" @click="abrirModalImprodutivo">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 8v4l3 3m6-3a9 9 0 11-9-9 9 9 0 019 9z" />
               </svg>
               Tempo improdutivo
@@ -75,17 +83,15 @@
           <div>
             <GraficoEtapas class="mb-4" />
             <GradicoProducaoPorEtapa class="mb-4" />
-            <GraficoProducaoTotal :filtro="filtro"  v-if="producao?.producao?.producaoDia?.funcionarios?.length" :producaoDados="producao" class="mb-4" />
-            <GraficoProducaoIndividual :filtro="filtro"  v-if="producao?.producao?.producaoDia?.funcionarios?.length" :producaoDados="producao" class="mb-4" />
-            <ProducaoPorPeca  v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
+            <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+              :producaoDados="producao" class="mb-4" />
+            <GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+              :producaoDados="producao" class="mb-4" />
+            <ProducaoPorPeca v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
             <GraficoProducaoPecas class="mb-4" />
 
-            <GraficosIntercorrencias
-              :porClassificacao="porClassificacao"
-              :porNotas="porNotas"
-              :linhaTemporal="linhaTemporal"
-              :porFuncionario="porFuncionario"
-            /> 
+            <GraficosIntercorrencias :porClassificacao="porClassificacao" :porNotas="porNotas"
+              :linhaTemporal="linhaTemporal" :porFuncionario="porFuncionario" />
           </div>
 
         </div>
@@ -108,10 +114,10 @@
 
               <label class="modal-label">Notas*</label>
               <select v-model="formIntercorrencia.notas" class="modal-input">
-                 <option disabled value="">Selecione</option>
-                  <option v-for="motivo in motivosDeParada" :key="motivo" :value="motivo">
-                    {{ motivo }}
-                  </option>
+                <option disabled value="">Selecione</option>
+                <option v-for="motivo in motivosDeParada" :key="motivo" :value="motivo">
+                  {{ motivo }}
+                </option>
               </select>
 
               <label class="modal-label">Classificação*</label>
@@ -262,10 +268,86 @@ export default {
 
       if (!token || !usuario) router.push('/');
     },
-    exportarPDF() {
-      console.log(this.pecas)
-      console.log(this.store.pegar_usuario)
-      gerarPdfOPs(this.pecas.em_progresso);
+    async exportarPDF() {
+      const statusOptions = {
+        em_progresso: "Em progresso",
+        finalizado: "Finalizadas",
+        coleta: "Em coleta",
+        nao_iniciado: "Não iniciadas"
+      };
+
+      // 1️⃣ Escolher status
+      const { value: status } = await Swal.fire({
+        title: "Selecionar status das peças",
+        input: "select",
+        inputOptions: statusOptions,
+        inputPlaceholder: "Selecione o status",
+        showCancelButton: true,
+        confirmButtonColor: "#0d3927",
+        cancelButtonText: "Cancelar",
+        confirmButtonText: "Continuar"
+      });
+
+      if (!status) return;
+
+      const pecas = this.pecas[status] || [];
+
+      if (!pecas.length) {
+        Swal.fire("Nenhuma peça encontrada", "", "info");
+        return;
+      }
+
+      // 2️⃣ Montar lista de checkboxes
+      const html = pecas
+        .map(
+          peca => `
+      <div style="text-align:left;margin-bottom:8px">
+        <label>
+          <input type="checkbox" value="${peca.id_da_op}" class="swal-peca">
+          <strong>${peca.descricao}</strong>
+          <small style="display:block;color:#666">
+            OP #${peca.id_da_op} · ${peca.quantidade_pecas} peças
+          </small>
+        </label>
+      </div>
+    `
+        )
+        .join("");
+
+      // 3️⃣ Selecionar peças
+      const { isConfirmed } = await Swal.fire({
+        title: "Selecionar peças para o PDF",
+        html,
+        width: 600,
+        confirmButtonColor: "#0d3927",
+        confirmButtonText: "Gerar PDF",
+        showCancelButton: true,
+        cancelButtonText: "Cancelar",
+        preConfirm: () => {
+          const selecionadas = [
+            ...document.querySelectorAll(".swal-peca:checked")
+          ].map(el => Number(el.value));
+
+          if (!selecionadas.length) {
+            Swal.showValidationMessage("Selecione ao menos uma peça");
+          }
+
+          return selecionadas;
+        }
+      });
+
+      if (!isConfirmed) return;
+
+      const idsSelecionados = [
+        ...document.querySelectorAll(".swal-peca:checked")
+      ].map(el => Number(el.value));
+
+      const pecasSelecionadas = pecas.filter(peca =>
+        idsSelecionados.includes(peca.id_da_op)
+      );
+
+      gerarPdfOPs(pecasSelecionadas);
+
     },
     irPara() {
       router.push('/Producao');
@@ -297,40 +379,40 @@ export default {
 
     },
     processarDados() {
-        const porClassificacao = {};
-        const porNotas = {};
-        const linhaTemporal = {};
-        const porFuncionario = {};
+      const porClassificacao = {};
+      const porNotas = {};
+      const linhaTemporal = {};
+      const porFuncionario = {};
 
-        this.intercorrencias.forEach(item => {
-          // Classificação
-          porClassificacao[item.classificacao] =
-            (porClassificacao[item.classificacao] || 0) + item.tempo_perda;
+      this.intercorrencias.forEach(item => {
+        // Classificação
+        porClassificacao[item.classificacao] =
+          (porClassificacao[item.classificacao] || 0) + item.tempo_perda;
 
-          // Notas / Motivo
-          porNotas[item.notas] =
-            (porNotas[item.notas] || 0) + item.tempo_perda;
+        // Notas / Motivo
+        porNotas[item.notas] =
+          (porNotas[item.notas] || 0) + item.tempo_perda;
 
-          // Linha temporal (dia)
-          const dia = new Date(item.data_ocorrencia)
-            .toISOString()
-            .split("T")[0];
+        // Linha temporal (dia)
+        const dia = new Date(item.data_ocorrencia)
+          .toISOString()
+          .split("T")[0];
 
-          linhaTemporal[dia] =
-            (linhaTemporal[dia] || 0) + item.tempo_perda;
+        linhaTemporal[dia] =
+          (linhaTemporal[dia] || 0) + item.tempo_perda;
 
-          // Por Funcionário
-          if (item.registradaPor) {
-            porFuncionario[item.registradaPor] =
-              (porFuncionario[item.registradaPor] || 0) + item.tempo_perda;
-          }
-        });
+        // Por Funcionário
+        if (item.registradaPor) {
+          porFuncionario[item.registradaPor] =
+            (porFuncionario[item.registradaPor] || 0) + item.tempo_perda;
+        }
+      });
 
-        this.porClassificacao = porClassificacao;
-        this.porNotas = porNotas;
-        this.linhaTemporal = linhaTemporal;
-        this.porFuncionario = porFuncionario;
-      },
+      this.porClassificacao = porClassificacao;
+      this.porNotas = porNotas;
+      this.linhaTemporal = linhaTemporal;
+      this.porFuncionario = porFuncionario;
+    },
     async salvarIntercorrencia() {
       if (
         !this.formIntercorrencia.descricao ||
@@ -437,6 +519,7 @@ export default {
     z-index: 0;
   }
 }
+
 .acoes-container {
   display: flex;
   gap: 12px;
@@ -464,7 +547,7 @@ export default {
 }
 
 .botao-improdutivo {
-  background: #b32d00 !important; 
+  background: #b32d00 !important;
 }
 
 .botao-improdutivo:hover {
@@ -514,6 +597,7 @@ export default {
   font-weight: 500;
   cursor: pointer;
 }
+
 /* --- MODAL REFINADO --- */
 
 .modal-overlay {
@@ -622,6 +706,7 @@ textarea.modal-input {
     opacity: 0;
     transform: translateY(-10px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
