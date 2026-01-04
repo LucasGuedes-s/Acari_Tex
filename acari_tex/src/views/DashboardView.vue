@@ -241,8 +241,9 @@ export default {
     this.fetchData();
     this.getIntercorrencias();
     this.socket = io('https://acari-tex.onrender.com');
-
-    this.socket.on('nova_peca', () => {
+    const cnpj = this.store.pegar_usuario?.cnpj || 'desconhecido';
+    //console.log('Conectado ao Socket.io com CNPJ:', cnpj);  
+    this.socket.on(`nova_peca_${cnpj}`, () => {
       this.fetchData();
       this.producaoPecas();
       Swal.fire({
@@ -265,7 +266,7 @@ export default {
     verificarAutenticacao() {
       const token = this.store.pegar_token;
       const usuario = this.store.pegar_usuario;
-
+      //console.log('Verificando autenticação:', { token, usuario });
       if (!token || !usuario) router.push('/');
     },
     async exportarPDF() {
