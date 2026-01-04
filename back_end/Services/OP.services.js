@@ -165,10 +165,10 @@ async function postProducaoPecaLote(req, res) {
     const { producoes } = req.body;
     const id_Estabelecimento = req.user.cnpj;
     if (!Array.isArray(producoes) || !producoes.length) {
-      return res.status(400).json({ error: 'Nenhuma produção informada.' });
+      throw new Error("Nenhuma produção");
+      
     }
 
-    // 🔹 Agrupa por OP + etapa
     const agrupadas = {};
 
     for (const p of producoes) {
@@ -189,9 +189,7 @@ async function postProducaoPecaLote(req, res) {
       });
 
       if (!etapa) {
-        return res.status(404).json({
-          error: `Etapa ${id_da_funcao} não encontrada para OP ${id_da_op}`
-        });
+        throw new Error(`Etapa ${id_da_funcao} não encontrada para OP ${id_da_op}`);
       }
 
       const totalNovo = grupo.reduce(
@@ -207,13 +205,7 @@ async function postProducaoPecaLote(req, res) {
       const jaProduzido = producaoAtual._sum.quantidade_pecas || 0;
 
       if (jaProduzido + totalNovo > etapa.quantidade_meta) {
-        return res.status(400).json({
-          error: 'Produção excede a meta da etapa.',
-          id_da_op,
-          id_da_funcao,
-          jaProduzido,
-          meta: etapa.quantidade_meta
-        });
+        throw new Error("Produção excede a meta da etapa.");
       }
     }
 
@@ -274,7 +266,21 @@ async function getPecasOP(req) {
     where: { id_Estabelecimento: cnpj },
     include: {
       Estabelecimento: true,
-      producao_peca: true,
+      producao_peca: {
+        include: {
+          producao_funcionario: {
+            select: {
+              nome: true,
+              email: true // opcional
+            }
+          },
+          producao_etapa: {
+            select: {
+              descricao: true
+            }
+          }
+        }
+      },
       etapas: {
         include: {
           etapa: true,
@@ -282,6 +288,7 @@ async function getPecasOP(req) {
       },
     },
   });
+
 
   if (!pecasOp) {
     return { finalizado: [], em_progresso: [], nao_iniciado: [], coleta: [] };

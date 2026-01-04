@@ -171,7 +171,6 @@ export default {
         const res = await api.get("/producao/estabelecimento", {
           headers: { Authorization: `${token}` },
         });
-        console.log('Dados de produção recebidos:', res.data);
         const raw = res.data.producao;
 
         pecas.value = raw && typeof raw === "object" ? Object.values(raw) : [];

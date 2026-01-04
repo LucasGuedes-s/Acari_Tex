@@ -180,7 +180,6 @@ export default {
         const response = await api.get("/notificacoes", {
           headers: { Authorization: `${token}` }
         });
-        console.log("Notificações carregadas:", response.data);
         this.notificacoes = response.data.notificacoes || [];
         this.resumo = response.data.resumoProducao || [];
         this.melhorFuncionario = response.data.melhorFuncionario || null;

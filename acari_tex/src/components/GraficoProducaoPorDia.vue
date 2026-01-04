@@ -57,7 +57,6 @@ export default {
     computed: {
         chartData() {
             const dias = this.dados?.producao?.dias || [];
-            console.log(dias);
             const labels = dias.map(d => d.data);
 
             const etapasSet = new Set();

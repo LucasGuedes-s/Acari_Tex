@@ -1,6 +1,8 @@
 <template>
   <div class="grafico-eficiencia">
-    <canvas ref="chartCanvas" v-show="temDados" style="width: 100%; height: 100%;"></canvas>
+    <div class="grafico-scroll">
+      <canvas ref="chartCanvas" v-show="temDados" style="width: 100%; height: 100%;"></canvas>
+    </div>
     <p v-if="!temDados" class="sem-dados">Sem dados para o período selecionado</p>
   </div>
 </template>
@@ -45,7 +47,6 @@ export default {
 
     const atualizarGrafico = () => {
       destruirGrafico(); 
-      console.log("Atualizando gráfico com filtro:", props.producaoDados);
       const producaoDia = props.producaoDados?.producao?.producaoDia || {};
       const funcionarios = producaoDia?.funcionarios || [];
 
@@ -64,7 +65,6 @@ export default {
           console.error("Contexto 2D do Canvas não encontrado.");
           return;
         }
-        console.log("Dados de produção do dia:", producaoDia);
 
         // ================= DADOS BASE =================
         const totalPecas = Number(producaoDia.totalPecas) || 0;
@@ -85,18 +85,11 @@ export default {
           eficienciaMediaTurma = (totalPecas / producao100Turma) * 100;
         }
 
-        console.log("Produção para 100% da turma:", producao100Turma);
-        console.log("Total de peças produzidas (FINAL):", totalPecas);
-        console.log("Eficiência média da turma (calculada no front):", eficienciaMediaTurma);
-
         // ================= DADOS INDIVIDUAIS (GRÁFICOS) =================
         const nomes = funcionarios.map(f => f.nome);
         const eficiencias = funcionarios.map(f =>
           Number(String(f.eficiencia_pessoal).replace("%", "")) || 0
         );
-
-        console.log("Nomes dos funcionários:", nomes);
-        console.log("Eficiências individuais:", eficiencias);
 
         // Criação do Gráfico
         chartInstance.value = new Chart(ctx, {
@@ -203,4 +196,14 @@ export default {
   color: #888;
   font-size: 16px;
 }
+.grafico-scroll {
+  overflow-x: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.grafico-scroll canvas {
+  min-width: 900px; /* pode aumentar conforme a quantidade */
+}
+
 </style>

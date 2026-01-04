@@ -55,13 +55,13 @@
               Exportar PDF
             </button>
 
-            <button class="botao-acao" @click="exportarExcel">
+            <!-- <button class="botao-acao" @click="exportarExcel">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M4 4h16v16H4V4zm4 12l3-4 3 4m-6-8l3 4 3-4" />
               </svg>
               Exportar Excel
-            </button>
+            </button>-->
 
             <button class="botao-acao botao-improdutivo" @click="abrirModalImprodutivo">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -158,6 +158,7 @@ import { io } from 'socket.io-client';
 import Swal from 'sweetalert2';
 import api from '@/Axios';
 import router from '@/router';
+import { gerarPdfOPs } from '@/utils/functions/PDFDashboard';
 
 export default {
   name: 'DashboardHome',
@@ -261,7 +262,11 @@ export default {
 
       if (!token || !usuario) router.push('/');
     },
-
+    exportarPDF() {
+      console.log(this.pecas)
+      console.log(this.store.pegar_usuario)
+      gerarPdfOPs(this.pecas.em_progresso);
+    },
     irPara() {
       router.push('/Producao');
     },
@@ -360,6 +365,7 @@ export default {
           headers: { Authorization: token },
         });
         this.pecas = response.data.peca;
+        //console.log('Peças carregadas:', this.pecas);
       } catch (err) {
         console.error('Erro ao buscar peças:', err);
       }
@@ -375,7 +381,7 @@ export default {
           params: { filtro: this.filtro },
         });
         this.producao = res.data;
-        console.log('Produção carregada:', this.producao);
+        //console.log('Produção carregada:', this.producao);
       } catch (err) {
         console.error('Erro ao buscar produção:', err);
         this.producao = { producaoDia: { funcionarios: [] } };
@@ -390,7 +396,7 @@ export default {
         });
         this.intercorrencias = response.data.intercorrencias;
         this.processarDados();
-        console.log('Intercorrências carregadas:', this.intercorrencias);
+        //console.log('Intercorrências carregadas:', this.intercorrencias);
       } catch (err) {
         console.error('Erro ao buscar intercorrências:', err);
         return [];

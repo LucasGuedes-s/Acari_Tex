@@ -97,7 +97,6 @@ onMounted(() => {
     const cnpj = useAuthStore().usuario.cnpj;
     if (!cnpj){
       router.push('/'); 
-      console.log("CNPJ do usuário não encontrado para notificações.");
     }
     socket.on(`notificacao_${cnpj}`, (dados) => {
       // dados = { tipo, mensagem, titulo? }

@@ -62,7 +62,6 @@ export default {
         });
 
         const producao = res.data.producao.producaoDia || [];
-        console.log('Produção funcionários:', producao);
 
         this.aggregateFuncionarioData(producao);
         this.$nextTick(() => this.renderFuncionarioChart());

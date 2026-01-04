@@ -206,7 +206,6 @@ export default {
         });
 
         const producoes = res.data.producao || {};
-        console.log("Dados de produção recebidos:", producoes);
         const dadosArray = Object.values(producoes);
         
         pecasDisponiveis.value = dadosArray; 
