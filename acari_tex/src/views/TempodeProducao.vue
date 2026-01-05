@@ -5,21 +5,14 @@
     <main class="content-wrapper" v-else>
       <div class="container-fluid py-3">
 
-        <TituloSubtitulo
-          titulo="Produção por Funcionário"
-          subtitulo="Apontamento diário por horário"
-          icone="fa-solid fa-clipboard-list"
-        />
+        <TituloSubtitulo titulo="Produção por Funcionário" subtitulo="Apontamento diário por horário"
+          icone="fa-solid fa-clipboard-list" />
 
         <!-- DADOS FUNCIONÁRIO -->
         <div v-if="funcionario" class="card shadow-sm mt-4">
           <div class="card-body d-flex gap-3 align-items-center">
-            <img
-              :src="funcionario.foto || 'https://via.placeholder.com/100'"
-              class="rounded-circle"
-              width="100"
-              height="100"
-            />
+            <img :src="funcionario.foto || 'https://via.placeholder.com/100'" class="rounded-circle" width="100"
+              height="100" />
             <div>
               <p><b>Nome:</b> {{ funcionario.nome }}</p>
               <p><b>Email:</b> {{ funcionario.email }}</p>
@@ -28,22 +21,38 @@
           </div>
         </div>
 
-        <!-- SELEÇÃO DA PEÇA -->
         <div class="card shadow-sm mt-4">
           <div class="card-body">
-            <label class="fw-bold mb-2">Peça (OP) - Registro em lote</label>
-            <select v-model="pecaSelecionada" class="form-select">
-              <option disabled value="">Selecione a peça</option>
-              <option
-                v-for="p in pecas"
-                :key="p.id_da_op"
-                :value="p"
-              >
-                {{ p.descricao }}
-              </option>
-            </select>
+            <div class="row g-3">
+
+              <!-- PEÇA -->
+              <div class="col-md-6">
+                <label class="fw-bold mb-2">Peça (OP) - Registro em lote</label>
+                <select v-model="pecaSelecionada" class="form-select">
+                  <option disabled value="">Selecione a peça</option>
+                  <option v-for="p in pecas" :key="p.id_da_op" :value="p">
+                    {{ p.descricao }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- ETAPA PADRÃO -->
+              <div class="col-md-6">
+                <label class="fw-bold mb-2">
+                  Etapa padrão <small class="text-muted">(opcional)</small>
+                </label>
+                <select v-model="etapaPadrao" class="form-select" :disabled="!pecaSelecionada">
+                  <option value="">— Não definir etapa padrão —</option>
+                  <option v-for="e in pecaSelecionada?.etapas || []" :key="e.id_da_funcao" :value="e.id_da_funcao">
+                    {{ e.etapa.descricao }}
+                  </option>
+                </select>
+              </div>
+
+            </div>
           </div>
         </div>
+
 
         <!-- PRODUÇÃO DO DIA -->
         <div v-if="pecaSelecionada" class="card shadow-sm mt-4">
@@ -54,36 +63,24 @@
           <div class="card-body">
             <div class="producao-grid">
 
-              <div
-                v-for="(slot, index) in tabelaProducao"
-                :key="index"
-                class="producao-slot"
-                :class="{
-                  preenchido: slot.quantidade_pecas > 0,
-                  'ja-registrado': slot.jaRegistrado
-                }"
-              >
+              <div v-for="(slot, index) in tabelaProducao" :key="index" class="producao-slot" :class="{
+                preenchido: slot.quantidade_pecas > 0,
+                'ja-registrado': slot.jaRegistrado
+              }">
                 <div class="slot-hora">
                   {{ slot.hora }}
                 </div>
 
                 <select v-model="slot.id_da_funcao">
                   <option disabled value="">Etapa</option>
-                  <option
-                    v-for="e in pecaSelecionada.etapas"
-                    :key="e.id_da_funcao"
-                    :value="e.id_da_funcao"
-                  >
+                  <option v-for="e in pecaSelecionada.etapas" :key="e.id_da_funcao" :value="e.id_da_funcao">
                     {{ e.etapa.descricao }}
                   </option>
                 </select>
 
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Qtd"
-                  v-model.number="slot.quantidade_pecas"
-                />
+                <input type="number" min="0" placeholder="Qtd" v-model.number="slot.quantidade_pecas"
+                  @input="aplicarEtapaPadrao(slot)" />
+
               </div>
 
             </div>
@@ -95,7 +92,7 @@
             </div>
           </div>
         </div>
-        <GraficoProducaoPorDia :dados="producao"  class="mb-4 mt-4"/>
+        <GraficoProducaoPorDia :dados="producao" class="mb-4 mt-4" />
       </div>
     </main>
   </div>
@@ -120,6 +117,7 @@ export default {
       pecas: [],
       pecaSelecionada: null,
       producao: [],
+      etapaPadrao: null,
       horariosFixos: [
         "07:00", "08:00", "09:00", "10:00",
         "11:00", "11:30", "12:00", "13:00",
@@ -138,31 +136,36 @@ export default {
   },
 
   watch: {
-  pecaSelecionada() {
-    if (!this.pecaSelecionada || !this.funcionario) return
+    pecaSelecionada() {
+      if (!this.pecaSelecionada || !this.funcionario) return
 
-    this.tabelaProducao = this.horariosFixos.map(hora => ({
-      hora,
-      id_da_funcao: null,
-      quantidade_pecas: null,
-      jaRegistrado: false
-    }))
+      this.tabelaProducao = this.horariosFixos.map(hora => ({
+        hora,
+        id_da_funcao: null,
+        quantidade_pecas: null,
+        jaRegistrado: false
+      }))
 
-    this.funcionario.producao_funcionario.forEach(producao => {
-      const slot = this.tabelaProducao.find(
-        s => s.hora === producao.hora_registro
-      )
+      this.funcionario.producao_funcionario.forEach(producao => {
+        const slot = this.tabelaProducao.find(
+          s => s.hora === producao.hora_registro
+        )
 
-      if (slot) {
-        slot.id_da_funcao = producao.id_da_funcao
-        slot.quantidade_pecas = producao.quantidade_pecas
-        slot.jaRegistrado = true
-      }
-    })
-  }
-},
+        if (slot) {
+          slot.id_da_funcao = producao.id_da_funcao
+          slot.quantidade_pecas = producao.quantidade_pecas
+          slot.jaRegistrado = true
+        }
+      })
+    }
+  },
 
   methods: {
+    aplicarEtapaPadrao(slot) {
+      if (!slot.id_da_funcao && this.etapaPadrao) {
+        slot.id_da_funcao = this.etapaPadrao
+      }
+    },
     async carregarDados() {
       this.carregando = true
       const res = await api.get(`/funcionario/${this.idFuncionario}`, {
@@ -183,7 +186,7 @@ export default {
         headers: { Authorization: this.store.pegar_token }
       })
       this.producao = data
-      console.log(this.producao)  
+      console.log(this.producao)
     },
     async salvarProducaoDoDia() {
       this.carregando = true
@@ -222,9 +225,10 @@ export default {
 
 
 <style scoped>
-  p{
-    display: flex;
-  }
+p {
+  display: flex;
+}
+
 .content-wrapper {
   padding-left: 200px;
 }
@@ -238,7 +242,7 @@ export default {
 /* GRID PRINCIPAL */
 .producao-grid {
   display: flex;
-  flex-wrap: wrap; 
+  flex-wrap: wrap;
   gap: 14px;
 }
 
@@ -296,6 +300,7 @@ export default {
   border-color: #198754;
   box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.15);
 }
+
 /* Slot já registrado */
 .producao-slot.ja-registrado {
   background: #eef4ff;
@@ -307,5 +312,4 @@ export default {
   background: #4c6ef5;
   color: #fff;
 }
-
 </style>
