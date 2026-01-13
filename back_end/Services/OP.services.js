@@ -1100,10 +1100,62 @@ async function getEtapasEstabelecimento(req) {
 
   const etapas = await prisma.etapa.findMany({
     where: { id_Estabelecimento: cnpj },
+    include: {
+      grupoEtapa: true
+    },
     orderBy: { descricao: "asc" },
   });
 
   return etapas;
+}
+
+async function criarOuVincularGrupoEtapas(req) {
+  const cnpj = req.user.cnpj;
+  const { nome, descricao, etapasSelecionadas } = req.body;
+  const etapasIds = etapasSelecionadas
+  console.log("Dados recebidos para criar/vincular grupo de etapas:", { nome, descricao, etapasSelecionadas });
+  if (!nome) {
+    throw new Error("Nome do grupo é obrigatório");
+  }
+
+  if (!Array.isArray(etapasIds) || etapasIds.length === 0) {
+    throw new Error("Informe ao menos uma etapa para o grupo");
+  }
+
+  // 1️⃣ Verifica se o grupo já existe para o estabelecimento
+  let grupo = await prisma.grupoEtapas.findFirst({
+    where: {
+      nome,
+      estabelecimentoCnpj: cnpj,
+    },
+  });
+
+  // 2️⃣ Se não existir, cria o grupo
+  if (!grupo) {
+    grupo = await prisma.grupoEtapas.create({
+      data: {
+        nome,
+        descricao,
+        estabelecimentoCnpj: cnpj,
+      },
+    });
+  }
+
+  // 3️⃣ Vincula todas as etapas ao grupo
+  const resultado = await prisma.etapa.updateMany({
+    where: {
+      id_da_funcao: { in: etapasIds },
+      id_Estabelecimento: cnpj, // segurança extra
+    },
+    data: {
+      grupoEtapaId: grupo.id,
+    },
+  });
+
+  return {
+    grupo,
+    etapasVinculadas: resultado.count,
+  };
 }
 
 async function getEficiencia(req, res) {
@@ -1327,5 +1379,6 @@ module.exports = {
   postEtapaPeca,
   getEficiencia,
   getProducaoTodasPecas,
-  deletarEtapa
+  deletarEtapa,
+  criarOuVincularGrupoEtapas
 };

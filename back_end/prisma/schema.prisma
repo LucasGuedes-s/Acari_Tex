@@ -53,6 +53,7 @@ model Estabelecimento {
   usuarios         Usuarios[]
   Intercorrencias   Intercorrencias[]
   Etapas            Etapa[]
+  GrupoEtapas      GrupoEtapas[]
 }
 
 model PecasOP {
@@ -66,6 +67,8 @@ model PecasOP {
   data_do_pedido     String?
   data_de_entrega    String?
   notas              String?
+  
+  local_armazenamento String?
   tempo_padrao       Float?
   cem_porcento       Float?
   etapas             PecasEtapas[]
@@ -92,10 +95,23 @@ model Etapa {
   descricao        String            
   tempo_padrao     Float?
   id_Estabelecimento String?
+
+  grupoEtapaId      Int?
+  grupoEtapa        GrupoEtapas?       @relation(fields: [grupoEtapaId], references: [id])
+
   Estabelecimento    Estabelecimento? @relation(fields: [id_Estabelecimento], references: [cnpj])  
   pecas            PecasEtapas[]
   producao_etapa   Producao[]
   tempo_referencia TempoReferencia[]
+}
+model GrupoEtapas {
+  id            Int     @id @default(autoincrement())
+  nome          String  // Ex: "Pregar Bolso Relógio"
+  descricao     String?
+  Estabelecimento      Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  estabelecimentoCnpj String
+  etapas        Etapa[]
 }
 
 model PecasEtapas {

@@ -8,7 +8,6 @@
         <TituloSubtitulo titulo="Produção por Funcionário" subtitulo="Apontamento diário por horário"
           icone="fa-solid fa-clipboard-list" />
 
-        <!-- DADOS FUNCIONÁRIO -->
         <div v-if="funcionario" class="card shadow-sm mt-4">
           <div class="card-body d-flex gap-3 align-items-center">
             <img :src="funcionario.foto || 'https://via.placeholder.com/100'" class="rounded-circle" width="100"

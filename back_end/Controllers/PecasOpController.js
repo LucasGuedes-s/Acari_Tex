@@ -1,8 +1,13 @@
 const pecas = require('../Services/OP.services');
+const { gerarPdfPeca } = require('../utils/PdfPeca');
 const Estatisticas = require('../Controllers/EstatisticasController');
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
+        console.log("Nova peça criada:", novaPeca);
+        gerarPdfPeca(novaPeca).catch(err => {
+            console.error("Erro ao gerar PDF com QR Code:", err);
+        });
         req.io.emit(`nova_atualizacao_${req.user.cnpj}`, novaPeca); // Notifica todos os clientes conectados sobre a nova peça
         res.status(201).json({novaPeca});
     } catch (err) {
@@ -59,6 +64,7 @@ async function getProducao(req, res, next){
         next(err);
     }
 }
+
 async function updatePecaStatus(req, res, next){
     try {
         const { id_da_op, status } = req.body;
@@ -136,7 +142,16 @@ async function getEtapas(req, res, next) {
         next(err);
     }
 }
-
+async function postGrupoEtapa(req, res, next) {
+    try{
+        const grupo = await pecas.criarOuVincularGrupoEtapas(req);
+        res.status(200).json({ grupo });
+    }
+    catch (err) {
+        console.error(`Erro ao cadastrar grupo de etapa.`, err.message);
+        next(err);
+    }
+}
 async function postEtapa(req, res, next) {
     try{
         const etapa = await pecas.postEtapa(req);
@@ -229,5 +244,6 @@ module.exports = {
     getEficiencia,
     getProducaoPorPeca,
     getProducaoEstabelecimento,
-    deletarEtapa
+    deletarEtapa,
+    postGrupoEtapa
 };
