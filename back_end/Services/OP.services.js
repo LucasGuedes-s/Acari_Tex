@@ -951,7 +951,7 @@ async function voltarPeca(req, res) {
 }
 async function getEtapas(req) {
   const cnpj = req.user.cnpj;
-
+  //console.log("Buscando etapas para estabelecimento:", cnpj);
   const pecasEtapas = await prisma.pecasEtapas.findMany({
     where: {
       peca_op: {
@@ -1089,7 +1089,7 @@ async function postEtapaPeca(req, res) {
 
 async function getEtapasEstabelecimento(req) {
   const cnpj = req.user.cnpj;
-
+  console.log("Buscando etapas para estabelecimento:", cnpj); 
   const estabelecimento = await prisma.estabelecimento.findUnique({
     where: { cnpj },
   });
@@ -1141,7 +1141,6 @@ async function criarOuVincularGrupoEtapas(req) {
     });
   }
 
-  // 3️⃣ Vincula todas as etapas ao grupo
   const resultado = await prisma.etapa.updateMany({
     where: {
       id_da_funcao: { in: etapasIds },
