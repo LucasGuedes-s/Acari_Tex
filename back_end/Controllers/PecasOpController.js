@@ -152,6 +152,15 @@ async function postGrupoEtapa(req, res, next) {
         next(err);
     }
 }
+async function getGruposEtapas(req, res, next) {
+    try {
+        const grupos = await pecas.getGruposEtapas(req);
+        res.status(200).json({ grupos });
+    } catch (err) {
+        console.error(`Erro ao obter grupos de etapas.`, err.message);
+        next(err);
+    }
+}
 async function postEtapa(req, res, next) {
     try{
         const etapa = await pecas.postEtapa(req);
@@ -245,5 +254,6 @@ module.exports = {
     getProducaoPorPeca,
     getProducaoEstabelecimento,
     deletarEtapa,
-    postGrupoEtapa
+    postGrupoEtapa,
+    getGruposEtapas
 };

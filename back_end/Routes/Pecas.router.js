@@ -13,6 +13,7 @@ router.post('/producao/lote', [jwtMiddleware],  ControllerOp.postProducaoPecaLot
 router.get('/producao/estabelecimento', [jwtMiddleware],  ControllerOp.getProducaoEstabelecimento);
 
 router.post('/adicionar/etapa/grupo', [jwtMiddleware], ControllerOp.postGrupoEtapa);
+router.get('/grupos/etapas', [jwtMiddleware], ControllerOp.getGruposEtapas);
 router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPeca);
 router.get('/etapas', [jwtMiddleware], ControllerOp.getEtapas)
 router.delete('/etapa/:id', [jwtMiddleware], ControllerOp.deletarEtapa)

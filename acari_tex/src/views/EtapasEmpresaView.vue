@@ -7,7 +7,8 @@
       <div class="container-fluid py-4">
         <TituloSubtitulo titulo="⚙️ Etapas" subtitulo="Gerencie as etapas de produção cadastradas" />
         <div
-          class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+            class="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2 mb-3"
+>
           <button class="btn btn-outline-success mb-4" @click="abrirModalGrupo">
             ➕ Novo Grupo
           </button>
@@ -25,9 +26,8 @@
         <div v-if="etapas.length === 0" class="text-center text-muted py-3">
           Nenhuma etapa cadastrada ainda.
         </div>
-
         <div v-else class="row g-3">
-          <div v-for="etapa in etapas" :key="etapa.id_da_funcao" class="col-12 col-md-6">
+          <div v-for="etapa in etapasFiltradasPorGrupo" :key="etapa.id_da_funcao" class="col-12 col-md-6">
             <div class="card shadow-sm border-0 h-100 etapa-card">
               <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
@@ -37,21 +37,26 @@
                       ⏱
                       {{
                         etapa.tempo_padrao
-                          ? etapa.tempo_padrao + ' min'
-                          : 'Sem tempo padrão'
+                          ? etapa.tempo_padrao + " min"
+                          : "Sem tempo padrão"
                       }}
                     </p>
+
+                    <span v-if="etapa.grupoEtapa" class="badge bg-light text-dark mt-1">
+                      📦 {{ etapa.grupoEtapa.nome }}
+                    </span>
                   </div>
+
                   <div class="d-flex gap-2 align-items-center">
                     <button class="btn-icon time" title="Tempo Padrão" @click="abrirModalEditar(etapa)">
                       <i class="bi bi-clock"></i>
                     </button>
 
-                    <button class="btn-icon edit" @click="abrirModalEditar(etapa)" title="Editar">
+                    <button class="btn-icon edit" title="Editar" @click="abrirModalEditar(etapa)">
                       <i class="bi bi-pencil"></i>
                     </button>
 
-                    <button class="btn-icon delete" @click="confirmarExclusao(etapa.id_da_funcao)" title="Excluir">
+                    <button class="btn-icon delete" title="Excluir" @click="confirmarExclusao(etapa.id_da_funcao)">
                       <i class="bi bi-trash3"></i>
                     </button>
                   </div>
@@ -60,7 +65,6 @@
             </div>
           </div>
         </div>
-
         <div class="modal fade modal-nova-etapa" id="modalNovaEtapa" tabindex="-1" aria-labelledby="modalNovaEtapaLabel"
           aria-hidden="true">
           <div class="modal-dialog modal-dialog-centered">
@@ -214,27 +218,16 @@
                 Etapas deste grupo
               </label>
               <div class="border rounded-3 p-2" style="max-height: 200px; overflow-y: auto;">
-  <div
-    v-for="etapa in etapas"
-    :key="etapa.id_da_funcao"
-    class="form-check"
-  >
-    <input
-      class="form-check-input"
-      type="checkbox"
-      :id="`etapa-${etapa.id_da_funcao}`"
-      :checked="novoGrupo.etapasSelecionadas.includes(etapa.id_da_funcao)"
-      @change="toggleEtapa(etapa.id_da_funcao)"
-    />
+                <div v-for="etapa in etapas" :key="etapa.id_da_funcao" class="form-check">
+                  <input class="form-check-input" type="checkbox" :id="`etapa-${etapa.id_da_funcao}`"
+                    :checked="novoGrupo.etapasSelecionadas.includes(etapa.id_da_funcao)"
+                    @change="toggleEtapa(etapa.id_da_funcao)" />
 
-    <label
-      class="form-check-label"
-      :for="`etapa-${etapa.id_da_funcao}`"
-    >
-      {{ etapa.descricao }}
-    </label>
-  </div>
-</div>
+                  <label class="form-check-label" :for="`etapa-${etapa.id_da_funcao}`">
+                    {{ etapa.descricao }}
+                  </label>
+                </div>
+              </div>
 
             </div>
 
@@ -312,18 +305,18 @@ export default {
   },
   methods: {
     toggleEtapa(id) {
-  if (!this.novoGrupo.etapasSelecionadas) {
-    this.novoGrupo.etapasSelecionadas = [];
-  }
+      if (!this.novoGrupo.etapasSelecionadas) {
+        this.novoGrupo.etapasSelecionadas = [];
+      }
 
-  const index = this.novoGrupo.etapasSelecionadas.indexOf(id);
+      const index = this.novoGrupo.etapasSelecionadas.indexOf(id);
 
-  if (index === -1) {
-    this.novoGrupo.etapasSelecionadas.push(id);
-  } else {
-    this.novoGrupo.etapasSelecionadas.splice(index, 1);
-  }
-},
+      if (index === -1) {
+        this.novoGrupo.etapasSelecionadas.push(id);
+      } else {
+        this.novoGrupo.etapasSelecionadas.splice(index, 1);
+      }
+    },
     abrirModalGrupo() {
       const el = document.getElementById("modalGrupoEtapas");
       this.modalGrupo = new Modal(el);
@@ -336,7 +329,7 @@ export default {
 
       try {
         const token = this.store.pegar_token;
-        
+
         await api.post(
           "/adicionar/etapa/grupo",
           this.novoGrupo,
@@ -372,7 +365,7 @@ export default {
     async buscarGrupos() {
       try {
         const token = this.store.pegar_token;
-        const { data } = await api.get("/grupos-etapas", {
+        const { data } = await api.get("/grupos/etapas", {
           headers: { Authorization: `${token}` },
         });
         this.grupos = data || [];
@@ -492,6 +485,7 @@ export default {
   },
   mounted() {
     this.buscarEtapas();
+    this
   },
 };
 </script>
@@ -615,8 +609,15 @@ label {
 }
 
 @media (max-width: 768px) {
+  .d-flex {
+    flex-direction: column;
+    height: auto;
+  }
+
   .content-wrapper {
     padding-left: 0px;
+    z-index: 0;
   }
 }
+
 </style>

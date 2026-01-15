@@ -1,58 +1,62 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-async function editarQuantidadePecasOP(id_da_op, id_Estabelecimento, novaQuantidade) {
-  try {
-    const resultado = await prisma.$transaction(async (tx) => {
-    const quantidadeFinal = Math.floor(Number(novaQuantidade));
+export async function corrigirDataProducaoDia12(req) {
+  const cnpj = "12.373.991/0001-37";
 
-        if (isNaN(quantidadeFinal)) {
-        throw new Error('Quantidade inválida');
-        }
+  // 🔎 Intervalo do dia 14/01/2026 (UTC)
+  const inicioDia13 = new Date("2026-01-14T00:00:00.000Z");
+  const fimDia13 = new Date("2026-01-14T23:59:59.999Z");
 
-      // 1️⃣ Atualiza a OP
-      const opAtualizada = await tx.pecasOP.update({
-        where: {
-          id_da_op: id_da_op,
-          id_Estabelecimento: id_Estabelecimento,
-        },
-        data: {
-          quantidade_pecas: quantidadeFinal,
-        },
-      });
-      console.log(opAtualizada);
-      // 2️⃣ Atualiza todas as etapas da OP
-      const etapasAtualizadas = await tx.pecasEtapas.updateMany({
-        where: {
-          id_da_op: id_da_op,
-        },
-        data: {
-          quantidade_meta: quantidadeFinal,
-        },
-      });
-      const conferindo = await prisma.pecasEtapas.findMany({
-        where: { id_da_op: 62 },
-        select: {
-            id: true,
-            quantidade_meta: true,
-        },
-        });
+  // ✅ Nova data correta: 13/01/2026 (meio-dia evita fuso)
+  const novaData = new Date("2026-01-13T12:00:00.000Z");
 
-        console.log(conferindo);
+  // (Opcional) conferir antes
+  const producoesEncontradas = await prisma.producao.findMany({
+    where: {
+      id_Estabelecimento: cnpj,
+      data_inicio: {
+        gte: inicioDia13,
+        lte: fimDia13,
+      },
+    },
+  });
 
-      console.log(`OP ${id_da_op} atualizada para ${novaQuantidade} peças. Etapas atualizadas: ${etapasAtualizadas.count}`);
-      return {
-        opAtualizada,
-        etapasAtualizadas,
-      };
-    });
+  console.log("Produções encontradas:", producoesEncontradas.length);
 
-    return resultado;
-
-  } catch (error) {
-    console.error('Erro ao editar quantidade da OP e etapas:', error);
-    throw error;
+  if (producoesEncontradas.length === 0) {
+    return {
+      message: "Nenhuma produção encontrada para correção",
+      total: 0,
+    };
   }
+
+  // 🔄 Update em massa
+  const resultado = await prisma.producao.updateMany({
+    where: {
+      id_Estabelecimento: cnpj,
+      data_inicio: {
+        gte: inicioDia13,
+        lte: fimDia13,
+      },
+    },
+    data: {
+      data_inicio: novaData,
+    },
+  });
+
+  return {
+    message: "Datas de produção corrigidas com sucesso",
+    totalAtualizado: resultado.count,
+  };
 }
 
-editarQuantidadePecasOP(62, "12.373.991/0001-37", 3560)
+corrigirDataProducaoDia12()
+  .then((res) => {
+    console.log(res);
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error("Erro ao corrigir datas de produção:", err);
+    process.exit(1);
+  });

@@ -1157,6 +1157,18 @@ async function criarOuVincularGrupoEtapas(req) {
   };
 }
 
+async function getGruposEtapas(req) {
+  const cnpj = req.user.cnpj;
+  //console.log("Buscando grupos de etapas para estabelecimento:", cnpj);
+  const grupos = await prisma.grupoEtapas.findMany({
+    where: { estabelecimentoCnpj: cnpj },
+    include: {
+      etapas: true,
+    },
+  }); 
+  return grupos;
+}
+
 async function getEficiencia(req, res) {
   const cnpj = req.user.cnpj;
   const hoje = new Date();
@@ -1366,6 +1378,7 @@ module.exports = {
   postProducaoPecaLote,
   getEtapasProducaoPorPeca,
   getEtapasProducaoPorEstabelecimento,
+  getGruposEtapas,
   updatePecaStatus,
   getProducaoEquipe,
   getProducaoPorPeca,
