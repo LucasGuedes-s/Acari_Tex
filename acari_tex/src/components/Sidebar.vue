@@ -32,6 +32,12 @@
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/eficiencia" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-robot icon"></i>
+              <span>Chatbot</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/Producao" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-bar-chart icon"></i>
               <span>Produção</span>
@@ -64,13 +70,7 @@
               <span>Relatórios</span>
             </router-link>
           </div>
-          <!-- 
-          <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/eficiencia" class="d-flex align-items-center text-reset" exact-active-class="ativo">
-              <i class="bi bi-robot icon"></i>
-              <span>Chatbot</span>
-            </router-link>
-          </div>-->
+          
           <div class="list-group-item"  v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'" @click="toggleSidebar">
             <router-link to="/configuracoes" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-gear icon"></i>

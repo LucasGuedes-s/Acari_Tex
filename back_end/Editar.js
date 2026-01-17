@@ -388,12 +388,108 @@ const producaoDia = [
   // ... adicione todos os outros funcionários aqui
 ];
 
-firstRunProducao(producaoDia, 47, "12.373.991/0001-37")
-  .then(() => {
-    console.log("Produções registradas com sucesso!");
-    prisma.$disconnect();
-  })
-  .catch((err) => {
-    console.error("Erro ao registrar produções:", err);
-    prisma.$disconnect();
+// firstRunProducao(producaoDia, 47, "12.373.991/0001-37")
+//   .then(() => {
+//     console.log("Produções registradas com sucesso!");
+//     prisma.$disconnect();
+//   })
+//   .catch((err) => {
+//     console.error("Erro ao registrar produções:", err);
+//     prisma.$disconnect();
+//   });
+
+async function verProducaoDoDia(cnpj, data, email) {
+ 
+  if (!data) {
+    throw new Error("Data é obrigatória");
+  }
+
+  const inicioDia = new Date(`${data}T00:00:00.000Z`);
+  const fimDia = new Date(`${data}T23:59:59.999Z`);
+
+  const producoes = await prisma.producao.findMany({
+    where: {
+      id_Estabelecimento: cnpj,
+      id_funcionario:  email, 
+      data_inicio: {
+        gte: inicioDia,
+        lte: fimDia,
+      },
+    },
+    include: {
+      producao_funcionario: true,
+      producao_etapa: true,
+      producao_peca: true,
+    },
+    orderBy: {
+      data_inicio: 'asc',
+    },
   });
+  console.log(producoes);
+  return producoes;
+}
+
+verProducaoDoDia("12.373.991/0001-37", "2026-01-15", "fernandacecilia@gmail.com")
+
+/**
+ * Edita as quantidades da produção de UM funcionário em UM dia
+ */
+export async function editarProducaoFuncionarioDia({
+  id_funcionario,
+  data,
+  producoes,
+}) {
+  if (!id_funcionario || !data || !Array.isArray(producoes)) {
+    throw new Error("Parâmetros inválidos");
+  }
+
+  // Normaliza a data para 00:00:00
+  const dataInicio = new Date(data);
+  dataInicio.setUTCHours(0, 0, 0, 0);
+
+  const dataFim = new Date(data);
+  dataFim.setUTCHours(23, 59, 59, 999);
+
+  // Garante que as produções realmente pertencem ao funcionário e ao dia
+  const producoesValidas = await prisma.producao.findMany({
+    where: {
+      id_da_producao: {
+        in: producoes.map(p => p.id_da_producao),
+      },
+      id_funcionario,
+      data_inicio: {
+        gte: dataInicio,
+        lte: dataFim,
+      },
+    },
+    select: {
+      id_da_producao: true,
+    },
+  });
+
+  if (producoesValidas.length !== producoes.length) {
+    throw new Error(
+      "Uma ou mais produções não pertencem ao funcionário ou à data informada"
+    );
+  }
+
+  const transacoes = producoes.map((producao) =>
+    prisma.producao.update({
+      where: {
+        id_da_producao: producao.id_da_producao,
+      },
+      data: {
+        quantidade_pecas: producao.quantidade_pecas,
+      },
+    })
+  );
+
+  const resultado = await prisma.$transaction(transacoes);
+
+  return {
+    funcionario: id_funcionario,
+    data: dataInicio,
+    totalRegistros: resultado.length,
+    producoesAtualizadas: resultado,
+  };
+}

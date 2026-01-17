@@ -6,11 +6,9 @@
     <main v-else class="content-wrapper flex-grow-1">
       <div class="container-fluid py-4">
         <TituloSubtitulo titulo="⚙️ Etapas" subtitulo="Gerencie as etapas de produção cadastradas" />
-        <div
-            class="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2 mb-3"
->
+        <div class="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2 mb-3">
           <button class="btn btn-outline-success mb-4" @click="abrirModalGrupo">
-            ➕ Novo Grupo
+            <i class="bi bi-grid-1x2"></i> Novo Grupo
           </button>
 
           <button class="btn btn-success d-flex align-items-center gap-2 mb-4" @click="abrirModalNovaEtapa">

@@ -21,6 +21,7 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.5.31",
     "lottie-web": "^5.13.0",
+    "marked": "^17.0.1",
     "pdfmake": "^0.2.20",
     "pinia": "^2.1.7",
     "socket.io-client": "^4.8.1",
