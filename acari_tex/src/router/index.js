@@ -71,6 +71,14 @@ const routes = [
     }
   },
   {
+    path: '/slides-producao',
+    name: 'Slides Produção',
+    component: () => import(/* webpackChunkName: "about" */ '../views/SlidesProducaoView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
+  },
+  {
     path: '/etapas',
     name: 'etapas',
     // route level code-splitting
