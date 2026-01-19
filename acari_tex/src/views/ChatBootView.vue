@@ -376,6 +376,7 @@ export default {
 
 .tabela th,
 .tabela td {
+  text-align: -webkit-left;
   padding: 8px;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -388,5 +389,117 @@ export default {
 .abaixo {
   color: #dc2626;
   font-weight: bold;
+}
+@media (max-width: 1024px) {
+  .content-wrapper {
+    padding-left: 0;
+    margin-left: 0;
+    padding: 0px;
+  }
+
+  .chat-wrapper {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .chat-container {
+    height: 55vh;
+  }
+
+  .painel {
+    height: auto;
+    max-height: 45vh;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===== CELULAR (até 768px) ===== */
+@media (max-width: 768px) {
+  .page {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .chat-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+
+  /* CHAT */
+  .chat-container {
+    height: 70vh;
+    border-radius: 0;
+  }
+
+  .chat-messages {
+    padding: 12px;
+  }
+
+  .bubble {
+    max-width: 90%;
+    font-size: 0.85rem;
+  }
+
+  /* INPUT */
+  .chat-input {
+    flex-direction: column;
+  }
+
+  .chat-input input,
+  .chat-input button {
+    width: 100%;
+  }
+
+  /* ATALHOS */
+  .quick-options {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .quick-options button {
+    flex: 1;
+    font-size: 0.75rem;
+  }
+
+  /* PAINEL */
+  .painel {
+    border-radius: 0;
+    padding: 12px;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    font-size: 0.85rem;
+  }
+
+  /* TABELA */
+  .tabela th,
+  .tabela td {
+    font-size: 0.8rem;
+    padding: 6px;
+  }
+}
+
+/* ===== CELULAR MUITO PEQUENO ===== */
+@media (max-width: 480px) {
+  .bubble {
+    font-size: 0.8rem;
+    padding: 10px;
+  }
+
+  .chat-container {
+    height: 75vh;
+  }
+
+  .quick-options button {
+    padding: 6px;
+  }
 }
 </style>

@@ -1053,7 +1053,7 @@ select {
   background: #006f2e;
 }
 
-@media (min-width: 768px) and (max-width: 1024px) {
+@media (min-width: 600px) and (max-width: 1024px) {
 
   .content-wrapper {
     padding-left: 0px;

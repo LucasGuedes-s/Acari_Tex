@@ -6,7 +6,7 @@
     <main v-else class="content-wrapper flex-grow-1">
       <div class="container-fluid py-4">
         <TituloSubtitulo titulo="⚙️ Etapas" subtitulo="Gerencie as etapas de produção cadastradas" />
-        <div class="d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2 mb-3">
+        <div class="acoes-etapas d-flex flex-column flex-md-row justify-content-md-end align-items-stretch align-items-md-center gap-2 mb-3">
           <button class="btn btn-outline-success mb-4" @click="abrirModalGrupo">
             <i class="bi bi-grid-1x2"></i> Novo Grupo
           </button>
@@ -608,13 +608,33 @@ label {
 
 @media (max-width: 768px) {
   .d-flex {
-    flex-direction: column;
+    flex-direction: row;
     height: auto;
   }
 
   .content-wrapper {
     padding-left: 0px;
     z-index: 0;
+  }
+  .bnt{
+    margin: 0px;
+  }
+  .acoes-etapas {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px !important;
+  }
+
+  /* Botões lado a lado */
+  .acoes-etapas > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Select ocupa a linha inteira */
+  .acoes-etapas > select {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 }
 
