@@ -560,7 +560,6 @@ async function getProducaoEquipe(req) {
   }
 }
 
-
 async function getProducaoPorPeca(req) {
   try {
     const filtro = req.query.filtro || "hoje";

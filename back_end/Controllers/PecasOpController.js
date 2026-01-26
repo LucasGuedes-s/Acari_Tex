@@ -28,6 +28,7 @@ async function getOPs(req, res, next){
 async function postProducaoPeca(req, res, next){
     try {
         const peca = await pecas.postProducaoPeca(req);
+        //console.log("Produção da peça registrada:", peca);
         Estatisticas.estatisticasEquipe(req, req.body.id_funcionario).catch(err => {
             console.error("Erro ao atualizar estatísticas:", err);
         });

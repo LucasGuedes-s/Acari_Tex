@@ -3,64 +3,16 @@ async function estatisticasEquipe(req, usuario, res) {
   try {
     const resultado = await estatisticas.analisarProducaoFuncionarioDia(req, usuario);
     const cnpj = req.user.cnpj;
-
     if (!resultado || !Array.isArray(resultado.desempenho)) {
       console.warn("Nenhum dado de desempenho retornado:", resultado);
       return res?.status(200).json({ mensagem: "Sem dados de desempenho para hoje." });
     }
-
     for (const etapa of resultado.desempenho) {
       const promises = [];
-      const LIMITE_MEDIA_BAIXA = 10;
-
-      // 🔹 Notificação geral se média da etapa estiver baixa
-      if (etapa.media < LIMITE_MEDIA_BAIXA) {
-        const titulo = `Média baixa na etapa "${etapa.etapa}"`;
-        const mensagemEtapa = `⚠️ A média da etapa "${etapa.etapa}" está baixa (${etapa.media}/h) às ${etapa.hora}. Verifique o desempenho da equipe.`;
-
-        req.io.emit(`notificacao_${cnpj}`, {
-          tipo: "info",
-          mensagem: mensagemEtapa
-        });
-
-        promises.push(
-          (async () => {
-            const existente = await prisma.notificacoes.findFirst({
-              where: {
-                estabelecimentoCnpj: cnpj,
-                titulo,
-                etapa: etapa.etapa, // 👈 usa também a etapa
-              },
-            });
-
-            if (existente) {
-              await prisma.notificacoes.update({
-                where: { id: existente.id },
-                data: {
-                  mensagem: mensagemEtapa,
-                  criadaEm: new Date(),
-                },
-              });
-            } else {
-              await prisma.notificacoes.create({
-                data: {
-                  estabelecimentoCnpj: cnpj,
-                  titulo,
-                  mensagem: mensagemEtapa,
-                  etapa: etapa.etapa, // 👈 salva a etapa
-                  lida: false,
-                  criadaEm: new Date(),
-                },
-              });
-            }
-          })()
-        );
-      }
-
-      // 🔹 Notificação individual (abaixo da média)
-      if (etapa.abaixoDaMedia) {
+  
+      if (etapa.abaixoDaMeta) {
         const titulo = `Atenção: ${resultado.funcionario} abaixo da média`;
-        const mensagem = `🚨 ${resultado.funcionario} está abaixo da média na etapa "${etapa.etapa}" com ${etapa.producao} peças/h, às ${etapa.hora} (média: ${etapa.media}/h).`;
+        const mensagem = `🚨 Verifique o que está acontecendo! O funcionário(a) ${resultado.funcionario} está abaixo da média na etapa "${etapa.etapa}" com ${etapa.producao} peças/h, às ${etapa.hora} (Eficiência: ${etapa.eficiencia}/h).`;
 
         req.io.emit(`notificacao_${cnpj}`, {
           tipo: "warning",

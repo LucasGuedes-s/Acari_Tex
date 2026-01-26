@@ -105,7 +105,7 @@ export default {
       previewFoto: null, 
       fotoSelecionada: null,
       funcoesDisponiveis: ['Corte', 'Costura', 'Acabamento', 'Supervisor'],
-      permissoes: ['Admin', 'Gestor', 'Funcionário'],
+      permissoes: ['Admin', 'Gestor', 'funcionario'],
       equipesDisponiveis: []
     }
   },

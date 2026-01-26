@@ -100,6 +100,7 @@
 import axios from "@/Axios";
 import SidebarNav from "@/components/Sidebar.vue";
 import { useAuthStore } from "@/store/store";
+import { FormatarData } from "@/utils/functions/FormatarData";
 import { marked } from "marked";
 
 export default {
@@ -145,11 +146,14 @@ export default {
     },
 
     async enviarAnalise() {
+      
       if (!this.dataInicio || !this.dataFim) return;
-
+      const dataInicioObj = FormatarData(this.dataInicio);
+      const dataFimObj = FormatarData(this.dataFim);
+      console.log("Período selecionado:", dataInicioObj, "até", dataFimObj);  
       this.messages.push({
         type: "user",
-        text: `Analisar produção de ${this.dataInicio} até ${this.dataFim}`
+        text: `Analisar produção de ${dataInicioObj} até ${dataFimObj}`
       });
 
       this.messages.push({

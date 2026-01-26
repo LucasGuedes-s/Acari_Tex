@@ -4,8 +4,8 @@ const { subDays } = require("date-fns");
 
 async function analisarProducaoFuncionarioDia(req, idFuncionario) {
   const fusoSP = "America/Sao_Paulo";
-
   const agora = new Date();
+
   const dtf = new Intl.DateTimeFormat("pt-BR", {
     timeZone: fusoSP,
     year: "numeric",
@@ -19,10 +19,9 @@ async function analisarProducaoFuncionarioDia(req, idFuncionario) {
   const ano = partes.find(p => p.type === "year").value;
 
   const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
-  const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
+  const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
 
   const cnpj = req.user.cnpj;
-
   const producaoDia = await prisma.producao.findMany({
     where: {
       data_inicio: { gte: inicioDiaUTC, lte: fimDiaUTC },
@@ -38,16 +37,18 @@ async function analisarProducaoFuncionarioDia(req, idFuncionario) {
     return { mensagem: "Nenhuma produção registrada hoje." };
   }
 
-  // Estrutura -> etapas -> horas -> funcionários
+  // ================= AGRUPAMENTO =================
   const etapas = {};
 
   for (const registro of producaoDia) {
     const etapaId = registro.id_da_funcao;
-    const hora = registro.hora_registro || "Sem hora";
+    const hora = registro.hora_registro || "00h";
+    const tempoPadraoEtapa = registro.producao_etapa?.tempo_padrao || 0;
 
     if (!etapas[etapaId]) {
       etapas[etapaId] = {
         descricao: registro.producao_etapa?.descricao || `Etapa ${etapaId}`,
+        tempoPadraoEtapa,
         horas: {}
       };
     }
@@ -66,32 +67,37 @@ async function analisarProducaoFuncionarioDia(req, idFuncionario) {
     etapas[etapaId].horas[hora][registro.id_funcionario].pecas += registro.quantidade_pecas || 0;
   }
 
+  // ================= RESULTADO =================
   const resultado = [];
-  const nomeFuncionario = producaoDia.find(r => r.id_funcionario === idFuncionario)?.producao_funcionario?.nome || idFuncionario;
+  const nomeFuncionario =
+    producaoDia.find(r => r.id_funcionario === idFuncionario)?.producao_funcionario?.nome ||
+    idFuncionario;
   for (const [idEtapa, dados] of Object.entries(etapas)) {
+    const tempoPadrao = dados.tempoPadraoEtapa;
+
+    if (!tempoPadrao || tempoPadrao <= 0) continue;
+
     for (const [hora, funcionariosMap] of Object.entries(dados.horas)) {
-      const funcionarios = Object.values(funcionariosMap);
-      const total = funcionarios.reduce((s, f) => s + f.pecas, 0);
-      const media = total / funcionarios.length;
-
       const funcionario = funcionariosMap[idFuncionario];
+      if (!funcionario) continue;
 
-      if (funcionario) {
-        resultado.push({
-          etapa: dados.descricao,
-          hora,
-          producao: funcionario.pecas,
-          media: media.toFixed(2),
-          abaixoDaMedia: funcionario.pecas < media
-        });
-      }
+      // 👉 meta por hora (60 minutos / tempo padrão)
+      const metaHora = 60 / tempoPadrao;
+
+      resultado.push({
+        etapa: dados.descricao,
+        hora,
+        producao: funcionario.pecas,
+        metaHora: Number(metaHora.toFixed(2)),
+        eficiencia: ((funcionario.pecas / metaHora) * 100).toFixed(2) + "%",
+        abaixoDaMeta: funcionario.pecas < metaHora
+      });
     }
   }
-
   return {
     funcionario: nomeFuncionario,
     data: `${dia}/${mes}/${ano}`,
-    desempenho: resultado.filter(r => r.abaixoDaMedia) // retorna só quando está abaixo
+    desempenho: resultado.filter(r => r.abaixoDaMeta)
   };
 }
 

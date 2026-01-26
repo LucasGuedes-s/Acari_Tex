@@ -1,28 +1,86 @@
 <template>
   <div class="detalhes-pecas-page">
     <SidebarNav />
-    <carregandoTela v-if="loading" />
 
-    <main v-else class="content-wrapper flex-grow-1">
+    <!-- loading NÃO destrói o DOM -->
+    <carregandoTela v-show="loading" />
+
+    <main v-show="!loading" class="content-wrapper flex-grow-1">
       <div class="container-fluid py-4">
+
         <TituloSubtitulo
-          titulo="Relatórios financeiros"
-          subtitulo="Acompanhe o progresso e estatísticas financeiras da fábrica"
+          titulo="Relatórios Financeiros"
+          subtitulo="Visão geral da produção e faturamento"
         />
 
-        <!-- Resumo -->
-        <div class="row mt-4">
-          <div class="col-md-4 mb-3" v-for="card in resumoCards" :key="card.titulo">
-            <div class="card shadow-sm border-0 p-3 text-center bg-white h-100">
-              <h6 class="fw-semibold text-secondary">{{ card.titulo }}</h6>
-              <h4 class="fw-bold text">R$ {{ card.valor.toLocaleString('pt-BR') }}</h4>
-            </div>
+        <!-- FILTRO -->
+        <div class="row mt-3 g-2">
+          <div class="col-md-4">
+            <input type="date" v-model="filtros.dataInicio" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <input type="date" v-model="filtros.dataFim" class="form-control" />
+          </div>
+          <div class="col-md-4">
+            <button class="btn btn-success w-100" @click="carregarRelatorio">
+              Aplicar período
+            </button>
           </div>
         </div>
 
-        <div class="card mt-4 shadow-sm border-0 p-3 bg-white" v-if="!loading && relatorio">
-        <h6 class="fw-semibold mb-3">Receita por Ordem de Produção (OP)</h6>
-        <canvas id="graficoFinanceiro" style="max-height: 400px;"></canvas>
+        <!-- RESUMO -->
+        <div class="row mt-4">
+          <div
+            class="col-md-4 mb-3"
+            v-for="card in resumoCards"
+            :key="card.titulo"
+          >
+            <div class="card shadow-sm border-0 p-3 text-center h-100">
+              <h6 class="text-secondary">{{ card.titulo }}</h6>
+              <h4 class="fw-bold text-success">
+                R$ {{ formatar(card.valor) }}
+              </h4>
+            </div>
+          </div>
+        </div>
+<!-- PRODUÇÃO DE HOJE -->
+<div class="row mt-3">
+  <div class="col-md-6 mb-3">
+    <div class="card shadow-sm border-0 p-3 text-center h-100">
+      <h6 class="text-secondary">Peças Finalizadas Hoje</h6>
+      <h4 class="fw-bold text-primary">
+        {{ relatorio.hoje.quantidade_etapa_final }}
+      </h4>
+    </div>
+  </div>
+
+  <div class="col-md-6 mb-3">
+    <div class="card shadow-sm border-0 p-3 text-center h-100">
+      <h6 class="text-secondary">Receita Produzida Hoje</h6>
+      <h4 class="fw-bold text-success">
+        R$ {{ formatar(relatorio.hoje.receita_produzida) }}
+      </h4>
+    </div>
+  </div>
+</div>
+
+        <!-- GRÁFICOS -->
+        <div class="row mt-4">
+          <div class="col-md-6 mb-3">
+            <div class="card p-3 shadow-sm">
+              <h6 class="text-center mb-2">Distribuição da Receita</h6>
+              <canvas ref="graficoPizza" height="300"></canvas>
+            </div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <div class="card p-3 shadow-sm">
+              <h6 class="text-center mb-2">
+                Receita por Ordem de Produção
+              </h6>
+              <canvas ref="graficoLinha" height="300"></canvas>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -32,128 +90,174 @@
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import { useAuthStore } from '@/store/store';
-import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
 import carregandoTela from '@/components/carregandoTela.vue';
-import Chart from 'chart.js/auto';
+import TituloSubtitulo from '@/components/TituloSubtitulo.vue';
+import { useAuthStore } from '@/store/store';
 import api from '@/Axios';
+import Chart from 'chart.js/auto';
 import router from '@/router';
+
 export default {
   name: 'RelatorioFinanceiro',
-  components: { SidebarNav, TituloSubtitulo, carregandoTela },
-    setup() {
-        const store = useAuthStore();
-        return { store };
-    },
+
+  components: {
+    SidebarNav,
+    carregandoTela,
+    TituloSubtitulo
+  },
+
+  setup() {
+    const store = useAuthStore();
+    return { store };
+  },
+
   data() {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 6);
+
     return {
-      loading: true,
-      relatorio: null,
-      chart: null,
+      loading: false,
+
+      filtros: {
+        dataInicio: inicio.toISOString().split('T')[0],
+        dataFim: hoje.toISOString().split('T')[0]
+      },
+
+      relatorio: {
+        resumo: {
+          total_realizado: 0,
+          total_projetado: 0,
+          total_geral: 0
+        },
+        hoje: {
+          receita_produzida: 0
+        },
+        ops: []
+      },
+
+      charts: {
+        pizza: null,
+        linha: null
+      }
     };
   },
+
   computed: {
     resumoCards() {
-      if (!this.relatorio) return [];
       const r = this.relatorio.resumo;
       return [
-        { titulo: 'Receita Realizada 💰', valor: r.total_realizado },
-        { titulo: 'Receita Projetada 📈', valor: r.total_projetado },
-        { titulo: 'Total Geral 💼', valor: r.total_geral },
+        { titulo: 'Receita Realizada', valor: r.total_realizado },
+        { titulo: 'Receita Projetada', valor: r.total_projetado },
+        { titulo: 'Total Geral', valor: r.total_geral }
       ];
-    },
+    }
   },
-  async mounted() {
-    this.verificarAutenticacao();
-    await this.carregarRelatorio();
-  },
-  methods: {
-    verificarAutenticacao() {
-      const token = this.store.pegar_token;
-      const usuario = this.store.pegar_usuario;
 
-      if (!token || !usuario) {
-        router.push('/');
-      }
+  mounted() {
+    this.verificarAuth();
+    this.carregarRelatorio();
+  },
+
+  methods: {
+    verificarAuth() {
+      if (!this.store.pegar_token) router.push('/');
     },
+
+    formatar(valor) {
+      return Number(valor ?? 0).toLocaleString('pt-BR');
+    },
+
     async carregarRelatorio() {
       try {
         this.loading = true;
-        const hoje = new Date();
-        const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
-        const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
-        const token = this.store.pegar_token;
-        console.log(token)
-        const { data } = await api.get(`/financeiro`, {
-          params: { dataInicio: inicio, dataFim: fim },
-          headers: { Authorization: `${token}` },
+
+        const { data } = await api.get('/financeiro', {
+          params: this.filtros,
+          headers: {
+            Authorization: this.store.pegar_token
+          }
         });
 
         this.relatorio = data;
-        console.log('Relatório financeiro carregado:', this.relatorio);
-        this.loading = false;
-        this.$nextTick(() => this.criarGrafico());
+        console.log(this.relatorio);
+        await this.$nextTick();
+        this.criarGraficoPizza();
+        this.criarGraficoLinha();
+
       } catch (err) {
-        console.error('Erro ao carregar relatório financeiro:', err);
+        console.error('Erro ao carregar relatório:', err);
       } finally {
         this.loading = false;
       }
     },
-    criarGrafico() {
-      if (this.chart) this.chart.destroy();
-        const ctx = document.getElementById('graficoFinanceiro');
-        if (!ctx) {
-            console.warn('Canvas não encontrado!');
-            return;
+
+    criarGraficoPizza() {
+  if (this.charts.pizza) this.charts.pizza.destroy();
+
+  const ctx = this.$refs.graficoPizza;
+  if (!ctx) return;
+
+  const { total_realizado, total_projetado } = this.relatorio.resumo;
+
+  this.charts.pizza = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: ['Receita Realizada', 'Receita Projetada'],
+      datasets: [{
+        data: [total_realizado, total_projetado],
+        backgroundColor: ['#2e7d32', '#ffb300']
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: ctx =>
+              `R$ ${ctx.raw.toLocaleString('pt-BR')}`
+          }
         }
-      const labels = [
-        ...this.relatorio.concluidas.map(op => op.descricao),
-        ...this.relatorio.emAndamento.map(op => op.descricao),
-      ];
+      }
+    }
+  });
+},
 
-      const realizadas = [
-        ...this.relatorio.concluidas.map(op => op.receita_realizada),
-        ...this.relatorio.emAndamento.map(op => op.receita_realizada),
-      ];
+    criarGraficoLinha() {
+      if (this.charts.linha) this.charts.linha.destroy();
 
-      const projetadas = [
-        ...this.relatorio.concluidas.map(() => 0), // Concluídas não têm projeção
-        ...this.relatorio.emAndamento.map(op => op.receita_projetada),
-      ];
+      const ctx = this.$refs.graficoLinha;
+      if (!ctx) return;
 
-      this.chart = new Chart(ctx, {
-        type: 'bar',
+      const labels = this.relatorio.ops.map(op => op.descricao);
+      const valores = this.relatorio.ops.map(
+        op => Number(op.receita_realizada ?? 0)
+      );
+
+      this.charts.linha = new Chart(ctx, {
+        type: 'line',
         data: {
           labels,
-          datasets: [
-            {
-              label: 'Receita Realizada',
-              data: realizadas,
-              backgroundColor: '#4CAF50',
-              stack: 'Stack 0',
-            },
-            {
-              label: 'Receita Projetada',
-              data: projetadas,
-              backgroundColor: '#81C784',
-              stack: 'Stack 0',
-            },
-          ],
+          datasets: [{
+            label: 'Receita Realizada',
+            data: valores,
+            borderColor: '#2e7d32',
+            backgroundColor: 'rgba(46,125,50,0.15)',
+            tension: 0.3,
+            fill: true
+          }]
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'top' },
-          },
           scales: {
-            x: { stacked: true },
-            y: { stacked: true, beginAtZero: true },
+            y: { beginAtZero: true }
           },
-        },
+          plugins: { legend: { display: false } }
+        }
       });
-    },
-  },
+    }
+  }
 };
 </script>
 
@@ -170,14 +274,12 @@ export default {
 .card h4 {
   color: var(--verde-escuro);
 }
-.text{
-    color: var(--verde-escuro);
+.bt{
+  margin: 0px;
 }
 @media (max-width: 768px) {
-
   .content-wrapper {
-    padding-left: 0px;
-    z-index: 0;
+    padding-left: 0;
   }
 }
 </style>
