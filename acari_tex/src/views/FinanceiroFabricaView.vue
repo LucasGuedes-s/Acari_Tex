@@ -274,7 +274,7 @@ export default {
 .card h4 {
   color: var(--verde-escuro);
 }
-.bt{
+.btn{
   margin: 0px;
 }
 @media (max-width: 768px) {
