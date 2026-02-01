@@ -18,19 +18,25 @@
           <!-- MENSAGENS -->
           <div class="chat-messages" ref="chatBox">
             <div
-              v-for="(msg, index) in messages"
-              :key="index"
-              :class="['message', msg.type]"
-            >
-              <div
-                class="bubble"
-                v-html="msg.html ? msg.html : msg.text"
-              ></div>
+  v-for="(msg, index) in messages"
+  :key="index"
+  :class="['message', msg.type]"
+>
+  <!-- SEPARADOR DE DATA -->
+  <div v-if="msg.type === 'date'" class="date-separator">
+    {{ msg.text }}
+  </div>
 
-            </div>
+  <!-- MENSAGEM NORMAL -->
+  <div
+    v-else
+    class="bubble"
+    v-html="msg.html ? msg.html : msg.text"
+  ></div>
+</div>
+
           </div>
 
-          <!-- INPUT -->
           <div class="chat-input">
             <input type="date" v-model="dataInicio" />
             <input type="date" v-model="dataFim" />
@@ -40,7 +46,6 @@
           </div>
         </section>
 
-        <!-- PAINEL DE DADOS -->
         <section v-if="dadosIA" class="painel">
 
           <h3>📊 Resumo da Análise</h3>
@@ -100,7 +105,7 @@
 import axios from "@/Axios";
 import SidebarNav from "@/components/Sidebar.vue";
 import { useAuthStore } from "@/store/store";
-import { FormatarData } from "@/utils/functions/FormatarData";
+//import { FormatarData } from "@/utils/functions/FormatarData";
 import { marked } from "marked";
 
 export default {
@@ -121,7 +126,9 @@ export default {
       ]
     };
   },
-
+  mounted() {
+    this.chatGet();
+  },
   methods: {
     renderMarkdown(text) {
       return marked.parse(text);
@@ -144,12 +151,63 @@ export default {
 
       this.enviarAnalise();
     },
+    formatarData(dataStr) {
+      if (!dataStr) return "-";
+      const data = new Date(dataStr);
+      return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(data);
+    },
+    async chatGet() {
+  try {
+    const store = useAuthStore();
 
+    const response = await axios.get("/chat", {
+      headers: {
+        Authorization: store.pegar_token
+      }
+    });
+
+    if (!response.data?.dados?.length) return;
+
+    this.messages = [];
+
+    // ordena do mais antigo para o mais novo
+    const historico = response.data.dados.sort(
+      (a, b) => new Date(a.criadoEm) - new Date(b.criadoEm)
+    );
+
+    let dataAtual = null;
+
+    historico.forEach(item => {
+      const dataMsg = this.formatarData(item.criadoEm);
+
+      // 🔹 adiciona separador quando muda o dia
+      if (dataMsg !== dataAtual) {
+        this.messages.push({
+          type: "date",
+          text: dataMsg
+        });
+        dataAtual = dataMsg;
+      }
+
+      // 🔹 mensagem da IA
+      this.messages.push({
+        type: "bot",
+        text: item.resultado,
+        html: this.renderMarkdown(item.resultado),
+        criadoEm: item.criadoEm
+      });
+    });
+
+    this.scrollChat();
+
+  } catch (error) {
+    console.error("Erro ao buscar histórico de chat:", error);
+  }
+},
     async enviarAnalise() {
-      
       if (!this.dataInicio || !this.dataFim) return;
-      const dataInicioObj = FormatarData(this.dataInicio);
-      const dataFimObj = FormatarData(this.dataFim);
+      const dataInicioObj = this.formatarData(this.dataInicio);
+      const dataFimObj = this.formatarData(this.dataFim);
       console.log("Período selecionado:", dataInicioObj, "até", dataFimObj);  
       this.messages.push({
         type: "user",
@@ -173,11 +231,14 @@ export default {
             dataFim: this.dataFim
           },
           {
+            timeout: 60000, // ⏱️ 60 segundos
             headers: {
               Authorization: store.pegar_token
             }
           }
         );
+
+        console.log("Resposta da análise de produção recebida:", response.data);
         console.log(response.data.dadosIA.insight); 
         // TEXTO DA IA NO CHAT
         if (response.data.dadosIA.insight) {
@@ -195,11 +256,10 @@ export default {
           });
         }
 
-
-        // DADOS ESTRUTURADOS NO PAINEL
         this.dadosIA = response.data.dadosIA;
 
       } catch (error) {
+        console.error("Erro ao gerar análise de produção:", error); 
         this.messages.push({
           type: "bot",
           text: "❌ Erro ao gerar análise. Tente novamente."
@@ -506,4 +566,31 @@ export default {
     padding: 6px;
   }
 }
+.date-separator {
+  width: 100%;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 16px 0;
+  position: relative;
+}
+
+.date-separator::before,
+.date-separator::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.date-separator::before {
+  left: 0;
+}
+
+.date-separator::after {
+  right: 0;
+}
+
 </style>

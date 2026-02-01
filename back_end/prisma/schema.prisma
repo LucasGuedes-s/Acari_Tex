@@ -31,7 +31,7 @@ model Usuarios {
   producao_funcionario Producao[]
   tempo_referencia     TempoReferencia[]
   Estabelecimento      Estabelecimento   @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-
+  chatIAResultados     ChatIAResultado[]
   @@index([estabelecimentoCnpj], map: "Usuarios_estabelecimentoCnpj_fkey")
 }
 
@@ -54,6 +54,7 @@ model Estabelecimento {
   Intercorrencias   Intercorrencias[]
   Etapas            Etapa[]
   GrupoEtapas      GrupoEtapas[]
+  chatIAResultados  ChatIAResultado[]
 }
 
 model PecasOP {
@@ -227,4 +228,20 @@ model Intercorrencias{
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
   @@index([estabelecimentoCnpj], map: "Intercorrencias_estabelecimentoCnpj_fkey")
+}
+model ChatIAResultado {
+  id                  Int       @id @default(autoincrement())
+  resultado           String    @db.Text
+  criadoEm            DateTime  @default(now())
+
+  // Relação com Usuário
+  usuarioEmail        String
+  usuario             Usuarios  @relation(fields: [usuarioEmail], references: [email])
+
+  // Relação com Estabelecimento
+  estabelecimentoCnpj String
+  estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  @@index([usuarioEmail])
+  @@index([estabelecimentoCnpj])
 }

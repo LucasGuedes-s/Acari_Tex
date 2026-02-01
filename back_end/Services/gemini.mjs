@@ -1,4 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
@@ -7,6 +10,9 @@ const ai = new GoogleGenAI({
 const MAX_RETRIES = 3;
 
 export async function gerarAnaliseProducao(dadosIA) {
+  console.log("Iniciando análise de produção com Gemini...");
+  console.log("Dados para IA:", JSON.stringify(dadosIA, null, 2));
+  console.log(dadosIA.cnpj)
   const prompt = `
 Analise os dados de produção considerando eficiência produtiva por funcionário
 e eficiência média da turma, com base no tempo padrão das etapas e no tempo
@@ -35,6 +41,15 @@ Não faça perguntas.
             ]
           }
         ]
+      });
+      console.log("✅ Gemini resposta recebida.");
+      console.log("Resposta Gemini:", response.text);
+      await prisma.chatIAResultado.create({
+        data: {
+          resultado: response.text,
+          usuarioEmail: dadosIA.usuarioEmail || null,
+          estabelecimentoCnpj: dadosIA.cnpj
+        }
       });
 
       return response.text;

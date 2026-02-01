@@ -98,7 +98,6 @@ async function postProducaoPeca(req, res) {
       where: {
         id_da_op,
         id_da_funcao,
-        //tipo: { in: ['normal', 'correcao'] } // considerar apenas válidas ou corrigidas
       }
     });
 
@@ -121,7 +120,6 @@ async function postProducaoPeca(req, res) {
         id_da_op,
         id_da_funcao,
         id_funcionario,
-        //tipo: { in: ['normal', 'correcao'] }
       }
     });
 
@@ -131,12 +129,10 @@ async function postProducaoPeca(req, res) {
       data: {
         id_da_op,
         id_funcionario,
-        //id_funcionario_ajuda,
         id_Estabelecimento,
         id_da_funcao,
         hora_registro,
         quantidade_pecas,
-        //tipo, // normal, erro ou correcao
         data_inicio: getData()
       }
     });
@@ -177,7 +173,6 @@ async function postProducaoPecaLote(req, res) {
       agrupadas[key].push(p);
     }
 
-    // 🔹 Validação de metas por etapa
     for (const key in agrupadas) {
       const grupo = agrupadas[key];
       const { id_da_op, id_da_funcao } = grupo[0];
@@ -203,13 +198,12 @@ async function postProducaoPecaLote(req, res) {
       });
 
       const jaProduzido = producaoAtual._sum.quantidade_pecas || 0;
-
+      console.log(`OP ${id_da_op} - Etapa ${id_da_funcao}: já produzido ${jaProduzido}, novo ${totalNovo}, meta ${etapa.quantidade_meta}`);
       if (jaProduzido + totalNovo > etapa.quantidade_meta) {
         throw new Error("Produção excede a meta da etapa.");
       }
     }
 
-    // 🔹 Criação em TRANSAÇÃO
     const resultado = await prisma.$transaction(
       producoes.map(p =>
         prisma.producao.create({
@@ -226,7 +220,6 @@ async function postProducaoPecaLote(req, res) {
       )
     );
 
-    // 🔹 Atualiza status das etapas concluídas
     for (const key in agrupadas) {
       const grupo = agrupadas[key];
       const { id_da_op, id_da_funcao } = grupo[0];
