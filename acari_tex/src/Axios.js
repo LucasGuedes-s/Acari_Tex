@@ -7,7 +7,7 @@ import router from './router';
  */
 const BASE_URLS = [
   'https://acari-tex.onrender.com',
-  'http://localhost:3333'
+  //'http://localhost:3333'
 ];
 
 let currentBaseURLIndex = 0;
