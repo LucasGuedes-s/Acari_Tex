@@ -1021,6 +1021,7 @@ async function postEtapa(req, res) {
 
   return etapa;
 }
+
 async function postEtapaPeca(req, res) {
   const cnpj = req.user.cnpj;
   const { descricao, id_da_op, tempo_padrao } = req.body;
@@ -1081,7 +1082,6 @@ async function postEtapaPeca(req, res) {
 
 async function getEtapasEstabelecimento(req) {
   const cnpj = req.user.cnpj;
-  console.log("Buscando etapas para estabelecimento:", cnpj); 
   const estabelecimento = await prisma.estabelecimento.findUnique({
     where: { cnpj },
   });

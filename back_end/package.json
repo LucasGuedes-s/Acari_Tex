@@ -24,7 +24,8 @@
     "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@prisma/client": "^6.16.2",

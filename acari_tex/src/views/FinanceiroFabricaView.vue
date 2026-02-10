@@ -43,27 +43,26 @@
             </div>
           </div>
         </div>
-<!-- PRODUÇÃO DE HOJE -->
-<div class="row mt-3">
-  <div class="col-md-6 mb-3">
-    <div class="card shadow-sm border-0 p-3 text-center h-100">
-      <h6 class="text-secondary">Peças Finalizadas Hoje</h6>
-      <h4 class="fw-bold text-primary">
-        {{ relatorio.hoje.quantidade_etapa_final }}
-      </h4>
-    </div>
-  </div>
+        <!-- PRODUÇÃO DE HOJE -->
+        <div class="row mt-3">
+          <div class="col-md-6 mb-3">
+            <div class="card shadow-sm border-0 p-3 text-center h-100">
+              <h6 class="text-secondary">Peças Finalizadas Hoje</h6>
+              <h4 class="fw-bold text-primary">
+                {{ relatorio.hoje.quantidade_etapa_final }}
+              </h4>
+            </div>
+          </div>
 
-  <div class="col-md-6 mb-3">
-    <div class="card shadow-sm border-0 p-3 text-center h-100">
-      <h6 class="text-secondary">Receita Produzida Hoje</h6>
-      <h4 class="fw-bold text-success">
-        R$ {{ formatar(relatorio.hoje.receita_produzida) }}
-      </h4>
-    </div>
-  </div>
-</div>
-
+          <div class="col-md-6 mb-3">
+            <div class="card shadow-sm border-0 p-3 text-center h-100">
+              <h6 class="text-secondary">Receita Produzida Hoje</h6>
+              <h4 class="fw-bold text-success">
+                R$ {{ formatar(relatorio.hoje.receita_produzida) }}
+              </h4>
+            </div>
+          </div>
+        </div>
         <!-- GRÁFICOS -->
         <div class="row mt-4">
           <div class="col-md-6 mb-3">

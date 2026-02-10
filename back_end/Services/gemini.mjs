@@ -66,3 +66,35 @@ Não faça perguntas.
     }
   }
 }
+
+export async function gerarAnaliseAlocacaoEtapas(dados) {
+  const prompt = `
+Analise os dados de eficiência por etapa de produção.
+
+Objetivo:
+Indicar quais profissionais são mais adequados para executar cada etapa do processo produtivo, com base exclusivamente na eficiência registrada.
+
+Regras:
+- Não presuma metas ideais.
+- Não se declare especialista.
+- Não faça perguntas ao final.
+- Não invente dados.
+- Use apenas as informações fornecidas.
+
+Entregue o resultado em três blocos objetivos:
+
+1) Melhores profissionais por etapa
+2) Profissionais adequados
+3) Alertas operacionais
+
+Dados:
+${JSON.stringify(dados, null, 2)}
+`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt
+  });
+
+  return response.text;
+}

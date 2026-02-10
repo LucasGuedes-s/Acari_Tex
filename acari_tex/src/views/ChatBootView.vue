@@ -17,23 +17,15 @@
 
           <!-- MENSAGENS -->
           <div class="chat-messages" ref="chatBox">
-            <div
-  v-for="(msg, index) in messages"
-  :key="index"
-  :class="['message', msg.type]"
->
-  <!-- SEPARADOR DE DATA -->
-  <div v-if="msg.type === 'date'" class="date-separator">
-    {{ msg.text }}
-  </div>
+            <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.type]">
+              <!-- SEPARADOR DE DATA -->
+              <div v-if="msg.type === 'date'" class="date-separator">
+                {{ msg.text }}
+              </div>
 
-  <!-- MENSAGEM NORMAL -->
-  <div
-    v-else
-    class="bubble"
-    v-html="msg.html ? msg.html : msg.text"
-  ></div>
-</div>
+              <!-- MENSAGEM NORMAL -->
+              <div v-else class="bubble" v-html="msg.html ? msg.html : msg.text"></div>
+            </div>
 
           </div>
 
@@ -77,17 +69,12 @@
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="(f, index) in dadosIA.eficienciaIndividual"
-                :key="index"
-              >
+              <tr v-for="(f, index) in dadosIA.eficienciaIndividual" :key="index">
                 <td>{{ f.funcionario }}</td>
-                <td
-                  :class="{
-                    acima: f.eficienciaMedia >= dadosIA.eficienciaTurma,
-                    abaixo: f.eficienciaMedia < dadosIA.eficienciaTurma
-                  }"
-                >
+                <td :class="{
+                  acima: f.eficienciaMedia >= dadosIA.eficienciaTurma,
+                  abaixo: f.eficienciaMedia < dadosIA.eficienciaTurma
+                }">
                   {{ f.eficienciaMedia }}%
                 </td>
               </tr>
@@ -157,58 +144,58 @@ export default {
       return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(data);
     },
     async chatGet() {
-  try {
-    const store = useAuthStore();
+      try {
+        const store = useAuthStore();
 
-    const response = await axios.get("/chat", {
-      headers: {
-        Authorization: store.pegar_token
-      }
-    });
-
-    if (!response.data?.dados?.length) return;
-
-    this.messages = [];
-
-    // ordena do mais antigo para o mais novo
-    const historico = response.data.dados.sort(
-      (a, b) => new Date(a.criadoEm) - new Date(b.criadoEm)
-    );
-
-    let dataAtual = null;
-
-    historico.forEach(item => {
-      const dataMsg = this.formatarData(item.criadoEm);
-
-      // 🔹 adiciona separador quando muda o dia
-      if (dataMsg !== dataAtual) {
-        this.messages.push({
-          type: "date",
-          text: dataMsg
+        const response = await axios.get("/chat", {
+          headers: {
+            Authorization: store.pegar_token
+          }
         });
-        dataAtual = dataMsg;
+
+        if (!response.data?.dados?.length) return;
+
+        this.messages = [];
+
+        // ordena do mais antigo para o mais novo
+        const historico = response.data.dados.sort(
+          (a, b) => new Date(a.criadoEm) - new Date(b.criadoEm)
+        );
+
+        let dataAtual = null;
+
+        historico.forEach(item => {
+          const dataMsg = this.formatarData(item.criadoEm);
+
+          // 🔹 adiciona separador quando muda o dia
+          if (dataMsg !== dataAtual) {
+            this.messages.push({
+              type: "date",
+              text: dataMsg
+            });
+            dataAtual = dataMsg;
+          }
+
+          // 🔹 mensagem da IA
+          this.messages.push({
+            type: "bot",
+            text: item.resultado,
+            html: this.renderMarkdown(item.resultado),
+            criadoEm: item.criadoEm
+          });
+        });
+
+        this.scrollChat();
+
+      } catch (error) {
+        console.error("Erro ao buscar histórico de chat:", error);
       }
-
-      // 🔹 mensagem da IA
-      this.messages.push({
-        type: "bot",
-        text: item.resultado,
-        html: this.renderMarkdown(item.resultado),
-        criadoEm: item.criadoEm
-      });
-    });
-
-    this.scrollChat();
-
-  } catch (error) {
-    console.error("Erro ao buscar histórico de chat:", error);
-  }
-},
+    },
     async enviarAnalise() {
       if (!this.dataInicio || !this.dataFim) return;
       const dataInicioObj = this.formatarData(this.dataInicio);
       const dataFimObj = this.formatarData(this.dataFim);
-      console.log("Período selecionado:", dataInicioObj, "até", dataFimObj);  
+      console.log("Período selecionado:", dataInicioObj, "até", dataFimObj);
       this.messages.push({
         type: "user",
         text: `Analisar produção de ${dataInicioObj} até ${dataFimObj}`
@@ -239,7 +226,7 @@ export default {
         );
 
         console.log("Resposta da análise de produção recebida:", response.data);
-        console.log(response.data.dadosIA.insight); 
+        console.log(response.data.dadosIA.insight);
         // TEXTO DA IA NO CHAT
         if (response.data.dadosIA.insight) {
           this.messages.push({
@@ -259,7 +246,7 @@ export default {
         this.dadosIA = response.data.dadosIA;
 
       } catch (error) {
-        console.error("Erro ao gerar análise de produção:", error); 
+        console.error("Erro ao gerar análise de produção:", error);
         this.messages.push({
           type: "bot",
           text: "❌ Erro ao gerar análise. Tente novamente."
@@ -273,7 +260,7 @@ export default {
 </script>
 
 <style scoped>
-  .bubble h1,
+.bubble h1,
 .bubble h2,
 .bubble h3 {
   margin-top: 12px;
@@ -329,7 +316,7 @@ export default {
   flex-direction: column;
   background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
@@ -454,6 +441,7 @@ export default {
   color: #dc2626;
   font-weight: bold;
 }
+
 @media (max-width: 1024px) {
   .content-wrapper {
     padding-left: 0;
@@ -566,6 +554,7 @@ export default {
     padding: 6px;
   }
 }
+
 .date-separator {
   width: 100%;
   text-align: center;
@@ -592,5 +581,4 @@ export default {
 .date-separator::after {
   right: 0;
 }
-
 </style>

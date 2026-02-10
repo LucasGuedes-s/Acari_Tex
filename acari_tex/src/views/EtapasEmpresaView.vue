@@ -14,6 +14,9 @@
           <button class="btn btn-success d-flex align-items-center gap-2 mb-4" @click="abrirModalNovaEtapa">
             <i class="bi bi-plus-circle"></i> Nova Etapa
           </button>
+          <button class="btn btn-outline-secondary mb-4" @click="cadastrarEtapasPorPlanilha">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Cadastro por planilha
+          </button>
           <select v-model="filtroGrupo" class="form-select mb-4" style="max-width: 250px;">
             <option value="">📂 Todos os grupos</option>
             <option v-for="grupo in gruposDisponiveis" :key="grupo" :value="grupo">
@@ -215,7 +218,7 @@
               <label class="form-label fw-semibold small">
                 Etapas deste grupo
               </label>
-              <div class="border rounded-3 p-2" style="max-height: 200px; overflow-y: auto;">
+              <div class="border rounded-3 p-2" style="max-height: 200px; overflow-y: auto;" v-if="etapas">
                 <div v-for="etapa in etapas" :key="etapa.id_da_funcao" class="form-check">
                   <input class="form-check-input" type="checkbox" :id="`etapa-${etapa.id_da_funcao}`"
                     :checked="novoGrupo.etapasSelecionadas.includes(etapa.id_da_funcao)"
@@ -320,6 +323,53 @@ export default {
       this.modalGrupo = new Modal(el);
       this.modalGrupo.show();
     },
+    async cadastrarEtapasPorPlanilha() {
+      const { value: file } = await Swal.fire({
+        title: "Upload de Planilha",
+        text: "Selecione um arquivo Excel (.xlsx) para cadastrar etapas em massa.",
+        input: "file",
+        inputAttributes: {
+          accept: ".xlsx",
+          "aria-label": "Selecione um arquivo Excel"
+        },
+        showCancelButton: true,
+        confirmButtonText: "Enviar",
+        cancelButtonText: "Cancelar"
+      });
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("arquivo", file);
+
+        try {
+          Swal.fire({
+            title: "Enviando planilha...",
+            text: "Por favor, aguarde",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => {
+              Swal.showLoading();
+            }
+          });
+          const token = this.store.pegar_token;
+          const response = await api.post("/etapas/upload", formData, {
+            headers: {
+              Authorization: `${token}`,
+              "Content-Type": "multipart/form-data"
+            }
+          });
+          Swal.close();
+
+          console.log("Resposta do upload:", response.data);
+          Swal.fire("Sucesso", "Etapas cadastradas com sucesso!", "success");
+          this.buscarEtapas();
+        } catch (error) {
+          Swal.close(); 
+          console.error("Erro ao enviar planilha:", error);
+          Swal.fire("Erro", "Não foi possível cadastrar as etapas.", "error");
+        }
+      }
+    },
     async salvarGrupoEtapas() {
       if (!this.novoGrupo.nome) {
         return Swal.fire("Aviso", "O nome do grupo é obrigatório.", "warning");
@@ -340,7 +390,6 @@ export default {
 
         this.modalGrupo.hide();
         this.novoGrupo = { nome: "", descricao: "" };
-        //this.buscarGrupos();
       } catch (error) {
         console.error("Erro ao criar grupo:", error);
         Swal.fire("Erro", "Não foi possível criar o grupo.", "error");
