@@ -58,7 +58,7 @@
             <div v-if="etapa === 2" class="section animate-fade">
               <div class="nova-etapa mb-4 d-flex justify-content-between align-items-center">
                 <h3 class="section-title">2 - Processo de Produção</h3>
-                
+
                 <!-- <section class="d-flex align-items-center gap-2">
                   <input v-model="novaEtapa" type="text" class="form-control etapa-input"
                     placeholder="Nome da nova etapa" @keyup.enter="adicionarNovaEtapa"
@@ -81,7 +81,7 @@
 
               <!-- Linha de produção -->
               <div class="linha-producao" @dragover.prevent @drop="onDrop($event)">
-              
+
                 <h5 class="drag-title">Linha de Produção</h5>
                 <div class="pipeline">
                   <transition-group name="fade-list" tag="div" class="pipeline-inner">
@@ -96,11 +96,8 @@
                   </transition-group>
                 </div>
               </div>
-                <GraficoTempoPadrao
-                  :tempoPeca="novaPeca.tempo_padrao"
-                  :etapasSelecionadas="novaPeca.producao"
-                  :etapasDefinidas="locaisPredefinidos"
-                />
+              <GraficoTempoPadrao :tempoPeca="novaPeca.tempo_padrao" :etapasSelecionadas="novaPeca.producao"
+                :etapasDefinidas="locaisPredefinidos" />
 
               <div class="d-flex gap-2 mt-3 justify-content-between">
                 <button @click="etapa--" class="btn btn-secondary btn-block"
@@ -146,45 +143,52 @@
                   </div>
                 </div>
 
-                <!-- Profissionais -->
                 <div class="col-12">
                   <div class="info-card">
                     <i class="bi bi-people info-icon"></i>
                     <div class="w-100">
-                      <span class="info-label">Profissionais indicados para melhor produção</span>
+                      <span class="info-label">
+                        Profissionais indicados para melhor produção
+                      </span>
+
                       <div class="profissionais-list mt-2">
                         <div v-for="etapaNome in novaPeca.producao" :key="etapaNome" class="profissional-item">
-                          <strong class="prof-etapa">{{ etapaNome }}:</strong>
+                          <strong class="prof-etapa">
+                            {{ etapaNome }}:
+                          </strong>
 
                           <div class="prof-indicado">
                             <template v-if="getMelhorFuncionario(etapaNome)">
-                              <img :src="getMelhorFuncionario(etapaNome).foto" alt="Foto" class="prof-foto" />
+                              <!--<img :src="getMelhorFuncionario(etapaNome).foto" alt="Foto" class="prof-foto" /> -->
                               <span class="prof-nome">
                                 {{ getMelhorFuncionario(etapaNome).nome }}
                               </span>
                             </template>
-                            <span v-else class="prof-nome vazio">Nenhum profissional indicado</span>
+
+                            <span v-else class="prof-nome vazio">
+                              Nenhum profissional indicado
+                            </span>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+                </div>
+                <!-- Botões -->
+                <div class="d-flex justify-content-between mt-4">
+                  <button @click="etapa--" class="btn btn-secondary btn-lg">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                  </button>
+                  <button @click="adicionarPeca" class="btn btn-success btn-lg">
+                    <i class="bi bi-check-lg"></i> Cadastrar Peça
+                  </button>
+                </div>
               </div>
-              <!-- Botões -->
-              <div class="d-flex justify-content-between mt-4">
-                <button @click="etapa--" class="btn btn-secondary btn-lg">
-                  <i class="bi bi-arrow-left"></i> Voltar
-                </button>
-                <button @click="adicionarPeca" class="btn btn-success btn-lg">
-                  <i class="bi bi-check-lg"></i> Cadastrar Peça
-                </button>
-              </div>
-            </div>
 
+            </div>
           </div>
         </div>
-      </div>
     </main>
   </div>
 </template>
@@ -224,6 +228,7 @@ export default {
       targetIndex: null,
       novaEtapa: "",
       loading: false,
+      insightIA: null,
     };
   },
   methods: {
@@ -248,11 +253,23 @@ export default {
       this.novaEtapa = "";
 
     },
+
     getMelhorFuncionario(etapaNome) {
-      const etapa = this.locaisPredefinidos.find(e => e.descricao === etapaNome)
-      return etapa && etapa.melhorFuncionario && etapa.melhorFuncionario.funcionario
-        ? etapa.melhorFuncionario.funcionario
-        : null
+      if (!this.insightIA?.melhores_por_etapa) return null;
+
+      const indicado = this.insightIA.melhores_por_etapa[etapaNome];
+
+      if (!indicado) return null;
+
+      return {
+        nome: indicado.profissional,
+        eficiencia: indicado.eficienciaMedia,
+        foto: this.getFotoProfissional(indicado.profissional)
+      };
+    },
+    getFotoProfissional(nome) {
+      const funcionario = this.store.funcionarios?.find(f => f.nome === nome);
+      return funcionario?.foto || "/avatar.png";
     },
     proximaEtapa() { this.etapa++; },
     async getEtpas() {
@@ -261,6 +278,23 @@ export default {
       console.log("Etapas recebidas:", etapas.data)
       this.locaisPredefinidos = etapas.data.etapa
 
+    },
+    async buscarIndicacoesIA() {
+      try{
+        const token = this.store.pegar_token;
+
+        const response = await api.get(
+          "/indicar-profissionais",
+          { timeout: 60000, headers: { Authorization: token } }
+        );
+
+        if (response.data?.insight) {
+          this.insightIA = response.data.insight;
+        }
+        console.log("Resposta da IA para indicações de profissionais:", response.data);
+      } catch (error) {
+        console.error("Erro ao buscar indicações da IA:", error);
+      }
     },
     async adicionarPeca() {
       try {
@@ -341,12 +375,12 @@ export default {
   mounted() {
     this.verificarAutenticacao()
     this.getEtpas()
+    this.buscarIndicacoesIA()
   }
 };
 </script>
 
 <style scoped>
-
 .processo {
   font-weight: 500;
   color: #2e7d32;

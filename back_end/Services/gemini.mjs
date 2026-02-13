@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 });
+console.log("GEMINI_API_KEY:", process.env.GEMINI_API_KEY);
 
 const MAX_RETRIES = 3;
 
@@ -68,6 +69,8 @@ Não faça perguntas.
 }
 
 export async function gerarAnaliseAlocacaoEtapas(dados) {
+  console.log("Iniciando análise de alocação de etapas com Gemini...");
+
   const prompt = `
 Analise os dados de eficiência por etapa de produção.
 
@@ -87,14 +90,59 @@ Entregue o resultado em três blocos objetivos:
 2) Profissionais adequados
 3) Alertas operacionais
 
+IMPORTANTE:
+Responda EXCLUSIVAMENTE em JSON válido, sem texto fora do JSON.
+
+Formato esperado:
+{
+  "melhores_por_etapa": {
+    "Nome da Etapa": {
+      "profissional": "Nome do profissional",
+      "eficienciaMedia": 0
+    }
+  },
+  "profissionais_adequados": {
+    "Nome da Etapa": [
+      {
+        "profissional": "Nome",
+        "eficienciaMedia": 0
+      }
+    ]
+  },
+  "alertas": [
+    "texto do alerta"
+  ]
+}
+
 Dados:
 ${JSON.stringify(dados, null, 2)}
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt
-  });
+  for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              { text: "\nDados:\n" + JSON.stringify(dados) }
+            ]
+          }
+        ]
+      });
+      console.log("✅ Gemini resposta recebida.");
+      return JSON.parse(response.text);
+    } catch (error) {
+      console.error(`❌ Gemini tentativa ${tentativa}:`, error.message);
 
-  return response.text;
+      if (tentativa === MAX_RETRIES) {
+        return "Análise indisponível no momento devido à instabilidade do serviço de IA.";
+      }
+
+      // ⏱️ Backoff progressivo
+      await new Promise(res => setTimeout(res, tentativa * 1000));
+    }
+  }
 }

@@ -224,9 +224,6 @@ export default {
             }
           }
         );
-
-        console.log("Resposta da análise de produção recebida:", response.data);
-        console.log(response.data.dadosIA.insight);
         // TEXTO DA IA NO CHAT
         if (response.data.dadosIA.insight) {
           this.messages.push({
