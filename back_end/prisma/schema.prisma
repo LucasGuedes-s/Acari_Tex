@@ -55,6 +55,7 @@ model Estabelecimento {
   Etapas            Etapa[]
   GrupoEtapas      GrupoEtapas[]
   chatIAResultados  ChatIAResultado[]
+  Financeiro         Financeiro[]
 }
 
 model PecasOP {
@@ -244,4 +245,20 @@ model ChatIAResultado {
 
   @@index([usuarioEmail])
   @@index([estabelecimentoCnpj])
+}
+model Financeiro {
+  id                  Int             @id @default(autoincrement())
+  estabelecimentoCnpj String
+  notaFiscal          String?
+  tipo                String          // "receita" ou "despesa"
+  categoria           String
+  valor               Float
+  data                DateTime
+  saldoRestante       Float?    @default(0)
+  registradaPor       String?         // Email do usuário
+  descricao           String?
+  criadoEm            DateTime        @default(now())
+  estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  @@index([estabelecimentoCnpj], map: "Financeiro_estabelecimentoCnpj_fkey")
 }
