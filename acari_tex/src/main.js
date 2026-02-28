@@ -5,8 +5,10 @@ import VueGoogleCharts from 'vue-google-charts'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useAuthStore } from '@/store/store';
 import Vue3Lottie from 'vue3-lottie'
+import { createHead } from '@vueuse/head'
 
 const app = createApp(App);
+const head = createHead()
 
 import { createPinia } from 'pinia'
 const pinia = createPinia()
@@ -14,6 +16,8 @@ const pinia = createPinia()
 app.use(router);
 app.use(pinia);
 
+
+app.use(head)
 
 app.use(VueGoogleCharts);
 app.use(Vue3Lottie)

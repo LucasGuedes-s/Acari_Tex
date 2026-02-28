@@ -100,24 +100,83 @@
             <li>✔️ Consultoria dedicada</li>
           </ul>
         </div>
-
+        
       </div>
     </div>
+    <section class="ai-section">
+  <h2>Inteligência Artificial aplicada à produção têxtil</h2>
+  <p class="ai-lead">
+    O LinhaTex utiliza inteligência artificial para analisar dados produtivos,
+    identificar gargalos, prever atrasos e sugerir melhorias nos processos.
+  </p>
+
+  <div class="ai-grid">
+    <div class="ai-card">
+      🤖
+      <h3>Análise inteligente</h3>
+      <p>Identificação automática de falhas e desperdícios na produção.</p>
+    </div>
+
+    <div class="ai-card">
+      📈
+      <h3>Previsões produtivas</h3>
+      <p>Estimativas de prazos e desempenho com base em dados históricos.</p>
+    </div>
+
+    <div class="ai-card">
+      ⚙️
+      <h3>Otimização de processos</h3>
+      <p>Sugestões automáticas para melhorar eficiência e reduzir custos.</p>
+    </div>
+  </div>
+</section>
+    <section class="seo-text">
+      <h2>LinhaTex – Sistema de Gestão da Produção Têxtil</h2>
+      <p>
+        O LinhaTex é um software especializado em gestão da produção têxtil,
+        desenvolvido para confecções, fábricas e indústrias do setor.
+        Com o LinhaTex, é possível controlar etapas produtivas, equipes,
+        indicadores e relatórios em tempo real.
+      </p>
+    </section>
     <Footer />
   </section>
 </template>
 
 <script>
-import Footer from '@/components/Footer.vue';
+import { useHead } from '@vueuse/head'
+import Footer from '@/components/Footer.vue'
+
 export default {
   name: "LandingHome",
   components: { Footer },
+  setup() {
+    useHead({
+      title: 'LinhaTex | Gestão Inteligente da Produção Têxtil',
+      meta: [
+        {
+          name: 'description',
+          content: 'LinhaTex é um sistema completo para gestão da produção têxtil. Controle etapas, equipes e relatórios em tempo real.'
+        },
+        {
+          name: 'keywords',
+          content: 'LinhaTex, gestão têxtil, produção têxtil, sistema de confecção, controle de produção'
+        },
+
+        // Open Graph
+        { property: 'og:title', content: 'LinhaTex | Gestão da Produção Têxtil' },
+        { property: 'og:description', content: 'Controle total da sua produção têxtil com o LinhaTex.' },
+        { property: 'og:image', content: 'https://linhatex.com/og-image.png' },
+        { property: 'og:type', content: 'website' }
+      ]
+    })
+  },
   methods: {
     Login() {
       this.$router.push('/login');
     }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -127,7 +186,56 @@ export default {
   --bg: #f6f7f6;
   --card: #ffffff;
 }
+.seo-text {
+  max-width: 900px;
+  margin: 40px auto;
+  font-size: 0.95rem;
+  color: #333;
+}
 
+.ai-section {
+  padding: 60px 20px;
+  background: #f2f5f3;
+  text-align: center;
+}
+
+.ai-section h2 {
+  font-size: 2rem;
+  color: var(--verde-escuro);
+  margin-bottom: 15px;
+}
+
+.ai-lead {
+  max-width: 700px;
+  margin: 0 auto 40px;
+  font-size: 1.1rem;
+  color: #444;
+}
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 25px;
+}
+
+.ai-card {
+  background: white;
+  padding: 25px;
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  font-size: 2rem;
+}
+
+.ai-card h3 {
+  font-size: 1.2rem;
+  margin: 10px 0;
+  color: var(--verde-claro);
+}
+
+.ai-card p {
+  font-size: 0.95rem;
+  color: #555;
+}
 .landing-root {
   background: var(--bg);
   min-height: 100vh;

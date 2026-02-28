@@ -1,0 +1,117 @@
+useHead({
+  script: [
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "LinhaTex",
+        "url": "https://linhatex.com",
+        "logo": "https://linhatex.com/logo.png",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "description": "LinhaTex é um sistema inteligente de gestão da produção têxtil com uso de inteligência artificial para otimização de processos, controle de etapas, equipes e relatórios em tempo real.",
+        "featureList": [
+          "Gestão de produção têxtil",
+          "Controle de etapas produtivas",
+          "Gestão de equipes",
+          "Relatórios em tempo real",
+          "Relatórios avançados com inteligência artificial",
+          "Análise de desempenho",
+          "Otimização de processos industriais"
+        ],
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "Confecções, fábricas e indústrias têxteis"
+        },
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Plano Semestral",
+            "price": "299.90",
+            "priceCurrency": "BRL",
+            "billingDuration": "P6M"
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano Anual",
+            "price": "279.90",
+            "priceCurrency": "BRL",
+            "billingDuration": "P1Y"
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano Sob Demanda",
+            "price": "0",
+            "priceCurrency": "BRL",
+            "availability": "https://schema.org/InStoreOnly"
+          }
+        ],
+        "provider": {
+          "@type": "Organization",
+          "name": "LinhaTex",
+          "url": "https://linhatex.com",
+          "description": "Empresa desenvolvedora do sistema LinhaTex, especializada em soluções tecnológicas para o setor têxtil."
+        }
+      })
+    }
+  ]
+})useHead({
+  script: [
+    {
+      type: 'application/ld+json',
+      children: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "LinhaTex",
+        "url": "https://linhatex.com",
+        "logo": "https://linhatex.com/logo.png",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "description": "LinhaTex é um sistema inteligente de gestão da produção têxtil com uso de inteligência artificial para otimização de processos, controle de etapas, equipes e relatórios em tempo real.",
+        "featureList": [
+          "Gestão de produção têxtil",
+          "Controle de etapas produtivas",
+          "Gestão de equipes",
+          "Relatórios em tempo real",
+          "Relatórios avançados com inteligência artificial",
+          "Análise de desempenho",
+          "Otimização de processos industriais"
+        ],
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "Confecções, fábricas e indústrias têxteis"
+        },
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Plano Semestral",
+            "price": "299.90",
+            "priceCurrency": "BRL",
+            "billingDuration": "P6M"
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano Anual",
+            "price": "279.90",
+            "priceCurrency": "BRL",
+            "billingDuration": "P1Y"
+          },
+          {
+            "@type": "Offer",
+            "name": "Plano Sob Demanda",
+            "price": "0",
+            "priceCurrency": "BRL",
+            "availability": "https://schema.org/InStoreOnly"
+          }
+        ],
+        "provider": {
+          "@type": "Organization",
+          "name": "LinhaTex",
+          "url": "https://linhatex.com",
+          "description": "Empresa desenvolvedora do sistema LinhaTex, especializada em soluções tecnológicas para o setor têxtil."
+        }
+      })
+    }
+  ]
+})
