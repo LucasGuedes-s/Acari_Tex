@@ -5,5 +5,6 @@ const jwtMiddleware = require('../middlewares/auth')
 
 router.post('/caixa', jwtMiddleware, financeiro.postCaixa);
 router.get('/fluxo/caixa', jwtMiddleware, financeiro.getCaixa);
+router.delete('/caixa/:id', jwtMiddleware, financeiro.deletarLancamento);
 
 module.exports = router;

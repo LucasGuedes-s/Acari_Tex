@@ -104,30 +104,29 @@
       </div>
     </div>
     <section class="ai-section">
-  <h2>Inteligência Artificial aplicada à produção têxtil</h2>
-  <p class="ai-lead">
-    O LinhaTex utiliza inteligência artificial para analisar dados produtivos,
-    identificar gargalos, prever atrasos e sugerir melhorias nos processos.
-  </p>
+  <div class="ai-container">
+    
+    <!-- Texto -->
+    <div class="ai-content">
+      <h2>Inteligência Artificial aplicada à produção têxtil</h2>
+      <p class="ai-lead">
+        O LinhaTex utiliza inteligência artificial para analisar dados produtivos,
+        identificar gargalos, prever atrasos e sugerir melhorias nos processos.
+      </p>
 
-  <div class="ai-grid">
-    <div class="ai-card">
-      🤖
-      <h3>Análise inteligente</h3>
-      <p>Identificação automática de falhas e desperdícios na produção.</p>
+      <ul class="ai-list">
+        <li>✔️ Análise inteligente de desempenho produtivo</li>
+        <li>✔️ Previsão de atrasos e gargalos</li>
+        <li>✔️ Otimização automática de processos</li>
+        <li>✔️ Decisões baseadas em dados reais</li>
+      </ul>
     </div>
 
-    <div class="ai-card">
-      📈
-      <h3>Previsões produtivas</h3>
-      <p>Estimativas de prazos e desempenho com base em dados históricos.</p>
+    <!-- Imagem -->
+    <div class="ai-image">
+      <img src="@/assets/imagem1.png" alt="Inteligência artificial aplicada à produção têxtil no LinhaTex">
     </div>
 
-    <div class="ai-card">
-      ⚙️
-      <h3>Otimização de processos</h3>
-      <p>Sugestões automáticas para melhorar eficiência e reduzir custos.</p>
-    </div>
   </div>
 </section>
     <section class="seo-text">
@@ -192,57 +191,60 @@ export default {
   font-size: 0.95rem;
   color: #333;
 }
-
 .ai-section {
-  padding: 60px 20px;
+  padding: 80px 20px;
   background: #f2f5f3;
-  text-align: center;
 }
 
-.ai-section h2 {
-  font-size: 2rem;
+.ai-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;
+  gap: 50px;
+}
+
+.ai-content h2 {
+  font-size: 2.2rem;
   color: var(--verde-escuro);
   margin-bottom: 15px;
 }
 
 .ai-lead {
-  max-width: 700px;
-  margin: 0 auto 40px;
   font-size: 1.1rem;
   color: #444;
+  margin-bottom: 20px;
 }
 
-.ai-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 25px;
+.ai-list {
+  list-style: none;
+  padding: 0;
+  font-size: 1rem;
+  color: #333;
 }
 
-.ai-card {
-  background: white;
-  padding: 25px;
-  border-radius: 14px;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
-  font-size: 2rem;
+.ai-list li {
+  margin-bottom: 10px;
 }
 
-.ai-card h3 {
-  font-size: 1.2rem;
-  margin: 10px 0;
-  color: var(--verde-claro);
+.ai-image img {
+  width: 100%;
+  display: block;
 }
 
-.ai-card p {
-  font-size: 0.95rem;
-  color: #555;
-}
-.landing-root {
-  background: var(--bg);
-  min-height: 100vh;
-  overflow: hidden;
-  position: relative;
-}
+/* Mobile */
+@media (max-width: 768px) {
+  .ai-container {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
 
+  .ai-list {
+    text-align: left;
+    display: inline-block;
+  }
+}
 .top-actions {
   position: absolute;
   top: 15px;

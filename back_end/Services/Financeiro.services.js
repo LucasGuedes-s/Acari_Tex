@@ -31,7 +31,7 @@ async function postCaixa(req) {
         tipo,
         categoria,
         valor,
-        data,
+        data: new Date(data),
         descricao,
         registradaPor,
         estabelecimentoCnpj: cnpj,
@@ -44,17 +44,81 @@ async function postCaixa(req) {
 }
 
 async function getCaixa(req) {
+  const { dataInicio, dataFim } = req.query
+ 
   const cnpj = req.user.cnpj
     return await prisma.financeiro.findMany({
       where: {
-        estabelecimentoCnpj: cnpj
+        estabelecimentoCnpj: cnpj,
+        data: {
+          gte: dataInicio ? new Date(dataInicio) : undefined,
+          lte: dataFim ? new Date(dataFim) : undefined
+        }
       },
       orderBy: {
         criadoEm: 'desc'
       }
     })
 }
+async function deletarLancamento(id, cnpj) {
+  return await prisma.$transaction(async (tx) => {
+
+    // 1️⃣ Buscar lançamento
+    const lancamento = await tx.financeiro.findFirst({
+      where: {
+        id: Number(id),
+        estabelecimentoCnpj: cnpj
+      }
+    })
+
+    if (!lancamento) {
+      throw new Error('Lançamento não encontrado ou acesso negado')
+    }
+
+    // 2️⃣ Buscar saldo anterior ao lançamento deletado
+    const anterior = await tx.financeiro.findFirst({
+      where: {
+        estabelecimentoCnpj: cnpj,
+        criadoEm: { lt: lancamento.criadoEm }
+      },
+      orderBy: { criadoEm: 'desc' }
+    })
+
+    let saldoBase = anterior?.saldoRestante ?? 0
+
+    // 3️⃣ Deletar lançamento
+    await tx.financeiro.delete({
+      where: { id: lancamento.id }
+    })
+
+    // 4️⃣ Buscar lançamentos posteriores
+    const posteriores = await tx.financeiro.findMany({
+      where: {
+        estabelecimentoCnpj: cnpj,
+        criadoEm: { gt: lancamento.criadoEm }
+      },
+      orderBy: { criadoEm: 'asc' }
+    })
+
+    // 5️⃣ Recalcular saldos
+    for (const item of posteriores) {
+      if (item.tipo === 'receita') {
+        saldoBase += item.valor
+      } else {
+        saldoBase -= item.valor
+      }
+
+      await tx.financeiro.update({
+        where: { id: item.id },
+        data: { saldoRestante: saldoBase }
+      })
+    }
+
+    return true
+  })
+}
 module.exports = {
     postCaixa,
-    getCaixa
+    getCaixa,
+    deletarLancamento
 }
