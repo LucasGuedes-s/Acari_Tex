@@ -1,0 +1,35 @@
+name: Backup Banco
+
+on:
+  schedule:
+    - cron: '0 5 * * *' # todo dia 02:00 Brasil (UTC+3)
+  workflow_dispatch: # botão manual
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar MySQL Client
+        run: sudo apt-get install -y mysql-client
+
+      - name: Gerar backup
+        run: |
+          mysqldump \
+            -h ${{ secrets.DB_HOST }} \
+            -u ${{ secrets.DB_USER }} \
+            -p${{ secrets.DB_PASSWORD }} \
+            ${{ secrets.DB_NAME }} \
+            > backup.sql
+
+      - name: Comprimir
+        run: gzip backup.sql
+
+      - name: Upload para R2
+        run: |
+          curl -X PUT "${{ secrets.R2_ENDPOINT }}/${{ secrets.R2_BUCKET }}/backup-$(date +%F-%H-%M).sql.gz" \
+          -H "Authorization: AWS ${{ secrets.R2_ACCESS_KEY }}:${{ secrets.R2_SECRET_KEY }}" \
+          --upload-file backup.sql.gz
