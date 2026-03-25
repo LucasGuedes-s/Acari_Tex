@@ -2,7 +2,7 @@ name: Backup Banco
 
 on:
   schedule:
-    - cron: '0 5 * * *' # todo dia 02:00 Brasil (UTC+3)
+  - cron: '30 22 * * *' # todo dia 02:00 Brasil (UTC+3)
   workflow_dispatch: # botão manual
 
 jobs:
