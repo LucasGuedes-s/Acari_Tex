@@ -28,6 +28,7 @@ model Usuarios {
   notas                String?
   status               String?           @default("ativo")
   estabelecimentoCnpj  String
+  telefone             String?
   equipes              EquipesUsuarios[]
   producao_funcionario Producao[]
   tempo_referencia     TempoReferencia[]
