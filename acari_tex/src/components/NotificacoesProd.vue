@@ -2,7 +2,7 @@
 import { io } from "socket.io-client";
 import { onMounted, reactive } from "vue";
 import { useAuthStore } from "@/store/store";
-import { v4 as uuidv4 } from "uuid"; // se não tiver, instale: npm i uuid
+import { v4 as uuidv4 } from "uuid";
 import router from "@/router";
 
 const socket = io("https://acari-tex.onrender.com"); // ajuste se necessário

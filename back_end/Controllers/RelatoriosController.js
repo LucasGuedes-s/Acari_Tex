@@ -10,6 +10,16 @@ async function financeiro(req, res) {
     }
 }
 
+async function producaoResumo(req, res) {
+    try {
+        const resumoProducao = await relatorios.relatorioProducaoResumo(req);
+        res.status(200).json(resumoProducao);
+    } catch (error) {
+        console.error('Erro ao gerar relatório de produção resumo:', error);
+        res.status(500).json({ message: 'Erro ao gerar relatório de produção resumo' });
+    }
+}
 module.exports = {
-    financeiro
+    financeiro,
+    producaoResumo
 };

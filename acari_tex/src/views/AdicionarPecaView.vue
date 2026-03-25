@@ -10,6 +10,9 @@
 
             <!-- Etapa 1 -->
             <div v-if="etapa === 1" class="section etapa1-section">
+              <button class="btn btn-outline-secondary mb-4 d-flex" @click="cadastrarPecaPorPlanilha">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Cadastro por planilha
+              </button>
               <h3 class="section-title mb-4">1 - Informações Básicas</h3>
 
               <div class="row g-3">
@@ -174,21 +177,21 @@
                     </div>
                   </div>
                 </div>
-                </div>
-                <!-- Botões -->
-                <div class="d-flex justify-content-between mt-4">
-                  <button @click="etapa--" class="btn btn-secondary btn-lg">
-                    <i class="bi bi-arrow-left"></i> Voltar
-                  </button>
-                  <button @click="adicionarPeca" class="btn btn-success btn-lg">
-                    <i class="bi bi-check-lg"></i> Cadastrar Peça
-                  </button>
-                </div>
               </div>
-
+              <!-- Botões -->
+              <div class="d-flex justify-content-between mt-4">
+                <button @click="etapa--" class="btn btn-secondary btn-lg">
+                  <i class="bi bi-arrow-left"></i> Voltar
+                </button>
+                <button @click="adicionarPeca" class="btn btn-success btn-lg">
+                  <i class="bi bi-check-lg"></i> Cadastrar Peça
+                </button>
+              </div>
             </div>
+
           </div>
         </div>
+      </div>
     </main>
   </div>
 </template>
@@ -272,6 +275,53 @@ export default {
       return funcionario?.foto || "/avatar.png";
     },
     proximaEtapa() { this.etapa++; },
+    async cadastrarPecaPorPlanilha() {
+      const { value: file } = await Swal.fire({
+        title: "Upload de Planilha",
+        text: "Selecione um arquivo Excel (.xlsx) para cadastrar etapas e peça completa.",
+        input: "file",
+        inputAttributes: {
+          accept: ".xlsx",
+          "aria-label": "Selecione um arquivo Excel"
+        },
+        showCancelButton: true,
+        confirmButtonText: "Enviar",
+        cancelButtonText: "Cancelar"
+      });
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("arquivo", file);
+
+        try {
+          Swal.fire({
+            title: "Enviando planilha...",
+            text: "Por favor, aguarde",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => {
+              Swal.showLoading();
+            }
+          });
+          const token = this.store.pegar_token;
+          const response = await api.post("/pecas/upload", formData, {
+            headers: {
+              Authorization: `${token}`,
+              "Content-Type": "multipart/form-data"
+            }
+          });
+          Swal.close();
+
+          console.log("Resposta do upload:", response.data);
+          Swal.fire("Sucesso", "Peça cadastrada com sucesso!", "success");
+          router.push("/dashboard");
+        } catch (error) {
+          Swal.close();
+          console.error("Erro ao enviar planilha:", error);
+          Swal.fire("Erro", "Não foi possível cadastrar as etapas.", "error");
+        }
+      }
+    },
     async getEtpas() {
       const token = this.store.pegar_token;
       const etapas = await api.get('/etapas/estabelecimento', { headers: { Authorization: `${token}` } })
@@ -280,7 +330,7 @@ export default {
 
     },
     async buscarIndicacoesIA() {
-      try{
+      try {
         const token = this.store.pegar_token;
 
         const response = await api.get(

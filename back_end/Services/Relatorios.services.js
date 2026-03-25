@@ -158,7 +158,173 @@ async function relatorioFinanceiro(req) {
     ops: relatorio
   };
 }
+async function relatorioProducaoResumo(req) {
+  const cnpj = req.user.cnpj;
+  const { dataInicio, dataFim } = req.query;
 
+  const hoje = new Date();
+
+  const inicio = dataInicio
+    ? new Date(dataInicio)
+    : new Date(hoje.setDate(hoje.getDate() - 30));
+
+  const fim = dataFim ? new Date(dataFim) : new Date();
+
+  /* PRODUÇÃO DO PERÍODO */
+  const producoes = await prisma.producao.findMany({
+    where: {
+      id_Estabelecimento: cnpj,
+      data_inicio: {
+        gte: inicio,
+        lte: fim,
+      },
+    },
+    include: {
+      producao_funcionario: {
+        select: {
+          nome: true,
+          foto: true,
+        },
+      },
+      producao_etapa: {
+        select: {
+          descricao: true,
+        },
+      },
+    },
+  });
+
+  /* PRODUÇÃO TOTAL */
+  const producaoTotal = producoes.reduce(
+    (acc, p) => acc + (p.quantidade_pecas || 0),
+    0
+  );
+
+  /* PRODUÇÃO POR DIA */
+  const producaoPorDia = {};
+
+  producoes.forEach((p) => {
+    const dia = p.data_inicio.toISOString().split("T")[0];
+
+    if (!producaoPorDia[dia]) {
+      producaoPorDia[dia] = 0;
+    }
+
+    producaoPorDia[dia] += p.quantidade_pecas || 0;
+  });
+
+  /* PRODUÇÃO POR FUNCIONÁRIO */
+  const producaoPorFuncionario = {};
+
+  producoes.forEach((p) => {
+    const nome = p.producao_funcionario?.nome || "Desconhecido";
+
+    if (!producaoPorFuncionario[nome]) {
+      producaoPorFuncionario[nome] = {
+        nome,
+        foto: p.producao_funcionario?.foto,
+        quantidade: 0,
+      };
+    }
+
+    producaoPorFuncionario[nome].quantidade += p.quantidade_pecas || 0;
+  });
+
+  const rankingFuncionarios = Object.values(producaoPorFuncionario)
+    .sort((a, b) => b.quantidade - a.quantidade)
+    .slice(0, 10);
+
+  const melhorFuncionario = rankingFuncionarios[0] || null;
+
+  /* PRODUÇÃO POR ETAPA */
+  const producaoPorEtapa = {};
+
+  producoes.forEach((p) => {
+    const etapa = p.producao_etapa?.descricao || "Sem etapa";
+
+    if (!producaoPorEtapa[etapa]) {
+      producaoPorEtapa[etapa] = 0;
+    }
+
+    producaoPorEtapa[etapa] += p.quantidade_pecas || 0;
+  });
+
+  /* INTERCORRÊNCIAS */
+  const intercorrencias = await prisma.intercorrencias.findMany({
+    where: {
+      estabelecimentoCnpj: cnpj,
+      data_ocorrencia: {
+        gte: inicio,
+        lte: fim,
+      },
+    },
+  });
+
+  let tempoPerdidoTotal = 0;
+
+  intercorrencias.forEach((i) => {
+    tempoPerdidoTotal += i.tempo_perda || 0;
+  });
+
+  /* TEMPO PERDIDO POR MOTIVO */
+
+  const tempoPerdidoPorMotivo = {};
+
+  intercorrencias.forEach((i) => {
+    const motivo = i.notas || "Outro";
+
+    if (!tempoPerdidoPorMotivo[motivo]) {
+      tempoPerdidoPorMotivo[motivo] = 0;
+    }
+
+    tempoPerdidoPorMotivo[motivo] += i.tempo_perda || 0;
+  });
+
+  /* EFICIÊNCIA DA TURMA */
+
+  const eficiencia = await prisma.eficienciaTurma.findFirst({
+    where: {
+      estabelecimentoCnpj: cnpj,
+    },
+    orderBy: {
+      calculadoEm: "desc",
+    },
+  });
+
+  /* QUANTIDADE DE FUNCIONÁRIOS ATIVOS */
+
+  const funcionariosAtivos = await prisma.usuarios.count({
+    where: {
+      estabelecimentoCnpj: cnpj,
+      status: "ativo",
+    },
+  });
+
+  return {
+    periodo: {
+      inicio,
+      fim,
+    },
+
+    resumo: {
+      producaoTotal,
+      funcionariosAtivos,
+      tempoPerdidoTotal,
+      eficiencia: eficiencia?.eficiencia_percent || 0,
+    },
+
+    producaoPorDia,
+
+    rankingFuncionarios,
+
+    melhorFuncionario,
+
+    producaoPorEtapa,
+
+    tempoPerdidoPorMotivo,
+  };
+}
 module.exports = {
-    relatorioFinanceiro
+    relatorioFinanceiro,
+    relatorioProducaoResumo 
 };

@@ -350,7 +350,6 @@ export default {
           headers: { Authorization: this.store.pegar_token }
         })
         this.pecas = data.peca.em_progresso
-        console.log(this.pecas)
         this.etapas = data.peca.em_progresso.map(p => p.etapas)
       } catch (err) {
         console.error(err)

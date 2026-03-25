@@ -64,6 +64,7 @@ async function postPecaOP(req, user) {
 
   return novaPeca;
 }
+
 async function postProducaoPeca(req, res) {
   try {
     const {
@@ -431,7 +432,7 @@ async function getProducaoEquipe(req) {
         id_funcionario: true,
         quantidade_pecas: true,
         hora_registro: true,
-        producao_funcionario: { select: { nome: true } },
+        producao_funcionario: { select: { nome: true, foto: true } },
         producao_etapa: { select: { descricao: true, tempo_padrao: true } },
         producao_peca: { select: { descricao: true, tempo_padrao: true } },
       },
@@ -460,10 +461,12 @@ async function getProducaoEquipe(req) {
       const quantidade = p.quantidade_pecas || 0;
       const tempoPadraoEtapa = p.producao_etapa?.tempo_padrao ?? 0;
       const hora = p.hora_registro?.padStart(3, "0") || "00h";
+      const foto = p.producao_funcionario?.foto || null;
 
       if (!agrupadoDia[funcionario]) {
         agrupadoDia[funcionario] = {
           nome,
+          foto,
           tempoPadraoProduzido: 0,
           totalQuantidade: 0,
           etapas: {},
@@ -503,6 +506,7 @@ async function getProducaoEquipe(req) {
       return {
         funcionario: id,
         nome: dados.nome,
+        foto: dados.foto || "/avatar.png",
         eficiencia_pessoal: eficienciaIndividual.toFixed(2) + "%",
         tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
         tempo_real_total: minutosDisponiveis,

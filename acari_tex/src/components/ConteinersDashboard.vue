@@ -1,11 +1,13 @@
 <template>
   <div class="row align-items-stretch">
-    <!-- COLUNA DE NOTIFICAÇÕES -->
+
+    <!-- NOTIFICAÇÕES -->
     <div class="col-12 col-md-4 mb-3">
       <div class="card border-0 shadow-sm h-100 text-start p-3 bg-white">
         <div class="card-body d-flex flex-column p-2">
+
           <div class="d-flex align-items-center mb-2">
-            <i class="bi bi-bell me-2" style="font-size: 1.5rem;"></i>
+            <i class="bi bi-bell me-2" style="font-size:1.5rem"></i>
             <h6 class="card-title mb-0">Notificações</h6>
           </div>
 
@@ -18,225 +20,336 @@
           </div>
 
           <div v-else class="notificacoes-list">
-            <div
-              v-for="notif in notificacoes"
-              :key="notif.id"
-              class="notificacao-item mb-2 p-2 rounded shadow-sm"
-              :class="{ 'bg-light': !notif.lida, 'bg-body-tertiary': notif.lida }"
-            >
+
+            <div v-for="notif in notificacoes" :key="notif.id" class="notificacao-item mb-2 p-2 rounded shadow-sm"
+              :class="{ 'bg-light': !notif.lida, 'bg-body-tertiary': notif.lida }">
+
               <div class="d-flex justify-content-between align-items-start">
+
                 <div>
                   <h6 class="mb-1 fw-semibold small">{{ notif.titulo }}</h6>
                   <p class="mb-1 text-muted very-small">{{ notif.mensagem }}</p>
-                  <small class="text-secondary">{{ formatarData(notif.criadaEm) }}</small>
+                  <small class="text-secondary">
+                    {{ formatarData(notif.criadaEm) }}
+                  </small>
                 </div>
-                <button
-                  v-if="!notif.lida"
-                  class="btn btn-sm btn-sm-notif"
-                  @click="marcarComoLida(notif.id)"
-                >
+
+                <button v-if="!notif.lida" class="btn btn-sm btn-sm-notif" @click="marcarComoLida(notif.id)">
                   ✔
                 </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="col-12 col-md-8 mb-3">
+      <div class="card border-0 shadow h-100 p-4 text-start bg-white">
+
+        <div class="card-body">
+
+          <h4 class="card-title mb-4">Indicadores de Produção</h4>
+
+          <div class="row">
+
+            <!-- PRODUÇÃO -->
+            <div>
+              <div class="grafico-card">
+                <h6>Produção Hoje</h6>
+                <canvas ref="graficoProducao"></canvas>
               </div>
             </div>
           </div>
+
         </div>
+
       </div>
     </div>
 
-    <!-- COLUNA DE RESUMO -->
-    <div class="col-12 col-md-8 mb-3">
-      <div class="card border-0 shadow h-100 p-4 text-start bg-white">
-        <div class="card-body">
-          <h4 class="card-title mb-3">{{ textTitle }}</h4>
-          <p class="card-text fs-6">
-            {{ resumo }}
-            <br v-if="melhorFuncionario">
-            <span v-if="melhorFuncionario" class="destaque-funcionario">
-              <img 
-                :src="melhorFuncionario.foto" 
-                :alt="melhorFuncionario.nome" 
-                class="foto-funcionario">
-              <strong>{{ melhorFuncionario.nome }}</strong>  - ({{ melhorFuncionario.quantidade }} peças)
-            </span>
-          </p>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
-<style scoped>
-/* Lista de notificações */
-.notificacoes-list {
-  max-height: 300px; 
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.notificacao-item {
-  background-color: #f9f9f9;
-  border-left: 3px solid var(--verde-escuro);
-  transition: background-color 0.2s;
-  font-size: 0.85rem; 
-}
-
-.notificacao-item:hover {
-  background-color: #eef5ff;
-}
-
-.btn-sm-notif {
-  border-radius: 6px;
-  font-size: 0.7rem;
-  background-color: var(--verde-escuro);
-  color: white;
-  padding: 0.25rem 0.4rem;
-}
-.btn-sm-notif:hover{
-  background-color: #076d00;
-  color: white;
-}
-
-.very-small {
-  font-size: 0.75rem;
-}
-
-.destaque-funcionario {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 8px;
-  margin-top: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.foto-funcionario {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  margin-right: 8px;
-  border: 2px solid var(--verde-escuro); /* borda azul */
-}
-
-.notificacoes-list {
-  max-height: 300px; 
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.notificacao-item {
-  background-color: #f9f9f9;
-  border-left: 3px solid var(--verde-escuro);
-  transition: background-color 0.2s;
-  font-size: 0.85rem; /* texto menor */
-}
-
-.notificacao-item:hover {
-  background-color: #eef5ff;
-}
-
-.btn-sm-notif {
-  border-radius: 6px;
-  font-size: 0.7rem;
-  padding: 0.25rem 0.4rem;
-}
-
-.very-small {
-  font-size: 0.75rem;
-}
-</style>
-
 <script>
-import { useAuthStore } from "@/store/store";
-import api from "@/Axios";
-import Swal from "sweetalert2";
+import { useAuthStore } from "@/store/store"
+import api from "@/Axios"
+import Swal from "sweetalert2"
+import Chart from "chart.js/auto"
 
 export default {
+
   name: "ContainersGerais",
-  props: {
-    textTitle: {
-      type: String,
-      default: "Resumo"
-    },
-    textContent: {
-      type: String,
-      default: "Nenhum dado disponível para exibição."
-    }
-  },
+
   data() {
     return {
       notificacoes: [],
       loading: true,
-      resumo: null,
-      melhorFuncionario: null
-    };
+
+      resumoProducao: null,
+
+      charts: {
+        producao: null,
+        funcionarios: null,
+        etapas: null
+      }
+    }
   },
+
   methods: {
+
     async carregarNotificacoes() {
+
       try {
-        const store = useAuthStore();
-        const token = store.pegar_token;
+
+        const store = useAuthStore()
+        const token = store.pegar_token
 
         const response = await api.get("/notificacoes", {
-          headers: { Authorization: `${token}` }
-        });
-        this.notificacoes = response.data.notificacoes || [];
-        this.resumo = response.data.resumoProducao || [];
-        this.melhorFuncionario = response.data.melhorFuncionario || null;
+          headers: { Authorization: token }
+        })
+
+        this.notificacoes = response.data.notificacoes || []
 
       } catch (error) {
-        console.error("Erro ao carregar notificações:", error);
+
+        console.error("Erro ao carregar notificações:", error)
+
       } finally {
-        this.loading = false;
+
+        this.loading = false
+
       }
+
     },
 
     async marcarComoLida(id) {
-      try {
-        const store = useAuthStore();
-        const token = store.pegar_token;
 
-        await api.put(`/notificacoes/${id}/lida`, { lida: true }, {
-          headers: { Authorization: `${token}` }
-        });
+      try {
+
+        const store = useAuthStore()
+        const token = store.pegar_token
+
+        await api.put(`/notificacoes/${id}/lida`,
+          { lida: true },
+          { headers: { Authorization: token } }
+        )
+
         Swal.fire({
           icon: "success",
           title: "Notificação marcada como lida!",
-          timer: 1500,
+          timer: 1200,
           showConfirmButton: false
-        });
-        // Atualiza localmente
+        })
+
         this.notificacoes = this.notificacoes.map(n =>
           n.id === id ? { ...n, lida: true } : n
-        );
-      } catch (error) {
-        console.error("Erro ao marcar como lida:", error);
-      }
-    },
-  resumoHtml() {
-    if (!this.melhorFuncionario) {
-      return this.resumo;
-    }
+        )
 
-    // Exibe a foto e o nome do melhor funcionário
-    return `${this.resumo} <br>
-      <strong>Profissional que mais produziu hoje:</strong> 
-      <img src="${this.melhorFuncionario.foto}" alt="${this.melhorFuncionario.nome}" 
-           style="width:30px; height:30px; border-radius:50%; vertical-align:middle; margin-right:5px;">
-      ${this.melhorFuncionario.nome} (${this.melhorFuncionario.quantidade} peças)`;
-  },
+      } catch (error) {
+
+        console.error("Erro ao marcar notificação:", error)
+
+      }
+
+    },
+
+    async carregarResumoProducao() {
+
+      try {
+
+        const store = useAuthStore()
+        const token = store.pegar_token
+
+        const response = await api.get("/producao/resumo", {
+          headers: { Authorization: token }
+        })
+
+        this.resumoProducao = response.data
+        console.log("Resumo produção:", this.resumoProducao)
+        await this.$nextTick()
+
+        this.criarGraficos()
+
+      } catch (error) {
+
+        console.error("Erro ao carregar resumo produção:", error)
+
+      }
+
+    },
+
+    criarGraficos() {
+
+      if (!this.resumoProducao) return
+
+      const dados = this.resumoProducao
+
+      /* ÚLTIMOS 7 DIAS */
+
+      const diasOrdenados = Object.entries(dados.producaoPorDia || {})
+        .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+        .slice(-7)
+
+      const labelsDias = diasOrdenados.map(d => this.formatarDataGrafico(d[0]))
+      const valoresDias = diasOrdenados.map(d => d[1])
+
+
+      /* MÉDIA DE PRODUÇÃO */
+
+      const total = valoresDias.reduce((acc, v) => acc + v, 0)
+      const media = Math.round(total / valoresDias.length)
+
+      const linhaMedia = labelsDias.map(() => media)
+
+
+      /* DESTRUIR GRÁFICO ANTIGO */
+
+      if (this.charts.producao) {
+        this.charts.producao.destroy()
+      }
+
+
+      /* CRIAR GRÁFICO UNIFICADO */
+
+      this.charts.producao = new Chart(
+        this.$refs.graficoProducao.getContext("2d"),
+        {
+          data: {
+            labels: labelsDias,
+
+            datasets: [
+
+              {
+                type: "bar",
+                label: "Produção diária",
+                data: valoresDias,
+                backgroundColor: "#0A8A38"
+              },
+
+              {
+                type: "line",
+                label: "Média produção",
+                data: linhaMedia,
+                borderColor: "#FF9F1C",
+                tension: 0.3
+              }
+
+            ]
+          },
+
+          options: {
+
+            responsive: true,
+
+            plugins: {
+              legend: {
+                position: "bottom"
+              },
+              tooltip: {
+                callbacks: {
+                  footer: (items) => {
+                    let total = items.reduce((s, i) => s + i.parsed.y, 0)
+                    return "Total: " + total
+                  }
+                }
+              }
+            },
+
+            scales: {
+              x: {
+                ticks: {
+                  maxRotation: 45,
+                  minRotation: 45
+                }
+              },
+              y: {
+                beginAtZero: true
+              }
+            }
+
+          }
+
+        }
+      )
+
+    },
+    formatarDataGrafico(data) {
+      const [ano, mes, dia] = data.split("-")
+
+      // cria data no horário LOCAL (sem bug de fuso)
+      const d = new Date(ano, mes - 1, dia)
+
+      return d.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit"
+      })
+    },
     formatarData(data) {
-      const d = new Date(data);
+
+      const d = new Date(data)
+
       return d.toLocaleString("pt-BR", {
         day: "2-digit",
         month: "2-digit",
         hour: "2-digit",
         minute: "2-digit"
-      });
+      })
+
     }
+
   },
+
   mounted() {
-    this.carregarNotificacoes();
+
+    this.carregarNotificacoes()
+    this.carregarResumoProducao()
+
   }
-};
+
+}
 </script>
+<style scoped>
+.notificacoes-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.notificacao-item {
+  background: #f9f9f9;
+  border-left: 3px solid var(--verde-escuro);
+  font-size: .85rem;
+  transition: .2s;
+}
+
+.notificacao-item:hover {
+  background: #eef5ff;
+}
+
+.btn-sm-notif {
+  border-radius: 6px;
+  font-size: .7rem;
+  background: var(--verde-escuro);
+  color: white;
+  padding: .25rem .4rem;
+}
+
+.btn-sm-notif:hover {
+  background: #076d00;
+}
+
+.very-small {
+  font-size: .75rem;
+}
+
+.grafico-card {
+  background: #fafafa;
+  border-radius: 10px;
+  height: 300px;
+}
+</style>

@@ -8,7 +8,6 @@
       </div>
 
       <div v-else class="container-fluid my-4 mt-md-0 mt-3">
-
         <section class="row justify-content-center text-center" @click="irPara()">
           <div class="d-block d-md-none col-6 mb-3">
             <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
@@ -81,13 +80,15 @@
           </div>
 
           <div>
-            <GraficoEtapas class="mb-4" />
-            <GradicoProducaoPorEtapa class="mb-4" />
+            <ProducaoDia :producaoDados="producao" v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
             <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" />
-            <GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
-              :producaoDados="producao" class="mb-4" />
-            <ProducaoPorPeca v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
+            <GraficoEtapas class="mb-4" />
+            <!-- <GradicoProducaoPorEtapa class="mb-4" />-->
+            
+            <!--<GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+              :producaoDados="producao" class="mb-4" /> 
+            <ProducaoPorPeca v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" /> -->
             <GraficoProducaoPecas class="mb-4" />
 
             <GraficosIntercorrencias :porClassificacao="porClassificacao" :porNotas="porNotas"
@@ -138,8 +139,6 @@
 
           </div>
         </div>
-
-
       </div>
     </main>
   </div>
@@ -149,11 +148,11 @@
 import SidebarNav from '@/components/Sidebar.vue';
 import DashboardCard from '@/components/DashboardCard.vue';
 import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
-import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
-import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
+//import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
+//import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
-import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
+//import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
 import GraficoEtapas from '@/components/GraficoEtapas.vue';
 
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
@@ -165,20 +164,22 @@ import Swal from 'sweetalert2';
 import api from '@/Axios';
 import router from '@/router';
 import { gerarPdfOPs } from '@/utils/functions/PDFDashboard';
+import ProducaoDia from '@/components/ProducaoDia.vue';
 
 export default {
   name: 'DashboardHome',
   components: {
     SidebarNav,
+    ProducaoDia,
     DashboardCard,
     GraficoProducaoTotal,
-    GraficoProducaoIndividual,
-    ProducaoPorPeca,
+    // GraficoProducaoIndividual,
+    // ProducaoPorPeca,
     GraficoProducaoPecas,
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
-    GradicoProducaoPorEtapa,
+    //GradicoProducaoPorEtapa,
     GraficoEtapas,
   },
   data() {
@@ -240,22 +241,7 @@ export default {
     this.producaoPecas();
     this.fetchData();
     this.getIntercorrencias();
-    this.socket = io('https://acari-tex.onrender.com');
-    const cnpj = this.store.pegar_usuario?.cnpj || 'desconhecido';
-    this.socket.on(`nova_atualizacao_${cnpj}`, () => {
-      this.fetchData();
-      this.producaoPecas();
-      this.getIntercorrencias();
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'Gráficos atualizados, nova produção registrada',
-        showConfirmButton: false,
-        timer: 8000,
-        timerProgressBar: true,
-      });
-    });
+    this.iniciarSocket();
   },
 
   beforeUnmount() {
@@ -263,6 +249,26 @@ export default {
   },
 
   methods: {
+    iniciarSocket() {
+      this.socket = io('https://acari-tex.onrender.com');
+
+      const cnpj = this.store.pegar_usuario?.cnpj || 'desconhecido';
+
+      this.socket.on(`nova_atualizacao_${cnpj}`, () => {
+        this.fetchData();
+        this.producaoPecas();
+        this.getIntercorrencias();
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Gráficos atualizados, nova produção registrada',
+          showConfirmButton: false,
+          timer: 8000,
+          timerProgressBar: true,
+        });
+      });
+    },
     verificarAutenticacao() {
       const token = this.store.pegar_token;
       const usuario = this.store.pegar_usuario;
@@ -464,7 +470,7 @@ export default {
           params: { filtro: this.filtro },
         });
         this.producao = res.data;
-        //console.log('Produção carregada:', this.producao);
+        console.log('Produção carregada:', this.producao);
       } catch (err) {
         console.error('Erro ao buscar produção:', err);
         this.producao = { producaoDia: { funcionarios: [] } };

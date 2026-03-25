@@ -19,6 +19,7 @@ model Usuarios {
   foto                 String            @db.VarChar(2048)
   idade                Int
   funcoes              String?
+  salario              Float?
   identidade           String?
   permissoes           Int?
   cpf                  String?

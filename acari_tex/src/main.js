@@ -11,6 +11,7 @@ const app = createApp(App);
 const head = createHead()
 
 import { createPinia } from 'pinia'
+import './registerServiceWorker'
 const pinia = createPinia()
 // Registre o Vue Router
 app.use(router);
