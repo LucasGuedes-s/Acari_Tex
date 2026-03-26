@@ -63,11 +63,11 @@ export default {
         });
 
         const authStore = useAuthStore();
-        authStore.setToken(response.headers.authorization);
+        authStore.setToken(response.data.token);
         authStore.setUsuario(response.data.usuario);
         alert("Login bem-sucedido!");
         alert(`Bem-vindo, ${response.data.usuario.nome}!`);
-        alert(`Seu token: ${response.headers.authorization}`);
+        alert(`Seu token: ${response.data.token}`);
         router.push("/Dashboard");
       } catch (error) {
         console.error(error);
