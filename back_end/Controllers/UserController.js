@@ -6,7 +6,7 @@ async function login(req, res, next){
         const login = await Login.loginUser(req.body);
         // res.setHeader('Authorization', `Bearer ${login.token}`);
         res.status(200).json({ 
-            token: login.token,
+            token: `Bearer ${login.token}`,
             usuario: {
                 cnpj: login.dados_usuario.cnpj, 
                 funcoes: login.dados_usuario.funcoes,

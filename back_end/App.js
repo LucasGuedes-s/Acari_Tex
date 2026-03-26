@@ -10,21 +10,21 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 const allowedOrigins = [
+  "http://localhost:8080",
   "https://linhatex.com.br",
   "https://www.linhatex.com.br"
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error("Not allowed by CORS"));
-    }
+  origin: function(origin, callback){
+    if (!origin) return callback(null, true); // Postman, mobile apps nativos
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
   },
-  credentials: true
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
+  preflightContinue: false,  // importante
+  optionsSuccessStatus: 204   // resposta para OPTIONS
 }));
 
 app.set('trust proxy', 1);
