@@ -65,7 +65,9 @@ export default {
         const authStore = useAuthStore();
         authStore.setToken(response.headers.authorization);
         authStore.setUsuario(response.data.usuario);
-
+        alert("Login bem-sucedido!");
+        alert(`Bem-vindo, ${response.data.usuario.nome}!`);
+        alert(`Seu token: ${response.headers.authorization}`);
         router.push("/Dashboard");
       } catch (error) {
         console.error(error);
