@@ -9,12 +9,22 @@ const multer = require("multer");
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+const allowedOrigins = [
+  "https://linhatex.com.br",
+  "https://www.linhatex.com.br"
+];
+
 app.use(cors({
-  //origin: '*',
-  origin: 'https://linhatex.com.br',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Authorization', 'Content-Type']
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
 }));
 
 app.set('trust proxy', 1);
