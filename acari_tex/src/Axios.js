@@ -16,6 +16,7 @@ let currentBaseURLIndex = 0;
 const api = axios.create({
   baseURL: BASE_URLS[currentBaseURLIndex],
   timeout: 10000, // detecta servidor fora
+  withCredentials: true, // para enviar cookies
 });
 
 const Toast = Swal.mixin({
