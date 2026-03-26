@@ -378,11 +378,10 @@ async function updatePecaStatus(id_da_op, status) {
     throw new Error("Erro ao atualizar status da peça.");
   }
 }
-async function getProducaoEquipe(req) {
+async function getProducaoEquipe({ cnpj, filtrar = "hoje" }) {
   try {
-    const filtro = req.query.filtro || "hoje";
-    const cnpjEstabelecimento = req.user.cnpj;
-
+    const filtro = filtrar || "hoje";
+    const cnpjEstabelecimento = cnpj;
     // ================= ESTABELECIMENTO =================
     const estabelecimento = await prisma.estabelecimento.findUnique({
       where: { cnpj: cnpjEstabelecimento },

@@ -85,7 +85,7 @@ async function updatePecaStatus(req, res, next){
 }
 async function getProducaoEquipe(req, res, next) {
     try {
-        const producao = await pecas.getProducaoEquipe(req);
+        const producao = await pecas.getProducaoEquipe(req.user.cnpj, req.query.filtro);
         res.status(200).json({ producao });
     } catch (err) {
         console.error(`Erro ao obter produção.`, err.message);
