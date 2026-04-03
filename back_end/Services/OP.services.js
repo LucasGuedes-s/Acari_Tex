@@ -378,8 +378,12 @@ async function updatePecaStatus(id_da_op, status) {
     throw new Error("Erro ao atualizar status da peça.");
   }
 }
-async function getProducaoEquipe({ cnpj, filtrar = "hoje" }) {
+async function getProducaoEquipe(cnpj, filtrar) {
   try {
+    console.log("Buscando produção da equipe para CNPJ:", cnpj, "com filtro:", filtrar);
+    if(!filtrar) {
+      filtrar = "hoje";
+    }
     const filtro = filtrar || "hoje";
     const cnpjEstabelecimento = cnpj;
     // ================= ESTABELECIMENTO =================

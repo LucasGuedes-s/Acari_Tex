@@ -85,6 +85,7 @@ async function updatePecaStatus(req, res, next){
 }
 async function getProducaoEquipe(req, res, next) {
     try {
+        console.log("Buscando produção da equipe para CNPJ:", req.user.cnpj, "com filtro:", req.query.filtro);
         const producao = await pecas.getProducaoEquipe(req.user.cnpj, req.query.filtro);
         res.status(200).json({ producao });
     } catch (err) {

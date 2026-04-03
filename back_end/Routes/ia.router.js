@@ -2,9 +2,11 @@ const express = require("express");
 const router = express.Router();
 const { gerarAnaliseProducao } = require("../Services/index");
 const { gerarAnaliseAlocacaoEtapas } = require("../Services/index");
+const { perguntarIA } = require("../Services/index");
 const { PrismaClient } = require('@prisma/client');
 prisma = new PrismaClient()
 const jwtMiddleware = require('../middlewares/auth')
+const { getProducaoEquipe } = require('../Services/OP.services');
 
 router.get("/chat", jwtMiddleware, async (req, res) => {
 
@@ -34,7 +36,7 @@ router.post("/analise-producao", jwtMiddleware, async (req, res) => {
     });
 
     const etapaFinal = estabelecimento?.peca_final || null;
-    const minutosDisponiveisDia = 480;
+    const minutosDisponiveisDia = estabelecimento?.tempo_de_producao || 480;
 
     const producoes = await prisma.producao.findMany({
       where: {
@@ -291,6 +293,32 @@ router.get("/indicar-profissionais", jwtMiddleware, async (req, res) => {
     });
   }
 
+});
+
+router.post("/pergunta", async (req, res) => {
+  try {
+    const { pergunta, usuario } = req.body;
+
+    if (!pergunta) {
+      return res.status(400).json({ error: "Pergunta é obrigatória" });
+    }
+
+    const cnpj = usuario.estabelecimentoCnpj;
+    const filtro = "hoje";
+    resultado = await getProducaoEquipe(cnpj, filtro);
+    
+    const resposta = await perguntarIA(pergunta, usuario, resultado);
+
+    return res.json({
+      resposta
+    });
+
+  } catch (error) {
+    console.error("💥 ERRO IA:", error);
+    return res.status(500).json({
+      error: "Erro ao processar IA"
+    });
+  }
 });
 
 module.exports = router;

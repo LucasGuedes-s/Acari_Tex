@@ -144,3 +144,41 @@ ${JSON.stringify(dados, null, 2)}
     }
   }
 }
+export async function perguntarIA(pergunta, usuario, resultado) {
+  console.log("Pergunta para IA:", resultado);
+  const prompt = `
+Usuário: ${usuario} fez a seguinte pergunta para a IA:
+"${pergunta}"
+Responda de forma clara, objetiva e técnica, com base nos dados disponíveis sobre a produção e eficiência dos funcionários. Se necessário, utilize os dados para fundamentar sua resposta.
+Se os dados forem insuficientes para responder, informe que não há dados suficientes.
+Não faça suposições ou invente informações.
+Entregue a resposta de forma direta, sem perguntas adicionais. Se tiver produção ou eficiência de funcionários, use esses dados para fundamentar a resposta. Se não tiver dados suficientes, informe que não é possível responder com os dados disponíveis.
+dados: ${JSON.stringify(resultado, null, 2)}
+`;
+
+  for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt }  
+            ]
+          }
+        ]
+      });
+      return response.text;
+    } catch (error) {
+      console.error(`❌ Gemini tentativa ${tentativa}:`, error.message);
+    
+      if (tentativa === MAX_RETRIES) {
+        return "Resposta indisponível no momento devido à instabilidade do serviço de IA.";
+      }
+      // ⏱️ Backoff progressivo
+      await new Promise(res => setTimeout(res, tentativa * 1000));
+    }
+  }
+}
+      

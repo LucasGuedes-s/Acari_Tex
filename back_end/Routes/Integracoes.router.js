@@ -66,7 +66,6 @@ router.get("/producao/telefone/:telefone/hoje", async (req, res) => {
       return res.status(404).json({ erro: "Estabelecimento não encontrado" });
     }
     const resultado = await getProducaoEquipe({ cnpj, filtro: "hoje" });
-    console.log("Resultado produção hoje:", resultado);
 
     return res.json({
       status: "sucesso",
