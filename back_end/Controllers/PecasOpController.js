@@ -15,7 +15,29 @@ async function postOP(req, res, next){
         next(err);
     }
 }
+async function duplicarOPController(req, res) {
+  try {
+    const { id } = req.params;
+    const novaOP = await pecas.duplicarOP(
+      id,
+      {
+        descricao: req.body.descricao,
+        quantidade: req.body.quantidade,
+      },
+      req.user
+    );
 
+    return res.status(201).json({
+      message: "OP duplicada com sucesso",
+      data: novaOP,
+    });
+
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message,
+    });
+  }
+}
 async function getOPs(req, res, next){
     try {
         const peca = await pecas.getPecasOP(req.user);
@@ -239,6 +261,7 @@ async function deletarEtapa(req, res, next) {
 }
 module.exports = { 
     postOP, 
+    duplicarOPController,
     getOPs,
     postProducaoPeca,
     postProducaoPecaLote,

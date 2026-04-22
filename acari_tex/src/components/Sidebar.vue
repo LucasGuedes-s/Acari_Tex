@@ -57,12 +57,12 @@
             </router-link>
           </div>
 
-          <div class="list-group-item" @click="toggleSidebar" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'">
+          <!-- <div class="list-group-item" @click="toggleSidebar" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'">
             <router-link to="/financeiro" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-cash-coin icon"></i>
               <span>Financeiro</span>
             </router-link>
-          </div>
+          </div> -->
 
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/relatorios" class="d-flex align-items-center text-reset" exact-active-class="ativo">

@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import VueGoogleCharts from 'vue-google-charts'
+import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useAuthStore } from '@/store/store';
 import Vue3Lottie from 'vue3-lottie'

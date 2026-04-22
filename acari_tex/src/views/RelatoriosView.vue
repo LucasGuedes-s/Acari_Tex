@@ -6,20 +6,14 @@
         <main v-else class="content-wrapper flex-grow-1">
             <div class="container-fluid py-4">
 
-                <TituloSubtitulo 
-                    titulo="Relatórios de Produção"
-                    subtitulo="Acompanhe o progresso e estatísticas das peças em produção" 
-                />
+                <TituloSubtitulo titulo="Relatórios de Produção"
+                    subtitulo="Acompanhe o progresso e estatísticas das peças em produção" />
 
                 <!-- FILTROS -->
                 <div class="filtros row mb-4">
                     <div class="col-md-4 mb-2">
-                        <input 
-                            type="text" 
-                            class="form-control" 
-                            placeholder="Buscar por descrição..."
-                            v-model="filtroDescricao" 
-                        />
+                        <input type="text" class="form-control" placeholder="Buscar por descrição..."
+                            v-model="filtroDescricao" />
                     </div>
 
                     <div class="col-md-4 mb-2">
@@ -33,12 +27,7 @@
                     </div>
 
                     <div class="col-md-4 mb-2">
-                        <input 
-                            class="form-control" 
-                            @click="gerarPDF" 
-                            type="button" 
-                            value="Gerar PDF"
-                        >
+                        <input class="form-control" @click="gerarPDF" type="button" value="Gerar PDF">
                     </div>
                 </div>
 
@@ -57,14 +46,11 @@
 
                         <tbody>
                             <tr v-for="peca in pecasFiltradas" :key="peca.id">
-                                
+
                                 <td>{{ peca.descricao }}</td>
 
                                 <td>
-                                    <span 
-                                        class="status-text" 
-                                        :class="'status-' + peca.status"
-                                    >
+                                    <span class="status-text" :class="'status-' + peca.status">
                                         {{ traduzStatus(peca.status) }}
                                     </span>
                                 </td>
@@ -73,29 +59,38 @@
 
                                 <td>{{ formatarData(peca.data_do_pedido) }}</td>
 
-                                <td class="d-flex gap-2">
-                                    
-                                    <button 
-                                        class="btn btn-sm w-100"
-                                        @click="$router.push(`/pecas/${peca.id_da_op}`)"
-                                    >
-                                        Detalhar
-                                    </button>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button class="btn-menu" type="button" data-bs-toggle="dropdown">
+                                            ⋮
+                                        </button>
 
-                                    <button
-                                        class="btn btn-sm duplicar w-100"
-                                        @click="abrirDuplicarModal(peca)"
-                                    >
-                                        Duplicar
-                                    </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li>
+                                                <button class="dropdown-item"
+                                                    @click="$router.push(`/pecas/${peca.id_da_op}`)">
+                                                    🔍 Detalhar
+                                                </button>
+                                            </li>
 
-                                    <button
-                                        class="btn btn-sm excluir w-100"
-                                        @click="deletarPeca(peca.id_da_op)"
-                                    >
-                                        Excluir
-                                    </button>
+                                            <li>
+                                                <button class="dropdown-item" @click="abrirDuplicarModal(peca)">
+                                                    📄 Duplicar
+                                                </button>
+                                            </li>
 
+                                            <li>
+                                                <hr class="dropdown-divider">
+                                            </li>
+
+                                            <li>
+                                                <button class="dropdown-item text-danger"
+                                                    @click="deletarPeca(peca.id_da_op)">
+                                                    🗑️ Excluir
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -121,10 +116,10 @@ import { toValue } from 'vue';
 export default {
     name: 'DetalhesPecas',
 
-    components: { 
-        SidebarNav, 
-        TituloSubtitulo, 
-        carregandoTela 
+    components: {
+        SidebarNav,
+        TituloSubtitulo,
+        carregandoTela
     },
 
     setup() {
@@ -257,13 +252,14 @@ export default {
             const token = this.store.pegar_token;
 
             try {
-                await api.post(`/duplicar/op/${peca.id_da_op}`, {
+                console.log(dados);
+                const response = await api.post(`/duplicar/op/${peca.id_da_op}`, {
                     descricao: dados.nome,
                     quantidade: Number(dados.quantidade)
                 }, {
                     headers: { Authorization: `${token}` },
                 });
-
+                console.log(response);
                 Swal.fire('Sucesso!', 'OP duplicada.', 'success');
                 this.fetchPecas();
 
@@ -299,10 +295,21 @@ export default {
     font-weight: 600;
 }
 
-.status-nao_iniciado { color: #e74c3c; }
-.status-em_progresso { color: #2980b9; }
-.status-coleta { color: #f39c12; }
-.status-finalizado { color: var(--verde-escuro); }
+.status-nao_iniciado {
+    color: #e74c3c;
+}
+
+.status-em_progresso {
+    color: #2980b9;
+}
+
+.status-coleta {
+    color: #f39c12;
+}
+
+.status-finalizado {
+    color: var(--verde-escuro);
+}
 
 /* BOTÕES */
 .btn {
@@ -325,8 +332,48 @@ export default {
 .excluir {
     background-color: #e74c3c;
 }
-tr{
+
+tr {
     text-align: -webkit-left;
+}
+
+/* BOTÃO 3 PONTINHOS */
+.btn-menu {
+    background: transparent;
+    float: left;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.btn-menu:hover {
+    background: #f1f2f6;
+}
+
+/* DROPDOWN */
+.dropdown-menu {
+    border-radius: 10px;
+    border: none;
+    padding: 8px;
+    min-width: 160px;
+}
+
+.dropdown-item {
+    border-radius: 6px;
+    padding: 8px 12px;
+    transition: background 0.2s;
+    font-size: 14px;
+}
+
+.dropdown-item:hover {
+    background: #f5f6fa;
+}
+
+.dropdown-item.text-danger:hover {
+    background: #fdecea;
 }
 
 /* RESPONSIVO */

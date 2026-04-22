@@ -355,6 +355,7 @@ export default {
 
   font-size: 14px;
   line-height: 1.5;
+  border-radius: 10px;
   background: var(--bg);
   color: var(--ink);
   width: 100%;
@@ -518,6 +519,7 @@ export default {
 .lh-name {
   font-size: 11px;
   font-weight: 600;
+  text-align: left;
   text-transform: uppercase;
   letter-spacing: .08em;
   color: var(--ink3);

@@ -64,7 +64,66 @@ async function postPecaOP(req, user) {
 
   return novaPeca;
 }
+async function duplicarOP(opId, dados, user) {
+  console.log("Iniciando duplicação da OP:", { opId, dados, user: user.cnpj });
+  if (!opId) {
+    throw new Error("ID da OP é obrigatório");
+  }
 
+  if (!dados?.descricao || !dados?.quantidade) {
+    throw new Error("Descrição e quantidade são obrigatórias");
+  }
+
+  const quantidade = Number(dados.quantidade);
+  console.log("Quantidade a ser duplicada:", quantidade);
+  if (isNaN(quantidade) || quantidade <= 0) {
+    throw new Error("Quantidade inválida");
+  }
+  const id_da_op = parseInt(opId);
+  console.log("ID da OP a ser duplicada:", id_da_op);
+  return await prisma.$transaction(async (tx) => {
+    
+    const opOriginal = await tx.pecasOP.findUnique({
+      where: { id_da_op: id_da_op },
+      include: {
+        PecasEtapas: true,
+      },
+    });
+    console.log("OP original encontrada:", opOriginal ? "Sim" : "Não");
+    if (!opOriginal) {
+      throw new Error("OP não encontrada");
+    }
+
+    const novaPeca = await tx.pecasOP.create({
+      data: {
+        status: "nao_iniciado",
+        descricao: dados.descricao,
+        quantidade_pecas: quantidade,
+        pedido_por: opOriginal.pedido_por,
+        data_do_pedido: new Date().toISOString(),
+        data_de_entrega: opOriginal.data_de_entrega,
+        valor_peca: opOriginal.valor_peca,
+        tempo_padrao: opOriginal.tempo_padrao,
+        Estabelecimento: {
+          connect: { cnpj: user.cnpj },
+        },
+      },
+    });
+
+    if (opOriginal.PecasEtapas.length > 0) {
+      await tx.pecasEtapas.createMany({
+        data: opOriginal.PecasEtapas.map((etapa) => ({
+          id_da_op: novaPeca.id_da_op,
+          id_da_funcao: etapa.id_da_funcao,
+          quantidade_meta: quantidade, // usa nova quantidade
+          status: "PENDENTE", // reseta status
+        })),
+      });
+    }
+
+    return novaPeca;
+  });
+}
 async function postProducaoPeca(req, res) {
   try {
     const {
@@ -405,20 +464,28 @@ async function getProducaoEquipe(cnpj, filtrar) {
     if (!etapaFinal) {
       console.warn("Peça final não configurada no estabelecimento.");
     }
-
-    // DEPOIS — usa a data UTC diretamente, igual ao que está salvo no banco
+    const fusoSP = "America/Sao_Paulo";
     const agora = new Date();
-    let diaFiltro = new Date(agora);
+    let diaFiltro = new Date(agora.toLocaleString("en-US", { timeZone: fusoSP }));
 
-    if (filtro === "ontem") diaFiltro.setUTCDate(diaFiltro.getUTCDate() - 1);
-    if (filtro === "antesDeOntem") diaFiltro.setUTCDate(diaFiltro.getUTCDate() - 2);
+    if (filtro === "ontem") diaFiltro.setDate(diaFiltro.getDate() - 1);
+    if (filtro === "antesDeOntem") diaFiltro.setDate(diaFiltro.getDate() - 2);
 
-    const ano = diaFiltro.getUTCFullYear();
-    const mes = diaFiltro.getUTCMonth(); // já é 0-based, não precisa de -1
-    const dia = diaFiltro.getUTCDate();
+    const dtf = new Intl.DateTimeFormat("pt-BR", {
+      timeZone: fusoSP,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
 
-    const inicioDiaUTC = new Date(Date.UTC(ano, mes, dia, 0, 0, 0));
-    const fimDiaUTC = new Date(Date.UTC(ano, mes, dia, 23, 59, 59));
+    const partes = dtf.formatToParts(diaFiltro);
+    const dia = partes.find(p => p.type === "day").value;
+    const mes = partes.find(p => p.type === "month").value;
+    const ano = partes.find(p => p.type === "year").value;
+
+    const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
+    const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
+
     // ═══════════════════════════════════════
     // PRODUÇÕES DO DIA
     // ═══════════════════════════════════════
@@ -580,16 +647,16 @@ async function getProducaoEquipe(cnpj, filtrar) {
       }
     }
 
-    console.log(
-      "Funcionários encontrados:",
-      Object.entries(agrupadoDia).map(([id, d]) => ({
-        id,
-        nome: d.nome,
-        totalQuantidade: d.totalQuantidade,
-        totalPecasFinal: d.totalPecasFinal,
-        etapas: Object.keys(d.etapas),
-      }))
-    );
+    // console.log(
+    //   "Funcionários encontrados:",
+    //   Object.entries(agrupadoDia).map(([id, d]) => ({
+    //     id,
+    //     nome: d.nome,
+    //     totalQuantidade: d.totalQuantidade,
+    //     totalPecasFinal: d.totalPecasFinal,
+    //     etapas: Object.keys(d.etapas),
+    //   }))
+    // );
 
     // ═══════════════════════════════════════
     // MONTAGEM DO ARRAY DE FUNCIONÁRIOS
@@ -1526,6 +1593,7 @@ async function deletarEtapa(id) {
 
 module.exports = {
   postPecaOP,
+  duplicarOP,
   getPecasOP,
   postProducaoPeca,
   postProducaoPecaLote,

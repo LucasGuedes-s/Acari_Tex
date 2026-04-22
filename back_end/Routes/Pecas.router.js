@@ -5,6 +5,7 @@ const jwtMiddleware = require('../middlewares/auth')
 //const permissao = require('../Services/permissoes.services.js')
 
 router.post('/adicionar/peca', [jwtMiddleware], ControllerOp.postOP);
+router.post('/duplicar/op/:id', [jwtMiddleware], ControllerOp.duplicarOPController);
 router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);
 router.get('/producao/equipe', [jwtMiddleware],  ControllerOp.getProducaoEquipe);

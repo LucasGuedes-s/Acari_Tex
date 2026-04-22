@@ -166,133 +166,171 @@ async function relatorioProducaoResumo(req) {
 
   const inicio = dataInicio
     ? new Date(dataInicio)
-    : new Date(hoje.setDate(hoje.getDate() - 30));
+    : new Date(new Date().setDate(hoje.getDate() - 30));
 
   const fim = dataFim ? new Date(dataFim) : new Date();
 
-  /* PRODUÇÃO DO PERÍODO */
+  // ================= ESTABELECIMENTO =================
+  const estabelecimento = await prisma.estabelecimento.findUnique({
+    where: { cnpj },
+    select: {
+      tempo_de_producao: true,
+      peca_final: true,
+    },
+  });
+
+  if (!estabelecimento) {
+    return { mensagem: "Estabelecimento não encontrado." };
+  }
+
+  const minutosDisponiveis = estabelecimento.tempo_de_producao || 480;
+
+  // 🔥 NORMALIZAÇÃO FORTE
+  const normalizar = (txt) =>
+    txt?.toString().trim().toLowerCase().replace(/\s+/g, " ");
+
+  const etapaFinal = normalizar(estabelecimento.peca_final);
+
+  // ================= PRODUÇÕES =================
   const producoes = await prisma.producao.findMany({
     where: {
       id_Estabelecimento: cnpj,
-      data_inicio: {
-        gte: inicio,
-        lte: fim,
-      },
+      data_inicio: { gte: inicio, lte: fim },
     },
     include: {
       producao_funcionario: {
-        select: {
-          nome: true,
-          foto: true,
-        },
+        select: { nome: true, foto: true },
       },
       producao_etapa: {
+        select: { descricao: true },
+      },
+      producao_peca: {
         select: {
+          id_da_op: true,
           descricao: true,
+          tempo_padrao: true,
         },
       },
     },
   });
 
-  /* PRODUÇÃO TOTAL */
-  const producaoTotal = producoes.reduce(
-    (acc, p) => acc + (p.quantidade_pecas || 0),
-    0
-  );
-
-  /* PRODUÇÃO POR DIA */
-  const producaoPorDia = {};
-
-  producoes.forEach((p) => {
-    const dia = p.data_inicio.toISOString().split("T")[0];
-
-    if (!producaoPorDia[dia]) {
-      producaoPorDia[dia] = 0;
-    }
-
-    producaoPorDia[dia] += p.quantidade_pecas || 0;
+  // ================= 🔥 FILTRO REAL (SÓ ETAPA FINAL) =================
+  const producoesFinais = producoes.filter((p) => {
+    const etapa = normalizar(p.producao_etapa?.descricao);
+    return etapa === etapaFinal;
   });
 
-  /* PRODUÇÃO POR FUNCIONÁRIO */
+  if (producoesFinais.length === 0) {
+    return { mensagem: "Nenhuma peça finalizada no período." };
+  }
+
+  // ================= PRODUÇÃO POR DIA (SÓ FINAL) =================
+  const producaoPorDia = {};
+
+  producoesFinais.forEach((p) => {
+    const dia = new Date(p.data_inicio).toISOString().split("T")[0]; producaoPorDia[dia] =
+      (producaoPorDia[dia] || 0) + (p.quantidade_pecas || 0);
+  });
+
+  // ================= MAPS =================
   const producaoPorFuncionario = {};
+  const producaoPorEtapa = {};
+  const pecasMap = {};
 
-  producoes.forEach((p) => {
+  // ================= PROCESSAMENTO =================
+  for (const p of producoesFinais) {
+    const qtd = p.quantidade_pecas || 0;
+
     const nome = p.producao_funcionario?.nome || "Desconhecido";
+    const foto = p.producao_funcionario?.foto || null;
 
+    const idPeca = p.producao_peca?.id_da_op || "sem_op";
+    const descPeca = p.producao_peca?.descricao || "Peça";
+    const tempoPadrao = p.producao_peca?.tempo_padrao || 0;
+
+    // ---- FUNCIONÁRIO ----
     if (!producaoPorFuncionario[nome]) {
       producaoPorFuncionario[nome] = {
         nome,
-        foto: p.producao_funcionario?.foto,
+        foto,
         quantidade: 0,
       };
     }
 
-    producaoPorFuncionario[nome].quantidade += p.quantidade_pecas || 0;
-  });
+    producaoPorFuncionario[nome].quantidade += qtd;
 
+    // ---- ETAPA (vai ser só final) ----
+    const etapa = normalizar(p.producao_etapa?.descricao) || "final";
+
+    producaoPorEtapa[etapa] =
+      (producaoPorEtapa[etapa] || 0) + qtd;
+
+    // ---- PEÇA ----
+    if (!pecasMap[idPeca]) {
+      pecasMap[idPeca] = {
+        descricao: descPeca,
+        tempoPadrao,
+        total: 0,
+      };
+    }
+
+    pecasMap[idPeca].total += qtd;
+  }
+
+  // ================= PRODUÇÃO TOTAL =================
+  const producaoTotal = Object.values(pecasMap).reduce(
+    (acc, p) => acc + p.total,
+    0
+  );
+
+  // ================= FUNCIONÁRIOS =================
   const rankingFuncionarios = Object.values(producaoPorFuncionario)
     .sort((a, b) => b.quantidade - a.quantidade)
     .slice(0, 10);
 
   const melhorFuncionario = rankingFuncionarios[0] || null;
 
-  /* PRODUÇÃO POR ETAPA */
-  const producaoPorEtapa = {};
+  const quantidadePessoas = Object.keys(producaoPorFuncionario).length;
 
-  producoes.forEach((p) => {
-    const etapa = p.producao_etapa?.descricao || "Sem etapa";
+  // ================= EFICIÊNCIA (MODELO B CORRETO) =================
+  let totalCapacidade = 0;
 
-    if (!producaoPorEtapa[etapa]) {
-      producaoPorEtapa[etapa] = 0;
+  Object.values(pecasMap).forEach((p) => {
+    if (p.tempoPadrao > 0) {
+      const capacidade =
+        (quantidadePessoas * minutosDisponiveis) / p.tempoPadrao;
+
+      totalCapacidade += capacidade;
     }
-
-    producaoPorEtapa[etapa] += p.quantidade_pecas || 0;
   });
 
-  /* INTERCORRÊNCIAS */
+  const eficiencia =
+    totalCapacidade > 0
+      ? ((producaoTotal / totalCapacidade) * 100).toFixed(2)
+      : "0.00";
+
+  // ================= INTERCORRÊNCIAS =================
   const intercorrencias = await prisma.intercorrencias.findMany({
     where: {
       estabelecimentoCnpj: cnpj,
-      data_ocorrencia: {
-        gte: inicio,
-        lte: fim,
-      },
+      data_ocorrencia: { gte: inicio, lte: fim },
     },
   });
 
   let tempoPerdidoTotal = 0;
-
-  intercorrencias.forEach((i) => {
-    tempoPerdidoTotal += i.tempo_perda || 0;
-  });
-
-  /* TEMPO PERDIDO POR MOTIVO */
-
   const tempoPerdidoPorMotivo = {};
 
   intercorrencias.forEach((i) => {
+    tempoPerdidoTotal += i.tempo_perda || 0;
+
     const motivo = i.notas || "Outro";
 
-    if (!tempoPerdidoPorMotivo[motivo]) {
-      tempoPerdidoPorMotivo[motivo] = 0;
-    }
-
-    tempoPerdidoPorMotivo[motivo] += i.tempo_perda || 0;
+    tempoPerdidoPorMotivo[motivo] =
+      (tempoPerdidoPorMotivo[motivo] || 0) +
+      (i.tempo_perda || 0);
   });
 
-  /* EFICIÊNCIA DA TURMA */
-
-  const eficiencia = await prisma.eficienciaTurma.findFirst({
-    where: {
-      estabelecimentoCnpj: cnpj,
-    },
-    orderBy: {
-      calculadoEm: "desc",
-    },
-  });
-
-  /* QUANTIDADE DE FUNCIONÁRIOS ATIVOS */
-
+  // ================= FUNCIONÁRIOS ATIVOS =================
   const funcionariosAtivos = await prisma.usuarios.count({
     where: {
       estabelecimentoCnpj: cnpj,
@@ -300,27 +338,21 @@ async function relatorioProducaoResumo(req) {
     },
   });
 
+  // ================= RETORNO =================
   return {
-    periodo: {
-      inicio,
-      fim,
-    },
+    periodo: { inicio, fim },
 
     resumo: {
       producaoTotal,
       funcionariosAtivos,
       tempoPerdidoTotal,
-      eficiencia: eficiencia?.eficiencia_percent || 0,
+      eficiencia: eficiencia + "%",
     },
 
-    producaoPorDia,
-
+    producaoPorDia, // 🔥 AGORA 100% ETAPA FINAL
     rankingFuncionarios,
-
     melhorFuncionario,
-
     producaoPorEtapa,
-
     tempoPerdidoPorMotivo,
   };
 }

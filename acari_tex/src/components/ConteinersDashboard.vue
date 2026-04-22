@@ -188,7 +188,7 @@ export default {
       if (!this.resumoProducao) return
 
       const dados = this.resumoProducao
-
+      console.log("Dados para gráficos:", dados)
       /* ÚLTIMOS 7 DIAS */
 
       const diasOrdenados = Object.entries(dados.producaoPorDia || {})
@@ -228,7 +228,7 @@ export default {
                 type: "bar",
                 label: "Produção diária",
                 data: valoresDias,
-                backgroundColor: "#0A8A38"
+                backgroundColor: "#14532D"
               },
 
               {
