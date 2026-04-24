@@ -539,7 +539,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #0A8A38;
+  background: #14532d;
   color: white;
   border: none;
   padding: 8px 14px;

@@ -404,6 +404,7 @@ async function getTempodeReferencia(id_funcionario, req) {
     };
 }
 
+
 module.exports = {
   getFuncionarios,
   getFuncionario,

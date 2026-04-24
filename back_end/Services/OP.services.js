@@ -65,7 +65,6 @@ async function postPecaOP(req, user) {
   return novaPeca;
 }
 async function duplicarOP(opId, dados, user) {
-  console.log("Iniciando duplicação da OP:", { opId, dados, user: user.cnpj });
   if (!opId) {
     throw new Error("ID da OP é obrigatório");
   }
@@ -75,25 +74,28 @@ async function duplicarOP(opId, dados, user) {
   }
 
   const quantidade = Number(dados.quantidade);
-  console.log("Quantidade a ser duplicada:", quantidade);
+
   if (isNaN(quantidade) || quantidade <= 0) {
     throw new Error("Quantidade inválida");
   }
+
   const id_da_op = parseInt(opId);
-  console.log("ID da OP a ser duplicada:", id_da_op);
+
   return await prisma.$transaction(async (tx) => {
-    
+
+    // 🔎 1. Buscar OP com RELAÇÃO CORRETA
     const opOriginal = await tx.pecasOP.findUnique({
-      where: { id_da_op: id_da_op },
+      where: { id_da_op },
       include: {
-        PecasEtapas: true,
+        etapas: true, // ✅ CORRETO
       },
     });
-    console.log("OP original encontrada:", opOriginal ? "Sim" : "Não");
+
     if (!opOriginal) {
       throw new Error("OP não encontrada");
     }
 
+    // 🧱 2. Criar nova OP
     const novaPeca = await tx.pecasOP.create({
       data: {
         status: "nao_iniciado",
@@ -110,13 +112,14 @@ async function duplicarOP(opId, dados, user) {
       },
     });
 
-    if (opOriginal.PecasEtapas.length > 0) {
+    // 🔁 3. Duplicar etapas (corrigido)
+    if (opOriginal.etapas.length > 0) {
       await tx.pecasEtapas.createMany({
-        data: opOriginal.PecasEtapas.map((etapa) => ({
+        data: opOriginal.etapas.map((etapa) => ({
           id_da_op: novaPeca.id_da_op,
           id_da_funcao: etapa.id_da_funcao,
-          quantidade_meta: quantidade, // usa nova quantidade
-          status: "PENDENTE", // reseta status
+          quantidade_meta: quantidade,
+          status: "pendente", // 👈 mantém padrão do model
         })),
       });
     }
