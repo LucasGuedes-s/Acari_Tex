@@ -31,4 +31,5 @@ router.post('/update/status', [jwtMiddleware], ControllerOp.updatePecaStatus);
 router.post('/deletar/peca/:id', [jwtMiddleware], ControllerOp.deletarPeca);
 
 router.post('/voltar/peca', [jwtMiddleware], ControllerOp.voltarPeca);
+router.post('/definir/metadiaria', [jwtMiddleware], ControllerOp.definirMetaDiaria);
 module.exports = router;

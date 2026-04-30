@@ -260,7 +260,6 @@ async function postProducaoPecaLote(req, res) {
       });
 
       const jaProduzido = producaoAtual._sum.quantidade_pecas || 0;
-      console.log(`OP ${id_da_op} - Etapa ${id_da_funcao}: já produzido ${jaProduzido}, novo ${totalNovo}, meta ${etapa.quantidade_meta}`);
       if (jaProduzido + totalNovo > etapa.quantidade_meta) {
         throw new Error("Produção excede a meta da etapa.");
       }
@@ -974,86 +973,178 @@ async function getEstatisticasPeca(id) {
   try {
     const id_da_op = parseInt(id, 10);
 
+    // ================= BUSCA PRINCIPAL =================
     const peca = await prisma.PecasOP.findUnique({
       where: { id_da_op },
       include: {
-        Estabelecimento: true,
+        Estabelecimento: {
+          select: {
+            peca_final: true,
+            tempo_de_producao: true,
+          },
+        },
         etapas: { include: { etapa: true } },
         producao_peca: {
           include: {
-            producao_funcionario: true,
-            producao_etapa: true
-          }
-        }
+            producao_funcionario: { select: { nome: true, email: true } },
+            producao_etapa: { select: { descricao: true, tempo_padrao: true } },
+          },
+        },
       },
     });
 
     if (!peca) throw new Error("Peça não encontrada.");
 
+    const etapaFinal        = peca.Estabelecimento?.peca_final;
+    const minutosDisponiveis = peca.Estabelecimento?.tempo_de_producao || 480;
+    const tempoPadraoTotalPeca = Number(peca.tempo_padrao) || 0;
+
+    // ================= AGREGAÇÕES =================
     const producaoPorEtapa = {};
+    const somaPorEtapa     = {};
 
-    let totalLiquido = 0;
-    let totalPositivo = 0;
-    let totalNegativo = 0;
+    let totalLiquido   = 0;
+    let totalPositivo  = 0;
+    let totalNegativo  = 0;
+    let totalConcluido = 0; // apenas peças que chegaram à etapa final
 
-    const somaPorEtapa = {};
+    // Eficiência: acumula tempo padrão produzido por funcionário
+    const eficienciaPorFuncionario = {};
 
     for (const p of peca.producao_peca) {
-      const qtd = Number(p.quantidade_pecas) || 0;
-      const etapaNome = p.producao_etapa?.descricao || "Etapa não definida";
-      const funcionarioNome = p.producao_funcionario?.nome || p.id_funcionario || "Desconhecido";
+      const qtd          = Number(p.quantidade_pecas) || 0;
+      const etapaNome    = p.producao_etapa?.descricao || "Etapa não definida";
+      const funcionario  = p.producao_funcionario?.nome || p.id_funcionario || "Desconhecido";
+      const email        = p.producao_funcionario?.email || p.id_funcionario;
 
+      // Fallback: tempo_padrao da Etapa → PecasEtapas → 0
+      const tempoPadraoEtapa =
+        p.producao_etapa?.tempo_padrao ??
+        peca.etapas.find((e) => e.id_da_funcao === p.id_da_funcao)
+          ?.etapa?.tempo_padrao ??
+        0;
+
+      // ---- PRODUÇÃO POR ETAPA ----
       if (!producaoPorEtapa[etapaNome]) {
         producaoPorEtapa[etapaNome] = [];
-        somaPorEtapa[etapaNome] = { liquido: 0, positivos: 0, estornos: 0 };
+        somaPorEtapa[etapaNome]     = { liquido: 0, positivos: 0, estornos: 0 };
       }
 
-      const registro = {
-        id_da_producao: p.id_da_producao,
-        funcionario: funcionarioNome,
-        funcionario_email: p.producao_funcionario?.email || null,
-        quantidade: qtd,
-        estorno: qtd < 0,
-        data_inicio: p.data_inicio,
-        hora_registro: p.hora_registro,
-      };
+      producaoPorEtapa[etapaNome].push({
+        id_da_producao:    p.id_da_producao,
+        funcionario,
+        funcionario_email: email,
+        quantidade:        qtd,
+        estorno:           qtd < 0,
+        data_inicio:       p.data_inicio,
+        hora_registro:     p.hora_registro,
+      });
 
-      producaoPorEtapa[etapaNome].push(registro);
-
-      somaPorEtapa[etapaNome].liquido += qtd;
+      somaPorEtapa[etapaNome].liquido  += qtd;
       if (qtd >= 0) somaPorEtapa[etapaNome].positivos += qtd;
-      else somaPorEtapa[etapaNome].estornos += Math.abs(qtd);
+      else          somaPorEtapa[etapaNome].estornos   += Math.abs(qtd);
 
+      // ---- TOTAIS GERAIS ----
       totalLiquido += qtd;
       if (qtd >= 0) totalPositivo += qtd;
-      else totalNegativo += Math.abs(qtd);
+      else          totalNegativo += Math.abs(qtd);
+
+      // ---- CONCLUÍDAS (somente etapa final, somente positivas) ----
+      if (etapaNome === etapaFinal && qtd > 0) {
+        totalConcluido += qtd;
+      }
+
+      // ---- EFICIÊNCIA POR FUNCIONÁRIO ----
+      if (tempoPadraoEtapa > 0 && qtd > 0) {
+        if (!eficienciaPorFuncionario[email]) {
+          eficienciaPorFuncionario[email] = {
+            nome: funcionario,
+            tempoPadraoProduzido: 0,
+          };
+        }
+        eficienciaPorFuncionario[email].tempoPadraoProduzido +=
+          qtd * tempoPadraoEtapa;
+      }
     }
 
+    // ================= EFICIÊNCIA MÉDIA DA PEÇA =================
+    const funcionariosComEficiencia = Object.entries(eficienciaPorFuncionario).map(
+      ([email, dados]) => {
+        const eficiencia =
+          minutosDisponiveis > 0
+            ? (dados.tempoPadraoProduzido / minutosDisponiveis) * 100
+            : 0;
+        return {
+          email,
+          nome:                  dados.nome,
+          tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
+          eficiencia_individual:  eficiencia.toFixed(2) + "%",
+        };
+      }
+    );
+
+    const mediaEficiencia =
+      funcionariosComEficiencia.length > 0
+        ? funcionariosComEficiencia.reduce(
+            (acc, f) => acc + parseFloat(f.eficiencia_individual),
+            0
+          ) / funcionariosComEficiencia.length
+        : 0;
+
+    // Eficiência da peça: quanto do tempo padrão total foi aproveitado
+    // considerando apenas as peças concluídas (etapa final)
+    const eficienciaPeca =
+      tempoPadraoTotalPeca > 0 && minutosDisponiveis > 0
+        ? (
+            (totalConcluido * tempoPadraoTotalPeca) /
+            (funcionariosComEficiencia.length * minutosDisponiveis)
+          ) * 100
+        : 0;
+
+    // ================= RETORNO =================
     const metaTotal = Number(peca.quantidade_pecas) || 0;
-    const saldo = metaTotal - totalLiquido;
 
     return {
-      id_da_op: peca.id_da_op,
-      descricao: peca.descricao,
-      status: peca.status,
+      id_da_op:        peca.id_da_op,
+      descricao:       peca.descricao,
+      status:          peca.status,
       quantidade_pecas: metaTotal,
+
+      // Produção
       totalProduzido: totalLiquido,
       totalPositivo,
       totalNegativo,
-      saldo,
-      pedido_por: peca.pedido_por,
-      valor_peca: peca.valor_peca,
-      data_do_pedido: peca.data_do_pedido,
-      data_de_entrega: peca.data_de_entrega,
-      notas: peca.notas,
-      producaoPorEtapa,
-      pecasEtapas: peca.etapas.map(e => ({
-        id_da_funcao: e.id_da_funcao,
-        descricao: e.etapa?.descricao || "Desconhecida",
-      })),
-      somaPorEtapa
-    };
+      saldo:          metaTotal - totalLiquido,
 
+      // Concluídas = chegaram à etapa final
+      totalConcluido,
+      etapaFinal: etapaFinal || null,
+      percentualConcluido:
+        metaTotal > 0
+          ? ((totalConcluido / metaTotal) * 100).toFixed(2) + "%"
+          : "0.00%",
+
+      // Eficiência
+      eficienciaPeca:     eficienciaPeca.toFixed(2) + "%",
+      mediaEficiencia:    mediaEficiencia.toFixed(2) + "%",
+      eficienciaPorFuncionario: funcionariosComEficiencia,
+
+      // Dados da OP
+      pedido_por:       peca.pedido_por,
+      valor_peca:       peca.valor_peca,
+      data_do_pedido:   peca.data_do_pedido,
+      data_de_entrega:  peca.data_de_entrega,
+      notas:            peca.notas,
+
+      // Detalhamento
+      producaoPorEtapa,
+      somaPorEtapa,
+      pecasEtapas: peca.etapas.map((e) => ({
+        id_da_funcao: e.id_da_funcao,
+        descricao:    e.etapa?.descricao || "Desconhecida",
+        tempo_padrao: e.etapa?.tempo_padrao ?? null,
+      })),
+    };
   } catch (error) {
     console.error("Erro ao buscar estatísticas da peça:", error);
     throw new Error("Erro ao buscar estatísticas da peça.");
@@ -1256,7 +1347,7 @@ async function postEtapa(req, res) {
 async function postEtapaPeca(req, res) {
   const cnpj = req.user.cnpj;
   const { descricao, id_da_op, tempo_padrao } = req.body;
-
+  const id_da_op_num = parseInt(id_da_op);
   const estabelecimento = await prisma.estabelecimento.findUnique({
     where: { cnpj },
   });
@@ -1267,7 +1358,7 @@ async function postEtapaPeca(req, res) {
 
   const op = await prisma.pecasOP.findFirst({
     where: {
-      id_da_op,
+      id_da_op: id_da_op_num,
       id_Estabelecimento: cnpj,
     },
   });
@@ -1296,7 +1387,7 @@ async function postEtapaPeca(req, res) {
   await prisma.pecasEtapas.upsert({
     where: {
       id_da_op_id_da_funcao: {
-        id_da_op,
+        id_da_op: id_da_op_num,
         id_da_funcao: etapa.id_da_funcao,
       },
     },
@@ -1336,7 +1427,6 @@ async function criarOuVincularGrupoEtapas(req) {
   const cnpj = req.user.cnpj;
   const { nome, descricao, etapasSelecionadas } = req.body;
   const etapasIds = etapasSelecionadas
-  console.log("Dados recebidos para criar/vincular grupo de etapas:", { nome, descricao, etapasSelecionadas });
   if (!nome) {
     throw new Error("Nome do grupo é obrigatório");
   }
@@ -1440,14 +1530,7 @@ async function getEficiencia(req, res) {
 
   const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
   const eficiencia = (quantidadeProduzida / producao100) * 100;
-  console.log(`Cálculo de eficiência:
-    Tempo Padrão da Peça: ${tempoPadraoPeca} min
-    Minutos Disponíveis por Pessoa: ${minutosDisponiveis} min
-    Quantidade de Pessoas: ${quantidadePessoas}
-    Produção 100%: ${producao100.toFixed(2)} peças
-    Quantidade Produzida: ${quantidadeProduzida} peças
-    Eficiência: ${eficiencia.toFixed(2)}%
-  `);
+
   const eficienciaAtualizada = await prisma.eficienciaTurma.upsert({
     where: { estabelecimentoCnpj: cnpj },
     update: {
@@ -1467,7 +1550,6 @@ async function getEficiencia(req, res) {
       eficiencia_percent: eficiencia
     }
   });
-  console.log("Eficiência atualizada:", eficienciaAtualizada);
 
   return {
     data: {
@@ -1593,7 +1675,49 @@ async function deletarEtapa(id) {
   return { mensagem: "Etapa deletada com sucesso." };
 }
 
+async function definirMetaDiaria(req) {
+  const { data, meta_diaria, observacoes, id_da_op } = req.body;
 
+const registradoPor = req.user.nome;
+const estabelecimentoCnpj = req.user.cnpj;
+
+// 🔒 Garante data sem horário
+const dataFormatada = new Date(data + "T00:00:00");
+dataFormatada.setHours(0, 0, 0, 0);
+// (Opcional) valida se o estabelecimento existe
+const estabelecimento = await prisma.estabelecimento.findUnique({
+  where: { cnpj: estabelecimentoCnpj },
+});
+
+if (!estabelecimento) {
+  throw new Error("Estabelecimento não encontrado");
+}
+
+const novaMeta = await prisma.metaDia.upsert({
+  where: {
+    estabelecimentoCnpj_data: {
+      estabelecimentoCnpj,
+      data: dataFormatada
+    }
+  },
+  update: {
+    meta_diaria: meta_diaria ? Number(meta_diaria) : null,
+    observacoes: observacoes || null,
+    registradoPor,
+    id_da_op: id_da_op ? Number(id_da_op) : null
+  },
+  create: {
+    estabelecimentoCnpj,
+    data: dataFormatada,
+    meta_diaria: meta_diaria ? Number(meta_diaria) : null,
+    observacoes: observacoes || null,
+    registradoPor,
+    id_da_op: id_da_op ? Number(id_da_op) : null
+  }
+});
+
+return novaMeta;
+}
 module.exports = {
   postPecaOP,
   duplicarOP,
@@ -1616,5 +1740,6 @@ module.exports = {
   getEficiencia,
   getProducaoTodasPecas,
   deletarEtapa,
-  criarOuVincularGrupoEtapas
+  criarOuVincularGrupoEtapas,
+  definirMetaDiaria
 };

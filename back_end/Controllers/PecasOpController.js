@@ -259,6 +259,20 @@ async function deletarEtapa(req, res, next) {
         next(err);
     }
 }
+async function definirMetaDiaria(req, res, next) {
+    try {
+        const { meta_diaria } = req.body;
+        if (meta_diaria === undefined || isNaN(meta_diaria) || meta_diaria < 0) {
+            return res.status(400).json({ mensagem: 'Meta diária inválida. Deve ser um número não negativo.' });
+        }
+        const metaDiaria = await pecas.definirMetaDiaria(req);
+        res.status(200).json({ metaDiaria });
+    } catch (err) {
+        console.error(`Erro ao definir meta diária.`, err.message);
+        next(err);
+    }
+}
+
 module.exports = { 
     postOP, 
     duplicarOPController,
@@ -280,5 +294,6 @@ module.exports = {
     getProducaoEstabelecimento,
     deletarEtapa,
     postGrupoEtapa,
-    getGruposEtapas
+    getGruposEtapas,
+    definirMetaDiaria
 };

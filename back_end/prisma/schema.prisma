@@ -2,14 +2,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
-
 generator erd {
   provider = "prisma-erd-generator"
   output   = "../ERD.png"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model Usuarios {
@@ -19,7 +19,6 @@ model Usuarios {
   foto                 String            @db.VarChar(2048)
   idade                Int
   funcoes              String?
-  salario              Float?
   identidade           String?
   permissoes           Int?
   cpf                  String?
@@ -28,56 +27,56 @@ model Usuarios {
   notas                String?
   status               String?           @default("ativo")
   estabelecimentoCnpj  String
+  salario              Float?
   telefone             String?
+  chatIAResultados     ChatIAResultado[]
   equipes              EquipesUsuarios[]
   producao_funcionario Producao[]
   tempo_referencia     TempoReferencia[]
   Estabelecimento      Estabelecimento   @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-  chatIAResultados     ChatIAResultado[]
+
   @@index([estabelecimentoCnpj], map: "Usuarios_estabelecimentoCnpj_fkey")
 }
 
 model Estabelecimento {
-  cnpj                  String            @id
-  nome                  String?
-  endereco              String?
-  telefone              String?
-  tempo_de_producao     Int? @default(480)
-  logo                  String? @db.VarChar(2048)
-  peca_final            String?
-  eficiencia_turma EficienciaTurma?
-  EquipesGrupos    EquipesGrupos[]
-  notificacoes     Notificacoes[]
-  PecasOP          PecasOP[]
-  Producao         Producao[]
-  tarefas          Tarefas[]
-  tempo_referencia TempoReferencia[]
-  usuarios         Usuarios[]
-  Intercorrencias   Intercorrencias[]
-  Etapas            Etapa[]
-  GrupoEtapas      GrupoEtapas[]
+  cnpj              String            @id
+  nome              String?
+  endereco          String?
+  telefone          String?
+  tempo_de_producao Int?              @default(480)
+  logo              String?           @db.VarChar(2048)
+  peca_final        String?
   chatIAResultados  ChatIAResultado[]
-  Financeiro         Financeiro[]
+  eficiencia_turma  EficienciaTurma?
+  EquipesGrupos     EquipesGrupos[]
+  Etapas            Etapa[]
+  Financeiro        Financeiro[]
+  GrupoEtapas       GrupoEtapas[]
+  Intercorrencias   Intercorrencias[]
+  notificacoes      Notificacoes[]
+  PecasOP           PecasOP[]
+  Producao          Producao[]
+  tarefas           Tarefas[]
+  usuarios          Usuarios[]
 }
 
 model PecasOP {
-  id_da_op           Int             @id @default(autoincrement())
-  id_Estabelecimento String
-  status             String?
-  descricao          String?
-  quantidade_pecas   Int?
-  pedido_por         String?
-  valor_peca         Float?
-  data_do_pedido     String?
-  data_de_entrega    String?
-  notas              String?
-  
+  id_da_op            Int             @id @default(autoincrement())
+  id_Estabelecimento  String
+  status              String?
+  descricao           String?
+  quantidade_pecas    Int?
+  pedido_por          String?
+  valor_peca          Float?
+  data_do_pedido      String?
+  data_de_entrega     String?
+  notas               String?
+  tempo_padrao        Float?
+  cem_porcento        Float?
   local_armazenamento String?
-  tempo_padrao       Float?
-  cem_porcento       Float?
-  etapas             PecasEtapas[]
-  Estabelecimento    Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
-  producao_peca      Producao[]
+  etapas              PecasEtapas[]
+  Estabelecimento     Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
+  producao_peca       Producao[]
 
   @@index([id_Estabelecimento], map: "PecasOP_id_Estabelecimento_fkey")
 }
@@ -95,27 +94,30 @@ model EficienciaTurma {
 }
 
 model Etapa {
-  id_da_funcao     Int               @id @default(autoincrement())
-  descricao        String            
-  tempo_padrao     Float?
+  id_da_funcao       Int               @id @default(autoincrement())
+  descricao          String
+  tempo_padrao       Float?
   id_Estabelecimento String?
+  grupoEtapaId       Int?
+  grupoEtapa         GrupoEtapas?      @relation(fields: [grupoEtapaId], references: [id])
+  Estabelecimento    Estabelecimento?  @relation(fields: [id_Estabelecimento], references: [cnpj])
+  pecas              PecasEtapas[]
+  producao_etapa     Producao[]
+  tempo_referencia   TempoReferencia[]
 
-  grupoEtapaId      Int?
-  grupoEtapa        GrupoEtapas?       @relation(fields: [grupoEtapaId], references: [id])
-
-  Estabelecimento    Estabelecimento? @relation(fields: [id_Estabelecimento], references: [cnpj])  
-  pecas            PecasEtapas[]
-  producao_etapa   Producao[]
-  tempo_referencia TempoReferencia[]
+  @@index([grupoEtapaId], map: "Etapa_grupoEtapaId_fkey")
+  @@index([id_Estabelecimento], map: "Etapa_id_Estabelecimento_fkey")
 }
-model GrupoEtapas {
-  id            Int     @id @default(autoincrement())
-  nome          String  // Ex: "Pregar Bolso Relógio"
-  descricao     String?
-  Estabelecimento      Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
+model GrupoEtapas {
+  id                  Int             @id @default(autoincrement())
+  nome                String
+  descricao           String?
   estabelecimentoCnpj String
-  etapas        Etapa[]
+  etapas              Etapa[]
+  Estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+
+  @@index([estabelecimentoCnpj], map: "GrupoEtapas_estabelecimentoCnpj_fkey")
 }
 
 model PecasEtapas {
@@ -187,20 +189,29 @@ model EquipesUsuarios {
 }
 
 model TempoReferencia {
-  id                  Int             @id @default(autoincrement())
-  estabelecimentoCnpj String
-  id_funcionario      String
-  id_da_funcao        Int
-  tempo_minutos       Float?
-  quantidade_pecas    Int?
-  observacoes         String?
-  criadoEm            DateTime        @default(now())
-  registradoPor       String?
-  estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-  etapa               Etapa           @relation(fields: [id_da_funcao], references: [id_da_funcao])
-  usuario             Usuarios        @relation(fields: [id_funcionario], references: [email])
+  id                    Int       @id @default(autoincrement())
+  estabelecimentoCnpj   String
+  id_funcionario        String
+  id_da_funcao          Int
+  tempo_minutos         Float?
+  quantidade_pecas      Int?
+  observacoes           String?
+  criadoEm              DateTime  @default(now())
+  registradoPor         String?
+  data_medicao          DateTime?
+  fator_ritmo           Float?
+  maquina               String?
+  opId                  Int?
+  percentual_tolerancia Float?
+  produtoId             Int?
+  quantidade_ciclos     Int?
+  tempo_por_peca        Float?
+  tipo_medicao          String?
+  tipo_operacao         String?
+  etapa                 Etapa     @relation(fields: [id_da_funcao], references: [id_da_funcao])
+  usuario               Usuarios  @relation(fields: [id_funcionario], references: [email])
 
-  @@unique([estabelecimentoCnpj, id_funcionario, id_da_funcao])
+  @@index([estabelecimentoCnpj, id_funcionario, id_da_funcao])
   @@index([id_da_funcao])
   @@index([id_funcionario])
 }
@@ -212,52 +223,64 @@ model Notificacoes {
   mensagem            String
   lida                Boolean         @default(false)
   criadaEm            DateTime        @default(now())
-  etapa               String?
+  etapa               String?         @default("Coletiva")
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
   @@index([estabelecimentoCnpj], map: "Notificacoes_estabelecimentoCnpj_fkey")
 }
 
-model Intercorrencias{
+model Intercorrencias {
   id                  Int             @id @default(autoincrement())
   estabelecimentoCnpj String
   descricao           String
   registradaPor       String?
   tempo_perda         Float?
   data_ocorrencia     DateTime
-  classificacao       String?
-
   notas               String?
+  classificacao       String?
+  etapa               String?         @default("Coletiva")
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
   @@index([estabelecimentoCnpj], map: "Intercorrencias_estabelecimentoCnpj_fkey")
 }
+
+model metaDia {
+  id                  Int      @id @default(autoincrement())
+  estabelecimentoCnpj String
+  data                DateTime
+  meta_diaria         Int?
+  observacoes         String?
+  criadoEm            DateTime @default(now())
+  registradoPor       String?
+  id_da_op            Int?
+
+  @@index([estabelecimentoCnpj], map: "metaDia_estabelecimentoCnpj_fkey")
+  @@unique([estabelecimentoCnpj, data])
+}
+
 model ChatIAResultado {
-  id                  Int       @id @default(autoincrement())
-  resultado           String    @db.Text
-  criadoEm            DateTime  @default(now())
-
-  // Relação com Usuário
+  id                  Int             @id @default(autoincrement())
+  resultado           String          @db.Text
+  criadoEm            DateTime        @default(now())
   usuarioEmail        String
-  usuario             Usuarios  @relation(fields: [usuarioEmail], references: [email])
-
-  // Relação com Estabelecimento
   estabelecimentoCnpj String
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  usuario             Usuarios        @relation(fields: [usuarioEmail], references: [email])
 
   @@index([usuarioEmail])
   @@index([estabelecimentoCnpj])
 }
+
 model Financeiro {
   id                  Int             @id @default(autoincrement())
   estabelecimentoCnpj String
   notaFiscal          String?
-  tipo                String          // "receita" ou "despesa"
+  tipo                String
   categoria           String
   valor               Float
   data                DateTime
-  saldoRestante       Float?    @default(0)
-  registradaPor       String?         // Email do usuário
+  saldoRestante       Float?          @default(0)
+  registradaPor       String?
   descricao           String?
   criadoEm            DateTime        @default(now())
   estabelecimento     Estabelecimento @relation(fields: [estabelecimentoCnpj], references: [cnpj])
