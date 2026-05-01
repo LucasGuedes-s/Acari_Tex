@@ -440,14 +440,8 @@ async function updatePecaStatus(id_da_op, status) {
 }
 async function getProducaoEquipe(cnpj, filtrar) {
   try {
-    console.log("Buscando produção da equipe para CNPJ:", cnpj, "com filtro:", filtrar);
-
-    const filtro = filtrar || "hoje";
     const cnpjEstabelecimento = cnpj;
 
-    // ═══════════════════════════════════════
-    // ESTABELECIMENTO
-    // ═══════════════════════════════════════
     const estabelecimento = await prisma.estabelecimento.findUnique({
       where: { cnpj: cnpjEstabelecimento },
       select: {
@@ -466,31 +460,21 @@ async function getProducaoEquipe(cnpj, filtrar) {
     if (!etapaFinal) {
       console.warn("Peça final não configurada no estabelecimento.");
     }
-    const fusoSP = "America/Sao_Paulo";
-    const agora = new Date();
-    let diaFiltro = new Date(agora.toLocaleString("en-US", { timeZone: fusoSP }));
 
-    if (filtro === "ontem") diaFiltro.setDate(diaFiltro.getDate() - 1);
-    if (filtro === "antesDeOntem") diaFiltro.setDate(diaFiltro.getDate() - 2);
+    const dataFiltro = filtrar; // ex: "2026-04-20"
 
-    const dtf = new Intl.DateTimeFormat("pt-BR", {
-      timeZone: fusoSP,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
+    if (!dataFiltro || !/^\d{4}-\d{2}-\d{2}$/.test(dataFiltro)) {
+      throw new Error("Data inválida. Use o formato YYYY-MM-DD.");
+    }
 
-    const partes = dtf.formatToParts(diaFiltro);
-    const dia = partes.find(p => p.type === "day").value;
-    const mes = partes.find(p => p.type === "month").value;
-    const ano = partes.find(p => p.type === "year").value;
+    const [ano, mes, dia] = dataFiltro.split('-').map(Number);
 
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
+
     const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
 
-    // ═══════════════════════════════════════
-    // PRODUÇÕES DO DIA
-    // ═══════════════════════════════════════
+    // console.log({ inicioDiaUTC, fimDiaUTC });
+
     const producoesDia = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -786,7 +770,6 @@ async function getProducaoPorPeca(req) {
   try {
     const filtro = req.query.filtro || "hoje";
     const cnpjEstabelecimento = req.user.cnpj;
-
     // 🔹 Busca o tempo de produção padrão do estabelecimento
     const estabelecimento = await prisma.estabelecimento.findUnique({
       where: { cnpj: cnpjEstabelecimento },
@@ -995,27 +978,27 @@ async function getEstatisticasPeca(id) {
 
     if (!peca) throw new Error("Peça não encontrada.");
 
-    const etapaFinal        = peca.Estabelecimento?.peca_final;
+    const etapaFinal = peca.Estabelecimento?.peca_final;
     const minutosDisponiveis = peca.Estabelecimento?.tempo_de_producao || 480;
     const tempoPadraoTotalPeca = Number(peca.tempo_padrao) || 0;
 
     // ================= AGREGAÇÕES =================
     const producaoPorEtapa = {};
-    const somaPorEtapa     = {};
+    const somaPorEtapa = {};
 
-    let totalLiquido   = 0;
-    let totalPositivo  = 0;
-    let totalNegativo  = 0;
+    let totalLiquido = 0;
+    let totalPositivo = 0;
+    let totalNegativo = 0;
     let totalConcluido = 0; // apenas peças que chegaram à etapa final
 
     // Eficiência: acumula tempo padrão produzido por funcionário
     const eficienciaPorFuncionario = {};
 
     for (const p of peca.producao_peca) {
-      const qtd          = Number(p.quantidade_pecas) || 0;
-      const etapaNome    = p.producao_etapa?.descricao || "Etapa não definida";
-      const funcionario  = p.producao_funcionario?.nome || p.id_funcionario || "Desconhecido";
-      const email        = p.producao_funcionario?.email || p.id_funcionario;
+      const qtd = Number(p.quantidade_pecas) || 0;
+      const etapaNome = p.producao_etapa?.descricao || "Etapa não definida";
+      const funcionario = p.producao_funcionario?.nome || p.id_funcionario || "Desconhecido";
+      const email = p.producao_funcionario?.email || p.id_funcionario;
 
       // Fallback: tempo_padrao da Etapa → PecasEtapas → 0
       const tempoPadraoEtapa =
@@ -1027,27 +1010,27 @@ async function getEstatisticasPeca(id) {
       // ---- PRODUÇÃO POR ETAPA ----
       if (!producaoPorEtapa[etapaNome]) {
         producaoPorEtapa[etapaNome] = [];
-        somaPorEtapa[etapaNome]     = { liquido: 0, positivos: 0, estornos: 0 };
+        somaPorEtapa[etapaNome] = { liquido: 0, positivos: 0, estornos: 0 };
       }
 
       producaoPorEtapa[etapaNome].push({
-        id_da_producao:    p.id_da_producao,
+        id_da_producao: p.id_da_producao,
         funcionario,
         funcionario_email: email,
-        quantidade:        qtd,
-        estorno:           qtd < 0,
-        data_inicio:       p.data_inicio,
-        hora_registro:     p.hora_registro,
+        quantidade: qtd,
+        estorno: qtd < 0,
+        data_inicio: p.data_inicio,
+        hora_registro: p.hora_registro,
       });
 
-      somaPorEtapa[etapaNome].liquido  += qtd;
+      somaPorEtapa[etapaNome].liquido += qtd;
       if (qtd >= 0) somaPorEtapa[etapaNome].positivos += qtd;
-      else          somaPorEtapa[etapaNome].estornos   += Math.abs(qtd);
+      else somaPorEtapa[etapaNome].estornos += Math.abs(qtd);
 
       // ---- TOTAIS GERAIS ----
       totalLiquido += qtd;
       if (qtd >= 0) totalPositivo += qtd;
-      else          totalNegativo += Math.abs(qtd);
+      else totalNegativo += Math.abs(qtd);
 
       // ---- CONCLUÍDAS (somente etapa final, somente positivas) ----
       if (etapaNome === etapaFinal && qtd > 0) {
@@ -1076,9 +1059,9 @@ async function getEstatisticasPeca(id) {
             : 0;
         return {
           email,
-          nome:                  dados.nome,
+          nome: dados.nome,
           tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
-          eficiencia_individual:  eficiencia.toFixed(2) + "%",
+          eficiencia_individual: eficiencia.toFixed(2) + "%",
         };
       }
     );
@@ -1086,9 +1069,9 @@ async function getEstatisticasPeca(id) {
     const mediaEficiencia =
       funcionariosComEficiencia.length > 0
         ? funcionariosComEficiencia.reduce(
-            (acc, f) => acc + parseFloat(f.eficiencia_individual),
-            0
-          ) / funcionariosComEficiencia.length
+          (acc, f) => acc + parseFloat(f.eficiencia_individual),
+          0
+        ) / funcionariosComEficiencia.length
         : 0;
 
     // Eficiência da peça: quanto do tempo padrão total foi aproveitado
@@ -1096,25 +1079,25 @@ async function getEstatisticasPeca(id) {
     const eficienciaPeca =
       tempoPadraoTotalPeca > 0 && minutosDisponiveis > 0
         ? (
-            (totalConcluido * tempoPadraoTotalPeca) /
-            (funcionariosComEficiencia.length * minutosDisponiveis)
-          ) * 100
+          (totalConcluido * tempoPadraoTotalPeca) /
+          (funcionariosComEficiencia.length * minutosDisponiveis)
+        ) * 100
         : 0;
 
     // ================= RETORNO =================
     const metaTotal = Number(peca.quantidade_pecas) || 0;
 
     return {
-      id_da_op:        peca.id_da_op,
-      descricao:       peca.descricao,
-      status:          peca.status,
+      id_da_op: peca.id_da_op,
+      descricao: peca.descricao,
+      status: peca.status,
       quantidade_pecas: metaTotal,
 
       // Produção
       totalProduzido: totalLiquido,
       totalPositivo,
       totalNegativo,
-      saldo:          metaTotal - totalLiquido,
+      saldo: metaTotal - totalLiquido,
 
       // Concluídas = chegaram à etapa final
       totalConcluido,
@@ -1125,23 +1108,23 @@ async function getEstatisticasPeca(id) {
           : "0.00%",
 
       // Eficiência
-      eficienciaPeca:     eficienciaPeca.toFixed(2) + "%",
-      mediaEficiencia:    mediaEficiencia.toFixed(2) + "%",
+      eficienciaPeca: eficienciaPeca.toFixed(2) + "%",
+      mediaEficiencia: mediaEficiencia.toFixed(2) + "%",
       eficienciaPorFuncionario: funcionariosComEficiencia,
 
       // Dados da OP
-      pedido_por:       peca.pedido_por,
-      valor_peca:       peca.valor_peca,
-      data_do_pedido:   peca.data_do_pedido,
-      data_de_entrega:  peca.data_de_entrega,
-      notas:            peca.notas,
+      pedido_por: peca.pedido_por,
+      valor_peca: peca.valor_peca,
+      data_do_pedido: peca.data_do_pedido,
+      data_de_entrega: peca.data_de_entrega,
+      notas: peca.notas,
 
       // Detalhamento
       producaoPorEtapa,
       somaPorEtapa,
       pecasEtapas: peca.etapas.map((e) => ({
         id_da_funcao: e.id_da_funcao,
-        descricao:    e.etapa?.descricao || "Desconhecida",
+        descricao: e.etapa?.descricao || "Desconhecida",
         tempo_padrao: e.etapa?.tempo_padrao ?? null,
       })),
     };
@@ -1678,45 +1661,69 @@ async function deletarEtapa(id) {
 async function definirMetaDiaria(req) {
   const { data, meta_diaria, observacoes, id_da_op } = req.body;
 
-const registradoPor = req.user.nome;
-const estabelecimentoCnpj = req.user.cnpj;
+  const registradoPor = req.user.nome;
+  const estabelecimentoCnpj = req.user.cnpj;
 
-// 🔒 Garante data sem horário
-const dataFormatada = new Date(data + "T00:00:00");
-dataFormatada.setHours(0, 0, 0, 0);
-// (Opcional) valida se o estabelecimento existe
-const estabelecimento = await prisma.estabelecimento.findUnique({
-  where: { cnpj: estabelecimentoCnpj },
-});
+  // 🔒 Garante data sem horário
+  const dataFormatada = new Date(data + "T00:00:00");
+  dataFormatada.setHours(0, 0, 0, 0);
+  // (Opcional) valida se o estabelecimento existe
+  const estabelecimento = await prisma.estabelecimento.findUnique({
+    where: { cnpj: estabelecimentoCnpj },
+  });
 
-if (!estabelecimento) {
-  throw new Error("Estabelecimento não encontrado");
-}
-
-const novaMeta = await prisma.metaDia.upsert({
-  where: {
-    estabelecimentoCnpj_data: {
-      estabelecimentoCnpj,
-      data: dataFormatada
-    }
-  },
-  update: {
-    meta_diaria: meta_diaria ? Number(meta_diaria) : null,
-    observacoes: observacoes || null,
-    registradoPor,
-    id_da_op: id_da_op ? Number(id_da_op) : null
-  },
-  create: {
-    estabelecimentoCnpj,
-    data: dataFormatada,
-    meta_diaria: meta_diaria ? Number(meta_diaria) : null,
-    observacoes: observacoes || null,
-    registradoPor,
-    id_da_op: id_da_op ? Number(id_da_op) : null
+  if (!estabelecimento) {
+    throw new Error("Estabelecimento não encontrado");
   }
-});
 
-return novaMeta;
+  const novaMeta = await prisma.metaDia.upsert({
+    where: {
+      estabelecimentoCnpj_data: {
+        estabelecimentoCnpj,
+        data: dataFormatada
+      }
+    },
+    update: {
+      meta_diaria: meta_diaria ? Number(meta_diaria) : null,
+      observacoes: observacoes || null,
+      registradoPor,
+      id_da_op: id_da_op ? Number(id_da_op) : null
+    },
+    create: {
+      estabelecimentoCnpj,
+      data: dataFormatada,
+      meta_diaria: meta_diaria ? Number(meta_diaria) : null,
+      observacoes: observacoes || null,
+      registradoPor,
+      id_da_op: id_da_op ? Number(id_da_op) : null
+    }
+  });
+
+  return novaMeta;
+}
+async function getMetaDiaria(req) {
+  const estabelecimentoCnpj = req.user.cnpj;
+  const hoje = new Date();
+
+  const inicioDiaUTC = new Date(Date.UTC(
+    hoje.getUTCFullYear(),
+    hoje.getUTCMonth(),
+    hoje.getUTCDate(),
+    0, 0, 0, 0
+  ));
+
+  const meta = await prisma.metaDia.findUnique({
+    where: {
+      estabelecimentoCnpj_data: {
+        estabelecimentoCnpj,
+        data: inicioDiaUTC
+      }
+    }
+  });
+  if (!meta) {
+    return { mensagem: "Nenhuma meta definida para hoje." };
+  }
+  return meta;
 }
 module.exports = {
   postPecaOP,
@@ -1741,5 +1748,6 @@ module.exports = {
   getProducaoTodasPecas,
   deletarEtapa,
   criarOuVincularGrupoEtapas,
-  definirMetaDiaria
+  definirMetaDiaria,
+  getMetaDiaria
 };

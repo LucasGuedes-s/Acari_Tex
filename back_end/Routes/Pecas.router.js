@@ -32,4 +32,5 @@ router.post('/deletar/peca/:id', [jwtMiddleware], ControllerOp.deletarPeca);
 
 router.post('/voltar/peca', [jwtMiddleware], ControllerOp.voltarPeca);
 router.post('/definir/metadiaria', [jwtMiddleware], ControllerOp.definirMetaDiaria);
+router.get('/meta-diaria', [jwtMiddleware], ControllerOp.getMetaDiaria);
 module.exports = router;

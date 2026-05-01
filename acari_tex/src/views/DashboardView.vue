@@ -45,10 +45,11 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 14.414V19a1 1 0 01-1.447.894l-4-2A1 1 0 019 17v-2.586L3.293 6.707A1 1 0 013 6V4z" />
                 </svg>
+
                 <select v-model="filtro" @change="atualizarFiltro">
-                  <option value="hoje">Hoje</option>
-                  <option value="ontem">Ontem</option>
-                  <option value="antesDeOntem">Antes de Ontem</option>
+                  <option v-for="data in datasFiltro" :key="data.valor" :value="data.valor">
+                    {{ data.label }}
+                  </option>
                 </select>
               </label>
             </div>
@@ -61,13 +62,13 @@
               Exportar PDF
             </button>
 
-            <!-- <button class="botao-acao" @click="exportarExcel">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4h16v16H4V4zm4 12l3-4 3 4m-6-8l3 4 3-4" />
+            <button class="botao-acao" @click="adicionarMeta">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M0 0h1v15h15v1H0z" />
+                <path d="M14 3l-4 4-3-3-5 5 1 1 4-4 3 3 5-5z" />
               </svg>
-              Exportar Excel
-            </button>-->
+              Adicionar meta
+            </button>
 
             <button class="botao-acao botao-improdutivo" @click="abrirModalImprodutivo">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24"
@@ -80,12 +81,13 @@
           </div>
 
           <div>
-            <ProducaoDia :producaoDados="producao" v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
+            <ProducaoDia :producaoDados="producao" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+              class="mb-4" />
             <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" />
             <GraficoEtapas class="mb-4" />
             <!-- <GradicoProducaoPorEtapa class="mb-4" />-->
-            
+
             <!--<GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" /> 
             <ProducaoPorPeca v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" /> -->
@@ -213,8 +215,9 @@ export default {
         notas: '',
         classificacao: '',
       },
+      datasFiltro: [],
       intercorrencias: [],
-      filtro: 'hoje',
+      filtro: new Date().toISOString().split('T')[0],
       loading: true,
       modalImprodutivoAberto: false,
       producao: { producaoDia: { funcionarios: [] } },
@@ -242,6 +245,7 @@ export default {
     this.fetchData();
     this.getIntercorrencias();
     this.iniciarSocket();
+    this.gerarDatasFiltro();
   },
 
   beforeUnmount() {
@@ -249,6 +253,27 @@ export default {
   },
 
   methods: {
+    gerarDatasFiltro() {
+      const hoje = new Date();
+      this.datasFiltro = [];
+
+      for (let i = 0; i < 30; i++) {
+        const data = new Date();
+        data.setDate(hoje.getDate() - i);
+
+        const valor = data.toISOString().split('T')[0]; // yyyy-mm-dd
+
+        const label = data.toLocaleDateString('pt-BR'); // 01/05/2026
+
+        this.datasFiltro.push({
+          valor,
+          label
+        });
+      }
+
+      // já seta hoje como padrão
+      this.filtro = this.datasFiltro[0].valor;
+    },
     iniciarSocket() {
       this.socket = io('https://acari-tex.onrender.com');
 
@@ -463,19 +488,97 @@ export default {
 
     async producaoPecas() {
       this.loading = true;
+      
       try {
         const token = this.store.pegar_token;
         const res = await api.get('/producao/equipe', {
           headers: { Authorization: token },
           params: { filtro: this.filtro },
-        });
+        }); 
+        console.log(res.data);
         this.producao = res.data;
-        console.log('Produção carregada:', this.producao);
+       
       } catch (err) {
         console.error('Erro ao buscar produção:', err);
         this.producao = { producaoDia: { funcionarios: [] } };
       }
       this.loading = false;
+    },
+    async adicionarMeta() {
+      // 1️⃣ Montar lista de OPs disponíveis
+      const todasPecas = [
+        ...this.pecas.nao_iniciado,
+        ...this.pecas.em_progresso,
+        ...this.pecas.coleta,
+        ...this.pecas.finalizado
+      ];
+
+      if (!todasPecas.length) {
+        return Swal.fire('Aviso', 'Nenhuma OP disponível.', 'info');
+      }
+
+      const opOptions = {};
+      todasPecas.forEach(op => {
+        opOptions[op.id_da_op] = `OP #${op.id_da_op} - ${op.descricao}`;
+      });
+
+      // 2️⃣ Selecionar OP
+      const { value: id_da_op } = await Swal.fire({
+        title: 'Selecionar OP',
+        input: 'select',
+        inputOptions: opOptions,
+        inputPlaceholder: 'Escolha uma OP',
+        showCancelButton: true,
+        confirmButtonColor: '#0d3927',
+        confirmButtonText: 'Continuar',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (!id_da_op) return;
+
+      // 3️⃣ Inserir meta
+      const { value: meta } = await Swal.fire({
+        title: 'Adicionar Meta',
+        input: 'number',
+        inputLabel: 'Quantidade de peças para a meta',
+        inputPlaceholder: 'Digite a quantidade',
+        showCancelButton: true,
+        confirmButtonColor: '#0d3927',
+        confirmButtonText: 'Salvar',
+        cancelButtonText: 'Cancelar',
+        preConfirm: (value) => {
+          if (!value || value <= 0) {
+            Swal.showValidationMessage('Quantidade inválida');
+          }
+          return value;
+        }
+      });
+
+      if (!meta) return;
+
+      try {
+        const token = this.store.pegar_token;
+
+        const payload = {
+          data: new Date().toISOString().split('T')[0],
+          meta_diaria: Number(meta),
+          observacoes: 'Meta definida manualmente',
+          id_da_op: Number(id_da_op)
+        };
+
+        await api.post('/definir/metadiaria', payload, {
+          headers: { Authorization: token },
+        });
+
+        Swal.fire('Sucesso', 'Meta adicionada com sucesso!', 'success');
+
+        this.fetchData();
+        this.producaoPecas();
+
+      } catch (err) {
+        console.error('Erro ao adicionar meta:', err);
+        Swal.fire('Erro', 'Erro ao adicionar meta.', 'error');
+      }
     },
     async getIntercorrencias() {
       try {

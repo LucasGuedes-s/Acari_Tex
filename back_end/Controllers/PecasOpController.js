@@ -4,7 +4,6 @@ const Estatisticas = require('../Controllers/EstatisticasController');
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
-        console.log("Nova peça criada:", novaPeca);
         gerarPdfPeca(novaPeca).catch(err => {
             console.error("Erro ao gerar PDF com QR Code:", err);
         });
@@ -107,8 +106,8 @@ async function updatePecaStatus(req, res, next){
 }
 async function getProducaoEquipe(req, res, next) {
     try {
+        console.log('Obtendo produção da equipe com filtro:', req.query.filtro);
         const producao = await pecas.getProducaoEquipe(req.user.cnpj, req.query.filtro);
-        //console.log(producao)
         res.status(200).json({ producao });
     } catch (err) {
         console.error(`Erro ao obter produção.`, err.message);
@@ -245,7 +244,6 @@ async function getProducaoEstabelecimento(req, res, next) {
 async function deletarEtapa(req, res, next) {  
     try {
         const { id } = req.params;
-        console.log("ID recebido para deleção:", id);
         if (!id) {
             return res.status(400).json({ mensagem: 'ID da etapa é obrigatório.' });
         }  
@@ -272,7 +270,15 @@ async function definirMetaDiaria(req, res, next) {
         next(err);
     }
 }
-
+async function getMetaDiaria(req, res, next) {
+    try {
+        const metaDiaria = await pecas.getMetaDiaria(req);
+        res.status(200).json({ metaDiaria });
+    } catch (err) {
+        console.error(`Erro ao obter meta diária.`, err.message);
+        next(err);
+    }   
+}
 module.exports = { 
     postOP, 
     duplicarOPController,
@@ -295,5 +301,6 @@ module.exports = {
     deletarEtapa,
     postGrupoEtapa,
     getGruposEtapas,
-    definirMetaDiaria
+    definirMetaDiaria,
+    getMetaDiaria
 };
