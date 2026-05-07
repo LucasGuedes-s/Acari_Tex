@@ -279,6 +279,15 @@ async function getMetaDiaria(req, res, next) {
         next(err);
     }   
 }
+async function cronoanalise(req, res, next) {
+    try {
+        const resultado = await pecas.criarTempoReferencia(req);
+        res.status(200).json({ resultado });
+    } catch (err) {
+        console.error(`Erro ao realizar cronoanálise.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     duplicarOPController,
@@ -302,5 +311,6 @@ module.exports = {
     postGrupoEtapa,
     getGruposEtapas,
     definirMetaDiaria,
-    getMetaDiaria
+    getMetaDiaria,
+    cronoanalise
 };

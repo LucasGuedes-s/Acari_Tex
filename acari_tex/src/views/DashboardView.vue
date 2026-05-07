@@ -62,6 +62,15 @@
               Exportar PDF
             </button>
 
+            <button class="botao-acao">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M6 2a2 2 0 00-2 2v16c0 1.1.9 2 2 2h6v-2H6V4h12v5h2V4a2 2 0 00-2-2H6zm7 14v2h5v2h2v-2h2v-2h-2v-2h-2v2h-5z" />
+              </svg><a href="/slides-producao" style="color: inherit; text-decoration: none;">
+              Abrir slides
+            </a>
+            </button>
+
             <button class="botao-acao" @click="adicionarMeta">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M0 0h1v15h15v1H0z" />

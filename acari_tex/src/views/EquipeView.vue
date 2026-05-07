@@ -332,7 +332,6 @@ export default {
         const { data } = await api.get('/Funcionarios', {
           headers: { Authorization: this.store.pegar_token }
         })
-        console.log(data.funcionarios)
         this.funcionarios = (data.funcionarios || []).map(u => ({
           ...u,
           email: u.email ? String(u.email).toLowerCase().trim() : '',

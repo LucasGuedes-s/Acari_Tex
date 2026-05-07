@@ -1387,6 +1387,7 @@ async function postEtapaPeca(req, res) {
 
 async function getEtapasEstabelecimento(req) {
   const cnpj = req.user.cnpj;
+
   const estabelecimento = await prisma.estabelecimento.findUnique({
     where: { cnpj },
   });
@@ -1396,11 +1397,31 @@ async function getEtapasEstabelecimento(req) {
   }
 
   const etapas = await prisma.etapa.findMany({
-    where: { id_Estabelecimento: cnpj },
-    include: {
-      grupoEtapa: true
+    where: {
+      id_Estabelecimento: cnpj,
     },
-    orderBy: { descricao: "asc" },
+    include: {
+      grupoEtapa: true,
+
+      tempo_referencia: {
+        take: 1,
+        orderBy: {
+          criadoEm: "desc",
+        },
+        include: {
+          usuario: {
+            select: {
+              nome: true,
+              email: true,
+              foto: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      descricao: "asc",
+    },
   });
 
   return etapas;
@@ -1725,6 +1746,187 @@ async function getMetaDiaria(req) {
   }
   return meta;
 }
+async function criarTempoReferencia(req) {
+  try {
+    const {
+      
+      id_funcionario,
+      id_da_funcao,
+      tipo_medicao,         // "continua" | "repetitiva" | "uph"
+
+      // Cronometragem contínua
+      tempo_total,
+      quantidade_ciclos,
+
+      // Cronometragem repetitiva (voltagem zero)
+      tempos_ciclos,        // array com o tempo de cada ciclo medido
+      limite_variacao,      // percentual de variação aceito (padrão 0.10 = ±10%)
+
+      // UPH
+      quantidade_hora,      // peças produzidas em 1 hora
+
+      // Dados comuns
+      fator_ritmo,
+      percentual_tolerancia,
+      quantidade_pecas,
+      observacoes,
+      data_medicao,
+      maquina,
+      opId,
+      produtoId,
+      tipo_operacao,
+    } = req.body;
+    const estabelecimentoCnpj = req.user.cnpj;
+    const registradoPor = req.user.nome;
+    // ================= VALIDAÇÕES =================
+    if (!estabelecimentoCnpj || !id_funcionario || !id_da_funcao) {
+      throw new Error("Campos obrigatórios ausentes: estabelecimentoCnpj, id_funcionario, id_da_funcao.");
+    }
+    if (!tipo_medicao) {
+      throw new Error("Informe o tipo_medicao: 'continua', 'repetitiva' ou 'uph'.");
+    }
+
+    // ================= CÁLCULO DO TC POR MÉTODO =================
+    let TC;
+    let ciclosValidos      = [];
+    let ciclosDescartados  = [];
+    let quantidadeCiclos   = quantidade_ciclos ?? null;
+
+    if (tipo_medicao === "continua") {
+      // TC = tempo total do lote / número de operações
+      if (!tempo_total || tempo_total <= 0)
+        throw new Error("Informe o tempo_total para cronometragem contínua.");
+      if (!quantidade_ciclos || quantidade_ciclos <= 0)
+        throw new Error("Informe a quantidade_ciclos para cronometragem contínua.");
+
+      TC = tempo_total / quantidade_ciclos;
+
+    } else if (tipo_medicao === "repetitiva") {
+      // Voltagem zero — descarte automático de anomalias por ±limite_variacao
+      if (!Array.isArray(tempos_ciclos) || tempos_ciclos.length === 0)
+        throw new Error("Informe o array tempos_ciclos para cronometragem repetitiva.");
+
+      const ciclosBrutos = tempos_ciclos.filter((t) => typeof t === "number" && t > 0);
+      if (ciclosBrutos.length === 0)
+        throw new Error("Nenhum tempo de ciclo válido informado.");
+
+      // 1. Média provisória com todos os ciclos válidos
+      const mediaProv =
+        ciclosBrutos.reduce((acc, t) => acc + t, 0) / ciclosBrutos.length;
+
+      // 2. Limites de aceitação (padrão ±10%)
+      const variacao      = typeof limite_variacao === "number" && limite_variacao > 0
+        ? limite_variacao
+        : 0.10;
+      const limiteInferior = mediaProv * (1 - variacao);
+      const limiteSuperior = mediaProv * (1 + variacao);
+
+      // 3. Separa ciclos aceitos e descartados
+      ciclosBrutos.forEach((t) => {
+        if (t >= limiteInferior && t <= limiteSuperior) {
+          ciclosValidos.push(t);
+        } else {
+          ciclosDescartados.push(t);
+        }
+      });
+
+      if (ciclosValidos.length === 0)
+        throw new Error("Todos os ciclos foram descartados. Revise os tempos informados.");
+
+      // 4. TC = média dos ciclos aceitos
+      TC = ciclosValidos.reduce((acc, t) => acc + t, 0) / ciclosValidos.length;
+      quantidadeCiclos = ciclosValidos.length;
+
+    } else if (tipo_medicao === "uph") {
+      // TC = 60 / peças produzidas em 1 hora
+      if (!quantidade_hora || quantidade_hora <= 0)
+        throw new Error("Informe a quantidade_hora para o método UPH.");
+
+      TC = 60 / quantidade_hora;
+      quantidadeCiclos = quantidade_hora;
+
+    } else {
+      throw new Error("tipo_medicao inválido. Use: 'continua', 'repetitiva' ou 'uph'.");
+    }
+
+    // ================= CÁLCULO DA CRONOANÁLISE =================
+    const v = typeof fator_ritmo === "number" && fator_ritmo > 0 ? fator_ritmo : 1.0;
+    const E = typeof percentual_tolerancia === "number" && percentual_tolerancia >= 0
+      ? percentual_tolerancia
+      : 0.10;
+
+    const TN           = TC * v;
+    const tempoPorPeca = TN * (1 + E);
+
+    // ================= VERIFICA EXISTÊNCIA =================
+    const [funcionario, etapa] = await Promise.all([
+      prisma.Usuarios.findUnique({ where: { email: id_funcionario } }),
+      prisma.Etapa.findUnique({ where: { id_da_funcao } }),
+    ]);
+
+    if (!funcionario) throw new Error(`Funcionário não encontrado: ${id_funcionario}`);
+    if (!etapa) throw new Error(`Etapa não encontrada: ${id_da_funcao}`);
+
+    // ================= PERSISTÊNCIA =================
+    const registro = await prisma.TempoReferencia.create({
+      data: {
+        estabelecimentoCnpj,
+        id_funcionario,
+        id_da_funcao,
+        quantidade_ciclos:     quantidadeCiclos,
+        tempo_minutos:         Number(TC.toFixed(4)),
+        fator_ritmo:           Number(v.toFixed(4)),
+        percentual_tolerancia: Number(E.toFixed(4)),
+        tempo_por_peca:        Number(tempoPorPeca.toFixed(4)),
+        quantidade_pecas:      quantidade_pecas ?? null,
+        observacoes:           observacoes ?? null,
+        registradoPor:         registradoPor ?? null,
+        data_medicao:          data_medicao ? new Date(data_medicao) : new Date(),
+        maquina:               maquina ?? null,
+        opId:                  opId ?? null,
+        produtoId:             produtoId ?? null,
+        tipo_medicao:          tipo_medicao,
+        tipo_operacao:         tipo_operacao ?? null,
+      },
+    });
+
+    // ================= RETORNO =================
+    return {
+      sucesso: true,
+      id: registro.id,
+      cronanalise: {
+        tipo_medicao,
+
+        // Detalhamento por método
+        ...(tipo_medicao === "continua" && {
+          tempo_total_lote:  Number(tempo_total.toFixed(4)),
+          quantidade_ciclos: quantidadeCiclos,
+        }),
+        ...(tipo_medicao === "repetitiva" && {
+          ciclos_informados:  tempos_ciclos.length,
+          ciclos_validos:     ciclosValidos.length,
+          ciclos_descartados: ciclosDescartados.length,
+          tempos_descartados: ciclosDescartados,
+          limite_variacao:    Number(((limite_variacao ?? 0.10) * 100).toFixed(0)) + "%",
+        }),
+        ...(tipo_medicao === "uph" && {
+          pecas_por_hora: quantidade_hora,
+        }),
+
+        // Cronoanálise comum
+        tempo_cronometrado_TC: Number(TC.toFixed(4)),
+        fator_ritmo_v:         Number(v.toFixed(4)),
+        tempo_normal_TN:       Number(TN.toFixed(4)),
+        percentual_tolerancia: Number((E * 100).toFixed(2)) + "%",
+        tempo_padrao_TP:       Number(tempoPorPeca.toFixed(4)),
+      },
+      registro,
+    };
+  } catch (error) {
+    console.error("Erro ao criar tempo de referência:", error);
+    throw new Error(error.message || "Erro ao criar tempo de referência.");
+  }
+}
 module.exports = {
   postPecaOP,
   duplicarOP,
@@ -1749,5 +1951,6 @@ module.exports = {
   deletarEtapa,
   criarOuVincularGrupoEtapas,
   definirMetaDiaria,
-  getMetaDiaria
+  getMetaDiaria,
+  criarTempoReferencia
 };

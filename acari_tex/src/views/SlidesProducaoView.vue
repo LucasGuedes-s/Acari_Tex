@@ -9,31 +9,41 @@
 
     <!-- ⚠️ SEM DADOS -->
     <div v-else-if="semDados" class="estado vazio">
-      <img src="@/assets/Logofundo.png" class="logo" style="width: 400px; height: 400px;" />
+      <img src="@/assets/Logofundo.png" class="logo grande" />
       <h1>Nenhuma produção registrada</h1>
-      <p>Aguardando início da produção</p>
     </div>
 
     <!-- ✅ COM DADOS -->
     <template v-else>
-
       <!-- ESQUERDA -->
       <section class="left">
         <div class="header">
-            <img src="@/assets/Logofundo.png" style="width: 200px; height: 200px; display: flex;"/>
-
-            <h1>{{ producao.descricaoPeca }}</h1>
+          <img src="@/assets/Logofundo.png" class="logo-header"/>
+          <h1>{{ producao.descricaoPeca }}</h1>
         </div>
+
         <div class="metric">
           <span class="value">{{ producao.totalPecas }}</span>
           <span class="label">Peças Produzidas</span>
         </div>
 
+        <div class="metric" v-if="meta">
+          <span class="value">
+            {{ producao.totalPecas }} / {{ meta.meta_diaria }}
+          </span>
+          <span class="label">Meta do Dia</span>
+        </div>
+
+        <div v-if="meta" class="progresso-container">
+          <div class="progresso-bar" :style="{ width: porcentagemMeta + '%' }"></div>
+        </div>
+
+        <div v-if="meta" class="progresso-label">
+          {{ porcentagemMeta }}%
+        </div>
+
         <div class="metric">
-          <span
-            class="value"
-            :class="corEficiencia(producao.eficienciaMediaTurma)"
-          >
+          <span class="value" :class="corEficiencia(producao.eficienciaMediaTurma)">
             {{ producao.eficienciaMediaTurma }}
           </span>
           <span class="label">Eficiência Média</span>
@@ -47,7 +57,7 @@
       <!-- DIREITA -->
       <section class="right">
 
-        <!-- 📋 TABELA -->
+        <!-- TABELA -->
         <div v-if="modo === 'tabela'">
           <h2>Eficiência Individual</h2>
 
@@ -60,56 +70,69 @@
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="f in producao.funcionarios"
-                :key="f.funcionario"
-              >
-                <td>{{ f.nome }}</td>
+              <tr v-for="f in producao.funcionarios" :key="f.funcionario">
+                
+                <td class="funcionario-cell">
+                  <img :src="f.foto || 'https://via.placeholder.com/40'" class="avatar" />
+                  <span>{{ f.nome }}</span>
+                </td>
+
                 <td :class="corEficiencia(f.eficiencia_pessoal)">
                   {{ f.eficiencia_pessoal }}
                 </td>
+
                 <td>{{ f.total_pecas }}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <!-- 📊 GRÁFICO -->
+        <!-- RANKING TOP 3 -->
         <div v-else>
-          <h2>Gráfico de Eficiência</h2>
-          <canvas ref="chartRef"></canvas>
+          <h2>Top 3 Eficiência</h2>
+
+          <div class="ranking">
+            <div 
+              v-for="(f, index) in top3" 
+              :key="f.funcionario"
+              class="ranking-item"
+            >
+              <div class="posicao">#{{ index + 1 }}</div>
+
+              <img :src="f.foto" class="ranking-avatar" />
+
+              <div class="info">
+                <span class="nome">{{ f.nome }}</span>
+                <span class="eficiencia" :class="corEficiencia(f.eficiencia_pessoal)">
+                  {{ f.eficiencia_pessoal }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
       </section>
-
     </template>
   </div>
 </template>
-
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { io } from "socket.io-client";
-import { Chart } from "chart.js/auto";
 import api from "@/Axios";
 import { useAuthStore } from "@/store/store";
 
 /* ================= SOCKET ================= */
-const socket = io("https://acari-tex.onrender.com", {
-  transports: ["websocket"],
-});
+const socket = io("https://acari-tex.onrender.com");
 
 /* ================= ESTADOS ================= */
 const carregando = ref(true);
 const semDados = ref(false);
 
 const producao = ref(null);
-const modo = ref("tabela"); // tabela | grafico
-let intervaloModo = null;
+const meta = ref(null);
+const modo = ref("tabela");
 
-/* ================= GRÁFICO ================= */
-const chartRef = ref(null);
-let chartInstance = null;
-
+/* ================= HELPERS ================= */
 function toNumberPercent(valor) {
   return Number(String(valor).replace("%", "")) || 0;
 }
@@ -121,39 +144,25 @@ function corEficiencia(valor) {
   return "cinza";
 }
 
-function montarGrafico() {
-  if (!chartRef.value || !producao.value) return;
+/* ================= META ================= */
+const porcentagemMeta = computed(() => {
+  if (!meta.value || !producao.value) return 0;
+  return Math.min(100, Math.round(
+    (producao.value.totalPecas / meta.value.meta_diaria) * 100
+  ));
+});
 
-  if (chartInstance) chartInstance.destroy();
+/* ================= TOP 3 ================= */
+const top3 = computed(() => {
+  if (!producao.value?.funcionarios) return [];
 
-  chartInstance = new Chart(chartRef.value, {
-    type: "bar",
-    data: {
-      labels: producao.value.funcionarios.map(f => f.nome),
-      datasets: [
-        {
-          label: "Eficiência (%)",
-          data: producao.value.funcionarios.map(f =>
-            toNumberPercent(f.eficiencia_pessoal)
-          ),
-          backgroundColor: "#266c44",
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 120,
-        },
-      },
-    },
-  });
-}
+  return [...producao.value.funcionarios]
+    .sort((a, b) =>
+      toNumberPercent(b.eficiencia_pessoal) -
+      toNumberPercent(a.eficiencia_pessoal)
+    )
+    .slice(0, 3);
+});
 
 /* ================= API ================= */
 async function carregarDados() {
@@ -161,83 +170,151 @@ async function carregarDados() {
     carregando.value = true;
     semDados.value = false;
 
-    const store = useAuthStore();
-    const token = store.pegar_token;
+    const token = useAuthStore().pegar_token;
 
     const response = await api.get("/producao/equipe", {
       headers: { Authorization: token },
-      params: { filtro: "hoje" },
+      params: { filtro: new Date().toISOString().split("T")[0] },
     });
 
     const dados = response.data?.producao?.producaoDia;
 
     if (!dados || !dados.funcionarios?.length) {
-      producao.value = null;
       semDados.value = true;
+      producao.value = null;
     } else {
       producao.value = dados;
     }
-  } catch (err) {
-    console.error("Erro ao carregar produção:", err);
-    producao.value = null;
-    semDados.value = true;
   } finally {
     carregando.value = false;
   }
 }
 
-/* ================= WATCHERS ================= */
-watch(modo, (novo) => {
-  if (novo === "grafico") {
-    setTimeout(montarGrafico, 200);
-  }
-});
+async function carregarMeta() {
+  const token = useAuthStore().pegar_token;
+
+  const res = await api.get("/meta-diaria", {
+    headers: { Authorization: token },
+  });
+
+  meta.value = res.data?.metaDiaria || null;
+}
 
 /* ================= LIFECYCLE ================= */
 onMounted(() => {
   carregarDados();
+  carregarMeta();
 
-  // 🔁 alterna TABELA ↔ GRÁFICO a cada 5 minutos
-  intervaloModo = setInterval(() => {
-    modo.value = modo.value === "tabela" ? "grafico" : "tabela";
+  setInterval(() => {
+    modo.value = modo.value === "tabela" ? "ranking" : "tabela";
   }, 5 * 60 * 1000);
 
-  const store = useAuthStore();
-  const cnpj = store.pegar_usuario?.cnpj || "desconhecido";
-  socket.on(`nova_atualizacao_${cnpj}`, carregarDados);
-});
+  const cnpj = useAuthStore().pegar_usuario?.cnpj;
 
-onUnmounted(() => {
-  if (intervaloModo) {
-    clearInterval(intervaloModo);
-  }
+  socket.on(`nova_atualizacao_${cnpj}`, () => {
+    carregarDados();
+    carregarMeta();
+  });
 });
 </script>
-
 <style scoped>
+
+/* ================= CORES ================= */
 :root {
   --verde-escuro: #0d3927;
-  --verde-claro: #266c44;
-  --cinza: #dedede;
+  --verde-claro: #22c55e;
+  --cinza: #999;
 }
 
-.header{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-/* ================= GERAL ================= */
 .tv-container {
   display: flex;
   width: 100vw;
   height: 100vh;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial;
 }
+
+/* ESQUERDA */
+.left {
+  width: 50%;
+  background: #0d3927;
+  color: white;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* DIREITA */
+.right {
+  width: 50%;
+  padding: 40px;
+}
+
+/* METRICAS */
+.metric .value {
+  font-size: 4rem;
+  font-weight: bold;
+}
+
+.metric.small {
+  font-size: 1.4rem;
+}
+
+/* PROGRESSO */
+.progresso-container {
+  width: 100%;
+  height: 20px;
+  background: #ffffff33;
+  border-radius: 10px;
+}
+
+.progresso-bar {
+  height: 100%;
+  background: #22c55e;
+}
+
+/* TABELA */
+.funcionario-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+}
+
+/* RANKING */
+.ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.posicao {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.ranking-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+}
+
 
 /* ================= ESTADOS ================= */
 .estado {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: var(--verde-escuro);
   color: white;
   display: flex;
@@ -249,8 +326,17 @@ onUnmounted(() => {
 }
 
 .estado p {
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   opacity: 0.9;
+}
+
+.logo {
+  height: 80px;
+}
+
+.logo.grande {
+  width: 300px;
+  height: 300px;
 }
 
 /* ================= ESQUERDA ================= */
@@ -261,20 +347,57 @@ onUnmounted(() => {
   padding: 40px;
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 25px;
 }
 
-.logo {
-  height: 70px;
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo-header {
+  width: 100px;
+  height: 100px;
+}
+
+/* ================= MÉTRICAS ================= */
+.metric {
+  display: flex;
+  flex-direction: column;
 }
 
 .metric .value {
-  font-size: 4.5rem;
+  font-size: 4rem;
   font-weight: bold;
 }
 
+.metric .label {
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+
 .metric.small {
-  font-size: 1.8rem;
+  font-size: 1.5rem;
+}
+
+/* ================= PROGRESSO ================= */
+.progresso-container {
+  width: 100%;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progresso-bar {
+  height: 100%;
+  background: var(--verde-claro);
+  transition: width 0.5s ease;
+}
+
+.progresso-label {
+  font-size: 1.3rem;
 }
 
 /* ================= DIREITA ================= */
@@ -282,14 +405,15 @@ onUnmounted(() => {
   width: 50%;
   background: white;
   padding: 40px;
+  overflow: hidden;
 }
 
 h1 {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
 }
 
 h2 {
-  font-size: 2.2rem;
+  font-size: 1.8rem;
   margin-bottom: 20px;
   color: var(--verde-escuro);
 }
@@ -298,25 +422,26 @@ h2 {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 th, td {
-  padding: 14px;
-  border-bottom: 1px solid #ccc;
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
   text-align: left;
 }
 
-/* ================= CORES ================= */
+/* ================= CORES DINÂMICAS ================= */
 .verde-escuro {
   color: #0d3927;
 }
 
 .verde-claro {
-  color: #266c44;
+  color: #22c55e;
 }
 
 .cinza {
   color: #999;
 }
+
 </style>
