@@ -461,19 +461,15 @@ async function getProducaoEquipe(cnpj, filtrar) {
       console.warn("Peça final não configurada no estabelecimento.");
     }
 
-    const dataFiltro = filtrar; // ex: "2026-04-20"
+    const dataFiltro = filtrar;
 
     if (!dataFiltro || !/^\d{4}-\d{2}-\d{2}$/.test(dataFiltro)) {
       throw new Error("Data inválida. Use o formato YYYY-MM-DD.");
     }
 
     const [ano, mes, dia] = dataFiltro.split('-').map(Number);
-
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
-
     const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
-
-    // console.log({ inicioDiaUTC, fimDiaUTC });
 
     const producoesDia = await prisma.producao.findMany({
       where: {
@@ -487,7 +483,25 @@ async function getProducaoEquipe(cnpj, filtrar) {
         id_da_op: true,
         id_da_funcao: true,
         producao_funcionario: { select: { nome: true, foto: true } },
-        producao_etapa: { select: { descricao: true, tempo_padrao: true } },
+        producao_etapa: {
+          select: {
+            descricao: true,
+            tempo_padrao: true,
+            tempo_referencia: {
+              take: 1,
+              orderBy: { criadoEm: "desc" },
+              select: {
+                id: true,
+                tempo_por_peca: true,
+                tempo_minutos: true,
+                fator_ritmo: true,
+                percentual_tolerancia: true,
+                criadoEm: true,
+                registradoPor: true,
+              },
+            },
+          },
+        },
         producao_peca: {
           select: {
             descricao: true,
@@ -502,36 +516,11 @@ async function getProducaoEquipe(cnpj, filtrar) {
         },
       },
     });
-    // console.log("Intervalo buscado:", inicioDiaUTC.toISOString(), "→", fimDiaUTC.toISOString());
-
-    // // E logo após o findMany, sem o filtro de data:
-    // const todosDia = await prisma.producao.findMany({
-    //   where: { id_Estabelecimento: cnpjEstabelecimento },
-    //   select: { id_funcionario: true, data_inicio: true, quantidade_pecas: true },
-    //   orderBy: { data_inicio: 'desc' },
-    //   take: 20,
-    // });
-    // console.log("Últimos 20 registros (sem filtro de data):", todosDia);
-    // // Adicione isso logo após o findMany, antes de qualquer processamento
-    // console.log("=== REGISTROS BRUTOS ===");
-    // console.log("Total de registros:", producoesDia.length);
-    // producoesDia.forEach(p => {
-    //   console.log({
-    //     funcionario: p.id_funcionario,
-    //     nome: p.producao_funcionario?.nome,
-    //     etapa: p.producao_etapa?.descricao,
-    //     quantidade: p.quantidade_pecas,
-    //     hora: p.hora_registro,
-    //   });
-    // });
 
     if (producoesDia.length === 0) {
       return { mensagem: "Nenhuma produção registrada no período." };
     }
 
-    // ═══════════════════════════════════════
-    // TEMPO PADRÃO DA PEÇA (base para eficiência da turma)
-    // ═══════════════════════════════════════
     const tempoPadraoTotalPeca = producoesDia[0].producao_peca?.tempo_padrao;
 
     if (!tempoPadraoTotalPeca || tempoPadraoTotalPeca <= 0) {
@@ -547,7 +536,6 @@ async function getProducaoEquipe(cnpj, filtrar) {
     // ═══════════════════════════════════════
     const agrupadoDia = {};
 
-    // Contadores da turma
     let totalPecasFinalTurma = 0;
     const producaoPorHoraGeral = {};
 
@@ -558,42 +546,64 @@ async function getProducaoEquipe(cnpj, filtrar) {
       const quantidade = p.quantidade_pecas || 0;
       const hora = p.hora_registro?.padStart(3, "0") || "00h";
 
-      // Nome da etapa — normalizado para comparação com etapaFinal
       const etapaDescricao = p.producao_etapa?.descricao || "Sem Etapa";
       const etapaNormalizada = etapaDescricao.trim().toLowerCase();
 
-      // Tempo padrão da etapa: tenta direto, fallback via PecasEtapas
+      // Tempo padrão (engenharia)
       const tempoPadraoEtapa =
         p.producao_etapa?.tempo_padrao ??
         p.producao_peca?.etapas?.find((e) => e.id_da_funcao === p.id_da_funcao)
           ?.etapa?.tempo_padrao ??
         0;
 
+      // ── TEMPO DE REFERÊNCIA (chão de fábrica) ───────────────────────
+      // Busca o tempo_por_peca do TempoReferencia mais recente desta etapa.
+      // O `tempo_referencia` já vem filtrado apenas pela etapa (id_da_funcao),
+      // mas NÃO por funcionário — o filtro por funcionário precisaria ser feito
+      // em uma query separada. Por ora, usamos o global da etapa como referência
+      // de chão de fábrica da turma; veja nota abaixo.
+      const tempoReferenciaEtapa =
+        p.producao_etapa?.tempo_referencia?.[0]?.tempo_por_peca ?? null;
+
       if (!tempoPadraoEtapa || tempoPadraoEtapa <= 0) {
         console.warn(
           `[WARN] Etapa "${etapaDescricao}" sem tempo_padrao válido — ` +
-          `funcionário ${funcionarioId} não terá essa etapa contabilizada na eficiência.`
+          `funcionário ${funcionarioId} não terá essa etapa contabilizada na eficiência padrão.`
         );
       }
 
-      // ── Inicializa estrutura do funcionário ──────────────────────────
+      if (!tempoReferenciaEtapa || tempoReferenciaEtapa <= 0) {
+        console.warn(
+          `[WARN] Etapa "${etapaDescricao}" sem tempo_referencia válido — ` +
+          `funcionário ${funcionarioId} não terá eficiência de chão calculada para essa etapa.`
+        );
+      }
+
       if (!agrupadoDia[funcionarioId]) {
         agrupadoDia[funcionarioId] = {
           nome,
           foto,
-          tempoPadraoProduzido: 0,   // soma de (qtd × tempo_padrao) de todas as etapas válidas
-          totalQuantidade: 0,        // total de peças em TODAS as etapas
-          totalPecasFinal: 0,        // total de peças apenas na etapa final
+          // Cálculo padrão (engenharia)
+          tempoPadraoProduzido: 0,
+          // Cálculo referência (chão de fábrica)
+          tempoReferenciaProduzido: 0,
+          totalQuantidade: 0,
+          totalPecasFinal: 0,
           etapas: {},
           producaoPorHora: {},
         };
       }
 
-      // ── Eficiência individual: acumula independente de ser etapa final ──
+      // ── Acumula tempo padrão (engenharia) ───────────────────────────
       if (tempoPadraoEtapa > 0) {
         agrupadoDia[funcionarioId].tempoPadraoProduzido += quantidade * tempoPadraoEtapa;
       }
-      // Total de peças: conta TODAS as etapas (não só a final)
+
+      // ── Acumula tempo referência (chão de fábrica) ──────────────────
+      if (tempoReferenciaEtapa > 0) {
+        agrupadoDia[funcionarioId].tempoReferenciaProduzido += quantidade * tempoReferenciaEtapa;
+      }
+
       agrupadoDia[funcionarioId].totalQuantidade += quantidade;
 
       // ── Etapas detalhadas ────────────────────────────────────────────
@@ -601,16 +611,25 @@ async function getProducaoEquipe(cnpj, filtrar) {
         agrupadoDia[funcionarioId].etapas[etapaDescricao] = {
           tempoPadraoTotal: 0,
           tempoPadraoEtapa,
+          tempoReferenciaTotal: 0,       // acumulado de (qtd × tempo_referencia)
+          tempoReferenciaEtapa,          // tempo por peça medido no chão
           quantidade: 0,
         };
       }
+
       if (tempoPadraoEtapa > 0) {
         agrupadoDia[funcionarioId].etapas[etapaDescricao].tempoPadraoTotal +=
           quantidade * tempoPadraoEtapa;
       }
+
+      if (tempoReferenciaEtapa > 0) {
+        agrupadoDia[funcionarioId].etapas[etapaDescricao].tempoReferenciaTotal +=
+          quantidade * tempoReferenciaEtapa;
+      }
+
       agrupadoDia[funcionarioId].etapas[etapaDescricao].quantidade += quantidade;
 
-      // ── Produção por hora (agrupada por etapa dentro da hora) ────────
+      // ── Produção por hora ────────────────────────────────────────────
       if (!agrupadoDia[funcionarioId].producaoPorHora[hora]) {
         agrupadoDia[funcionarioId].producaoPorHora[hora] = {};
       }
@@ -618,13 +637,12 @@ async function getProducaoEquipe(cnpj, filtrar) {
         agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao] = {
           quantidade: 0,
           tempoPadraoEtapa,
+          tempoReferenciaEtapa,
         };
       }
       agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao].quantidade += quantidade;
 
-      // ── Peça final: conta apenas a etapa final para o indicador da turma ──
-      // FIX: comparação normalizada (trim + lowercase) para evitar falhas por
-      // espaços, capitalização diferente, etc.
+      // ── Peça final ───────────────────────────────────────────────────
       if (etapaFinal && etapaNormalizada === etapaFinal) {
         agrupadoDia[funcionarioId].totalPecasFinal += quantidade;
         totalPecasFinalTurma += quantidade;
@@ -633,68 +651,92 @@ async function getProducaoEquipe(cnpj, filtrar) {
       }
     }
 
-    // console.log(
-    //   "Funcionários encontrados:",
-    //   Object.entries(agrupadoDia).map(([id, d]) => ({
-    //     id,
-    //     nome: d.nome,
-    //     totalQuantidade: d.totalQuantidade,
-    //     totalPecasFinal: d.totalPecasFinal,
-    //     etapas: Object.keys(d.etapas),
-    //   }))
-    // );
-
     // ═══════════════════════════════════════
     // MONTAGEM DO ARRAY DE FUNCIONÁRIOS
-    // Todos os funcionários com produção no dia aparecem,
-    // independentemente de terem feito a etapa final.
     // ═══════════════════════════════════════
     const funcionarios = Object.entries(agrupadoDia).map(([id, dados]) => {
-      // Eficiência pessoal: baseada nos minutos padrão produzidos vs jornada
+      // Eficiência padrão (engenharia)
       const eficienciaIndividual =
         (dados.tempoPadraoProduzido / minutosDisponiveis) * 100;
+
+      // Eficiência referência (chão de fábrica)
+      // Mesma lógica: minutos produzidos no ritmo de chão ÷ jornada disponível
+      const eficienciaReferencia =
+        dados.tempoReferenciaProduzido > 0
+          ? (dados.tempoReferenciaProduzido / minutosDisponiveis) * 100
+          : null;
 
       // Etapas detalhadas
       const etapasDetalhadas = Object.entries(dados.etapas).map(
         ([descricao, etapaDados]) => {
-          if (!etapaDados.tempoPadraoEtapa || etapaDados.tempoPadraoEtapa <= 0) {
-            return {
-              descricao,
-              tempo_padrao_total: 0,
-              pecas_produzidas: etapaDados.quantidade,
-              eficiencia_etapa: "N/A",
-            };
+          // ── Bloco padrão ──
+          let pecasProduzidasEtapa = 0;
+          let eficienciaEtapa = "N/A";
+
+          if (etapaDados.tempoPadraoEtapa > 0) {
+            pecasProduzidasEtapa =
+              etapaDados.tempoPadraoTotal / etapaDados.tempoPadraoEtapa;
+            const capacidade100Etapa =
+              minutosDisponiveis / etapaDados.tempoPadraoEtapa;
+            eficienciaEtapa =
+              ((pecasProduzidasEtapa / capacidade100Etapa) * 100).toFixed(2) + "%";
           }
 
-          const pecasProduzidasEtapa =
-            etapaDados.tempoPadraoTotal / etapaDados.tempoPadraoEtapa;
-          const capacidade100Etapa =
-            minutosDisponiveis / etapaDados.tempoPadraoEtapa;
-          const eficienciaEtapa =
-            (pecasProduzidasEtapa / capacidade100Etapa) * 100;
+          // ── Bloco referência (chão de fábrica) ──
+          let pecasReferenciaEtapa = null;
+          let eficienciaReferenciaEtapa = null;
+
+          if (etapaDados.tempoReferenciaEtapa > 0) {
+            pecasReferenciaEtapa =
+              etapaDados.tempoReferenciaTotal / etapaDados.tempoReferenciaEtapa;
+            const capacidade100Ref =
+              minutosDisponiveis / etapaDados.tempoReferenciaEtapa;
+            eficienciaReferenciaEtapa =
+              ((pecasReferenciaEtapa / capacidade100Ref) * 100).toFixed(2) + "%";
+          }
 
           return {
             descricao,
+            // Padrão (engenharia)
             tempo_padrao_total: Number(etapaDados.tempoPadraoTotal.toFixed(2)),
             pecas_produzidas: Math.round(pecasProduzidasEtapa),
-            eficiencia_etapa: eficienciaEtapa.toFixed(2) + "%",
+            eficiencia_etapa: eficienciaEtapa,
+            // Referência (chão de fábrica)
+            tempo_referencia_por_peca: etapaDados.tempoReferenciaEtapa ?? null,
+            tempo_referencia_total: etapaDados.tempoReferenciaTotal > 0
+              ? Number(etapaDados.tempoReferenciaTotal.toFixed(2))
+              : null,
+            pecas_referencia: pecasReferenciaEtapa !== null
+              ? Math.round(pecasReferenciaEtapa)
+              : null,
+            eficiencia_referencia_etapa: eficienciaReferenciaEtapa,
           };
         }
       );
 
-      // Produção por hora com eficiência de cada etapa baseada em 60 min
+      // Produção por hora
       const producaoPorHora = Object.entries(dados.producaoPorHora)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([hora, etapasPorHora]) => {
           const etapasHora = Object.entries(etapasPorHora).map(
             ([nomeEtapa, etapaDados]) => {
-              const { quantidade, tempoPadraoEtapa } = etapaDados;
+              const { quantidade, tempoPadraoEtapa, tempoReferenciaEtapa } = etapaDados;
+
+              // Eficiência padrão na hora
               const capacidade100Hora =
                 tempoPadraoEtapa > 0 ? 60 / tempoPadraoEtapa : 0;
               const eficienciaHora =
                 capacidade100Hora > 0
                   ? (quantidade / capacidade100Hora) * 100
                   : 0;
+
+              // Eficiência referência na hora
+              const capacidade100HoraRef =
+                tempoReferenciaEtapa > 0 ? 60 / tempoReferenciaEtapa : 0;
+              const eficienciaHoraRef =
+                capacidade100HoraRef > 0
+                  ? (quantidade / capacidade100HoraRef) * 100
+                  : null;
 
               return {
                 etapa: nomeEtapa,
@@ -703,6 +745,10 @@ async function getProducaoEquipe(cnpj, filtrar) {
                   tempoPadraoEtapa > 0
                     ? eficienciaHora.toFixed(2) + "%"
                     : "N/A",
+                eficiencia_referencia_hora:
+                  eficienciaHoraRef !== null
+                    ? eficienciaHoraRef.toFixed(2) + "%"
+                    : null,
               };
             }
           );
@@ -720,12 +766,18 @@ async function getProducaoEquipe(cnpj, filtrar) {
         funcionario: id,
         nome: dados.nome,
         foto: dados.foto || "/avatar.png",
+        // Padrão (engenharia)
         eficiencia_pessoal: eficienciaIndividual.toFixed(2) + "%",
         tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
+        // Referência (chão de fábrica)
+        eficiencia_pessoal_referencia:
+          eficienciaReferencia !== null
+            ? eficienciaReferencia.toFixed(2) + "%"
+            : null,
+        tempo_referencia_produzido: Number(dados.tempoReferenciaProduzido.toFixed(2)),
+        // Comuns
         tempo_real_total: minutosDisponiveis,
-        // total_pecas: TODAS as peças produzidas em qualquer etapa
         total_pecas: dados.totalQuantidade,
-        // total_pecas_final: apenas as peças na etapa final (para referência)
         total_pecas_final: dados.totalPecasFinal,
         etapas: etapasDetalhadas,
         producaoPorHora,
@@ -734,7 +786,6 @@ async function getProducaoEquipe(cnpj, filtrar) {
 
     // ═══════════════════════════════════════
     // EFICIÊNCIA DA TURMA
-    // Baseada nas peças finais ÷ capacidade máxima da turma
     // ═══════════════════════════════════════
     const quantidadePessoas = funcionarios.length;
     const producao100Turma =
@@ -744,9 +795,6 @@ async function getProducaoEquipe(cnpj, filtrar) {
         ? (totalPecasFinalTurma / producao100Turma) * 100
         : 0;
 
-    // ═══════════════════════════════════════
-    // RETORNO
-    // ═══════════════════════════════════════
     return {
       producaoDia: {
         descricaoPeca,

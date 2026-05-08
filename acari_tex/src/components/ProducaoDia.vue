@@ -25,7 +25,6 @@
           <span class="mc-val peca-chip">{{ producaoDia.descricaoPeca }}</span>
         </div>
       </div>
-      <input class="date-input" type="date" v-model="dataSelecionada" @change="emitirData" />
     </header>
 
     <!-- MAIN -->
@@ -49,26 +48,15 @@
         </div>
 
         <div class="list-body">
-          <div
-            v-for="func in funcionariosFiltrados"
-            :key="func.funcionario"
-            class="list-row"
-            :class="{ selected: selecionado === func._idx }"
-            @click="selecionar(func._idx)"
-          >
+          <div v-for="func in funcionariosFiltrados" :key="func.funcionario" class="list-row"
+            :class="{ selected: selecionado === func._idx }" @click="selecionar(func._idx)">
             <div class="lr-name">
               <!-- Medalha para top 3, número para os demais -->
               <span class="lr-pos" :class="{ medal: func._idx < 3 }">
                 {{ rankIcon(func._idx) }}
               </span>
               <div class="lr-avatar-wrap">
-                <img
-                  v-if="func.foto"
-                  class="lr-avatar"
-                  :src="func.foto"
-                  :alt="func.nome"
-                  @error="onImgError"
-                />
+                <img v-if="func.foto" class="lr-avatar" :src="func.foto" :alt="func.nome" @error="onImgError" />
                 <div v-else class="lr-avatar-fb">{{ initials(func.nome) }}</div>
                 <span class="lr-dot" :class="cls(parseFloat(func.eficiencia_pessoal))"></span>
               </div>
@@ -78,11 +66,23 @@
               </div>
             </div>
             <span class="lr-col mono">{{ func.total_pecas }}</span>
-            <span class="lr-col">
-              <span class="badge" :class="cls(parseFloat(func.eficiencia_pessoal))">
-                {{ func.eficiencia_pessoal }}
-              </span>
-            </span>
+            <span class="lr-col" style="display:flex; gap:4px; align-items:center;">
+  <div class="badge-labeled">
+    <span class="badge-src-label">Ficha</span>
+    <span class="badge" :class="cls(parseFloat(func.eficiencia_pessoal))">
+      {{ func.eficiencia_pessoal }}
+    </span>
+  </div>
+  <template v-if="func.eficiencia_pessoal_referencia">
+    <span class="badge-sep">·</span>
+    <div class="badge-labeled">
+      <span class="badge-src-label">Fábrica</span>
+      <span class="badge" :class="cls(parseFloat(func.eficiencia_pessoal_referencia))">
+        {{ func.eficiencia_pessoal_referencia }}
+      </span>
+    </div>
+  </template>
+</span>
           </div>
 
           <div v-if="funcionariosFiltrados.length === 0" class="list-empty">
@@ -103,13 +103,8 @@
           <!-- Profile -->
           <div class="dp-profile">
             <div class="dp-avatar-wrap">
-              <img
-                v-if="funcSelecionado.foto"
-                class="dp-avatar"
-                :src="funcSelecionado.foto"
-                :alt="funcSelecionado.nome"
-                @error="onImgError"
-              />
+              <img v-if="funcSelecionado.foto" class="dp-avatar" :src="funcSelecionado.foto" :alt="funcSelecionado.nome"
+                @error="onImgError" />
               <div v-else class="dp-avatar-fb">{{ initials(funcSelecionado.nome) }}</div>
               <span class="dp-dot" :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))"></span>
             </div>
@@ -151,42 +146,43 @@
               </span>
             </div>
             <div class="dp-eff-bar-track">
-              <div
-                class="dp-eff-bar-fill"
-                :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))"
-                :style="{ width: Math.min(parseFloat(funcSelecionado.eficiencia_pessoal), 100) + '%' }"
-              ></div>
+              <div class="dp-eff-bar-fill" :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))"
+                :style="{ width: Math.min(parseFloat(funcSelecionado.eficiencia_pessoal), 100) + '%' }"></div>
             </div>
           </div>
 
           <!-- Tabs -->
           <div class="dp-tabs">
-            <button
-              v-for="tab in tabs"
-              :key="tab"
-              class="dp-tab"
-              :class="{ active: abaAtiva === tab }"
-              @click="abaAtiva = tab"
-            >{{ tab }}</button>
+            <button v-for="tab in tabs" :key="tab" class="dp-tab" :class="{ active: abaAtiva === tab }"
+              @click="abaAtiva = tab">{{ tab }}</button>
           </div>
 
           <!-- TAB: Etapas -->
           <div v-if="abaAtiva === 'Etapas'" class="dp-content">
-            <div
-              v-for="(et, i) in funcSelecionado.etapas"
-              :key="i"
-              class="dp-etapa"
-            >
+            <div v-for="(et, i) in funcSelecionado.etapas" :key="i" class="dp-etapa">
               <div class="dp-etapa-top">
-                <span class="dp-etapa-nome">{{ et.descricao }}</span>
-                <span class="badge sm" :class="cls(parseFloat(et.eficiencia_etapa))">{{ et.eficiencia_etapa }}</span>
-              </div>
+  <span class="dp-etapa-nome">{{ et.descricao }}</span>
+  <div style="display:flex; gap:6px; align-items:center;">
+    <div class="badge-labeled">
+      <span class="badge-src-label">Ficha</span>
+      <span class="badge sm" :class="cls(parseFloat(et.eficiencia_etapa))">
+        {{ et.eficiencia_etapa }}
+      </span>
+    </div>
+    <template v-if="et.eficiencia_referencia_etapa">
+      <span class="badge-sep">·</span>
+      <div class="badge-labeled">
+        <span class="badge-src-label">Fábrica</span>
+        <span class="badge sm" :class="cls(parseFloat(et.eficiencia_referencia_etapa))">
+          {{ et.eficiencia_referencia_etapa }}
+        </span>
+      </div>
+    </template>
+  </div>
+</div>
               <div class="dp-etapa-bar-track">
-                <div
-                  class="dp-etapa-bar-fill"
-                  :class="cls(parseFloat(et.eficiencia_etapa))"
-                  :style="{ width: Math.min(parseFloat(et.eficiencia_etapa), 100) + '%' }"
-                ></div>
+                <div class="dp-etapa-bar-fill" :class="cls(parseFloat(et.eficiencia_etapa))"
+                  :style="{ width: Math.min(parseFloat(et.eficiencia_etapa), 100) + '%' }"></div>
               </div>
               <div class="dp-etapa-bottom">
                 <span class="mono small">{{ et.pecas_produzidas }} peças</span>
@@ -197,11 +193,7 @@
 
           <!-- TAB: Por hora -->
           <div v-if="abaAtiva === 'Por hora'" class="dp-content">
-            <div
-              v-for="(hg, hi) in funcSelecionado.producaoPorHora"
-              :key="hi"
-              class="dp-hora-bloco"
-            >
+            <div v-for="(hg, hi) in funcSelecionado.producaoPorHora" :key="hi" class="dp-hora-bloco">
               <div class="dp-hora-head">
                 <div class="dp-hora-head-left">
                   <span class="dp-hora-clock">🕐</span>
@@ -212,11 +204,8 @@
 
               <div class="dp-hora-eff-row">
                 <div class="dp-hora-eff-bar-track">
-                  <div
-                    class="dp-hora-eff-bar-fill"
-                    :class="cls(eficienciaHora(hg))"
-                    :style="{ width: Math.min(eficienciaHora(hg), 100) + '%' }"
-                  ></div>
+                  <div class="dp-hora-eff-bar-fill" :class="cls(eficienciaHora(hg))"
+                    :style="{ width: Math.min(eficienciaHora(hg), 100) + '%' }"></div>
                 </div>
               </div>
 
@@ -234,7 +223,7 @@
                     <td class="ta-r mono">{{ et.total }} pç</td>
                     <td class="ta-r">
                       <span class="badge sm" :class="cls(parseFloat(et.eficiencia_etapa_hora))">
-                        {{ et.eficiencia_etapa_hora }}
+                        {{ et.eficiencia_etapa_hora }} {{ et.eficiencia_pessoal_referencia ? '%' : '' }}
                       </span>
                     </td>
                   </tr>
@@ -330,28 +319,28 @@ export default {
   --g600: #16a34a;
   --g200: #bbf7d0;
   --g100: #dcfce7;
-  --g50:  #f0fdf4;
+  --g50: #f0fdf4;
 
   --a700: #92400e;
   --a600: #d97706;
   --a100: #fef3c7;
-  --a50:  #fffbeb;
+  --a50: #fffbeb;
 
   --r700: #991b1b;
   --r600: #dc2626;
   --r100: #fee2e2;
-  --r50:  #fff5f5;
+  --r50: #fff5f5;
 
-  --ink:  #0d1512;
+  --ink: #0d1512;
   --ink2: #2d3f39;
   --ink3: #6b7f79;
   --line: #e3e8e6;
   --surf: #f6f8f7;
-  --bg:   #ffffff;
+  --bg: #ffffff;
 
-  --rc:  10px;
-  --rp:  999px;
-  --rs:  6px;
+  --rc: 10px;
+  --rp: 999px;
+  --rs: 6px;
 
   font-size: 14px;
   line-height: 1.5;
@@ -407,7 +396,9 @@ export default {
   color: var(--ink3);
 }
 
-.metric-chip.accent .mc-label { color: var(--g200); }
+.metric-chip.accent .mc-label {
+  color: var(--g200);
+}
 
 .mc-val {
   font-size: 20px;
@@ -416,7 +407,9 @@ export default {
   letter-spacing: -.02em;
 }
 
-.metric-chip.accent .mc-val { color: #fff; }
+.metric-chip.accent .mc-val {
+  color: #fff;
+}
 
 .peca-chip {
   font-size: 14px;
@@ -436,7 +429,12 @@ export default {
   cursor: pointer;
   flex-shrink: 0;
 }
-.date-input:focus { outline: none; border-color: var(--g600); color: var(--ink); }
+
+.date-input:focus {
+  outline: none;
+  border-color: var(--g600);
+  color: var(--ink);
+}
 
 /* ══════════════════════════════════════════
    LAYOUT
@@ -550,7 +548,9 @@ export default {
   transition: background .1s;
 }
 
-.list-row:hover { background: var(--surf); }
+.list-row:hover {
+  background: var(--surf);
+}
 
 .list-row.selected {
   background: var(--g50);
@@ -576,7 +576,8 @@ export default {
 }
 
 .lr-pos.medal {
-  font-size: 18px;   /* medalhas maiores que números */
+  font-size: 18px;
+  /* medalhas maiores que números */
 }
 
 .lr-avatar-wrap {
@@ -616,9 +617,17 @@ export default {
   border: 1.5px solid var(--bg);
 }
 
-.lr-dot.verde    { background: var(--g600); }
-.lr-dot.amarelo  { background: var(--a600); }
-.lr-dot.vermelho { background: var(--r600); }
+.lr-dot.verde {
+  background: var(--g600);
+}
+
+.lr-dot.amarelo {
+  background: var(--a600);
+}
+
+.lr-dot.vermelho {
+  background: var(--r600);
+}
 
 .lr-info {
   display: flex;
@@ -645,12 +654,14 @@ export default {
 }
 
 .lr-col {
-  text-align: right;
+  text-align: -webkit-center;
   font-size: 14px;
   color: var(--ink2);
 }
 
-.mono { font-variant-numeric: tabular-nums; }
+.mono {
+  font-variant-numeric: tabular-nums;
+}
 
 .list-empty {
   padding: 36px 24px;
@@ -671,11 +682,31 @@ export default {
   font-weight: 600;
   white-space: nowrap;
 }
-.badge.verde    { background: var(--g100);  color: var(--g800); }
-.badge.amarelo  { background: var(--a100);  color: var(--a700); }
-.badge.vermelho { background: var(--r100);  color: var(--r700); }
-.badge.sm  { font-size: 12px; padding: 2px 8px; }
-.badge.xlg { font-size: 15px; padding: 5px 16px; }
+
+.badge.verde {
+  background: var(--g100);
+  color: var(--g800);
+}
+
+.badge.amarelo {
+  background: var(--a100);
+  color: var(--a700);
+}
+
+.badge.vermelho {
+  background: var(--r100);
+  color: var(--r700);
+}
+
+.badge.sm {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.badge.xlg {
+  font-size: 15px;
+  padding: 5px 16px;
+}
 
 /* ══════════════════════════════════════════
    PAINEL LATERAL (440px)
@@ -723,7 +754,11 @@ export default {
   justify-content: center;
   transition: background .1s;
 }
-.dp-close:hover { background: var(--line); color: var(--ink); }
+
+.dp-close:hover {
+  background: var(--line);
+  color: var(--ink);
+}
 
 /* Profile */
 .dp-profile {
@@ -771,9 +806,17 @@ export default {
   border: 2px solid var(--bg);
 }
 
-.dp-dot.verde    { background: var(--g600); }
-.dp-dot.amarelo  { background: var(--a600); }
-.dp-dot.vermelho { background: var(--r600); }
+.dp-dot.verde {
+  background: var(--g600);
+}
+
+.dp-dot.amarelo {
+  background: var(--a600);
+}
+
+.dp-dot.vermelho {
+  background: var(--r600);
+}
 
 .dp-profile-info {
   flex: 1;
@@ -836,9 +879,17 @@ export default {
   letter-spacing: -.02em;
 }
 
-.dp-stat-val.verde    { color: var(--g700); }
-.dp-stat-val.amarelo  { color: var(--a600); }
-.dp-stat-val.vermelho { color: var(--r600); }
+.dp-stat-val.verde {
+  color: var(--g700);
+}
+
+.dp-stat-val.amarelo {
+  color: var(--a600);
+}
+
+.dp-stat-val.vermelho {
+  color: var(--r600);
+}
 
 /* Barra eficiência */
 .dp-eff-bar-wrap {
@@ -855,10 +906,21 @@ export default {
   font-weight: 500;
 }
 
-.dp-eff-bar-labels span:last-child { font-weight: 700; }
-.dp-eff-bar-labels .verde    { color: var(--g700); }
-.dp-eff-bar-labels .amarelo  { color: var(--a600); }
-.dp-eff-bar-labels .vermelho { color: var(--r600); }
+.dp-eff-bar-labels span:last-child {
+  font-weight: 700;
+}
+
+.dp-eff-bar-labels .verde {
+  color: var(--g700);
+}
+
+.dp-eff-bar-labels .amarelo {
+  color: var(--a600);
+}
+
+.dp-eff-bar-labels .vermelho {
+  color: var(--r600);
+}
 
 .dp-eff-bar-track {
   height: 7px;
@@ -873,9 +935,17 @@ export default {
   transition: width .5s ease;
 }
 
-.dp-eff-bar-fill.verde    { background: var(--g600); }
-.dp-eff-bar-fill.amarelo  { background: var(--a600); }
-.dp-eff-bar-fill.vermelho { background: var(--r600); }
+.dp-eff-bar-fill.verde {
+  background: var(--g600);
+}
+
+.dp-eff-bar-fill.amarelo {
+  background: var(--a600);
+}
+
+.dp-eff-bar-fill.vermelho {
+  background: var(--r600);
+}
 
 /* Tabs */
 .dp-tabs {
@@ -897,7 +967,10 @@ export default {
   margin-bottom: -1px;
 }
 
-.dp-tab:hover { color: var(--ink); }
+.dp-tab:hover {
+  color: var(--ink);
+}
+
 .dp-tab.active {
   color: var(--g700);
   border-bottom-color: var(--g600);
@@ -916,7 +989,9 @@ export default {
   border-bottom: 1px solid var(--line);
 }
 
-.dp-etapa:last-child { border-bottom: none; }
+.dp-etapa:last-child {
+  border-bottom: none;
+}
 
 .dp-etapa-top {
   display: flex;
@@ -951,16 +1026,27 @@ export default {
   transition: width .4s ease;
 }
 
-.dp-etapa-bar-fill.verde    { background: var(--g600); }
-.dp-etapa-bar-fill.amarelo  { background: var(--a600); }
-.dp-etapa-bar-fill.vermelho { background: var(--r600); }
+.dp-etapa-bar-fill.verde {
+  background: var(--g600);
+}
+
+.dp-etapa-bar-fill.amarelo {
+  background: var(--a600);
+}
+
+.dp-etapa-bar-fill.vermelho {
+  background: var(--r600);
+}
 
 .dp-etapa-bottom {
   display: flex;
   justify-content: space-between;
 }
 
-.small { font-size: 12px; color: var(--ink3); }
+.small {
+  font-size: 12px;
+  color: var(--ink3);
+}
 
 /* ══════════════════════════════════════════
    POR HORA
@@ -987,7 +1073,10 @@ export default {
   gap: 7px;
 }
 
-.dp-hora-clock { font-size: 14px; line-height: 1; }
+.dp-hora-clock {
+  font-size: 14px;
+  line-height: 1;
+}
 
 .dp-hora-label {
   font-size: 14px;
@@ -1020,9 +1109,17 @@ export default {
   transition: width .4s ease;
 }
 
-.dp-hora-eff-bar-fill.verde    { background: var(--g600); }
-.dp-hora-eff-bar-fill.amarelo  { background: var(--a600); }
-.dp-hora-eff-bar-fill.vermelho { background: var(--r600); }
+.dp-hora-eff-bar-fill.verde {
+  background: var(--g600);
+}
+
+.dp-hora-eff-bar-fill.amarelo {
+  background: var(--a600);
+}
+
+.dp-hora-eff-bar-fill.vermelho {
+  background: var(--r600);
+}
 
 .dp-hora-tbl {
   width: 100%;
@@ -1048,14 +1145,18 @@ export default {
   border-bottom: 1px solid var(--line);
 }
 
-.dp-hora-tbl tr:last-child td { border-bottom: none; }
+.dp-hora-tbl tr:last-child td {
+  border-bottom: none;
+}
 
 .dp-hora-etapa-nome {
   font-weight: 500;
   color: var(--ink2);
 }
 
-.ta-r { text-align: right; }
+.ta-r {
+  text-align: right;
+}
 
 .dp-empty {
   text-align: center;
@@ -1082,7 +1183,10 @@ export default {
    RESPONSIVO
 ══════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .main-layout.panel-open { grid-template-columns: 1fr; }
+  .main-layout.panel-open {
+    grid-template-columns: 1fr;
+  }
+
   .detail-panel {
     border-left: none;
     border-top: 1px solid var(--line);
@@ -1091,9 +1195,45 @@ export default {
 }
 
 @media (max-width: 560px) {
-  .top-bar { padding: 12px 16px; }
-  .list-header, .list-row { padding: 8px 16px; }
-  .list-title { display: none; }
-  .search-input { width: 130px; }
+  .top-bar {
+    padding: 12px 16px;
+  }
+
+  .list-header,
+  .list-row {
+    padding: 8px 16px;
+  }
+
+  .list-title {
+    display: none;
+  }
+
+  .search-input {
+    width: 130px;
+  }
+}
+/* ── Badge com label de origem ── */
+.badge-labeled {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.badge-src-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--ink3);
+  line-height: 1;
+}
+
+.badge-sep {
+  font-size: 14px;
+  color: var(--line);
+  line-height: 1;
+  align-self: center;
+  margin-top: 10px; /* compensa o label acima do badge */
 }
 </style>
