@@ -517,9 +517,7 @@ export default {
       // 1️⃣ Montar lista de OPs disponíveis
       const todasPecas = [
         ...this.pecas.nao_iniciado,
-        ...this.pecas.em_progresso,
-        ...this.pecas.coleta,
-        ...this.pecas.finalizado
+        ...this.pecas.em_progresso
       ];
 
       if (!todasPecas.length) {

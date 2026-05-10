@@ -65,7 +65,8 @@ router.get("/producao/telefone/:telefone/hoje", async (req, res) => {
     if (!estabelecimento) {
       return res.status(404).json({ erro: "Estabelecimento não encontrado" });
     }
-    const resultado = await getProducaoEquipe({ cnpj, filtro: "hoje" });
+    const filtro = new Date().toISOString().split('T')[0]; // formato YYYY-MM-DD
+    const resultado = await getProducaoEquipe({ cnpj, filtro });
 
     return res.json({
       status: "sucesso",

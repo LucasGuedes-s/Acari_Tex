@@ -38,50 +38,67 @@
           </div>
         </section>
 
-        <section v-if="dadosIA" class="painel">
+        <!-- PAINEL -->
+<section class="painel">
 
-          <h3>📊 Resumo da Análise</h3>
+  <!-- Estado: aguardando -->
+  <div v-if="!dadosIA && !loading" class="painel-empty">
+    <div class="painel-empty-icon">📊</div>
+    <p class="painel-empty-title">Nenhuma análise ainda</p>
+    <p class="painel-empty-sub">
+      Selecione um período no chat ao lado e clique em <strong>Enviar</strong> para visualizar os dados de produção.
+    </p>
+  </div>
 
-          <div class="cards">
-            <div class="card">
-              <span>Eficiência da Turma</span>
-              <strong>{{ dadosIA.eficienciaTurma }}%</strong>
-            </div>
+  <!-- Estado: carregando -->
+  <div v-else-if="loading" class="painel-loading">
+    <CarregandoTela />
+    <p class="painel-loading-sub">Processando análise, aguarde…</p>
+  </div>
 
-            <div class="card">
-              <span>Funcionários</span>
-              <strong>{{ dadosIA.eficienciaIndividual.length }}</strong>
-            </div>
+  <!-- Estado: dados prontos -->
+  <template v-else-if="dadosIA">
+    <h3>📊 Resumo da Análise</h3>
 
-            <div class="card">
-              <span>Período</span>
-              <strong>{{ dadosIA.periodo }}</strong>
-            </div>
-          </div>
+    <div class="cards">
+      <div class="card">
+        <span>Eficiência da Turma</span>
+        <strong>{{ dadosIA.eficienciaTurma }}%</strong>
+      </div>
+      <div class="card">
+        <span>Funcionários</span>
+        <strong>{{ dadosIA.eficienciaIndividual.length }}</strong>
+      </div>
+      <div class="card">
+        <span>Período</span>
+        <strong>{{ dadosIA.periodo }}</strong>
+      </div>
+    </div>
 
-          <h3>👷 Eficiência Individual</h3>
+    <h3>👷 Eficiência Individual</h3>
 
-          <table class="tabela">
-            <thead>
-              <tr>
-                <th>Funcionário</th>
-                <th>Eficiência</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(f, index) in dadosIA.eficienciaIndividual" :key="index">
-                <td>{{ f.funcionario }}</td>
-                <td :class="{
-                  acima: f.eficienciaMedia >= dadosIA.eficienciaTurma,
-                  abaixo: f.eficienciaMedia < dadosIA.eficienciaTurma
-                }">
-                  {{ f.eficienciaMedia }}%
-                </td>
-              </tr>
-            </tbody>
-          </table>
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Funcionário</th>
+          <th>Eficiência</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(f, index) in dadosIA.eficienciaIndividual" :key="index">
+          <td>{{ f.funcionario }}</td>
+          <td :class="{
+            acima: f.eficienciaMedia >= dadosIA.eficienciaTurma,
+            abaixo: f.eficienciaMedia < dadosIA.eficienciaTurma
+          }">
+            {{ f.eficienciaMedia }}%
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </template>
 
-        </section>
+</section>
 
       </div>
     </main>
@@ -94,10 +111,12 @@ import SidebarNav from "@/components/Sidebar.vue";
 import { useAuthStore } from "@/store/store";
 //import { FormatarData } from "@/utils/functions/FormatarData";
 import { marked } from "marked";
+import CarregandoTela from '@/components/carregandoTela.vue';
+
 
 export default {
   name: "AnaliseProducao",
-  components: { SidebarNav },
+  components: { SidebarNav, CarregandoTela },
 
   data() {
     return {
@@ -154,9 +173,9 @@ export default {
         });
 
         if (!response.data?.dados?.length) return;
-
+       
         this.messages = [];
-
+        console.log("Histórico bruto:", response.data.dados);
         // ordena do mais antigo para o mais novo
         const historico = response.data.dados.sort(
           (a, b) => new Date(a.criadoEm) - new Date(b.criadoEm)
@@ -195,7 +214,6 @@ export default {
       if (!this.dataInicio || !this.dataFim) return;
       const dataInicioObj = this.formatarData(this.dataInicio);
       const dataFimObj = this.formatarData(this.dataFim);
-      console.log("Período selecionado:", dataInicioObj, "até", dataFimObj);
       this.messages.push({
         type: "user",
         text: `Analisar produção de ${dataInicioObj} até ${dataFimObj}`
@@ -577,5 +595,34 @@ export default {
 
 .date-separator::after {
   right: 0;
+}
+.painel-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  text-align: center;
+  height: 100%;
+}
+.painel-empty-icon { font-size: 48px; margin-bottom: 16px; opacity: .45; }
+.painel-empty-title { font-size: 1rem; font-weight: 600; color: #374151; margin: 0 0 8px; }
+.painel-empty-sub { font-size: 0.85rem; color: #6b7280; margin: 0; max-width: 260px; line-height: 1.6; }
+.painel-empty-sub strong { color: #065824; }
+
+.painel-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  padding: 48px 32px;
+}
+.painel-loading-sub {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
 }
 </style>
