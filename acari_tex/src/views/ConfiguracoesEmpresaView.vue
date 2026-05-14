@@ -407,7 +407,6 @@ export default {
 }
 
 .page-title {
-  font-family: "Syne", sans-serif;
   text-align: left;
   font-size: 32px;
   font-weight: 700;
@@ -553,7 +552,6 @@ export default {
   background: #eef6f1;
   border: 1.5px solid rgba(10, 80, 40, 0.18);
   border-radius: 10px;
-  font-family: "DM Sans", sans-serif;
   font-size: 13px;
   color: #0f1f16;
   outline: none;
@@ -685,7 +683,6 @@ export default {
   color: #fff;
   border: none;
   border-radius: 8px;
-  font-family: "DM Sans", sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -724,8 +721,7 @@ export default {
 }
 
 .toggle-title {
-  font-family: "Syne", sans-serif;
-  font-size: 14px;
+ont-size: 14px;
   font-weight: 600;
   color: #052e14;
   margin: 0;
@@ -795,7 +791,6 @@ export default {
   padding: 10px 20px;
   border-radius: 10px;
   border: none;
-  font-family: "DM Sans", sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
