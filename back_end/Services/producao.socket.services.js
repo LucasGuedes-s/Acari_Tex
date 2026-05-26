@@ -1,5 +1,4 @@
 const { PrismaClient } = require('@prisma/client');
-const { get } = require('../Routes/EstoqueTecido.router');
 prisma = new PrismaClient()
 function getData() {
   const agora = new Date();
