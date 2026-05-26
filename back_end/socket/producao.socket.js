@@ -1,5 +1,5 @@
 const producaoService = require('../Services/producao.socket.services')
-const meta = require('../services/metaDia.service')
+const meta = require('../Services/metaDia.service')
 module.exports = (io, socket) => {
 
   socket.on(
