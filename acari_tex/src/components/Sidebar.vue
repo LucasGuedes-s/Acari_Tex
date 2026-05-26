@@ -38,9 +38,15 @@
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/producao-funcionarios" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-clipboard2-plus icon"></i>
+              <span>Registrar Prod.</span>
+            </router-link>
+          </div>
+          <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/Producao" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-bar-chart icon"></i>
-              <span>Produção</span>
+              <span>Produção geral</span>
             </router-link>
           </div>
           <div class="list-group-item" @click="toggleSidebar">

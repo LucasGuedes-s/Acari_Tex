@@ -226,7 +226,7 @@ export default {
       },
       datasFiltro: [],
       intercorrencias: [],
-      filtro: new Date().toISOString().split('T')[0],
+      filtro: this.formatarDataLocal(),
       loading: true,
       modalImprodutivoAberto: false,
       producao: { producaoDia: { funcionarios: [] } },
@@ -262,6 +262,13 @@ export default {
   },
 
   methods: {
+    formatarDataLocal(data = new Date()) {
+      return `${data.getFullYear()}-${
+        String(data.getMonth() + 1).padStart(2, '0')
+      }-${
+        String(data.getDate()).padStart(2, '0')
+      }`
+    },
     gerarDatasFiltro() {
       const hoje = new Date();
       this.datasFiltro = [];
@@ -499,6 +506,7 @@ export default {
       this.loading = true;
       
       try {
+        console.log('Buscando produção da equipe com filtro:', this.filtro);
         const token = this.store.pegar_token;
         const res = await api.get('/producao/equipe', {
           headers: { Authorization: token },

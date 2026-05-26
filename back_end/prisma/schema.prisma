@@ -29,6 +29,7 @@ model Usuarios {
   estabelecimentoCnpj  String
   salario              Float?
   telefone             String?
+  meta_diaria          MetaDiaFuncionario[]
   chatIAResultados     ChatIAResultado[]
   equipes              EquipesUsuarios[]
   producao_funcionario Producao[]
@@ -77,7 +78,7 @@ model PecasOP {
   etapas              PecasEtapas[]
   Estabelecimento     Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_peca       Producao[]
-
+  metaDiaPeca        MetaDiaPeca[]
   @@index([id_Estabelecimento], map: "PecasOP_id_Estabelecimento_fkey")
 }
 
@@ -99,11 +100,13 @@ model Etapa {
   tempo_padrao       Float?
   id_Estabelecimento String?
   grupoEtapaId       Int?
+
   grupoEtapa         GrupoEtapas?      @relation(fields: [grupoEtapaId], references: [id])
   Estabelecimento    Estabelecimento?  @relation(fields: [id_Estabelecimento], references: [cnpj])
   pecas              PecasEtapas[]
   producao_etapa     Producao[]
   tempo_referencia   TempoReferencia[]
+  meta_diaria        MetaDiaFuncionario[]
 
   @@index([grupoEtapaId], map: "Etapa_grupoEtapaId_fkey")
   @@index([id_Estabelecimento], map: "Etapa_id_Estabelecimento_fkey")
@@ -141,16 +144,22 @@ model Producao {
   id_funcionario       String
   id_da_funcao         Int
   data_inicio          DateTime?
+
+  dataReferencia       DateTime? @db.Date
+  tempo_produzido      Float? @default(60)
   hora_registro        String?
+  horaNumero           Int?
+  tipoRegistro         String? @default("principal")
   Estabelecimento      Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_etapa       Etapa           @relation(fields: [id_da_funcao], references: [id_da_funcao])
   producao_peca        PecasOP         @relation(fields: [id_da_op], references: [id_da_op])
   producao_funcionario Usuarios        @relation(fields: [id_funcionario], references: [email])
 
+  @@unique([ id_funcionario, id_da_funcao, id_da_op, dataReferencia, hora_registro, tipoRegistro ])
   @@index([id_da_op])
   @@index([id_da_funcao])
-  @@index([id_Estabelecimento], map: "Producao_id_Estabelecimento_fkey")
-  @@index([id_funcionario], map: "Producao_id_funcionario_fkey")
+  @@index([id_Estabelecimento])
+  @@index([id_funcionario])
 }
 
 model Tarefas {
@@ -252,12 +261,43 @@ model metaDia {
   observacoes         String?
   criadoEm            DateTime @default(now())
   registradoPor       String?
-  id_da_op            Int?
 
-  @@index([estabelecimentoCnpj], map: "metaDia_estabelecimentoCnpj_fkey")
+  id_da_op Int?
+
+  pecas MetaDiaPeca[]
+
+  funcionarios MetaDiaFuncionario[]
   @@unique([estabelecimentoCnpj, data])
 }
+model MetaDiaPeca {
+  id        Int @id @default(autoincrement())
 
+  metaDiaId Int
+  id_da_op  Int
+
+  meta      Int @default(0)
+
+  metaDia   metaDia @relation(fields: [metaDiaId], references: [id])
+
+  peca      PecasOP @relation(fields: [id_da_op], references: [id_da_op])
+
+  @@unique([metaDiaId, id_da_op])
+}
+model MetaDiaFuncionario {
+  id              Int @id @default(autoincrement())
+
+  metaDiaId       Int
+  funcionarioId   String
+  etapaPadraoId   Int?
+
+  metaDia         metaDia @relation(fields: [metaDiaId], references: [id])
+
+  funcionario Usuarios @relation(fields: [funcionarioId], references: [email])
+
+  etapa Etapa? @relation(fields: [etapaPadraoId], references: [id_da_funcao])
+
+  @@unique([metaDiaId, funcionarioId])
+}
 model ChatIAResultado {
   id                  Int             @id @default(autoincrement())
   resultado           String          @db.Text

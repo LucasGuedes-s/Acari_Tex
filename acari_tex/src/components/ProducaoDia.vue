@@ -259,7 +259,7 @@ export default {
   },
   computed: {
     producaoDia() {
-      return this.producaoDados?.producao?.producaoDia || null;
+      return this.producaoDados?.producao?.producaoDia || null;   
     },
     funcionariosOrdenados() {
       return [...(this.producaoDia?.funcionarios || [])]

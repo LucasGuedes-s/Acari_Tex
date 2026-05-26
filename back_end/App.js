@@ -33,12 +33,16 @@ app.set('trust proxy', 1);
 const http = require('http');
 const { Server } = require('socket.io');
 const server = http.createServer(app);
+
+const iniciarSockets = require('./socket')
+
 const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
   },
 });
+iniciarSockets(io)
 
 app.use((req, res, next) => {
   req.io = io;
