@@ -17,11 +17,10 @@ module.exports = (io) => {
     socket.on(
       'disconnect',
       () => {
-
-        console.log(
-          'Saiu:',
-          socket.id
-        )
+        // console.log(
+        //   'Cliente desconectado:',
+        //   socket.id
+        // )
       }
     )
   })

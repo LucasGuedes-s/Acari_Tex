@@ -466,11 +466,9 @@ async function getProducaoEquipe(cnpj, filtrar) {
     if (!dataFiltro || !/^\d{4}-\d{2}-\d{2}$/.test(dataFiltro)) {
       throw new Error("Data inválida. Use o formato YYYY-MM-DD.");
     }
-    console.log(`Iniciando busca de produção para ${dataFiltro} no estabelecimento ${cnpjEstabelecimento}...`);
     const [ano, mes, dia] = dataFiltro.split('-').map(Number);
     const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
     const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
-    console.log(`Buscando produções para ${dataFiltro} (UTC: ${inicioDiaUTC.toISOString()} - ${fimDiaUTC.toISOString()})`);
     const producoesDia = await prisma.producao.findMany({
       where: {
         id_Estabelecimento: cnpjEstabelecimento,
@@ -524,7 +522,6 @@ async function getProducaoEquipe(cnpj, filtrar) {
     const tempoPadraoTotalPeca = producoesDia[0].producao_peca?.tempo_padrao;
 
     if (!tempoPadraoTotalPeca || tempoPadraoTotalPeca <= 0) {
-      console.warn("Tempo padrão da peça não definido ou inválido:", tempoPadraoTotalPeca);
       return { mensagem: "Tempo padrão da peça inválido." };
     }
 
