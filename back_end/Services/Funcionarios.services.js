@@ -2,7 +2,14 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcrypt');
 require('dotenv').config();
+function formatarCNPJ(cnpj) {
+  const valor = cnpj.replace(/\D/g, "");
 
+  return valor.replace(
+    /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+    "$1.$2.$3/$4-$5"
+  );
+}
 async function getFuncionarios(cnpj) {
   const funcionarios = await prisma.usuarios.findMany({
     where: {
