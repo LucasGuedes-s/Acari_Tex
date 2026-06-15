@@ -111,7 +111,10 @@ async function postFuncionario(funcionario, cnpj) {
   ) {
     permissao = 1;
   }
-
+  if(funcionario.fotoUrl === null || funcionario.fotoUrl === undefined){
+    funcionario.fotoUrl = "https://via.placeholder.com/150?text=Sem+Foto"
+  }
+  
   const addFuncionario = await prisma.usuarios.create({
     data: {
       email: funcionario.email,
