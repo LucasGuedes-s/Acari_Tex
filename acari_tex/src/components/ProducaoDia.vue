@@ -250,7 +250,7 @@ import { io } from 'socket.io-client'
 import { useAuthStore } from '@/store/store'
 import api from '@/Axios'
 
-const socket = io('http://localhost:3333', { transports: ['websocket'] })
+const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
 export default {
   name: 'PainelProfissionais',

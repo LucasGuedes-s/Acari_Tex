@@ -207,7 +207,7 @@ import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
 
-const socket = io('http://localhost:3333', { transports: ['websocket'] })
+const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
 export default {
   name: 'ApontamentoDia',
