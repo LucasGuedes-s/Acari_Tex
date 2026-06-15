@@ -128,7 +128,8 @@ async function postFuncionario(funcionario, cnpj) {
   if(funcionario.fotoUrl === null || funcionario.fotoUrl === undefined){
     funcionario.fotoUrl = "https://via.placeholder.com/150?text=Sem+Foto"
   }
-  
+  const Estabelecimentocnpj = estabelecimento.cnpj;
+  console.log("CNPJ do Estabelecimento encontrado:", Estabelecimentocnpj);
   const addFuncionario = await prisma.usuarios.create({
     data: {
       email: funcionario.email,
@@ -147,7 +148,7 @@ async function postFuncionario(funcionario, cnpj) {
       // Faz o vínculo com o estabelecimento
       Estabelecimento: {
         connect: {
-          cnpj: Estabelecimento.cnpj,
+          cnpj: estabelecimento.cnpj,
         }
       }
     }
