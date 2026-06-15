@@ -88,9 +88,16 @@ async function postFuncionario(funcionario, cnpj) {
     throw new Error("Já existe um usuário com esse email.");
   }
 
+  const cnpjLimpo = cnpj.replace(/\D/g, "");
+
   // Verifica se o estabelecimento existe
-  const estabelecimento = await prisma.estabelecimento.findUnique({
-    where: { cnpj }
+  const estabelecimento = await prisma.estabelecimento.findFirst({
+    where: {
+      OR: [
+        { cnpj: cnpjLimpo },
+        { cnpj: formatarCNPJ(cnpjLimpo) }
+      ]
+    }
   });
 
   if (!estabelecimento) {

@@ -455,11 +455,36 @@ async function getProducaoEquipe(cnpj, filtrar) {
     }
 
     const minutosDisponiveis = estabelecimento.tempo_de_producao || 480;
-    const etapaFinal = (estabelecimento.peca_final || "").trim().toLowerCase();
+    // Depois:
+    const etapaFinalConfigurada = (estabelecimento.peca_final || "").trim().toLowerCase();
 
-    if (!etapaFinal) {
-      console.warn("Peça final não configurada no estabelecimento.");
+    if (!etapaFinalConfigurada) {
+      console.warn("Peça final não configurada no estabelecimento. Será usado fallback por nome de etapa.");
     }
+
+    // Palavras-chave que identificam uma etapa como "final" quando peca_final não está configurado
+    const PALAVRAS_CHAVE_ETAPA_FINAL = [
+      "final",
+      "etapa final",
+      "revisão final",
+      "revisao final",
+      "acabamento final",
+      "controle final",
+      "inspeção final",
+      "inspecao final",
+    ];
+
+    const isFinalEtapa = (descricaoEtapa) => {
+      if (!descricaoEtapa) return false;
+      const normalizada = descricaoEtapa.trim().toLowerCase();
+
+      if (etapaFinalConfigurada) {
+        return normalizada === etapaFinalConfigurada;
+      }
+
+      // Fallback: verifica se a descrição contém alguma palavra-chave
+      return PALAVRAS_CHAVE_ETAPA_FINAL.some((chave) => normalizada.includes(chave));
+    };
 
     const dataFiltro = filtrar;
 

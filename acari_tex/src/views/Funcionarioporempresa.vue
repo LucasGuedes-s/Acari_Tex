@@ -235,87 +235,182 @@
     </main>
   </div>
 </template>
-
 <script>
 import api from '@/Axios'
 import Swal from 'sweetalert2'
 
 export default {
   name: 'CadastroFuncionarioPublico',
+
   data() {
     return {
       cnpj: '',
       currentStep: 0,
       loading: false,
-      steps: ['Dados pessoais', 'Função', 'Confirmação'],
+
+      steps: [
+        'Dados pessoais',
+        'Função',
+        'Confirmação'
+      ],
+
       form: {
         nome: '',
         email: '',
         idade: null,
         funcao: '',
         funcoes: '',
-        permissao: 'funcionario', // fixo, não exposto ao usuário
+        permissao: 'funcionario',
         fotoUrl: null
       },
+
       previewFoto: null,
       fotoSelecionada: null,
-      funcoesDisponiveis: ['Corte', 'Costura', 'Acabamento', 'Supervisor'],
+
+      funcoesDisponiveis: [
+        'Corte',
+        'Costura',
+        'Acabamento',
+        'Supervisor'
+      ],
+
       funcoesIcons: {
-        'Corte': '✂️',
-        'Costura': '🧵',
-        'Acabamento': '🪡',
-        'Supervisor': '📋'
+        Corte: '✂️',
+        Costura: '🧵',
+        Acabamento: '🪡',
+        Supervisor: '📋'
       }
     }
   },
+
   computed: {
     cnpjFormatado() {
-      const c = (this.cnpj || '').replace(/\D/g, '')
-      if (c.length !== 14) return this.cnpj
-      return c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+      return this.formatarCNPJ(this.cnpj)
     }
   },
+
   mounted() {
-    this.cnpj = this.$route.params.cnpj || this.$route.query.cnpj || ''
+    // Recebe o CNPJ da rota SEM MÁSCARA
+    this.cnpj = (
+      this.$route.params.cnpj ||
+      this.$route.query.cnpj ||
+      ''
+    ).replace(/\D/g, '')
+
     if (!this.cnpj) {
-      Swal.fire({ icon: 'error', title: 'CNPJ não encontrado', text: 'Acesse o link fornecido pela empresa.', confirmButtonColor: '#16A34A' })
+      Swal.fire({
+        icon: 'error',
+        title: 'CNPJ não encontrado',
+        text: 'Acesse o link fornecido pela empresa.',
+        confirmButtonColor: '#16A34A'
+      })
     }
   },
+
   methods: {
+    formatarCNPJ(cnpj) {
+      if (!cnpj) return ''
+
+      const valor = cnpj.replace(/\D/g, '')
+
+      if (valor.length !== 14) {
+        return valor
+      }
+
+      return valor.replace(
+        /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+        '$1.$2.$3/$4-$5'
+      )
+    },
+
     selecionarFoto(event) {
       const file = event.target.files[0]
+
       if (!file) return
+
       this.fotoSelecionada = file
       this.previewFoto = URL.createObjectURL(file)
     },
+
     avancar() {
       if (this.currentStep === 0) {
-        if (!this.form.nome || !this.form.email || !this.form.idade) {
-          Swal.fire({ icon: 'warning', title: 'Campos obrigatórios', text: 'Preencha nome, e-mail e idade antes de continuar.', confirmButtonColor: '#16A34A' })
+        if (
+          !this.form.nome ||
+          !this.form.email ||
+          !this.form.idade
+        ) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Campos obrigatórios',
+            text: 'Preencha nome, e-mail e idade antes de continuar.',
+            confirmButtonColor: '#16A34A'
+          })
+
           return
         }
       }
-      if (this.currentStep === 1 && !this.form.funcao) {
-        Swal.fire({ icon: 'warning', title: 'Selecione uma função', text: 'Escolha a função principal antes de continuar.', confirmButtonColor: '#16A34A' })
+
+      if (
+        this.currentStep === 1 &&
+        !this.form.funcao
+      ) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Selecione uma função',
+          text: 'Escolha a função principal antes de continuar.',
+          confirmButtonColor: '#16A34A'
+        })
+
         return
       }
+
       this.currentStep++
     },
+
     async uploadFoto() {
-      if (!this.fotoSelecionada) return null
+      if (!this.fotoSelecionada) {
+        return null
+      }
+
       const formData = new FormData()
+
       formData.append('file', this.fotoSelecionada)
+
       try {
-        const res = await api.post('/upload/foto', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-        return res.data.fileUrl
-      } catch { return null }
+        const response = await api.post(
+          '/upload/foto',
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          }
+        )
+
+        return response.data.fileUrl
+      } catch (error) {
+        return null
+      }
     },
+
     async cadastrarFuncionario() {
       this.loading = true
+
       try {
         const fotoUrl = await this.uploadFoto()
-        if (fotoUrl) this.form.fotoUrl = fotoUrl
-        await api.post('/cadastrar/funcionario/empresa', { ...this.form, cnpj: this.cnpj })
+
+        if (fotoUrl) {
+          this.form.fotoUrl = fotoUrl
+        }
+
+        // Garante que o CNPJ enviado para a API está sem máscara
+        const cnpjLimpo = this.cnpj.replace(/\D/g, '')
+
+        await api.post('/cadastrar/funcionario/empresa', {
+          ...this.form,
+          cnpj: cnpjLimpo
+        })
+
         await Swal.fire({
           icon: 'success',
           title: 'Cadastro realizado!',
@@ -323,9 +418,17 @@ export default {
           confirmButtonColor: '#16A34A',
           confirmButtonText: 'Fechar'
         })
+
         this.$router.push('/')
-      } catch {
-        Swal.fire({ icon: 'error', title: 'Erro ao cadastrar', text: 'Verifique os dados e tente novamente.', confirmButtonColor: '#16A34A' })
+      } catch (error) {
+        console.error(error)
+
+        Swal.fire({
+          icon: 'error',
+          title: 'Erro ao cadastrar',
+          text: error.response?.data?.message || 'Verifique os dados e tente novamente.',
+          confirmButtonColor: '#16A34A'
+        })
       } finally {
         this.loading = false
       }
