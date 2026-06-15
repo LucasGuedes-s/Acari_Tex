@@ -147,7 +147,7 @@ async function postFuncionario(funcionario, cnpj) {
       // Faz o vínculo com o estabelecimento
       Estabelecimento: {
         connect: {
-          cnpj: cnpj
+          cnpj: Estabelecimento.cnpj,
         }
       }
     }
