@@ -78,50 +78,61 @@ async function getFuncionario(email) {
   return funcionario;
 }
 
-
 async function postFuncionario(funcionario, cnpj) {
-
+  // Verifica se já existe usuário
   const usuarioExistente = await prisma.usuarios.findUnique({
     where: { email: funcionario.email }
   });
 
+  if (usuarioExistente) {
+    throw new Error("Já existe um usuário com esse email.");
+  }
+
+  // Verifica se o estabelecimento existe
   const estabelecimento = await prisma.estabelecimento.findUnique({
-    where: {
-      cnpj
-    }
+    where: { cnpj }
   });
 
   if (!estabelecimento) {
     throw new Error(`Estabelecimento com CNPJ ${cnpj} não encontrado.`);
   }
 
-  if (usuarioExistente) throw new Error("Já existe um usuário com esse email.");
-
   const identidade = funcionario.identidade?.toString() || null;
   const cpf = funcionario.cpf?.toString() || null;
   const pis = funcionario.pis?.toString() || null;
+
   const senha = bcrypt.hashSync(process.env.SENHA, 10);
-  if(funcionario.permissao === 'funcionario' || !funcionario.permissao){
-    funcionario.permissao = 2;
+
+  let permissao = 2;
+
+  if (
+    funcionario.permissao &&
+    funcionario.permissao !== "funcionario"
+  ) {
+    permissao = 1;
   }
-  else{
-    funcionario.permissao = 1;
-  }
+
   const addFuncionario = await prisma.usuarios.create({
     data: {
       email: funcionario.email,
       nome: funcionario.nome,
-      senha: senha,
-      foto: funcionario.fotoUrl,
+      senha,
+      foto: funcionario.fotoUrl ?? null,
       idade: funcionario.idade,
       funcoes: funcionario.funcoes,
-      permissoes: funcionario.permissao || 3,
+      permissoes: permissao,
       identidade,
       cpf,
       pis,
-      pix: funcionario.pix,
+      pix: funcionario.pix ?? null,
       notas: funcionario.funcoes,
-      estabelecimentoCnpj: cnpj
+
+      // Faz o vínculo com o estabelecimento
+      Estabelecimento: {
+        connect: {
+          cnpj: cnpj
+        }
+      }
     }
   });
 
