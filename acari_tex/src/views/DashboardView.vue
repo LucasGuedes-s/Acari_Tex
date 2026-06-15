@@ -94,15 +94,15 @@
               class="mb-4" />
             <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" />
-            <GraficoEtapas class="mb-4" />
+            <GraficoEtapas class="mb-4"  v-if="producao?.producao?.producaoDia?.funcionarios?.length" />
             <!-- <GradicoProducaoPorEtapa class="mb-4" />-->
 
             <!--<GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" /> 
             <ProducaoPorPeca v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" /> -->
-            <GraficoProducaoPecas class="mb-4" />
+            <GraficoProducaoPecas class="mb-4"  v-if="producao?.producao?.producaoDia?.funcionarios?.length"/>
 
-            <GraficosIntercorrencias :porClassificacao="porClassificacao" :porNotas="porNotas"
+            <GraficosIntercorrencias :porClassificacao="porClassificacao" :porNotas="porNotas"  v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :linhaTemporal="linhaTemporal" :porFuncionario="porFuncionario" />
           </div>
 
@@ -273,7 +273,6 @@ export default {
       const hoje = new Date();
 
       this.datasFiltro = [];
-      console.log('Gerando datas para filtro a partir de hoje:', hoje);
       for (let i = 0; i < 30; i++) {
         const data = new Date(hoje);
         data.setDate(hoje.getDate() - i);
