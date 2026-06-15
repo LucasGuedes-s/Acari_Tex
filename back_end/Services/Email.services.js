@@ -8,7 +8,7 @@ async function enviarEmailAlteracaoSenha(destinatario, nomeUsuario) {
       user: process.env.EMAILAPP,
       pass: process.env.SENHAAPP,
     },
-  });
+  });''
 
   const linkRedefinicao = `https://linhatex.com.br/alterar-senha`;
 
@@ -40,5 +40,7 @@ async function enviarEmailAlteracaoSenha(destinatario, nomeUsuario) {
     console.error('Erro ao enviar e-mail:', error);
   }
 }
+// enviarEmailAlteracaoSenha('lucasguedes2908@gmail.com', 'Gilbertinho')
 
+// enviarEmailAlteracaoSenha('dev.gilberth@gmail.com', 'Gilbertinho')
 module.exports = { enviarEmailAlteracaoSenha };

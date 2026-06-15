@@ -205,7 +205,6 @@ export default {
   }
 }
 </script>
-
 <style scoped>
 .content-wrapper {
   padding-left: 200px;
@@ -223,6 +222,7 @@ export default {
   border-radius: 8px;
   border: 2px solid #ddd;
 }
+
 label {
   display: flex;
   color: #616161;
@@ -230,6 +230,19 @@ label {
   margin-top: 5px;
 }
 
+/* Tablet */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 100%;
+    position: relative;
+  }
+
+  .content-wrapper {
+    margin-left: 0;
+    padding-left: 0;
+  }
+}
+/* Celular */
 @media (max-width: 768px) {
   .d-flex {
     flex-direction: column;
@@ -237,8 +250,12 @@ label {
   }
 
   .content-wrapper {
-    padding-left: 0px;
+    padding-left: 0;
     z-index: 0;
+  }
+
+  .preview-img {
+    max-width: 120px;
   }
 }
 </style>

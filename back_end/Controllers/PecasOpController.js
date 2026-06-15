@@ -1,6 +1,7 @@
 const pecas = require('../Services/OP.services');
 const { gerarPdfPeca } = require('../utils/PdfPeca');
 const Estatisticas = require('../Controllers/EstatisticasController');
+const meta = require('../Services/metaDia.service')
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
@@ -104,10 +105,18 @@ async function updatePecaStatus(req, res, next){
         next(err);
     }
 }
+async function getMetaProducao(req, res, next){
+    try {
+        const metaDia = await meta.buscarMetaDia(req.query);
+        res.status(200).json({metaDia});
+    } catch (err) {
+        console.error(`Erro ao obter produção.`, err.message);
+        next(err);
+    }
+}
 async function getProducaoEquipe(req, res, next) {
     try {
         const producao = await pecas.getProducaoEquipe(req.user.cnpj, req.query.filtro);
-        console.log("Produção da equipe obtida:", producao);
         res.status(200).json({ producao });
     } catch (err) {
         console.error(`Erro ao obter produção.`, err.message);
@@ -312,5 +321,6 @@ module.exports = {
     getGruposEtapas,
     definirMetaDiaria,
     getMetaDiaria,
-    cronoanalise
+    cronoanalise,
+    getMetaProducao
 };

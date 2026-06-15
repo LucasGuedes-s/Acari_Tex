@@ -118,7 +118,7 @@ async function salvarMetaDia(data) {
     })
 }
 async function buscarMetaDia({ estabelecimento, data, }) {
-
+    console.log("Buscando meta do dia para o estabelecimento:", estabelecimento, "e data:", data);
     const dataDia = criarDataLocal(data)
 
     dataDia.setHours(0, 0, 0, 0)

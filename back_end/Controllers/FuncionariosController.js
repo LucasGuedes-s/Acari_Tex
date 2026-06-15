@@ -31,6 +31,19 @@ async function postEquipe(req, res, next){
         next(err);
     }
 }
+async function postFuncionarioEmpresa(req, res, next) {
+    try {
+        console.log('Dados recebidos para cadastro de funcionário:', req.body);
+        const funcionario = await Funcionarios.postFuncionario(req.body, req.body.cnpj);
+        res.status(201).send({
+            message: `Funcionário cadastrado: ${funcionario}`,
+        });
+    } catch (err) {
+        console.error(`Erro ao cadastrar o funcionário no banco de dados.`, err.message);
+        next(err);
+    }
+}
+
 async function getProducaoFuncionario(req, res, next){
     try {
         const email = req.params.email;
@@ -95,6 +108,7 @@ module.exports = {
     getEquipe,
     getFuncionario,
     postEquipe,
+    postFuncionarioEmpresa,
     getProducaoFuncionario,
     adicionarFuncionarioAgrupo,
     getEquipes,

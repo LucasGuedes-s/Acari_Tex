@@ -90,7 +90,7 @@
           </div>
 
           <div>
-            <ProducaoDia :producaoDados="producao" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+            <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               class="mb-4" />
             <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" />
@@ -269,26 +269,32 @@ export default {
         String(data.getDate()).padStart(2, '0')
       }`
     },
-    gerarDatasFiltro() {
+   gerarDatasFiltro() {
       const hoje = new Date();
+
       this.datasFiltro = [];
-
+      console.log('Gerando datas para filtro a partir de hoje:', hoje);
       for (let i = 0; i < 30; i++) {
-        const data = new Date();
+        const data = new Date(hoje);
         data.setDate(hoje.getDate() - i);
+        const valor = `${data.getFullYear()}-${String(
+          data.getMonth() + 1
+        ).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
 
-        const valor = data.toISOString().split('T')[0]; // yyyy-mm-dd
-
-        const label = data.toLocaleDateString('pt-BR'); // 01/05/2026
+        const label = data.toLocaleDateString('pt-BR');
 
         this.datasFiltro.push({
           valor,
-          label
+          label,
         });
       }
 
-      // já seta hoje como padrão
-      this.filtro = this.datasFiltro[0].valor;
+      // Define hoje como valor inicial
+      const hojeFormatado = `${hoje.getFullYear()}-${String(
+        hoje.getMonth() + 1
+      ).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+
+      this.filtro = hojeFormatado;
     },
     iniciarSocket() {
       this.socket = io('https://acari-tex.onrender.com');

@@ -57,9 +57,8 @@ module.exports = (io, socket) => {
   )
   socket.on('buscar-meta-dia', async (dados, callback) => {
     try {
-
+      //console.log("Buscando meta do dia para o estabelecimento:", dados);
       const metaDia = await meta.buscarMetaDia(dados)
-      //console.log('Meta do dia encontrada:', metaDia)
       callback({
         sucesso: true,
         metaDia,

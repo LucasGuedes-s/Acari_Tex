@@ -6,24 +6,24 @@
       <div class="metrics-row">
         <div class="metric-chip accent">
           <span class="mc-label">Eficiência da turma</span>
-          <span class="mc-val">{{ producaoDia?.eficienciaMediaTurma || '—' }}</span>
+          <span class="mc-val">{{ eficienciaMediaTurma }}%</span>
         </div>
         <div class="metric-chip">
           <span class="mc-label">Funcionários</span>
-          <span class="mc-val">{{ producaoDia?.quantidadePessoas || 0 }}</span>
+          <span class="mc-val">{{ funcionariosOrdenados.length }}</span>
         </div>
         <div class="metric-chip">
           <span class="mc-label">Peças entregues</span>
-          <span class="mc-val">{{ producaoDia?.totalPecas || 0 }}</span>
+          <span class="mc-val">{{ totalPecasGeral }}</span>
         </div>
-        <div class="metric-chip">
-          <span class="mc-label">Jornada</span>
-          <span class="mc-val">{{ producaoDia?.minutosDisponiveis || 0 }} min</span>
-        </div>
-        <div class="metric-chip" v-if="producaoDia?.descricaoPeca">
+        <div class="metric-chip" v-if="opsAtivas.length">
           <span class="mc-label">Peça do dia</span>
-          <span class="mc-val peca-chip">{{ producaoDia.descricaoPeca }}</span>
+          <span class="mc-val peca-chip">{{ opsAtivas.map(o => nomeDaOp(o.pecaId)).join(', ') }}</span>
         </div>
+      </div>
+
+      <div class="top-bar-right">
+        <span class="socket-dot" :class="{ conectado: socketConectado }" :title="socketConectado ? 'Conectado' : 'Desconectado'"></span>
       </div>
     </header>
 
@@ -32,7 +32,6 @@
 
       <!-- LISTA -->
       <div class="grid-area">
-
         <div class="list-toolbar">
           <span class="list-title">Profissionais</span>
           <div class="list-toolbar-right">
@@ -48,46 +47,41 @@
         </div>
 
         <div class="list-body">
-          <div v-for="func in funcionariosFiltrados" :key="func.funcionario" class="list-row"
-            :class="{ selected: selecionado === func._idx }" @click="selecionar(func._idx)">
+          <div
+            v-for="func in funcionariosFiltrados"
+            :key="func.email"
+            class="list-row"
+            :class="{ selected: selecionado === func._idx }"
+            @click="selecionar(func._idx)"
+          >
             <div class="lr-name">
-              <!-- Medalha para top 3, número para os demais -->
-              <span class="lr-pos" :class="{ medal: func._idx < 3 }">
-                {{ rankIcon(func._idx) }}
-              </span>
+              <span class="lr-pos" :class="{ medal: func._idx < 3 }">{{ rankIcon(func._idx) }}</span>
               <div class="lr-avatar-wrap">
                 <img v-if="func.foto" class="lr-avatar" :src="func.foto" :alt="func.nome" @error="onImgError" />
                 <div v-else class="lr-avatar-fb">{{ initials(func.nome) }}</div>
-                <span class="lr-dot" :class="cls(parseFloat(func.eficiencia_pessoal))"></span>
+                <span class="lr-dot" :class="clsEfic(calcularEficienciaFuncionario(func))"></span>
               </div>
               <div class="lr-info">
                 <span class="lr-nome">{{ func.nome }}</span>
-                <span class="lr-sub">{{ func.funcionario }}</span>
+                <span class="lr-sub">{{ func.email }}</span>
               </div>
             </div>
-            <span class="lr-col mono">{{ func.total_pecas }}</span>
-            <span class="lr-col" style="display:flex; gap:4px; align-items:center;">
-  <div class="badge-labeled">
-    <span class="badge-src-label">Ficha</span>
-    <span class="badge" :class="cls(parseFloat(func.eficiencia_pessoal))">
-      {{ func.eficiencia_pessoal }}
-    </span>
-  </div>
-  <template v-if="func.eficiencia_pessoal_referencia">
-    <span class="badge-sep">·</span>
-    <div class="badge-labeled">
-      <span class="badge-src-label">Fábrica</span>
-      <span class="badge" :class="cls(parseFloat(func.eficiencia_pessoal_referencia))">
-        {{ func.eficiencia_pessoal_referencia }}
-      </span>
-    </div>
-  </template>
-</span>
+
+            <span class="lr-col mono">{{ calcularTotalFuncionario(func) }}</span>
+
+            <span class="lr-col" style="display:flex; gap:4px; align-items:center; justify-content:flex-end;">
+              <span class="badge" :class="clsEfic(calcularEficienciaFuncionario(func))">
+                {{ calcularEficienciaFuncionario(func) }}%
+              </span>
+            </span>
           </div>
 
-          <div v-if="funcionariosFiltrados.length === 0" class="list-empty">
-            Nenhum resultado para "{{ busca }}"
+          <div v-if="!funcionariosFiltrados.length && !loading" class="list-empty">
+            <span v-if="busca">Nenhum resultado para "{{ busca }}"</span>
+            <span v-else>Sem dados para esta data</span>
           </div>
+
+          <div v-if="loading" class="list-empty">Carregando…</div>
         </div>
       </div>
 
@@ -103,109 +97,115 @@
           <!-- Profile -->
           <div class="dp-profile">
             <div class="dp-avatar-wrap">
-              <img v-if="funcSelecionado.foto" class="dp-avatar" :src="funcSelecionado.foto" :alt="funcSelecionado.nome"
-                @error="onImgError" />
+              <img v-if="funcSelecionado.foto" class="dp-avatar" :src="funcSelecionado.foto" :alt="funcSelecionado.nome" @error="onImgError" />
               <div v-else class="dp-avatar-fb">{{ initials(funcSelecionado.nome) }}</div>
-              <span class="dp-dot" :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))"></span>
+              <span class="dp-dot" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))"></span>
             </div>
             <div class="dp-profile-info">
               <h3 class="dp-nome">{{ funcSelecionado.nome }}</h3>
-              <p class="dp-email">{{ funcSelecionado.funcionario }}</p>
+              <p class="dp-email">{{ funcSelecionado.email }}</p>
             </div>
-            <span class="badge xlg" :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))">
-              {{ funcSelecionado.eficiencia_pessoal }}
+            <span class="badge xlg" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+              {{ calcularEficienciaFuncionario(funcSelecionado) }}%
             </span>
           </div>
 
-          <!-- Métricas compactas -->
+          <!-- Métricas -->
           <div class="dp-stats">
             <div class="dp-stat">
-              <span class="dp-stat-label">Peças</span>
-              <span class="dp-stat-val">{{ funcSelecionado.total_pecas }}</span>
+              <span class="dp-stat-label">Peças (final)</span>
+              <span class="dp-stat-val">{{ calcularTotalFuncionario(funcSelecionado) }}</span>
             </div>
             <div class="dp-stat-div"></div>
             <div class="dp-stat">
-              <span class="dp-stat-label">Min. produzidos</span>
-              <span class="dp-stat-val" :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))">
-                {{ funcSelecionado.tempo_padrao_produzido }}
+              <span class="dp-stat-label">Eficiência</span>
+              <span class="dp-stat-val" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+                {{ calcularEficienciaFuncionario(funcSelecionado) }}%
               </span>
             </div>
             <div class="dp-stat-div"></div>
             <div class="dp-stat">
-              <span class="dp-stat-label">Jornada</span>
-              <span class="dp-stat-val">{{ funcSelecionado.tempo_real_total }} min</span>
+              <span class="dp-stat-label">Linhas</span>
+              <span class="dp-stat-val">{{ (funcSelecionado.linhas || []).length }}</span>
             </div>
           </div>
 
-          <!-- Barra de eficiência geral -->
+          <!-- Barra de eficiência -->
           <div class="dp-eff-bar-wrap">
             <div class="dp-eff-bar-labels">
               <span>Eficiência geral</span>
-              <span :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))">
-                {{ funcSelecionado.eficiencia_pessoal }}
+              <span :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+                {{ calcularEficienciaFuncionario(funcSelecionado) }}%
               </span>
             </div>
             <div class="dp-eff-bar-track">
-              <div class="dp-eff-bar-fill" :class="cls(parseFloat(funcSelecionado.eficiencia_pessoal))"
-                :style="{ width: Math.min(parseFloat(funcSelecionado.eficiencia_pessoal), 100) + '%' }"></div>
+              <div
+                class="dp-eff-bar-fill"
+                :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))"
+                :style="{ width: Math.min(calcularEficienciaFuncionario(funcSelecionado), 100) + '%' }"
+              ></div>
             </div>
           </div>
 
           <!-- Tabs -->
           <div class="dp-tabs">
-            <button v-for="tab in tabs" :key="tab" class="dp-tab" :class="{ active: abaAtiva === tab }"
-              @click="abaAtiva = tab">{{ tab }}</button>
+            <button
+              v-for="tab in tabs"
+              :key="tab"
+              class="dp-tab"
+              :class="{ active: abaAtiva === tab }"
+              @click="abaAtiva = tab"
+            >{{ tab }}</button>
           </div>
 
           <!-- TAB: Etapas -->
           <div v-if="abaAtiva === 'Etapas'" class="dp-content">
-            <div v-for="(et, i) in funcSelecionado.etapas" :key="i" class="dp-etapa">
+            <div v-for="linha in (funcSelecionado.linhas || [])" :key="linha.id" class="dp-etapa">
               <div class="dp-etapa-top">
-  <span class="dp-etapa-nome">{{ et.descricao }}</span>
-  <div style="display:flex; gap:6px; align-items:center;">
-    <div class="badge-labeled">
-      <span class="badge-src-label">Ficha</span>
-      <span class="badge sm" :class="cls(parseFloat(et.eficiencia_etapa))">
-        {{ et.eficiencia_etapa }}
-      </span>
-    </div>
-    <template v-if="et.eficiencia_referencia_etapa">
-      <span class="badge-sep">·</span>
-      <div class="badge-labeled">
-        <span class="badge-src-label">Fábrica</span>
-        <span class="badge sm" :class="cls(parseFloat(et.eficiencia_referencia_etapa))">
-          {{ et.eficiencia_referencia_etapa }}
-        </span>
-      </div>
-    </template>
-  </div>
-</div>
+                <span class="dp-etapa-nome">
+                  {{ linha.descricao || linha.etapaId || '—' }}
+                  <span v-if="isEtapaFinal(linha)" class="tag-final">final</span>
+                </span>
+                <span class="badge sm" :class="clsEfic(calcularEficienciaLinha(linha))">
+                  {{ calcularEficienciaLinha(linha) }}%
+                </span>
+              </div>
               <div class="dp-etapa-bar-track">
-                <div class="dp-etapa-bar-fill" :class="cls(parseFloat(et.eficiencia_etapa))"
-                  :style="{ width: Math.min(parseFloat(et.eficiencia_etapa), 100) + '%' }"></div>
+                <div
+                  class="dp-etapa-bar-fill"
+                  :class="clsEfic(calcularEficienciaLinha(linha))"
+                  :style="{ width: Math.min(calcularEficienciaLinha(linha), 100) + '%' }"
+                ></div>
               </div>
               <div class="dp-etapa-bottom">
-                <span class="mono small">{{ et.pecas_produzidas }} peças</span>
-                <span class="mono small">{{ et.tempo_padrao_total }} min padrão</span>
+                <span class="mono small">{{ calcularTotalLinha(linha) }} peças</span>
+                <span class="mono small">tempo padrão: {{ linha.tempoPadrao }} min/pç</span>
               </div>
+            </div>
+
+            <div v-if="!(funcSelecionado.linhas || []).length" class="dp-empty">
+              Sem etapas registradas
             </div>
           </div>
 
           <!-- TAB: Por hora -->
           <div v-if="abaAtiva === 'Por hora'" class="dp-content">
-            <div v-for="(hg, hi) in funcSelecionado.producaoPorHora" :key="hi" class="dp-hora-bloco">
+            <div v-for="(hg, hi) in horasPorFuncionario(funcSelecionado)" :key="hi" class="dp-hora-bloco">
               <div class="dp-hora-head">
                 <div class="dp-hora-head-left">
                   <span class="dp-hora-clock">🕐</span>
                   <span class="dp-hora-label">{{ hg.hora }}</span>
                 </div>
-                <span class="dp-hora-total">{{ hg.total }} peças nessa hora</span>
+                <span class="dp-hora-total">{{ hg.totalPecas }} peças · {{ hg.eficiencia }}%</span>
               </div>
 
               <div class="dp-hora-eff-row">
                 <div class="dp-hora-eff-bar-track">
-                  <div class="dp-hora-eff-bar-fill" :class="cls(eficienciaHora(hg))"
-                    :style="{ width: Math.min(eficienciaHora(hg), 100) + '%' }"></div>
+                  <div
+                    class="dp-hora-eff-bar-fill"
+                    :class="clsEfic(hg.eficiencia)"
+                    :style="{ width: Math.min(hg.eficiencia, 100) + '%' }"
+                  ></div>
                 </div>
               </div>
 
@@ -214,24 +214,27 @@
                   <tr>
                     <th>Etapa</th>
                     <th class="ta-r">Qtd.</th>
+                    <th class="ta-r">Tempo prod.</th>
                     <th class="ta-r">Eficiência</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(et, ei) in hg.etapas" :key="ei">
-                    <td class="dp-hora-etapa-nome">{{ et.etapa }}</td>
-                    <td class="ta-r mono">{{ et.total }} pç</td>
+                    <td class="dp-hora-etapa-nome">
+                      {{ et.descricao }}
+                      <span v-if="et.isFinal" class="tag-final">final</span>
+                    </td>
+                    <td class="ta-r mono">{{ et.quantidade }} pç</td>
+                    <td class="ta-r mono">{{ et.tempoProduzido }} min</td>
                     <td class="ta-r">
-                      <span class="badge sm" :class="cls(parseFloat(et.eficiencia_etapa_hora))">
-                        {{ et.eficiencia_etapa_hora }} {{ et.eficiencia_pessoal_referencia ? '%' : '' }}
-                      </span>
+                      <span class="badge sm" :class="clsEfic(et.eficiencia)">{{ et.eficiencia }}%</span>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            <div v-if="!funcSelecionado.producaoPorHora?.length" class="dp-empty">
+            <div v-if="!horasPorFuncionario(funcSelecionado).length" class="dp-empty">
               Sem dados de produção por hora
             </div>
           </div>
@@ -243,75 +246,366 @@
 </template>
 
 <script>
+import { io } from 'socket.io-client'
+import { useAuthStore } from '@/store/store'
+import api from '@/Axios'
+
+const socket = io('http://localhost:3333', { transports: ['websocket'] })
+
 export default {
   name: 'PainelProfissionais',
+
   props: {
-    producaoDados: { type: Object, default: null },
+    filtro: { type: Object, default: () => ({}) },
   },
+
+  setup() {
+    return { store: useAuthStore() }
+  },
+
   data() {
     return {
+      loading: true,
+      socketConectado: false,
+      busca: '',
       selecionado: null,
       abaAtiva: 'Etapas',
-      busca: '',
-      dataSelecionada: new Date().toISOString().slice(0, 10),
       tabs: ['Etapas', 'Por hora'],
-    };
+
+      opsAtivas: [],
+      funcionariosDia: [],
+      pecas: [],
+
+      horasTurno: {
+        manha: ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00'],
+        tarde: ['13:00', '14:00', '15:00', '16:00', '17:00', '18:00'],
+      },
+    }
   },
+
   computed: {
-    producaoDia() {
-      return this.producaoDados?.producao?.producaoDia || null;   
+    todasHoras() {
+      return [...this.horasTurno.manha, ...this.horasTurno.tarde]
     },
+
     funcionariosOrdenados() {
-      return [...(this.producaoDia?.funcionarios || [])]
-        .sort((a, b) => parseFloat(b.eficiencia_pessoal) - parseFloat(a.eficiencia_pessoal))
-        .map((f, i) => ({ ...f, _idx: i }));
+      return [...this.funcionariosDia]
+        .sort((a, b) => this.calcularTotalFuncionario(b) - this.calcularTotalFuncionario(a))
+        .map((f, i) => ({ ...f, _idx: i }))
     },
+
     funcionariosFiltrados() {
-      const q = this.busca.trim().toLowerCase();
-      if (!q) return this.funcionariosOrdenados;
+      const q = this.busca.trim().toLowerCase()
+      if (!q) return this.funcionariosOrdenados
       return this.funcionariosOrdenados.filter(f =>
-        f.nome.toLowerCase().includes(q) || f.funcionario.toLowerCase().includes(q)
-      );
+        (f.nome || '').toLowerCase().includes(q) ||
+        (f.email || '').toLowerCase().includes(q)
+      )
     },
+
     funcSelecionado() {
       return this.selecionado !== null
         ? this.funcionariosOrdenados[this.selecionado]
-        : null;
+        : null
+    },
+
+    eficienciaMediaTurma() {
+      const funcs = this.funcionariosOrdenados
+      if (!funcs.length) return 0
+      const soma = funcs.reduce((acc, f) => acc + this.calcularEficienciaFuncionario(f), 0)
+      return Math.round(soma / funcs.length)
+    },
+
+    totalPecasGeral() {
+      return this.funcionariosOrdenados.reduce(
+        (soma, f) => soma + this.calcularTotalFuncionario(f),
+        0
+      )
     },
   },
+
+  watch: {
+    filtro: {
+      deep: true,
+      handler() {
+        this.buscarMetaDia()
+      },
+    },
+  },
+
+  async mounted() {
+    this.iniciarSocket()
+    await this.carregarPecas()
+    await this.buscarMetaDia()
+  },
+
+  beforeUnmount() {
+    socket.off()
+    socket.disconnect()
+  },
+
   methods: {
+    // ── SOCKET ────────────────────────────────────────────
+    iniciarSocket() {
+      socket.on('connect', () => { this.socketConectado = true })
+      socket.on('disconnect', () => { this.socketConectado = false })
+
+      // Ouve atualizações do estabelecimento e rebusca via rota
+      const cnpj = this.store.pegar_usuario.cnpj
+      socket.on(`nova_atualizacao_${cnpj}`, () => {
+        this.buscarMetaDia()
+      })
+    },
+
+    // ── PEÇAS ─────────────────────────────────────────────
+    async carregarPecas() {
+      try {
+        const res = await api.get('/pecas', {
+          headers: { Authorization: this.store.pegar_token },
+        })
+        this.pecas = res.data.peca.em_progresso || []
+      } catch (err) {
+        console.error(err)
+      }
+    },
+
+    nomeDaOp(pecaId) {
+      const peca = this.pecas.find(p => p.id_da_op === pecaId)
+      return peca?.descricao || pecaId
+    },
+
+    // ── BUSCAR META (via rota HTTP) ───────────────────────
+    async buscarMetaDia() {
+      this.loading = true
+      console.log('Buscando meta do dia com filtro:', this.filtro)
+      try {
+        const res = await api.get('/producao/meta', {
+          headers: { Authorization: this.store.pegar_token },
+          params: {
+            estabelecimento: this.filtro.estabelecimento ?? this.store.pegar_usuario.cnpj,
+            data: this.filtro,
+          },
+        })
+
+        // A rota retorna a mesma estrutura do buscar-meta-dia
+        const meta = res.data.metaDia
+
+        if (!meta) {
+          this.opsAtivas = []
+          this.funcionariosDia = []
+          return
+        }
+
+        // Restaurar OPs
+        this.opsAtivas = (meta.pecas || []).map(p => ({
+          _uid: Date.now() + Math.random(),
+          pecaId: p.id_da_op,
+          metaDia: p.meta || 0,
+        }))
+
+        // Reconstruir funcionariosDia com linhas e registros
+        // Mesmo algoritmo do ApontamentoDia
+        this.funcionariosDia = []
+
+        for (const metaFunc of meta.funcionarios || []) {
+          const linhas = []
+
+          for (const producao of metaFunc.producoes || []) {
+            const etapaId = producao.id_da_funcao
+
+            let linha = linhas.find(l => l.etapaId === etapaId)
+
+            if (!linha) {
+              linha = {
+                id: Date.now() + Math.random(),
+                tipo: linhas.length === 0 ? 'principal' : 'extra',
+                etapaId,
+                descricao: producao.producao_etapa?.descricao || '',
+                tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
+                opId: producao.id_da_op || null,
+                registros: this.criarRegistros(),
+              }
+              linhas.push(linha)
+            }
+
+            const hora = producao.hora_registro
+            if (!hora || !linha.registros?.[hora]) continue
+
+            linha.registros[hora] = {
+              quantidade: producao.quantidade_pecas || 0,
+              tempoProduzido: producao.tempo_produzido || 60,
+            }
+          }
+
+          this.funcionariosDia.push({
+            email: metaFunc.funcionarioId,
+            nome: metaFunc.funcionario?.nome || metaFunc.funcionarioId,
+            foto: metaFunc.funcionario?.foto || null,
+            linhas: linhas.length ? linhas : [],
+          })
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        this.loading = false
+      }
+    },
+
+    criarRegistros() {
+      const registros = {}
+      for (const hora of this.todasHoras) {
+        registros[hora] = { quantidade: 0, tempoProduzido: 60 }
+      }
+      return registros
+    },
+
+    // ── ETAPA FINAL ───────────────────────────────────────
+    isEtapaFinal(linha) {
+      if (!linha?.descricao) return false
+      return linha.descricao.toLowerCase().includes('final')
+    },
+
+    // ── TOTAIS ────────────────────────────────────────────
+    calcularTotalLinha(linha) {
+      if (!linha?.registros) return 0
+      return Object.values(linha.registros).reduce(
+        (soma, reg) => soma + (Number(reg?.quantidade) || 0),
+        0
+      )
+    },
+
+    // Só soma etapa final — idêntico ao ApontamentoDia
+    calcularTotalFuncionario(func) {
+      if (!Array.isArray(func?.linhas)) return 0
+      return func.linhas.reduce((soma, linha) => {
+        if (!this.isEtapaFinal(linha)) return soma
+        return soma + this.calcularTotalLinha(linha)
+      }, 0)
+    },
+
+    // ── EFICIÊNCIA ────────────────────────────────────────
+    // (quantidade × tempoPadrao) / tempoProduzido × 100
+    // idêntico ao calcularEficienciaRegistro do ApontamentoDia
+    calcularEficienciaRegistro(quantidade, tempoProduzido, tempoPadrao) {
+      if (!quantidade || !tempoProduzido || !tempoPadrao) return 0
+      return Math.round(((quantidade * tempoPadrao) / tempoProduzido) * 100)
+    },
+
+    // Acumula todos os registros da linha
+    calcularEficienciaLinha(linha) {
+      if (!linha?.registros) return 0
+      let produzido = 0
+      let tempoProduzido = 0
+
+      for (const reg of Object.values(linha.registros)) {
+        if (reg && reg.quantidade > 0) {
+          produzido += reg.quantidade * (linha.tempoPadrao || 0)
+          tempoProduzido += reg.tempoProduzido || 60
+        }
+      }
+
+      if (!tempoProduzido) return 0
+      return Math.round((produzido / tempoProduzido) * 100)
+    },
+
+    // Acumula todas as linhas do funcionário
+    calcularEficienciaFuncionario(func) {
+      if (!func?.linhas?.length) return 0
+      let somaProduzida = 0
+      let somaTempo = 0
+
+      for (const linha of func.linhas) {
+        if (!linha?.registros) continue
+        for (const reg of Object.values(linha.registros)) {
+          if (reg && reg.quantidade > 0) {
+            somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
+            somaTempo += reg.tempoProduzido || 60
+          }
+        }
+      }
+
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
+    },
+
+    // ── POR HORA ──────────────────────────────────────────
+    horasPorFuncionario(func) {
+      if (!func?.linhas?.length) return []
+
+      const resultado = []
+
+      for (const hora of this.todasHoras) {
+        const etapas = []
+        let totalPecas = 0
+        let somaProduzida = 0
+        let somaTempoProduzido = 0
+
+        for (const linha of func.linhas) {
+          const reg = linha.registros?.[hora]
+          if (!reg || !reg.quantidade) continue
+
+          const eficiencia = this.calcularEficienciaRegistro(
+            reg.quantidade,
+            reg.tempoProduzido,
+            linha.tempoPadrao
+          )
+
+          etapas.push({
+            descricao: linha.descricao || linha.etapaId || '—',
+            isFinal: this.isEtapaFinal(linha),
+            quantidade: reg.quantidade,
+            tempoProduzido: reg.tempoProduzido,
+            eficiencia,
+          })
+
+          totalPecas += reg.quantidade
+          somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
+          somaTempoProduzido += reg.tempoProduzido || 60
+        }
+
+        if (!etapas.length) continue
+
+        resultado.push({
+          hora,
+          etapas,
+          totalPecas,
+          eficiencia: somaTempoProduzido
+            ? Math.round((somaProduzida / somaTempoProduzido) * 100)
+            : 0,
+        })
+      }
+
+      return resultado
+    },
+
+    // ── HELPERS ───────────────────────────────────────────
+    clsEfic(pct) {
+      const n = parseFloat(pct)
+      if (n >= 90) return 'verde'
+      if (n >= 60) return 'amarelo'
+      return 'vermelho'
+    },
+
     selecionar(idx) {
-      if (this.selecionado === idx) { this.selecionado = null; return; }
-      this.selecionado = idx;
-      this.abaAtiva = 'Etapas';
+      if (this.selecionado === idx) { this.selecionado = null; return }
+      this.selecionado = idx
+      this.abaAtiva = 'Etapas'
     },
-    emitirData() { this.$emit('filtrar-data', this.dataSelecionada); },
-    cls(v) {
-      const n = parseFloat(v);
-      if (n >= 90) return 'verde';
-      if (n >= 60) return 'amarelo';
-      return 'vermelho';
-    },
-    eficienciaHora(hg) {
-      if (!hg.etapas?.length) return 0;
-      const vals = hg.etapas.map(e => parseFloat(e.eficiencia_etapa_hora) || 0);
-      return vals.reduce((a, b) => a + b, 0) / vals.length;
-    },
+
     initials(nome) {
-      return (nome || '').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase();
+      return (nome || '').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase()
     },
-    onImgError(e) { e.target.style.display = 'none'; },
+
+    onImgError(e) { e.target.style.display = 'none' },
+
     rankIcon(i) {
-      return ['🥇', '🥈', '🥉'][i] ?? i + 1;
+      return ['🥇', '🥈', '🥉'][i] ?? i + 1
     },
   },
-};
+}
 </script>
 
 <style scoped>
-/* ══════════════════════════════════════════
-   TOKENS
-══════════════════════════════════════════ */
 .painel {
   --g900: #052e16;
   --g800: #14532d;
@@ -319,24 +613,22 @@ export default {
   --g600: #16a34a;
   --g200: #bbf7d0;
   --g100: #dcfce7;
-  --g50: #f0fdf4;
+  --g50:  #f0fdf4;
 
   --a700: #92400e;
   --a600: #d97706;
   --a100: #fef3c7;
-  --a50: #fffbeb;
 
   --r700: #991b1b;
   --r600: #dc2626;
   --r100: #fee2e2;
-  --r50: #fff5f5;
 
-  --ink: #0d1512;
+  --ink:  #0d1512;
   --ink2: #2d3f39;
   --ink3: #6b7f79;
   --line: #e3e8e6;
   --surf: #f6f8f7;
-  --bg: #ffffff;
+  --bg:   #ffffff;
 
   --rc: 10px;
   --rp: 999px;
@@ -352,9 +644,7 @@ export default {
   padding: 0;
 }
 
-/* ══════════════════════════════════════════
-   TOP BAR
-══════════════════════════════════════════ */
+/* TOP BAR */
 .top-bar {
   display: flex;
   align-items: center;
@@ -396,9 +686,7 @@ export default {
   color: var(--ink3);
 }
 
-.metric-chip.accent .mc-label {
-  color: var(--g200);
-}
+.metric-chip.accent .mc-label { color: var(--g200); }
 
 .mc-val {
   font-size: 20px;
@@ -407,9 +695,7 @@ export default {
   letter-spacing: -.02em;
 }
 
-.metric-chip.accent .mc-val {
-  color: #fff;
-}
+.metric-chip.accent .mc-val { color: #fff; }
 
 .peca-chip {
   font-size: 14px;
@@ -419,26 +705,25 @@ export default {
   max-width: 160px;
 }
 
-.date-input {
-  font-size: 12px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--rs);
-  background: var(--surf);
-  color: var(--ink3);
-  cursor: pointer;
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.date-input:focus {
-  outline: none;
-  border-color: var(--g600);
-  color: var(--ink);
+.socket-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--r600);
+  flex-shrink: 0;
+  transition: background .3s;
 }
 
-/* ══════════════════════════════════════════
-   LAYOUT
-══════════════════════════════════════════ */
+.socket-dot.conectado { background: var(--g600); }
+
+/* LAYOUT */
 .main-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -449,9 +734,7 @@ export default {
   grid-template-columns: 1fr 440px;
 }
 
-/* ══════════════════════════════════════════
-   LISTA
-══════════════════════════════════════════ */
+/* LISTA */
 .grid-area {
   display: flex;
   flex-direction: column;
@@ -537,7 +820,6 @@ export default {
   max-height: calc(100vh - 210px);
 }
 
-/* LINHAS */
 .list-row {
   display: grid;
   grid-template-columns: 1fr 72px 110px;
@@ -548,9 +830,7 @@ export default {
   transition: background .1s;
 }
 
-.list-row:hover {
-  background: var(--surf);
-}
+.list-row:hover { background: var(--surf); }
 
 .list-row.selected {
   background: var(--g50);
@@ -564,7 +844,6 @@ export default {
   min-width: 0;
 }
 
-/* Posição / medalha */
 .lr-pos {
   font-size: 12px;
   font-weight: 600;
@@ -575,15 +854,9 @@ export default {
   line-height: 1;
 }
 
-.lr-pos.medal {
-  font-size: 18px;
-  /* medalhas maiores que números */
-}
+.lr-pos.medal { font-size: 18px; }
 
-.lr-avatar-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
+.lr-avatar-wrap { position: relative; flex-shrink: 0; }
 
 .lr-avatar {
   width: 34px;
@@ -617,17 +890,9 @@ export default {
   border: 1.5px solid var(--bg);
 }
 
-.lr-dot.verde {
-  background: var(--g600);
-}
-
-.lr-dot.amarelo {
-  background: var(--a600);
-}
-
-.lr-dot.vermelho {
-  background: var(--r600);
-}
+.lr-dot.verde    { background: var(--g600); }
+.lr-dot.amarelo  { background: var(--a600); }
+.lr-dot.vermelho { background: var(--r600); }
 
 .lr-info {
   display: flex;
@@ -659,9 +924,7 @@ export default {
   color: var(--ink2);
 }
 
-.mono {
-  font-variant-numeric: tabular-nums;
-}
+.mono { font-variant-numeric: tabular-nums; }
 
 .list-empty {
   padding: 36px 24px;
@@ -670,9 +933,7 @@ export default {
   font-size: 14px;
 }
 
-/* ══════════════════════════════════════════
-   BADGES
-══════════════════════════════════════════ */
+/* BADGES */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -683,34 +944,27 @@ export default {
   white-space: nowrap;
 }
 
-.badge.verde {
+.badge.verde    { background: var(--g100); color: var(--g800); }
+.badge.amarelo  { background: var(--a100); color: var(--a700); }
+.badge.vermelho { background: var(--r100); color: var(--r700); }
+.badge.sm  { font-size: 12px; padding: 2px 8px; }
+.badge.xlg { font-size: 15px; padding: 5px 16px; }
+
+.tag-final {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
   background: var(--g100);
   color: var(--g800);
+  border-radius: var(--rp);
+  padding: 1px 6px;
+  margin-left: 5px;
+  vertical-align: middle;
 }
 
-.badge.amarelo {
-  background: var(--a100);
-  color: var(--a700);
-}
-
-.badge.vermelho {
-  background: var(--r100);
-  color: var(--r700);
-}
-
-.badge.sm {
-  font-size: 12px;
-  padding: 2px 8px;
-}
-
-.badge.xlg {
-  font-size: 15px;
-  padding: 5px 16px;
-}
-
-/* ══════════════════════════════════════════
-   PAINEL LATERAL (440px)
-══════════════════════════════════════════ */
+/* PAINEL LATERAL */
 .detail-panel {
   border-left: 1px solid var(--line);
   background: var(--bg);
@@ -755,12 +1009,8 @@ export default {
   transition: background .1s;
 }
 
-.dp-close:hover {
-  background: var(--line);
-  color: var(--ink);
-}
+.dp-close:hover { background: var(--line); color: var(--ink); }
 
-/* Profile */
 .dp-profile {
   display: flex;
   align-items: center;
@@ -769,10 +1019,7 @@ export default {
   border-bottom: 1px solid var(--line);
 }
 
-.dp-avatar-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
+.dp-avatar-wrap { position: relative; flex-shrink: 0; }
 
 .dp-avatar {
   width: 56px;
@@ -806,22 +1053,11 @@ export default {
   border: 2px solid var(--bg);
 }
 
-.dp-dot.verde {
-  background: var(--g600);
-}
+.dp-dot.verde    { background: var(--g600); }
+.dp-dot.amarelo  { background: var(--a600); }
+.dp-dot.vermelho { background: var(--r600); }
 
-.dp-dot.amarelo {
-  background: var(--a600);
-}
-
-.dp-dot.vermelho {
-  background: var(--r600);
-}
-
-.dp-profile-info {
-  flex: 1;
-  min-width: 0;
-}
+.dp-profile-info { flex: 1; min-width: 0; }
 
 .dp-nome {
   font-size: 16px;
@@ -842,7 +1078,6 @@ export default {
   text-overflow: ellipsis;
 }
 
-/* Stats em linha */
 .dp-stats {
   display: flex;
   align-items: center;
@@ -858,11 +1093,7 @@ export default {
   text-align: center;
 }
 
-.dp-stat-div {
-  width: 1px;
-  height: 36px;
-  background: var(--line);
-}
+.dp-stat-div { width: 1px; height: 36px; background: var(--line); }
 
 .dp-stat-label {
   font-size: 11px;
@@ -879,19 +1110,10 @@ export default {
   letter-spacing: -.02em;
 }
 
-.dp-stat-val.verde {
-  color: var(--g700);
-}
+.dp-stat-val.verde    { color: var(--g700); }
+.dp-stat-val.amarelo  { color: var(--a600); }
+.dp-stat-val.vermelho { color: var(--r600); }
 
-.dp-stat-val.amarelo {
-  color: var(--a600);
-}
-
-.dp-stat-val.vermelho {
-  color: var(--r600);
-}
-
-/* Barra eficiência */
 .dp-eff-bar-wrap {
   padding: 12px 18px 14px;
   border-bottom: 1px solid var(--line);
@@ -906,21 +1128,10 @@ export default {
   font-weight: 500;
 }
 
-.dp-eff-bar-labels span:last-child {
-  font-weight: 700;
-}
-
-.dp-eff-bar-labels .verde {
-  color: var(--g700);
-}
-
-.dp-eff-bar-labels .amarelo {
-  color: var(--a600);
-}
-
-.dp-eff-bar-labels .vermelho {
-  color: var(--r600);
-}
+.dp-eff-bar-labels span:last-child { font-weight: 700; }
+.dp-eff-bar-labels .verde    { color: var(--g700); }
+.dp-eff-bar-labels .amarelo  { color: var(--a600); }
+.dp-eff-bar-labels .vermelho { color: var(--r600); }
 
 .dp-eff-bar-track {
   height: 7px;
@@ -935,19 +1146,10 @@ export default {
   transition: width .5s ease;
 }
 
-.dp-eff-bar-fill.verde {
-  background: var(--g600);
-}
+.dp-eff-bar-fill.verde    { background: var(--g600); }
+.dp-eff-bar-fill.amarelo  { background: var(--a600); }
+.dp-eff-bar-fill.vermelho { background: var(--r600); }
 
-.dp-eff-bar-fill.amarelo {
-  background: var(--a600);
-}
-
-.dp-eff-bar-fill.vermelho {
-  background: var(--r600);
-}
-
-/* Tabs */
 .dp-tabs {
   display: flex;
   border-bottom: 1px solid var(--line);
@@ -967,9 +1169,7 @@ export default {
   margin-bottom: -1px;
 }
 
-.dp-tab:hover {
-  color: var(--ink);
-}
+.dp-tab:hover { color: var(--ink); }
 
 .dp-tab.active {
   color: var(--g700);
@@ -977,21 +1177,14 @@ export default {
   font-weight: 600;
 }
 
-/* Conteúdo tabs */
-.dp-content {
-  padding: 16px 18px;
-  flex: 1;
-}
+.dp-content { padding: 16px 18px; flex: 1; }
 
-/* Etapas */
 .dp-etapa {
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
 }
 
-.dp-etapa:last-child {
-  border-bottom: none;
-}
+.dp-etapa:last-child { border-bottom: none; }
 
 .dp-etapa-top {
   display: flex;
@@ -1026,31 +1219,15 @@ export default {
   transition: width .4s ease;
 }
 
-.dp-etapa-bar-fill.verde {
-  background: var(--g600);
-}
+.dp-etapa-bar-fill.verde    { background: var(--g600); }
+.dp-etapa-bar-fill.amarelo  { background: var(--a600); }
+.dp-etapa-bar-fill.vermelho { background: var(--r600); }
 
-.dp-etapa-bar-fill.amarelo {
-  background: var(--a600);
-}
+.dp-etapa-bottom { display: flex; justify-content: space-between; }
 
-.dp-etapa-bar-fill.vermelho {
-  background: var(--r600);
-}
+.small { font-size: 12px; color: var(--ink3); }
 
-.dp-etapa-bottom {
-  display: flex;
-  justify-content: space-between;
-}
-
-.small {
-  font-size: 12px;
-  color: var(--ink3);
-}
-
-/* ══════════════════════════════════════════
-   POR HORA
-══════════════════════════════════════════ */
+/* POR HORA */
 .dp-hora-bloco {
   border: 1px solid var(--line);
   border-radius: var(--rs);
@@ -1073,21 +1250,9 @@ export default {
   gap: 7px;
 }
 
-.dp-hora-clock {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.dp-hora-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.dp-hora-total {
-  font-size: 12.5px;
-  color: var(--ink3);
-}
+.dp-hora-clock { font-size: 14px; line-height: 1; }
+.dp-hora-label { font-size: 14px; font-weight: 600; color: var(--ink); }
+.dp-hora-total { font-size: 12.5px; color: var(--ink3); }
 
 .dp-hora-eff-row {
   padding: 7px 14px 0;
@@ -1109,22 +1274,11 @@ export default {
   transition: width .4s ease;
 }
 
-.dp-hora-eff-bar-fill.verde {
-  background: var(--g600);
-}
+.dp-hora-eff-bar-fill.verde    { background: var(--g600); }
+.dp-hora-eff-bar-fill.amarelo  { background: var(--a600); }
+.dp-hora-eff-bar-fill.vermelho { background: var(--r600); }
 
-.dp-hora-eff-bar-fill.amarelo {
-  background: var(--a600);
-}
-
-.dp-hora-eff-bar-fill.vermelho {
-  background: var(--r600);
-}
-
-.dp-hora-tbl {
-  width: 100%;
-  border-collapse: collapse;
-}
+.dp-hora-tbl { width: 100%; border-collapse: collapse; }
 
 .dp-hora-tbl th {
   font-size: 11px;
@@ -1140,23 +1294,15 @@ export default {
 
 .dp-hora-tbl td {
   padding: 8px 14px;
+  text-align: left;
   font-size: 13.5px;
   color: var(--ink);
   border-bottom: 1px solid var(--line);
 }
 
-.dp-hora-tbl tr:last-child td {
-  border-bottom: none;
-}
-
-.dp-hora-etapa-nome {
-  font-weight: 500;
-  color: var(--ink2);
-}
-
-.ta-r {
-  text-align: right;
-}
+.dp-hora-tbl tr:last-child td { border-bottom: none; }
+.dp-hora-etapa-nome { font-weight: 500; color: var(--ink2); }
+.ta-r { text-align: right; }
 
 .dp-empty {
   text-align: center;
@@ -1165,9 +1311,7 @@ export default {
   padding: 28px 0;
 }
 
-/* ══════════════════════════════════════════
-   TRANSIÇÃO
-══════════════════════════════════════════ */
+/* TRANSIÇÃO */
 .panel-slide-enter-active,
 .panel-slide-leave-active {
   transition: opacity .18s ease, transform .2s ease;
@@ -1179,61 +1323,16 @@ export default {
   transform: translateX(16px);
 }
 
-/* ══════════════════════════════════════════
-   RESPONSIVO
-══════════════════════════════════════════ */
+/* RESPONSIVO */
 @media (max-width: 900px) {
-  .main-layout.panel-open {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-panel {
-    border-left: none;
-    border-top: 1px solid var(--line);
-    max-height: 55vh;
-  }
+  .main-layout.panel-open { grid-template-columns: 1fr; }
+  .detail-panel { border-left: none; border-top: 1px solid var(--line); max-height: 55vh; }
 }
 
 @media (max-width: 560px) {
-  .top-bar {
-    padding: 12px 16px;
-  }
-
-  .list-header,
-  .list-row {
-    padding: 8px 16px;
-  }
-
-  .list-title {
-    display: none;
-  }
-
-  .search-input {
-    width: 130px;
-  }
-}
-/* ── Badge com label de origem ── */
-.badge-labeled {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.badge-src-label {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--ink3);
-  line-height: 1;
-}
-
-.badge-sep {
-  font-size: 14px;
-  color: var(--line);
-  line-height: 1;
-  align-self: center;
-  margin-top: 10px; /* compensa o label acima do badge */
+  .top-bar { padding: 12px 16px; }
+  .list-header, .list-row { padding: 8px 16px; }
+  .list-title { display: none; }
+  .search-input { width: 130px; }
 }
 </style>

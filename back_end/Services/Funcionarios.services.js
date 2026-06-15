@@ -85,6 +85,16 @@ async function postFuncionario(funcionario, cnpj) {
     where: { email: funcionario.email }
   });
 
+  const estabelecimento = await prisma.estabelecimento.findUnique({
+    where: {
+      cnpj
+    }
+  });
+
+  if (!estabelecimento) {
+    throw new Error(`Estabelecimento com CNPJ ${cnpj} não encontrado.`);
+  }
+
   if (usuarioExistente) throw new Error("Já existe um usuário com esse email.");
 
   const identidade = funcionario.identidade?.toString() || null;

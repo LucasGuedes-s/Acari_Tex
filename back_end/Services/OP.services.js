@@ -514,7 +514,6 @@ async function getProducaoEquipe(cnpj, filtrar) {
         },
       },
     });
-    console.log(`Produções encontradas para ${dataFiltro}:`, producoesDia.length);
     if (producoesDia.length === 0) {
       return { mensagem: "Nenhuma produção registrada no período." };
     }

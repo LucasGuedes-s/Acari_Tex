@@ -78,7 +78,6 @@ app.post('/upload/foto', upload.single('file'), async (req, res) => {
         Key: `uploads/${fileName}`, // Caminho do arquivo no R2
         Body: fileContent,
         ContentType: req.file.mimetype,
-        ACL: "public-read", // Permite que o arquivo seja acessado publicamente
     };
 
     try {

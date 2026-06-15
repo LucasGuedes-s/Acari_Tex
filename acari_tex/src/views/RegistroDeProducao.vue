@@ -207,7 +207,7 @@ import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
 
-const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
+const socket = io('http://localhost:3333', { transports: ['websocket'] })
 
 export default {
   name: 'ApontamentoDia',
@@ -652,7 +652,23 @@ export default {
       const pecasAtivas =
         this.opsAtivasComPeca
 
-      if (!pecasAtivas.length) return
+      if (!pecasAtivas.length) return 
+      console.log('Salvando meta do dia...', {
+        estabelecimento: this.store.pegar_usuario.cnpj,
+        usuario: this.store.pegar_usuario.email,
+        data: this.dataSelecionada,
+        pecas: pecasAtivas.map(op => ({
+          id_da_op: op.pecaId,
+          meta: op.metaDia,
+        })),
+        funcionarios: this.funcionariosDia.map(func => ({
+          funcionarioId: func.email,
+          linhas: (func.linhas || []).map(linha => ({
+            tipo: linha.tipo,
+            etapaId: linha.etapaId,
+          })),
+        })),
+      })
 
       socket.emit('salvar-meta-dia', {
         estabelecimento:
@@ -688,7 +704,6 @@ export default {
         {
           estabelecimento:
             this.store.pegar_usuario.cnpj,
-
           data: this.dataSelecionada,
         },
 
