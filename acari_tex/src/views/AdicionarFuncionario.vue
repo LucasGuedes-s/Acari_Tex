@@ -180,8 +180,8 @@ export default {
         // 1️⃣ Envia a imagem primeiro
         const fotoUrl = await this.uploadFoto()
         if (fotoUrl) this.novoFuncionario.fotoUrl = fotoUrl
-        else if (this.fotoSelecionada) {
-          this.novoFuncionario.fotoUrl = "https://via.placeholder.com/150?text=Sem+Foto"
+        else if (!this.fotoSelecionada) {
+          this.novoFuncionario.fotoUrl = "https://pub-f5850e3c1d5b490ea1e15aacf2014355.r2.dev/uploads/648199935_18057936629679738_8568387996695226498_n.jpg"
         }
         const response = await api.post('/adicionar/funcionario', this.novoFuncionario, {
           headers: {
