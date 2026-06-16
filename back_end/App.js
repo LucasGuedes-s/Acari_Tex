@@ -66,10 +66,10 @@ const s3 = new S3Client({
     responseChecksumValidation: "WHEN_REQUIRED",
 });
 
-console.log('ACCESS_KEY:', JSON.stringify(process.env.CLOUDFLARE_R2_ACCESS_KEY))
-console.log('SECRET_KEY:', JSON.stringify(process.env.CLOUDFLARE_R2_SECRET_KEY))
-console.log('ENDPOINT:', JSON.stringify(process.env.CLOUDFLARE_R2_ENDPOINT))
-console.log('BUCKET:', JSON.stringify(process.env.CLOUDFLARE_R2_BUCKET))
+// console.log('ACCESS_KEY:', JSON.stringify(process.env.CLOUDFLARE_R2_ACCESS_KEY))
+// console.log('SECRET_KEY:', JSON.stringify(process.env.CLOUDFLARE_R2_SECRET_KEY))
+// console.log('ENDPOINT:', JSON.stringify(process.env.CLOUDFLARE_R2_ENDPOINT))
+// console.log('BUCKET:', JSON.stringify(process.env.CLOUDFLARE_R2_BUCKET))
 
 app.post('/upload/foto', upload.single('file'), async (req, res) => {
   if (!req.file) {
