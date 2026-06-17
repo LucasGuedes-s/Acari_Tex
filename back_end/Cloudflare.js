@@ -10,6 +10,7 @@ export const s3Client = new S3Client({
   },
 });
 
+
 export async function uploadFile(fileBuffer, fileName, mimeType) {
   const command = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,

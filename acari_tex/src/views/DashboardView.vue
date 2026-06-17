@@ -92,9 +92,9 @@
           <div>
             <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               class="mb-4" />
-            <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+            <GraficoProducaoTotal :filtro="filtro"
               :producaoDados="producao" class="mb-4" />
-            <GraficoEtapas class="mb-4"  v-if="producao?.producao?.producaoDia?.funcionarios?.length" />
+            <GraficoEtapas class="mb-4" />
             <!-- <GradicoProducaoPorEtapa class="mb-4" />-->
 
             <!--<GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
