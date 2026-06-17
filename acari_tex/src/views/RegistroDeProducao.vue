@@ -433,11 +433,17 @@ export default {
 
     // ── ETAPA FINAL ──────────────────────────────────────
     isEtapaFinal(linha) {
-      if (!linha?.descricao) return false
+      if (!linha?.descricao) return false;
 
-      return linha.descricao
-        .toLowerCase()
-        .includes('final')
+      const descricao = linha.descricao.toLowerCase();
+
+      return (
+        descricao.includes('final') ||
+        descricao.includes('revisão') ||
+        descricao.includes('revisao') ||
+        descricao.includes('acabamento') ||
+        descricao.includes('qualidade')
+      );
     },
 
     // ── TOTAIS ────────────────────────────────────────────

@@ -664,7 +664,6 @@ async function getProducaoEquipe(cnpj, filtrar) {
       agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao].quantidade += quantidade;
 
       // ── Peça final ───────────────────────────────────────────────────
-      // ── Peça final ───────────────────────────────────────────────────
       if (isFinalEtapa(etapaDescricao)) {
         agrupadoDia[funcionarioId].totalPecasFinal += quantidade;
         totalPecasFinalTurma += quantidade;
