@@ -17,7 +17,7 @@ async function deleteAll() {
   console.log(`Serão removidos ${total} registros`)
 }
 
-deleteAll() 
+// deleteAll() 
 
 function getData() {
   const agora = new Date();
