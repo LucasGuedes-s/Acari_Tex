@@ -114,7 +114,7 @@
           <div class="dp-stats">
             <div class="dp-stat">
               <span class="dp-stat-label">Peças (final)</span>
-              <span class="dp-stat-val">{{ calcularTotalFuncionario(funcSelecionado) }}</span>
+              <span class="dp-stat-val">{{ calcularTotalFinalizadoFuncionario(funcSelecionado) }}</span>
             </div>
             <div class="dp-stat-div"></div>
             <div class="dp-stat">
@@ -290,7 +290,7 @@ export default {
 
     funcionariosOrdenados() {
       return [...this.funcionariosDia]
-        .sort((a, b) => this.calcularTotalFuncionario(b) - this.calcularTotalFuncionario(a))
+        .sort((a, b) => this.calcularEficienciaFuncionario(b) - this.calcularEficienciaFuncionario(a))
         .map((f, i) => ({ ...f, _idx: i }))
     },
 
@@ -317,11 +317,11 @@ export default {
     },
 
     totalPecasGeral() {
-      return this.funcionariosOrdenados.reduce(
-        (soma, f) => soma + this.calcularTotalFuncionario(f),
-        0
-      )
-    },
+  return this.funcionariosOrdenados.reduce(
+    (soma, f) => soma + this.calcularTotalFinalizadoFuncionario(f),
+    0
+  )
+},
   },
 
   watch: {
@@ -377,7 +377,6 @@ export default {
     // ── BUSCAR META (via rota HTTP) ───────────────────────
     async buscarMetaDia() {
       this.loading = true
-      console.log('Buscando meta do dia com filtro:', this.filtro)
       try {
         const res = await api.get('/producao/meta', {
           headers: { Authorization: this.store.pegar_token },
@@ -389,7 +388,6 @@ export default {
 
         // A rota retorna a mesma estrutura do buscar-meta-dia
         const meta = res.data.metaDia
-
         if (!meta) {
           this.opsAtivas = []
           this.funcionariosDia = []
@@ -462,7 +460,9 @@ export default {
     // ── ETAPA FINAL ───────────────────────────────────────
     isEtapaFinal(linha) {
       if (!linha?.descricao) return false
-      return linha.descricao.toLowerCase().includes('final')
+      const desc = linha.descricao.toLowerCase()
+      const palavrasFinal = ['final', 'acabamento', 'finalização', 'finalizacao','revisão', 'revisao', 'embalagem', 'embalar', 'expedição', 'expedicao']
+      return palavrasFinal.some(palavra => desc.includes(palavra))
     },
 
     // ── TOTAIS ────────────────────────────────────────────
@@ -475,7 +475,14 @@ export default {
     },
 
     // Só soma etapa final — idêntico ao ApontamentoDia
+    // Total geral do funcionário em QUALQUER etapa (produção bruta)
     calcularTotalFuncionario(func) {
+      if (!Array.isArray(func?.linhas)) return 0
+      return func.linhas.reduce((soma, linha) => soma + this.calcularTotalLinha(linha), 0)
+    },
+
+    // Total de peças FINALIZADAS do funcionário (só etapa final)
+    calcularTotalFinalizadoFuncionario(func) {
       if (!Array.isArray(func?.linhas)) return 0
       return func.linhas.reduce((soma, linha) => {
         if (!this.isEtapaFinal(linha)) return soma

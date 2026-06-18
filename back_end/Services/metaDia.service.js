@@ -117,14 +117,28 @@ async function salvarMetaDia(data) {
         },
     })
 }
-async function buscarMetaDia({ estabelecimento, data, }) {
-    console.log("Buscando meta do dia para o estabelecimento:", estabelecimento, "e data:", data);
-    const dataDia = criarDataLocal(data)
+async function buscarMetaDia({ estabelecimento, data }) {
+    const [ano, mes, dia] = data.split('-').map(Number)
 
-    dataDia.setHours(0, 0, 0, 0)
-    const [ano, mes, dia] = data.split('-').map(Number);
-    const inicioDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 0, 0, 0));
-    const fimDiaUTC = new Date(Date.UTC(ano, mes - 1, dia, 23, 59, 59));
+    const dataDia = new Date(
+        Date.UTC(ano, mes - 1, dia, 0, 0, 0)
+    )
+
+    const inicioDiaUTC = new Date(
+        Date.UTC(ano, mes - 1, dia, 0, 0, 0)
+    )
+
+    const fimDiaUTC = new Date(
+        Date.UTC(ano, mes - 1, dia, 23, 59, 59, 999)
+    )
+
+    const todas = await prisma.metaDia.findMany({
+        where: {
+            estabelecimentoCnpj: estabelecimento,
+        },
+    })
+
+    console.log('AQUJIs')
 
     const metaDia = await prisma.metaDia.findFirst({
         where: {
@@ -146,22 +160,27 @@ async function buscarMetaDia({ estabelecimento, data, }) {
                             nome: true,
                             foto: true,
                             funcoes: true,
+                            permissoes: true,
                         },
-                        },
+                    },
 
                     etapa: true,
                 },
             },
         },
     })
+    console.log(JSON.stringify(metaDia.funcionarios, null, 2))
     if (!metaDia) {
         return null
     }
-    
+
     const producoes = await prisma.producao.findMany({
         where: {
             id_Estabelecimento: estabelecimento,
-            data_inicio: { gte: inicioDiaUTC, lte: fimDiaUTC },
+            data_inicio: {
+                gte: inicioDiaUTC,
+                lte: fimDiaUTC,
+            },
         },
 
         include: {
@@ -178,11 +197,10 @@ async function buscarMetaDia({ estabelecimento, data, }) {
             },
         ],
     })
-    //console.log(`Produções encontradas para ${data}:`, producoes.length)
+
     const producoesAgrupadas = {}
 
     for (const prod of producoes) {
-
         if (!producoesAgrupadas[prod.id_funcionario]) {
             producoesAgrupadas[prod.id_funcionario] = []
         }
@@ -198,7 +216,6 @@ async function buscarMetaDia({ estabelecimento, data, }) {
 
     return metaDia
 }
-
 module.exports = {
     buscarMetaDia,
     salvarMetaDia,

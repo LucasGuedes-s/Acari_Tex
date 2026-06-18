@@ -155,8 +155,10 @@
                     <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
                       <div class="hora-box">
                         <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
-                          :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                          @input="onInputQuantidade(funcionario, linha, hora)" />
+                          :class="[
+                            'hora-input',
+                            linha.registros[hora].quantidade > 0 ? 'tem-producao' : ''
+                          ]" @blur="onInputQuantidade(funcionario, linha, hora)" />
                         <div class="tempo-wrap">
                           <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
                             class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
@@ -180,7 +182,7 @@
                         {{
                           calcularEficienciaFuncionario(funcionario)
                             ? calcularEficienciaFuncionario(funcionario) + '%'
-                        : '—'
+                            : '—'
                         }}
                       </div>
                     </td>
@@ -242,6 +244,7 @@ export default {
     opsAtivasComPeca() {
       return this.opsAtivas.filter(op => op.pecaId)
     },
+
   },
 
   watch: {
@@ -301,7 +304,7 @@ export default {
         this.funcionarios = resFuncs.data.funcionarios || []
         this.pecas = resPecas.data.peca.em_progresso || []
         this.etapas = this.pecas.map(p => p.etapas || [])
-
+        console.log('Funcionários:', this.funcionarios)
         this.inicializarFuncionarios()
 
       } catch (err) {
@@ -356,12 +359,13 @@ export default {
 
     // ── FUNCIONÁRIOS ──────────────────────────────────────
     inicializarFuncionarios() {
-      this.funcionariosDia = this.funcionarios.map(func => ({
-        ...func,
-        linhas: [this.novaLinha('principal')],
-      }))
+      this.funcionariosDia = this.funcionarios
+        .filter(func => Number(func.permissoes) !== 1)
+        .map(func => ({
+          ...func,
+          linhas: [this.novaLinha('principal')],
+        }))
     },
-
     novaLinha(tipo = 'extra') {
       return {
         id: Date.now() + Math.random(),
@@ -650,7 +654,7 @@ export default {
           registro.tempoProduzido || 60,
       })
 
-    }, 400),
+    }, 1500),
 
     // ── META ──────────────────────────────────────────────
     salvarMetaDia: debounce(function () {
@@ -658,7 +662,7 @@ export default {
       const pecasAtivas =
         this.opsAtivasComPeca
 
-      if (!pecasAtivas.length) return 
+      if (!pecasAtivas.length) return
       console.log('Salvando meta do dia...', {
         estabelecimento: this.store.pegar_usuario.cnpj,
         usuario: this.store.pegar_usuario.email,
@@ -720,7 +724,6 @@ export default {
           }
 
           const meta = response.metaDia
-
           if (!meta) {
 
             this.opsAtivas = [

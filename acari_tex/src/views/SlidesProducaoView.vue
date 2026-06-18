@@ -178,7 +178,7 @@ async function carregarDados() {
     });
 
     const dados = response.data?.producao?.producaoDia;
-
+    console.log(response.data.producao.producaoDia)
     if (!dados || !dados.funcionarios?.length) {
       semDados.value = true;
       producao.value = null;

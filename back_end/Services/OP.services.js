@@ -455,36 +455,54 @@ async function getProducaoEquipe(cnpj, filtrar) {
     }
 
     const minutosDisponiveis = estabelecimento.tempo_de_producao || 480;
-    // Depois:
-    const etapaFinalConfigurada = (estabelecimento.peca_final || "").trim().toLowerCase();
+    const etapaFinalConfigurada = (estabelecimento.peca_final || "")
+      .trim()
+      .toLowerCase();
 
-    if (!etapaFinalConfigurada) {
-      console.warn("Peça final não configurada no estabelecimento. Será usado fallback por nome de etapa.");
-    }
-
-    // Palavras-chave que identificam uma etapa como "final" quando peca_final não está configurado
     const PALAVRAS_CHAVE_ETAPA_FINAL = [
       "final",
       "etapa final",
+      "revisão",
+      "revisao",
       "revisão final",
       "revisao final",
+      "acabamento",
       "acabamento final",
+      "finalização",
+      "finalizacao",
       "controle final",
       "inspeção final",
       "inspecao final",
     ];
 
-    const isFinalEtapa = (descricaoEtapa) => {
+    function normalizarTexto(texto) {
+      return String(texto || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    }
+
+    function isFinalEtapa(descricaoEtapa) {
       if (!descricaoEtapa) return false;
-      const normalizada = descricaoEtapa.trim().toLowerCase();
+
+      const descricao = normalizarTexto(descricaoEtapa);
 
       if (etapaFinalConfigurada) {
-        return normalizada === etapaFinalConfigurada;
+        const configurada = normalizarTexto(etapaFinalConfigurada);
+
+        if (
+          descricao === configurada ||
+          descricao.includes(configurada)
+        ) {
+          return true;
+        }
       }
 
-      // Fallback: verifica se a descrição contém alguma palavra-chave
-      return PALAVRAS_CHAVE_ETAPA_FINAL.some((chave) => normalizada.includes(chave));
-    };
+      return PALAVRAS_CHAVE_ETAPA_FINAL.some((palavra) =>
+        descricao.includes(normalizarTexto(palavra))
+      );
+    }
 
     const dataFiltro = filtrar;
 
@@ -539,6 +557,7 @@ async function getProducaoEquipe(cnpj, filtrar) {
         },
       },
     });
+    console.log(`Produções encontradas para ${dataFiltro}:`, producoesDia);
     if (producoesDia.length === 0) {
       return { mensagem: "Nenhuma produção registrada no período." };
     }
@@ -568,45 +587,22 @@ async function getProducaoEquipe(cnpj, filtrar) {
       const hora = p.hora_registro?.padStart(3, "0") || "00h";
 
       const etapaDescricao = p.producao_etapa?.descricao || "Sem Etapa";
-      const etapaNormalizada = etapaDescricao.trim().toLowerCase();
 
-      // Tempo padrão (engenharia)
       const tempoPadraoEtapa =
         p.producao_etapa?.tempo_padrao ??
-        p.producao_peca?.etapas?.find((e) => e.id_da_funcao === p.id_da_funcao)
-          ?.etapa?.tempo_padrao ??
+        p.producao_peca?.etapas?.find(
+          (e) => e.id_da_funcao === p.id_da_funcao
+        )?.etapa?.tempo_padrao ??
         0;
 
-      // ── TEMPO DE REFERÊNCIA (chão de fábrica) ───────────────────────
-      // Busca o tempo_por_peca do TempoReferencia mais recente desta etapa.
-      // O `tempo_referencia` já vem filtrado apenas pela etapa (id_da_funcao),
-      // mas NÃO por funcionário — o filtro por funcionário precisaria ser feito
-      // em uma query separada. Por ora, usamos o global da etapa como referência
-      // de chão de fábrica da turma; veja nota abaixo.
       const tempoReferenciaEtapa =
         p.producao_etapa?.tempo_referencia?.[0]?.tempo_por_peca ?? null;
-
-      if (!tempoPadraoEtapa || tempoPadraoEtapa <= 0) {
-        console.warn(
-          `[WARN] Etapa "${etapaDescricao}" sem tempo_padrao válido — ` +
-          `funcionário ${funcionarioId} não terá essa etapa contabilizada na eficiência padrão.`
-        );
-      }
-
-      if (!tempoReferenciaEtapa || tempoReferenciaEtapa <= 0) {
-        console.warn(
-          `[WARN] Etapa "${etapaDescricao}" sem tempo_referencia válido — ` +
-          `funcionário ${funcionarioId} não terá eficiência de chão calculada para essa etapa.`
-        );
-      }
 
       if (!agrupadoDia[funcionarioId]) {
         agrupadoDia[funcionarioId] = {
           nome,
           foto,
-          // Cálculo padrão (engenharia)
           tempoPadraoProduzido: 0,
-          // Cálculo referência (chão de fábrica)
           tempoReferenciaProduzido: 0,
           totalQuantidade: 0,
           totalPecasFinal: 0,
@@ -615,25 +611,24 @@ async function getProducaoEquipe(cnpj, filtrar) {
         };
       }
 
-      // ── Acumula tempo padrão (engenharia) ───────────────────────────
       if (tempoPadraoEtapa > 0) {
-        agrupadoDia[funcionarioId].tempoPadraoProduzido += quantidade * tempoPadraoEtapa;
+        agrupadoDia[funcionarioId].tempoPadraoProduzido +=
+          quantidade * tempoPadraoEtapa;
       }
 
-      // ── Acumula tempo referência (chão de fábrica) ──────────────────
       if (tempoReferenciaEtapa > 0) {
-        agrupadoDia[funcionarioId].tempoReferenciaProduzido += quantidade * tempoReferenciaEtapa;
+        agrupadoDia[funcionarioId].tempoReferenciaProduzido +=
+          quantidade * tempoReferenciaEtapa;
       }
 
       agrupadoDia[funcionarioId].totalQuantidade += quantidade;
 
-      // ── Etapas detalhadas ────────────────────────────────────────────
       if (!agrupadoDia[funcionarioId].etapas[etapaDescricao]) {
         agrupadoDia[funcionarioId].etapas[etapaDescricao] = {
           tempoPadraoTotal: 0,
           tempoPadraoEtapa,
-          tempoReferenciaTotal: 0,       // acumulado de (qtd × tempo_referencia)
-          tempoReferenciaEtapa,          // tempo por peça medido no chão
+          tempoReferenciaTotal: 0,
+          tempoReferenciaEtapa,
           quantidade: 0,
         };
       }
@@ -650,10 +645,10 @@ async function getProducaoEquipe(cnpj, filtrar) {
 
       agrupadoDia[funcionarioId].etapas[etapaDescricao].quantidade += quantidade;
 
-      // ── Produção por hora ────────────────────────────────────────────
       if (!agrupadoDia[funcionarioId].producaoPorHora[hora]) {
         agrupadoDia[funcionarioId].producaoPorHora[hora] = {};
       }
+
       if (!agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao]) {
         agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao] = {
           quantidade: 0,
@@ -661,12 +656,15 @@ async function getProducaoEquipe(cnpj, filtrar) {
           tempoReferenciaEtapa,
         };
       }
-      agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao].quantidade += quantidade;
 
-      // ── Peça final ───────────────────────────────────────────────────
+      agrupadoDia[funcionarioId].producaoPorHora[hora][etapaDescricao].quantidade +=
+        quantidade;
+
       if (isFinalEtapa(etapaDescricao)) {
         agrupadoDia[funcionarioId].totalPecasFinal += quantidade;
+
         totalPecasFinalTurma += quantidade;
+
         producaoPorHoraGeral[hora] =
           (producaoPorHoraGeral[hora] || 0) + quantidade;
       }
@@ -787,19 +785,27 @@ async function getProducaoEquipe(cnpj, filtrar) {
         funcionario: id,
         nome: dados.nome,
         foto: dados.foto || "/avatar.png",
-        // Padrão (engenharia)
-        eficiencia_pessoal: eficienciaIndividual.toFixed(2) + "%",
-        tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
-        // Referência (chão de fábrica)
+
+        eficiencia_pessoal:
+          eficienciaIndividual.toFixed(2) + "%",
+
+        tempo_padrao_produzido:
+          Number(dados.tempoPadraoProduzido.toFixed(2)),
+
         eficiencia_pessoal_referencia:
           eficienciaReferencia !== null
             ? eficienciaReferencia.toFixed(2) + "%"
             : null,
-        tempo_referencia_produzido: Number(dados.tempoReferenciaProduzido.toFixed(2)),
-        // Comuns
+
+        tempo_referencia_produzido:
+          Number(dados.tempoReferenciaProduzido.toFixed(2)),
+
         tempo_real_total: minutosDisponiveis,
+
         total_pecas: dados.totalQuantidade,
+
         total_pecas_final: dados.totalPecasFinal,
+
         etapas: etapasDetalhadas,
         producaoPorHora,
       };
@@ -815,7 +821,7 @@ async function getProducaoEquipe(cnpj, filtrar) {
       producao100Turma > 0
         ? (totalPecasFinalTurma / producao100Turma) * 100
         : 0;
-    
+
     return {
       producaoDia: {
         descricaoPeca,
@@ -1818,7 +1824,7 @@ async function getMetaDiaria(req) {
 async function criarTempoReferencia(req) {
   try {
     const {
-      
+
       id_funcionario,
       id_da_funcao,
       tipo_medicao,         // "continua" | "repetitiva" | "uph"
@@ -1857,9 +1863,9 @@ async function criarTempoReferencia(req) {
 
     // ================= CÁLCULO DO TC POR MÉTODO =================
     let TC;
-    let ciclosValidos      = [];
-    let ciclosDescartados  = [];
-    let quantidadeCiclos   = quantidade_ciclos ?? null;
+    let ciclosValidos = [];
+    let ciclosDescartados = [];
+    let quantidadeCiclos = quantidade_ciclos ?? null;
 
     if (tipo_medicao === "continua") {
       // TC = tempo total do lote / número de operações
@@ -1884,7 +1890,7 @@ async function criarTempoReferencia(req) {
         ciclosBrutos.reduce((acc, t) => acc + t, 0) / ciclosBrutos.length;
 
       // 2. Limites de aceitação (padrão ±10%)
-      const variacao      = typeof limite_variacao === "number" && limite_variacao > 0
+      const variacao = typeof limite_variacao === "number" && limite_variacao > 0
         ? limite_variacao
         : 0.10;
       const limiteInferior = mediaProv * (1 - variacao);
@@ -1924,7 +1930,7 @@ async function criarTempoReferencia(req) {
       ? percentual_tolerancia
       : 0.10;
 
-    const TN           = TC * v;
+    const TN = TC * v;
     const tempoPorPeca = TN * (1 + E);
 
     // ================= VERIFICA EXISTÊNCIA =================
@@ -1942,20 +1948,20 @@ async function criarTempoReferencia(req) {
         estabelecimentoCnpj,
         id_funcionario,
         id_da_funcao,
-        quantidade_ciclos:     quantidadeCiclos,
-        tempo_minutos:         Number(TC.toFixed(4)),
-        fator_ritmo:           Number(v.toFixed(4)),
+        quantidade_ciclos: quantidadeCiclos,
+        tempo_minutos: Number(TC.toFixed(4)),
+        fator_ritmo: Number(v.toFixed(4)),
         percentual_tolerancia: Number(E.toFixed(4)),
-        tempo_por_peca:        Number(tempoPorPeca.toFixed(4)),
-        quantidade_pecas:      quantidade_pecas ?? null,
-        observacoes:           observacoes ?? null,
-        registradoPor:         registradoPor ?? null,
-        data_medicao:          data_medicao ? new Date(data_medicao) : new Date(),
-        maquina:               maquina ?? null,
-        opId:                  opId ?? null,
-        produtoId:             produtoId ?? null,
-        tipo_medicao:          tipo_medicao,
-        tipo_operacao:         tipo_operacao ?? null,
+        tempo_por_peca: Number(tempoPorPeca.toFixed(4)),
+        quantidade_pecas: quantidade_pecas ?? null,
+        observacoes: observacoes ?? null,
+        registradoPor: registradoPor ?? null,
+        data_medicao: data_medicao ? new Date(data_medicao) : new Date(),
+        maquina: maquina ?? null,
+        opId: opId ?? null,
+        produtoId: produtoId ?? null,
+        tipo_medicao: tipo_medicao,
+        tipo_operacao: tipo_operacao ?? null,
       },
     });
 
@@ -1968,15 +1974,15 @@ async function criarTempoReferencia(req) {
 
         // Detalhamento por método
         ...(tipo_medicao === "continua" && {
-          tempo_total_lote:  Number(tempo_total.toFixed(4)),
+          tempo_total_lote: Number(tempo_total.toFixed(4)),
           quantidade_ciclos: quantidadeCiclos,
         }),
         ...(tipo_medicao === "repetitiva" && {
-          ciclos_informados:  tempos_ciclos.length,
-          ciclos_validos:     ciclosValidos.length,
+          ciclos_informados: tempos_ciclos.length,
+          ciclos_validos: ciclosValidos.length,
           ciclos_descartados: ciclosDescartados.length,
           tempos_descartados: ciclosDescartados,
-          limite_variacao:    Number(((limite_variacao ?? 0.10) * 100).toFixed(0)) + "%",
+          limite_variacao: Number(((limite_variacao ?? 0.10) * 100).toFixed(0)) + "%",
         }),
         ...(tipo_medicao === "uph" && {
           pecas_por_hora: quantidade_hora,
@@ -1984,10 +1990,10 @@ async function criarTempoReferencia(req) {
 
         // Cronoanálise comum
         tempo_cronometrado_TC: Number(TC.toFixed(4)),
-        fator_ritmo_v:         Number(v.toFixed(4)),
-        tempo_normal_TN:       Number(TN.toFixed(4)),
+        fator_ritmo_v: Number(v.toFixed(4)),
+        tempo_normal_TN: Number(TN.toFixed(4)),
         percentual_tolerancia: Number((E * 100).toFixed(2)) + "%",
-        tempo_padrao_TP:       Number(tempoPorPeca.toFixed(4)),
+        tempo_padrao_TP: Number(tempoPorPeca.toFixed(4)),
       },
       registro,
     };
