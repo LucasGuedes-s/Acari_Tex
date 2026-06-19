@@ -59,12 +59,149 @@
 
         <div class="acoes-funcionario">
           <button @click="tempodeProducao(funcionario.email)">Ver mais</button>
-          <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome, funcionario.foto)">
+
+          <button class="registro" @click="abrirModalEditar(funcionario)">Editar</button>
+          <!-- <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome, funcionario.foto)">
             Registrar Produção
-          </button>
+          </button> -->
         </div>
       </div>
+      <div v-if="showModalEditar" class="modal-background">
+  <div class="modal-container">
 
+    <div class="modal-header">
+      <h2>Editar Profissional</h2>
+
+      <img
+        class="modal-close"
+        @click="fecharModalEditar"
+        src="@/assets/close.png"
+      />
+    </div>
+
+    <div class="modal-body">
+
+      <div class="text-center mb-4">
+        <img
+          :src="funcionarioEdicao.foto || '/default-avatar.png'"
+          class="rounded-circle"
+          width="90"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Nome</label>
+
+        <input
+          class="input-field"
+          v-model="funcionarioEdicao.nome"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Email</label>
+
+        <input
+          class="input-field"
+          v-model="funcionarioEdicao.email"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Telefone</label>
+
+        <input
+          class="input-field"
+          v-model="funcionarioEdicao.telefone"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>CPF</label>
+
+        <input
+          class="input-field"
+          v-model="funcionarioEdicao.cpf"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Identidade</label>
+
+        <input
+          class="input-field"
+          v-model="funcionarioEdicao.identidade"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Idade</label>
+
+        <input
+          type="number"
+          class="input-field"
+          v-model="funcionarioEdicao.idade"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Funções</label>
+
+        <input
+          class="input-field"
+          v-model="funcionarioEdicao.funcoes"
+        >
+      </div>
+
+      <div class="info-row">
+        <label>Equipe</label>
+
+        <select
+          class="input-select"
+          v-model="funcionarioEdicao.equipe"
+        >
+          <option
+            v-for="equipe in equipesDisponiveis"
+            :key="equipe.id"
+            :value="equipe.id"
+          >
+            {{ equipe.nome }}
+          </option>
+        </select>
+      </div>
+
+      <div class="info-row">
+        <label>Notas</label>
+
+        <textarea
+          rows="4"
+          class="input-field"
+          v-model="funcionarioEdicao.notas"
+        ></textarea>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+
+      <button
+        class="btn-cancel"
+        @click="fecharModalEditar"
+      >
+        Cancelar
+      </button>
+
+      <button
+        class="btn-save"
+        @click="editarFuncionario"
+      >
+        Salvar Alterações
+      </button>
+
+    </div>
+
+  </div>
+</div>
       <div v-if="showModalRegistro" class="modal-background">
         <div class="modal-container registro">
           <div class="modal-header registro">
@@ -180,6 +317,20 @@ export default {
   },
   data() {
     return {
+      showModalEditar: false,
+      funcionarioEdicao: {
+        id: null,
+        nome: "",
+        email: "",
+        idade: "",
+        cpf: "",
+        identidade: "",
+        telefone: "",
+        funcoes: "",
+        notas: "",
+        foto: "",
+        equipe: ""
+      },
       showModalFuncionario: false,
       showModalRegistro: false,
       registroFuncionario: null,
@@ -247,6 +398,26 @@ export default {
     }
   },
   methods: {
+    abrirModalEditar(funcionario) {
+      this.funcionarioEdicao = {
+        id: funcionario.id,
+        nome: funcionario.nome,
+        email: funcionario.email,
+        idade: funcionario.idade,
+        cpf: funcionario.cpf,
+        identidade: funcionario.identidade,
+        telefone: funcionario.telefone,
+        funcoes: funcionario.funcoes,
+        notas: funcionario.notas,
+        foto: funcionario.foto,
+        equipe: funcionario.equipe
+      }
+
+      this.showModalEditar = true
+    },
+    fecharModalEditar() {
+      this.showModalEditar = false
+    },
     aplicarUltimaEtapa() {
       if (!this.ultimaProducaoSelecionada) return
 
@@ -468,6 +639,7 @@ export default {
 </script>
 
 <style scoped>
+
 .content-wrapper {
   max-width: 100vw;
   overflow-x: hidden;

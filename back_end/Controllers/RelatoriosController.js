@@ -12,6 +12,7 @@ async function financeiro(req, res) {
 
 async function producaoResumo(req, res) {
     try {
+        console.log("Gerando relatório de produção resumo para o usuário:", req.user);
         const resumoProducao = await relatorios.relatorioProducaoResumo(req);
         res.status(200).json(resumoProducao);
     } catch (error) {

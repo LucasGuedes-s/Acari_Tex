@@ -168,41 +168,79 @@ async function relatorioProducaoResumo(req) {
     ? new Date(dataInicio)
     : new Date(new Date().setDate(hoje.getDate() - 30));
 
-  const fim = dataFim ? new Date(dataFim) : new Date();
+  const fim = dataFim
+    ? new Date(dataFim)
+    : new Date();
 
   // ================= ESTABELECIMENTO =================
   const estabelecimento = await prisma.estabelecimento.findUnique({
     where: { cnpj },
     select: {
       tempo_de_producao: true,
-      peca_final: true,
     },
   });
 
   if (!estabelecimento) {
-    return { mensagem: "Estabelecimento não encontrado." };
+    return {
+      mensagem: "Estabelecimento não encontrado.",
+    };
   }
 
-  const minutosDisponiveis = estabelecimento.tempo_de_producao || 480;
+  const minutosDisponiveis =
+    estabelecimento.tempo_de_producao || 480;
 
-  // 🔥 NORMALIZAÇÃO FORTE
-  const normalizar = (txt) =>
-    txt?.toString().trim().toLowerCase().replace(/\s+/g, " ");
+  // ================= NORMALIZAÇÃO =================
+  const normalizar = (texto = "") =>
+    texto
+      .toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
 
-  const etapaFinal = normalizar(estabelecimento.peca_final);
+  // ================= ETAPAS CONSIDERADAS FINAIS =================
+  const palavrasEtapaFinal = [
+    "final",
+    "etapa final",
+    "revisao",
+    "revisao final",
+    "acabamento",
+    "acabamento final",
+    "qualidade",
+    "controle de qualidade",
+  ];
+
+  const isEtapaFinal = (descricao) => {
+    const etapa = normalizar(descricao);
+
+    if (!etapa) return false;
+
+    return palavrasEtapaFinal.some((palavra) =>
+      etapa.includes(palavra)
+    );
+  };
 
   // ================= PRODUÇÕES =================
   const producoes = await prisma.producao.findMany({
     where: {
       id_Estabelecimento: cnpj,
-      data_inicio: { gte: inicio, lte: fim },
+      data_inicio: {
+        gte: inicio,
+        lte: fim,
+      },
     },
     include: {
       producao_funcionario: {
-        select: { nome: true, foto: true },
+        select: {
+          nome: true,
+          foto: true,
+        },
       },
       producao_etapa: {
-        select: { descricao: true },
+        select: {
+          descricao: true,
+        },
       },
       producao_peca: {
         select: {
@@ -213,62 +251,76 @@ async function relatorioProducaoResumo(req) {
       },
     },
   });
+  console.log(`Produções encontradas: ${producoes.length}`);
+  // ================= SOMENTE ETAPAS FINAIS =================
+  const producoesFinais = producoes.filter((p) =>
+    isEtapaFinal(p.producao_etapa?.descricao)
+  );
 
-  // ================= 🔥 FILTRO REAL (SÓ ETAPA FINAL) =================
-  const producoesFinais = producoes.filter((p) => {
-    const etapa = normalizar(p.producao_etapa?.descricao);
-    return etapa === etapaFinal;
-  });
-
-  if (producoesFinais.length === 0) {
-    return { mensagem: "Nenhuma peça finalizada no período." };
+  if (!producoesFinais.length) {
+    return {
+      mensagem: "Nenhuma peça finalizada no período.",
+    };
   }
 
-  // ================= PRODUÇÃO POR DIA (SÓ FINAL) =================
+  // ================= PRODUÇÃO POR DIA =================
   const producaoPorDia = {};
 
-  producoesFinais.forEach((p) => {
-    const dia = new Date(p.data_inicio).toISOString().split("T")[0]; producaoPorDia[dia] =
-      (producaoPorDia[dia] || 0) + (p.quantidade_pecas || 0);
-  });
+  for (const p of producoesFinais) {
+    const dia = new Date(p.data_inicio)
+      .toISOString()
+      .split("T")[0];
 
-  // ================= MAPS =================
+    producaoPorDia[dia] =
+      (producaoPorDia[dia] || 0) +
+      (p.quantidade_pecas || 0);
+  }
+
+  // ================= MAPAS =================
   const producaoPorFuncionario = {};
   const producaoPorEtapa = {};
   const pecasMap = {};
 
-  // ================= PROCESSAMENTO =================
   for (const p of producoesFinais) {
     const qtd = p.quantidade_pecas || 0;
 
-    const nome = p.producao_funcionario?.nome || "Desconhecido";
-    const foto = p.producao_funcionario?.foto || null;
+    const funcionario =
+      p.producao_funcionario?.nome || "Desconhecido";
 
-    const idPeca = p.producao_peca?.id_da_op || "sem_op";
-    const descPeca = p.producao_peca?.descricao || "Peça";
-    const tempoPadrao = p.producao_peca?.tempo_padrao || 0;
+    const foto =
+      p.producao_funcionario?.foto || null;
 
-    // ---- FUNCIONÁRIO ----
-    if (!producaoPorFuncionario[nome]) {
-      producaoPorFuncionario[nome] = {
-        nome,
+    const etapa =
+      normalizar(p.producao_etapa?.descricao) || "final";
+
+    const idPeca =
+      p.producao_peca?.id_da_op || "sem_op";
+
+    const descricaoPeca =
+      p.producao_peca?.descricao || "Peça";
+
+    const tempoPadrao =
+      p.producao_peca?.tempo_padrao || 0;
+
+    // Funcionário
+    if (!producaoPorFuncionario[funcionario]) {
+      producaoPorFuncionario[funcionario] = {
+        nome: funcionario,
         foto,
         quantidade: 0,
       };
     }
 
-    producaoPorFuncionario[nome].quantidade += qtd;
+    producaoPorFuncionario[funcionario].quantidade += qtd;
 
-    // ---- ETAPA (vai ser só final) ----
-    const etapa = normalizar(p.producao_etapa?.descricao) || "final";
-
+    // Etapa
     producaoPorEtapa[etapa] =
       (producaoPorEtapa[etapa] || 0) + qtd;
 
-    // ---- PEÇA ----
+    // Peça
     if (!pecasMap[idPeca]) {
       pecasMap[idPeca] = {
-        descricao: descPeca,
+        descricao: descricaoPeca,
         tempoPadrao,
         total: 0,
       };
@@ -283,73 +335,88 @@ async function relatorioProducaoResumo(req) {
     0
   );
 
-  // ================= FUNCIONÁRIOS =================
-  const rankingFuncionarios = Object.values(producaoPorFuncionario)
+  // ================= RANKING =================
+  const rankingFuncionarios = Object.values(
+    producaoPorFuncionario
+  )
     .sort((a, b) => b.quantidade - a.quantidade)
     .slice(0, 10);
 
-  const melhorFuncionario = rankingFuncionarios[0] || null;
+  const melhorFuncionario =
+    rankingFuncionarios[0] || null;
 
-  const quantidadePessoas = Object.keys(producaoPorFuncionario).length;
+  const quantidadePessoas = Object.keys(
+    producaoPorFuncionario
+  ).length;
 
-  // ================= EFICIÊNCIA (MODELO B CORRETO) =================
+  // ================= EFICIÊNCIA =================
   let totalCapacidade = 0;
 
-  Object.values(pecasMap).forEach((p) => {
-    if (p.tempoPadrao > 0) {
-      const capacidade =
-        (quantidadePessoas * minutosDisponiveis) / p.tempoPadrao;
+  for (const peca of Object.values(pecasMap)) {
+    if (!peca.tempoPadrao) continue;
 
-      totalCapacidade += capacidade;
-    }
-  });
+    totalCapacidade +=
+      (quantidadePessoas * minutosDisponiveis) /
+      peca.tempoPadrao;
+  }
 
   const eficiencia =
     totalCapacidade > 0
-      ? ((producaoTotal / totalCapacidade) * 100).toFixed(2)
+      ? (
+          (producaoTotal / totalCapacidade) *
+          100
+        ).toFixed(2)
       : "0.00";
 
   // ================= INTERCORRÊNCIAS =================
-  const intercorrencias = await prisma.intercorrencias.findMany({
-    where: {
-      estabelecimentoCnpj: cnpj,
-      data_ocorrencia: { gte: inicio, lte: fim },
-    },
-  });
+  const intercorrencias =
+    await prisma.intercorrencias.findMany({
+      where: {
+        estabelecimentoCnpj: cnpj,
+        data_ocorrencia: {
+          gte: inicio,
+          lte: fim,
+        },
+      },
+    });
 
   let tempoPerdidoTotal = 0;
   const tempoPerdidoPorMotivo = {};
 
-  intercorrencias.forEach((i) => {
-    tempoPerdidoTotal += i.tempo_perda || 0;
+  for (const item of intercorrencias) {
+    tempoPerdidoTotal += item.tempo_perda || 0;
 
-    const motivo = i.notas || "Outro";
+    const motivo = item.notas || "Outro";
 
     tempoPerdidoPorMotivo[motivo] =
       (tempoPerdidoPorMotivo[motivo] || 0) +
-      (i.tempo_perda || 0);
-  });
+      (item.tempo_perda || 0);
+  }
 
   // ================= FUNCIONÁRIOS ATIVOS =================
-  const funcionariosAtivos = await prisma.usuarios.count({
-    where: {
-      estabelecimentoCnpj: cnpj,
-      status: "ativo",
-    },
-  });
+  const funcionariosAtivos =
+    await prisma.usuarios.count({
+      where: {
+        estabelecimentoCnpj: cnpj,
+        status: "ativo",
+      },
+    });
 
   // ================= RETORNO =================
   return {
-    periodo: { inicio, fim },
+    periodo: {
+      inicio,
+      fim,
+    },
 
     resumo: {
       producaoTotal,
       funcionariosAtivos,
       tempoPerdidoTotal,
-      eficiencia: eficiencia + "%",
+      eficiencia: `${eficiencia}%`,
     },
 
-    producaoPorDia, // 🔥 AGORA 100% ETAPA FINAL
+    producaoPorDia,
     rankingFuncionarios,
     melhorFuncionario,
     producaoPorEtapa,

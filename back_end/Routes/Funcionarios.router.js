@@ -9,6 +9,7 @@ router.get('/funcionario/:id', [jwtMiddleware], ControllerFuncionarios.getFuncio
 router.get('/producao/funcionario/:email', [jwtMiddleware], ControllerFuncionarios.getProducaoFuncionario);
 router.get('/equipes', [jwtMiddleware, permissao.getProfissionais], ControllerFuncionarios.getEquipes);
 router.get('/tempo/referencia/:email', [jwtMiddleware], ControllerFuncionarios.getTempodeReferencia)
+//router.put('/atualizar/funcionario/:id', [jwtMiddleware, permissao.postProfissionais], ControllerFuncionarios.atualizarFuncionario);
 
 router.post('/registrar/tempo', [jwtMiddleware], ControllerFuncionarios.tempoDeProducao)
 router.post('/adicionar/funcionario', [jwtMiddleware, permissao.postProfissionais],  ControllerFuncionarios.postEquipe);

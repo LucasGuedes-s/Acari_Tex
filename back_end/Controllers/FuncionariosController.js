@@ -44,6 +44,16 @@ async function postFuncionarioEmpresa(req, res, next) {
     }
 }
 
+async function atualizarFuncionario(req, res, next){
+    try {
+        const profissional = await Funcionarios.atualizarFuncionario(req.params.id, req.body);
+        res.status(200).json({ message: 'Funcionário atualizado com sucesso.', profissional });
+    } catch (error) {
+        console.error(`Erro ao atualizar funcionário.`, error.message);
+        next(error);
+    }
+}
+
 async function getProducaoFuncionario(req, res, next){
     try {
         const email = req.params.email;
