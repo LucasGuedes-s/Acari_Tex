@@ -251,7 +251,6 @@ async function relatorioProducaoResumo(req) {
       },
     },
   });
-  console.log(`Produções encontradas: ${producoes.length}`);
   // ================= SOMENTE ETAPAS FINAIS =================
   const producoesFinais = producoes.filter((p) =>
     isEtapaFinal(p.producao_etapa?.descricao)
