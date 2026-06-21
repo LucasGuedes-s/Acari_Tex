@@ -66,142 +66,151 @@
           </button> -->
         </div>
       </div>
-      <div v-if="showModalEditar" class="modal-background">
-  <div class="modal-container">
 
-    <div class="modal-header">
-      <h2>Editar Profissional</h2>
+      <!-- Modal Editar Profissional -->
+      <transition name="modal-fade">
+        <div v-if="showModalEditar" class="modal-overlay" @click.self="fecharModalEditar">
+          <div class="modal-edicao shadow-lg">
 
-      <img
-        class="modal-close"
-        @click="fecharModalEditar"
-        src="@/assets/close.png"
-      />
-    </div>
+            <div class="modal-edicao-header">
+              <h5 class="fw-semibold mb-0">Editar Profissional</h5>
+              <button class="btn-fechar" @click="fecharModalEditar" aria-label="Fechar">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
 
-    <div class="modal-body">
+            <div class="modal-edicao-body">
+              <!-- Foto -->
+              <div class="foto-edicao-wrapper">
+                <div class="foto-edicao" @click="$refs.inputFotoEdicao.click()">
+                  <img v-if="previewFotoEdicao" :src="previewFotoEdicao" alt="Foto do profissional" />
+                  <div v-else class="foto-edicao-placeholder">
+                    {{ iniciais(funcionarioEdicao.nome) }}
+                  </div>
+                  <div class="foto-edicao-overlay">
+                    <i class="bi bi-camera-fill"></i>
+                    <span>Trocar foto</span>
+                  </div>
+                </div>
+                <input
+                  ref="inputFotoEdicao"
+                  type="file"
+                  accept="image/*"
+                  class="d-none"
+                  @change="onFotoEdicaoSelecionada"
+                />
+              </div>
 
-      <div class="text-center mb-4">
-        <img
-          :src="funcionarioEdicao.foto || '/default-avatar.png'"
-          class="rounded-circle"
-          width="90"
-        >
-      </div>
+              <!-- Campos -->
+              <div class="campos-edicao">
+                <div class="campos-grid">
+                  <div class="campo-grupo campo-full">
+                    <label for="edit-nome">Nome</label>
+                    <input
+                      id="edit-nome"
+                      v-model="funcionarioEdicao.nome"
+                      type="text"
+                      class="form-control"
+                      placeholder="Nome completo"
+                    />
+                  </div>
 
-      <div class="info-row">
-        <label>Nome</label>
+                  <div class="campo-grupo">
+                    <label for="edit-telefone">Telefone</label>
+                    <input
+                      id="edit-telefone"
+                      v-model="funcionarioEdicao.telefone"
+                      type="text"
+                      class="form-control"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
 
-        <input
-          class="input-field"
-          v-model="funcionarioEdicao.nome"
-        >
-      </div>
+                  <div class="campo-grupo">
+                    <label for="edit-idade">Idade</label>
+                    <input
+                      id="edit-idade"
+                      v-model="funcionarioEdicao.idade"
+                      type="number"
+                      class="form-control"
+                      placeholder="Idade"
+                    />
+                  </div>
 
-      <div class="info-row">
-        <label>Email</label>
+                  <div class="campo-grupo">
+                    <label for="edit-cpf">CPF</label>
+                    <input
+                      id="edit-cpf"
+                      v-model="funcionarioEdicao.cpf"
+                      type="text"
+                      class="form-control"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
 
-        <input
-          class="input-field"
-          v-model="funcionarioEdicao.email"
-        >
-      </div>
+                  <div class="campo-grupo">
+                    <label for="edit-identidade">Identidade</label>
+                    <input
+                      id="edit-identidade"
+                      v-model="funcionarioEdicao.identidade"
+                      type="text"
+                      class="form-control"
+                      placeholder="RG"
+                    />
+                  </div>
 
-      <div class="info-row">
-        <label>Telefone</label>
+                  <div class="campo-grupo">
+                    <label for="edit-funcoes">Funções</label>
+                    <input
+                      id="edit-funcoes"
+                      v-model="funcionarioEdicao.funcoes"
+                      type="text"
+                      class="form-control"
+                      placeholder="Ex: Costureira"
+                    />
+                  </div>
 
-        <input
-          class="input-field"
-          v-model="funcionarioEdicao.telefone"
-        >
-      </div>
+                  <div class="campo-grupo">
+                    <label for="edit-equipe">Equipe</label>
+                    <select id="edit-equipe" v-model="funcionarioEdicao.equipe" class="form-select">
+                      <option
+                        v-for="equipeItem in equipesDisponiveis"
+                        :key="equipeItem.id"
+                        :value="equipeItem.id"
+                      >
+                        {{ equipeItem.nome }}
+                      </option>
+                    </select>
+                  </div>
 
-      <div class="info-row">
-        <label>CPF</label>
+                  <div class="campo-grupo campo-full">
+                    <label for="edit-notas">Notas</label>
+                    <textarea
+                      id="edit-notas"
+                      rows="4"
+                      class="form-control"
+                      v-model="funcionarioEdicao.notas"
+                      placeholder="Observações sobre o profissional"
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <input
-          class="input-field"
-          v-model="funcionarioEdicao.cpf"
-        >
-      </div>
+            <div class="modal-edicao-footer">
+              <button class="btn-cancel" @click="fecharModalEditar" :disabled="salvandoEdicao">
+                Cancelar
+              </button>
+              <button class="btn-save" @click="editarFuncionario" :disabled="salvandoEdicao">
+                <span v-if="salvandoEdicao" class="spinner-border spinner-border-sm me-2"></span>
+                {{ salvandoEdicao ? 'Salvando...' : 'Salvar Alterações' }}
+              </button>
+            </div>
 
-      <div class="info-row">
-        <label>Identidade</label>
+          </div>
+        </div>
+      </transition>
 
-        <input
-          class="input-field"
-          v-model="funcionarioEdicao.identidade"
-        >
-      </div>
-
-      <div class="info-row">
-        <label>Idade</label>
-
-        <input
-          type="number"
-          class="input-field"
-          v-model="funcionarioEdicao.idade"
-        >
-      </div>
-
-      <div class="info-row">
-        <label>Funções</label>
-
-        <input
-          class="input-field"
-          v-model="funcionarioEdicao.funcoes"
-        >
-      </div>
-
-      <div class="info-row">
-        <label>Equipe</label>
-
-        <select
-          class="input-select"
-          v-model="funcionarioEdicao.equipe"
-        >
-          <option
-            v-for="equipe in equipesDisponiveis"
-            :key="equipe.id"
-            :value="equipe.id"
-          >
-            {{ equipe.nome }}
-          </option>
-        </select>
-      </div>
-
-      <div class="info-row">
-        <label>Notas</label>
-
-        <textarea
-          rows="4"
-          class="input-field"
-          v-model="funcionarioEdicao.notas"
-        ></textarea>
-      </div>
-
-    </div>
-
-    <div class="modal-footer">
-
-      <button
-        class="btn-cancel"
-        @click="fecharModalEditar"
-      >
-        Cancelar
-      </button>
-
-      <button
-        class="btn-save"
-        @click="editarFuncionario"
-      >
-        Salvar Alterações
-      </button>
-
-    </div>
-
-  </div>
-</div>
       <div v-if="showModalRegistro" class="modal-background">
         <div class="modal-container registro">
           <div class="modal-header registro">
@@ -318,6 +327,9 @@ export default {
   data() {
     return {
       showModalEditar: false,
+      salvandoEdicao: false,
+      arquivoFotoEdicao: null,
+      previewFotoEdicao: null,
       funcionarioEdicao: {
         id: null,
         nome: "",
@@ -398,6 +410,14 @@ export default {
     }
   },
   methods: {
+    iniciais(nome) {
+      if (!nome) return '?';
+      const partes = nome.trim().split(/\s+/);
+      const primeira = partes[0]?.[0] || '';
+      const ultima = partes.length > 1 ? partes[partes.length - 1][0] : '';
+      return (primeira + ultima).toUpperCase();
+    },
+
     abrirModalEditar(funcionario) {
       this.funcionarioEdicao = {
         id: funcionario.id,
@@ -413,11 +433,128 @@ export default {
         equipe: funcionario.equipe
       }
 
+      this.arquivoFotoEdicao = null
+      this.previewFotoEdicao = funcionario.foto || null
       this.showModalEditar = true
     },
+
     fecharModalEditar() {
+      if (this.salvandoEdicao) return
       this.showModalEditar = false
+      this.arquivoFotoEdicao = null
+      this.previewFotoEdicao = null
     },
+
+    onFotoEdicaoSelecionada(event) {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      if (!file.type.startsWith('image/')) {
+        Swal.fire('Atenção', 'Selecione um arquivo de imagem válido', 'warning')
+        return
+      }
+
+      this.arquivoFotoEdicao = file
+      this.previewFotoEdicao = URL.createObjectURL(file)
+    },
+
+    async uploadFotoEdicao() {
+      if (!this.arquivoFotoEdicao) return null
+
+      try {
+        const token = this.store.pegar_token
+        const formData = new FormData()
+        formData.append('file', this.arquivoFotoEdicao)
+
+        const response = await api.post('/upload/foto', formData, {
+          headers: {
+            Authorization: `${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        })
+
+        return response.data.fileUrl
+      } catch (error) {
+        console.error('Erro ao enviar imagem:', error)
+        Swal.fire('Erro', 'Não foi possível enviar a imagem.', 'error')
+        return null
+      }
+    },
+
+    async editarFuncionario() {
+      if (!this.funcionarioEdicao.nome || !this.funcionarioEdicao.nome.trim()) {
+        Swal.fire('Atenção', 'O nome é obrigatório', 'warning')
+        return
+      }
+
+      this.salvandoEdicao = true
+      try {
+        const token = this.store.pegar_token
+
+        Swal.fire({
+          title: 'Salvando alterações...',
+          text: 'Aguarde um momento.',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => {
+            Swal.showLoading()
+          }
+        })
+
+        // 1️⃣ Se a foto foi alterada, envia ela primeiro e usa o link retornado
+        let fotoUrl = this.funcionarioEdicao.foto || null
+        if (this.arquivoFotoEdicao) {
+          const fileUrl = await this.uploadFotoEdicao()
+          if (fileUrl) fotoUrl = fileUrl
+        }
+
+        const payload = {
+          nome: this.funcionarioEdicao.nome?.trim() || '',
+          email: this.funcionarioEdicao.email?.trim() || '',
+          telefone: this.funcionarioEdicao.telefone || '',
+          cpf: this.funcionarioEdicao.cpf || '',
+          identidade: this.funcionarioEdicao.identidade || '',
+          idade: this.funcionarioEdicao.idade || '',
+          funcoes: this.funcionarioEdicao.funcoes || '',
+          notas: this.funcionarioEdicao.notas || '',
+          equipe: this.funcionarioEdicao.equipe || '',
+          fotoUrl
+        }
+
+        // OBS: endpoint assumido. Ajuste a rota/método conforme a API real.
+        await api.put(
+          `/funcionario/${encodeURIComponent(this.funcionarioEdicao.id ?? this.funcionarioEdicao.email)}`,
+          payload,
+          {
+            headers: {
+              Authorization: `${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+
+        Swal.close()
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: 'Profissional atualizado com sucesso',
+          showConfirmButton: false,
+          timer: 4000,
+          timerProgressBar: true
+        })
+
+        this.showModalEditar = false
+        await this.getFuncionarios()
+      } catch (err) {
+        console.error('Erro ao editar funcionário', err)
+        Swal.close()
+        Swal.fire('Erro', 'Não foi possível salvar as alterações', 'error')
+      } finally {
+        this.salvandoEdicao = false
+      }
+    },
+
     aplicarUltimaEtapa() {
       if (!this.ultimaProducaoSelecionada) return
 
@@ -1223,6 +1360,12 @@ select {
   background: #006f2e;
 }
 
+.btn-cancel:disabled,
+.btn-save:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 @media (min-width: 600px) and (max-width: 1024px) {
 
   .content-wrapper {
@@ -1243,6 +1386,197 @@ select {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ---------------- Modal de edição (novo, moderno) ---------------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 22, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+}
+
+.modal-edicao {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.modal-edicao-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eef0ef;
+}
+.modal-edicao-header h5 {
+  color: var(--verde-escuro);
+  font-size: 1.1rem;
+}
+
+.btn-fechar {
+  background: transparent;
+  border: none;
+  color: #6c757d;
+  font-size: 1rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.btn-fechar:hover {
+  background: #f1f3f4;
+  color: #212529;
+}
+
+.modal-edicao-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.foto-edicao-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.foto-edicao {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  cursor: pointer;
+  overflow: hidden;
+  border: 3px solid #eef0ef;
+  flex-shrink: 0;
+}
+
+.foto-edicao img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.foto-edicao-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--verde-escuro);
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.foto-edicao-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.foto-edicao-overlay i {
+  font-size: 1.1rem;
+}
+.foto-edicao:hover .foto-edicao-overlay {
+  opacity: 1;
+}
+
+.campos-edicao {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.campos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.campo-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.campo-full {
+  grid-column: 1 / -1;
+}
+
+.campo-grupo label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.campo-grupo .form-control,
+.campo-grupo .form-select {
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+  padding: 10px 12px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  width: 100%;
+  box-shadow: none;
+}
+
+.campo-grupo textarea.form-control {
+  resize: vertical;
+}
+
+.campo-grupo .form-control:focus,
+.campo-grupo .form-select:focus {
+  outline: none;
+  border-color: var(--verde-escuro);
+  box-shadow: 0 0 0 0.2rem rgba(0, 141, 59, 0.15);
+}
+
+.modal-edicao-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #eef0ef;
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 600px) {
+  .campos-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -158,6 +158,102 @@ async function postFuncionario(funcionario, cnpj) {
   return addFuncionario;
 }
 
+async function putFuncionario(email, dadosAtualizados, cnpj) {
+  // Verifica se o usuário existe
+  const usuarioExistente = await prisma.usuarios.findUnique({
+    where: { email }
+  });
+ 
+  if (!usuarioExistente) {
+    throw new Error("Funcionário não encontrado.");
+  }
+ 
+  const cnpjLimpo = cnpj.replace(/\D/g, "");
+ 
+  // Verifica se o estabelecimento existe
+  const estabelecimento = await prisma.estabelecimento.findFirst({
+    where: {
+      OR: [
+        { cnpj: cnpjLimpo },
+        { cnpj: formatarCNPJ(cnpjLimpo) }
+      ]
+    }
+  });
+ 
+  if (!estabelecimento) {
+    throw new Error(`Estabelecimento com CNPJ ${cnpj} não encontrado.`);
+  }
+ 
+  // Garante que o funcionário pertence a esse estabelecimento
+  if (usuarioExistente.estabelecimentoCnpj !== estabelecimento.cnpj) {
+    throw new Error("Esse funcionário não pertence ao seu estabelecimento.");
+  }
+ 
+  // Se o email está sendo alterado, garante que o novo email não está em uso
+  if (
+    dadosAtualizados.email &&
+    dadosAtualizados.email !== email
+  ) {
+    const emailEmUso = await prisma.usuarios.findUnique({
+      where: { email: dadosAtualizados.email }
+    });
+ 
+    if (emailEmUso) {
+      throw new Error("Já existe um usuário com esse email.");
+    }
+  }
+ 
+  const identidade = dadosAtualizados.identidade?.toString() || usuarioExistente.identidade;
+  const cpf = dadosAtualizados.cpf?.toString() || usuarioExistente.cpf;
+  const pis = dadosAtualizados.pis?.toString() || usuarioExistente.pis;
+ 
+  const funcionarioAtualizado = await prisma.usuarios.update({
+    where: { email },
+    data: {
+      email: dadosAtualizados.email || usuarioExistente.email,
+      nome: dadosAtualizados.nome ?? usuarioExistente.nome,
+      foto: dadosAtualizados.fotoUrl ?? usuarioExistente.foto,
+      idade: dadosAtualizados.idade ?? usuarioExistente.idade,
+      funcoes: dadosAtualizados.funcoes ?? usuarioExistente.funcoes,
+      identidade,
+      cpf,
+      pis,
+      pix: dadosAtualizados.pix ?? usuarioExistente.pix,
+      notas: dadosAtualizados.notas ?? usuarioExistente.notas,
+      telefone: dadosAtualizados.telefone ?? usuarioExistente.telefone
+    }
+  });
+ 
+  // Atualiza a equipe (vínculo) caso tenha sido enviada
+  if (dadosAtualizados.equipe !== undefined) {
+    await atualizarEquipeFuncionario(email, dadosAtualizados.equipe);
+  }
+ 
+  return funcionarioAtualizado;
+}
+ 
+/**
+ * Atualiza o vínculo do funcionário com a equipe.
+ * Assume uma tabela de relação EquipesUsuarios com campos
+ * usuarioEmail / equipeId. Ajuste os nomes conforme o schema real.
+ */
+async function atualizarEquipeFuncionario(email, equipeId) {
+  // Remove o vínculo atual (se existir)
+  await prisma.equipesUsuarios.deleteMany({
+    where: { usuarioEmail: email }
+  });
+ 
+  // Se equipeId vazio/null, o funcionário fica sem equipe ("Disponível")
+  if (!equipeId) return;
+ 
+  await prisma.equipesUsuarios.create({
+    data: {
+      usuarioEmail: email,
+      equipeId
+    }
+  });
+}
+
 async function getProducaoFuncionario(email, cnpjEstabelecimento) {
   try {
 
@@ -454,5 +550,8 @@ module.exports = {
   getEquipes,
   moverFuncionario,
   tempoDeProducao,
-  getTempodeReferencia
+  getTempodeReferencia,
+  putFuncionario,
+  atualizarEquipeFuncionario
+
 };

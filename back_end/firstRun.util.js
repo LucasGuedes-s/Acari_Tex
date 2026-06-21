@@ -9,11 +9,11 @@ async function main() {
   // CONFIGURAÇÕES DA EMPRESA
   // ============================
 
-  const cnpjEstabelecimento = "43.645.942/0001-30";
+  const cnpjEstabelecimento = "63.359.871/0001-16";
 
-  const nomeEmpresa = "Solis";
+  const nomeEmpresa = "Jana Jour";
   const nomeUsuario = "Administrador";
-  const emailUsuario = "administradorsolis@gmail.com";
+  const emailUsuario = "janajour@gmail.com";
   const senhaTexto = "senha123";
 
   const senhaCriptografada = bcrypt.hashSync(senhaTexto, saltRounds);

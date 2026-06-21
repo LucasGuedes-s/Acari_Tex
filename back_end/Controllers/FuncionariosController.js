@@ -31,6 +31,19 @@ async function postEquipe(req, res, next){
         next(err);
     }
 }
+async function putEquipe(req, res, next) {
+    try {
+        const { email } = req.params;
+        const funcionario = await Funcionarios.putFuncionario(email, req.body, req.user.cnpj);
+        res.status(200).send({
+            message: `Funcionário atualizado: ${funcionario.nome}`,
+            funcionario
+        });
+    } catch (err) {
+        console.error(`Erro ao atualizar o funcionário no banco de dados.`, err.message);
+        next(err);
+    }
+}
 async function postFuncionarioEmpresa(req, res, next) {
     try {
         console.log('Dados recebidos para cadastro de funcionário:', req.body);
@@ -124,5 +137,6 @@ module.exports = {
     getEquipes,
     moverFuncionario,
     tempoDeProducao,
-    getTempodeReferencia
+    getTempodeReferencia,
+    putEquipe
 }
