@@ -458,6 +458,7 @@ export default {
       // sem precisar trocar de data ou dar F5 — igual ao PainelProfissionais.
       if (cnpj) {
         socket.on(`nova_atualizacao_${cnpj}`, () => {
+          console.log('Recebida atualização de produção para o estabelecimento, rebuscando meta do dia...')
           this.onAtualizacaoRemota()
         })
       }
