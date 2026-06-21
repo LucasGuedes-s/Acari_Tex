@@ -209,7 +209,7 @@
                 :class="{ 'review-full': info.full }"
               >
                 <div class="review-icon-wrap">
-                  <component :is="'span'" v-html="info.icon"></component>
+                  <span v-html="info.icon"></span>
                 </div>
                 <div class="review-content">
                   <span class="review-label">{{ info.label }}</span>

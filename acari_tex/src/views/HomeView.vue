@@ -68,7 +68,7 @@
       <h2>Nossos Planos</h2>
       <div class="plans-grid">
 
-        <div class="plan-card">
+        <!-- <div class="plan-card">
           <h3>Semestral</h3>
           <p>Ideal para pequenas e médias confecções</p>
           <span class="price">6x de R$ 379,90</span>
@@ -88,7 +88,7 @@
             <li>✔️ Relatórios avançados</li>
             <li>✔️ Suporte prioritário</li>
           </ul>
-        </div>
+        </div> -->
 
         <div class="plan-card">
           <h3>Sob Demanda</h3>
@@ -138,17 +138,17 @@
         indicadores e relatórios em tempo real.
       </p>
     </section>
-    <Footer />
+    <AddFooter />
   </section>
 </template>
 
 <script>
 import { useHead } from '@vueuse/head'
-import Footer from '@/components/Footer.vue'
+import AddFooter from '@/components/Footer.vue'
 
 export default {
   name: "LandingHome",
-  components: { Footer },
+  components: { AddFooter },
   setup() {
     useHead({
       title: 'LinhaTex | Gestão Inteligente da Produção Têxtil',
