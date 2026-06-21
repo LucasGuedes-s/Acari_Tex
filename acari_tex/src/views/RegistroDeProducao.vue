@@ -154,17 +154,7 @@
                     <!-- HORAS -->
                     <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
                       <div class="hora-box">
-                        <input
-  v-model.number="linha.registros[hora].quantidade"
-  type="number"
-  min="0"
-  placeholder="0"
-  :class="[
-    'hora-input',
-    linha.registros[hora].quantidade > 0 ? 'tem-producao' : ''
-  ]"
-  @blur="onInputQuantidade(funcionario, linha, hora)"
-/>
+                        <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0" :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']" @blur="onInputQuantidade(funcionario, linha, hora)"/>
                         <div class="tempo-wrap">
                           <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
                             class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
@@ -394,7 +384,7 @@ export default {
 
       for (const hora of horas) {
         registros[hora] = {
-          quantidade: 0,
+          quantidade: null,
           tempoProduzido: 60,
         }
       }
