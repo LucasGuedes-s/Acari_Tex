@@ -29,13 +29,25 @@
                 <span>{{ funcionariosDia.length }} funcionários ativos</span>
               </div>
             </div>
-            <div class="turno-switch">
-              <button :class="['turno-btn', turnoAtivo === 'manha' ? 'active' : '']" @click="turnoAtivo = 'manha'">
-                ☀️ 07h → 12h
-              </button>
-              <button :class="['turno-btn', turnoAtivo === 'tarde' ? 'active' : '']" @click="turnoAtivo = 'tarde'">
-                🌙 13h → 18h
-              </button>
+            <div class="turno-config-group">
+              <div class="turno-switch">
+                <button :class="['turno-btn', turnoAtivo === 'manha' ? 'active' : '']" @click="turnoAtivo = 'manha'">
+                  ☀️ Manhã
+                </button>
+                <button :class="['turno-btn', turnoAtivo === 'tarde' ? 'active' : '']" @click="turnoAtivo = 'tarde'">
+                  🌙 Tarde
+                </button>
+              </div>
+
+              <div class="horarios-config-inline">
+                <select v-model="configTurnoAtivo.inicio" class="horario-select-sm" @change="onAlterarConfigHorario">
+                  <option v-for="h in opcoesHoraInicio" :key="h" :value="h">{{ h }}</option>
+                </select>
+                <span class="horario-ate">até</span>
+                <select v-model="configTurnoAtivo.fim" class="horario-select-sm" @change="onAlterarConfigHorario">
+                  <option v-for="h in opcoesHoraFim" :key="h" :value="h">{{ h }}</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -207,6 +219,14 @@ import debounce from 'lodash/debounce'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
+const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
+
+// Configuração padrão (igual ao comportamento antigo, fixo)
+const CONFIG_PADRAO = {
+  manha: { inicio: '08:00', fim: '12:30' },
+  tarde: { inicio: '13:30', fim: '18:00' },
+}
+
 export default {
   name: 'ApontamentoDia',
   components: { SidebarNav, carregandoTela },
@@ -226,21 +246,38 @@ export default {
       funcionariosDia: [],
       pecas: [],
       etapas: [],
-      horasTurno: {
-        manha: ['08:00', '09:00', '10:00', '11:00', '12:30'],
-        tarde: ['13:30', '14:30', '15:30', '16:30', '17:30', '18:00'],
-      },
+      // Configuração de horário por turno: { manha: { inicio, fim }, tarde: { inicio, fim } }
+      configHorarios: this.carregarConfigHorarios(),
     }
   },
 
   computed: {
-    horasVisiveis() {
-      return this.horasTurno[this.turnoAtivo]
+    configTurnoAtivo() {
+      return this.configHorarios[this.turnoAtivo]
     },
+
+    // Lista de horários "cheios" possíveis para início (06:00 → 22:00)
+    opcoesHoraInicio() {
+      return this.gerarOpcoesHorario(6, 22)
+    },
+
+    // Opções de fim sempre depois do início escolhido
+    opcoesHoraFim() {
+      const todas = this.gerarOpcoesHorario(6, 23)
+      const inicioMin = this.horaParaMinutos(this.configTurnoAtivo.inicio)
+      return todas.filter(h => this.horaParaMinutos(h) > inicioMin)
+    },
+
+    // Gera a sequência de hora em hora a partir do início até o fim do turno ativo
+    horasVisiveis() {
+      const { inicio, fim } = this.configTurnoAtivo
+      return this.gerarSequenciaHoras(inicio, fim)
+    },
+
     opsAtivasComPeca() {
       return this.opsAtivas.filter(op => op.pecaId)
     },
-    
+
   },
 
   watch: {
@@ -251,9 +288,10 @@ export default {
 
   async mounted() {
     if (!this.store.pegar_token) router.push('/')
+    this.iniciarSocket()
+    await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
-    this.iniciarSocket()
   },
 
   beforeUnmount() {
@@ -267,8 +305,131 @@ export default {
       return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`
     },
 
+    // ── HORÁRIOS CONFIGURÁVEIS ───────────────────────────
+    horaParaMinutos(hora) {
+      const [h, m] = hora.split(':').map(Number)
+      return h * 60 + m
+    },
+
+    minutosParaHora(minutos) {
+      const h = Math.floor(minutos / 60) % 24
+      const m = minutos % 60
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    },
+
+    // Gera opções de horário "redondo" (de 30 em 30 min) entre horaInicial e horaFinal
+    gerarOpcoesHorario(horaInicial, horaFinal) {
+      const opcoes = []
+      for (let h = horaInicial; h <= horaFinal; h++) {
+        opcoes.push(`${String(h).padStart(2, '0')}:00`)
+        if (h < horaFinal) opcoes.push(`${String(h).padStart(2, '0')}:30`)
+      }
+      return opcoes
+    },
+
+    // Gera a sequência de hora em hora a partir de um horário de início até um horário de fim
+    // Ex: início 08:00, fim 12:30 → 08:00, 09:00, 10:00, 11:00, 12:30
+    // Ex: início 11:30, fim 18:00 → 11:30, 12:30, 13:30, 14:30, 15:30, 16:30, 17:30, 18:00 (último ajustado)
+    gerarSequenciaHoras(inicio, fim) {
+      const inicioMin = this.horaParaMinutos(inicio)
+      const fimMin = this.horaParaMinutos(fim)
+
+      if (!inicio || !fim || fimMin <= inicioMin) {
+        return inicio ? [inicio] : []
+      }
+
+      const sequencia = []
+      let atual = inicioMin
+
+      while (atual < fimMin) {
+        sequencia.push(this.minutosParaHora(atual))
+        atual += 60
+      }
+
+      // Garante que o horário final sempre apareça como última marcação
+      const ultimaHora = this.minutosParaHora(atual)
+      if (ultimaHora !== fim) {
+        sequencia.push(fim)
+      } else {
+        sequencia.push(fim)
+      }
+
+      return sequencia
+    },
+
+    carregarConfigHorarios() {
+      try {
+        const salvo = localStorage.getItem(LOCAL_STORAGE_KEY)
+        if (!salvo) return JSON.parse(JSON.stringify(CONFIG_PADRAO))
+
+        const parsed = JSON.parse(salvo)
+        return {
+          manha: {
+            inicio: parsed?.manha?.inicio || CONFIG_PADRAO.manha.inicio,
+            fim: parsed?.manha?.fim || CONFIG_PADRAO.manha.fim,
+          },
+          tarde: {
+            inicio: parsed?.tarde?.inicio || CONFIG_PADRAO.tarde.inicio,
+            fim: parsed?.tarde?.fim || CONFIG_PADRAO.tarde.fim,
+          },
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar horários salvos, usando padrão.', err)
+        return JSON.parse(JSON.stringify(CONFIG_PADRAO))
+      }
+    },
+
+    salvarConfigHorarios() {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(this.configHorarios))
+      } catch (err) {
+        console.warn('Não foi possível salvar os horários no navegador.', err)
+      }
+    },
+
+    onAlterarConfigHorario() {
+      // Garante que o fim sempre fique depois do início
+      const inicioMin = this.horaParaMinutos(this.configTurnoAtivo.inicio)
+      const fimMin = this.horaParaMinutos(this.configTurnoAtivo.fim)
+
+      if (fimMin <= inicioMin) {
+        const opcoesValidas = this.opcoesHoraFim
+        this.configTurnoAtivo.fim = opcoesValidas[0] || this.configTurnoAtivo.inicio
+      }
+
+      this.salvarConfigHorarios()
+      this.ajustarRegistrosParaNovasHoras()
+    },
+
+    // Quando o intervalo de horas muda, garante que todas as linhas tenham
+    // um objeto de registro para cada hora nova, sem perder o que já tinha
+    ajustarRegistrosParaNovasHoras() {
+      const horasAtuais = this.horasVisiveis
+
+      for (const funcionario of this.funcionariosDia) {
+        for (const linha of funcionario.linhas || []) {
+          if (!linha.registros) linha.registros = {}
+
+          for (const hora of horasAtuais) {
+            if (!linha.registros[hora]) {
+              linha.registros[hora] = {
+                quantidade: null,
+                tempoProduzido: 60,
+              }
+            }
+          }
+        }
+      }
+    },
+
     // ── SOCKET ────────────────────────────────────────────
     iniciarSocket() {
+      // Remove listeners antigos antes de registrar de novo
+      // (evita handlers duplicados ao remontar o componente)
+      socket.off('connect')
+      socket.off('disconnect')
+      socket.off('erro-producao')
+
       socket.on('connect', () => {
         this.socketConectado = true
       })
@@ -279,6 +440,39 @@ export default {
 
       socket.on('erro-producao', err => {
         console.log(err)
+      })
+
+      // O beforeUnmount chama socket.disconnect(), então ao remontar
+      // o componente precisamos reconectar manualmente.
+      if (!socket.connected) {
+        socket.connect()
+      } else {
+        // já estava conectado (ex: navegação rápida) — sincroniza o estado
+        this.socketConectado = true
+      }
+    },
+
+    // Espera o socket estar realmente conectado antes de prosseguir,
+    // com um timeout de segurança para não travar a tela pra sempre
+    // caso o servidor esteja fora do ar.
+    aguardarConexaoSocket(timeoutMs = 5000) {
+      if (socket.connected) {
+        this.socketConectado = true
+        return Promise.resolve()
+      }
+
+      return new Promise(resolve => {
+        const timeout = setTimeout(() => {
+          socket.off('connect', onConnect)
+          resolve()
+        }, timeoutMs)
+
+        const onConnect = () => {
+          clearTimeout(timeout)
+          resolve()
+        }
+
+        socket.once('connect', onConnect)
       })
     },
 
@@ -377,9 +571,11 @@ export default {
     criarRegistros() {
       const registros = {}
 
+      // Cria registros para todas as horas possíveis dos dois turnos,
+      // usando a configuração atual de horários (manhã + tarde)
       const horas = [
-        ...this.horasTurno.manha,
-        ...this.horasTurno.tarde,
+        ...this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim),
+        ...this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim),
       ]
 
       for (const hora of horas) {
@@ -704,6 +900,9 @@ export default {
 
     // ── BUSCAR META ───────────────────────────────────────
     async buscarMetaDia() {
+      // Garante que o socket está conectado antes de emitir
+      // (protege chamadas vindas do watch de dataSelecionada também)
+      await this.aguardarConexaoSocket()
 
       socket.emit(
         'buscar-meta-dia',
@@ -973,6 +1172,45 @@ export default {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
   box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
+}
+
+/* ── CONFIGURAÇÃO DE HORÁRIOS (inline, compacto) ──── */
+.turno-config-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horarios-config-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.horario-select-sm {
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid #dceee3;
+  background: white;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
+  transition: .2s;
+}
+
+.horario-select-sm:focus {
+  border-color: #118a43;
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  outline: none;
+}
+
+.horario-ate {
+  font-size: 12px;
+  font-weight: 700;
+  color: #648673;
 }
 
 /* ── OPs SECTION ───────────────────────────────────── */
@@ -1495,6 +1733,20 @@ export default {
 
   .ops-list {
     flex-direction: column;
+  }
+
+  .turno-config-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .horarios-config-inline {
+    width: 100%;
+  }
+
+  .horario-select-sm {
+    flex: 1;
   }
 }
 </style>
