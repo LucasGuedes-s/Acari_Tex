@@ -92,8 +92,8 @@
           <div>
             <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               class="mb-4" />
-            <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
-              :producaoDados="producao" class="mb-4" />
+            <!-- <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
+              :producaoDados="producao" class="mb-4" /> -->
             <GraficoEtapas class="mb-4" />
             <!-- <GradicoProducaoPorEtapa class="mb-4" />-->
 
@@ -158,7 +158,7 @@
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
 import DashboardCard from '@/components/DashboardCard.vue';
-import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
+//import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 //import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
 //import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
@@ -183,7 +183,7 @@ export default {
     SidebarNav,
     ProducaoDia,
     DashboardCard,
-    GraficoProducaoTotal,
+    // GraficoProducaoTotal,
     // GraficoProducaoIndividual,
     // ProducaoPorPeca,
     GraficoProducaoPecas,

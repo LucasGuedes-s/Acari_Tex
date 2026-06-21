@@ -14,6 +14,7 @@
               {{ socketConectado ? 'Online' : 'Offline' }}
             </div>
             <input v-model="dataSelecionada" type="date" class="date-input" />
+            <span v-if="carregandoMeta" class="data-loading">Atualizando…</span>
           </div>
         </div>
 
@@ -248,6 +249,10 @@ export default {
       etapas: [],
       // Configuração de horário por turno: { manha: { inicio, fim }, tarde: { inicio, fim } }
       configHorarios: this.carregarConfigHorarios(),
+      // Controle interno para descartar respostas desatualizadas do
+      // socket quando a data é trocada rapidamente (ver buscarMetaDia)
+      ultimaBuscaId: 0,
+      carregandoMeta: false,
     }
   },
 
@@ -430,6 +435,11 @@ export default {
       socket.off('disconnect')
       socket.off('erro-producao')
 
+      const cnpj = this.store.pegar_usuario?.cnpj
+      if (cnpj) {
+        socket.off(`nova_atualizacao_${cnpj}`)
+      }
+
       socket.on('connect', () => {
         this.socketConectado = true
       })
@@ -442,6 +452,16 @@ export default {
         console.log(err)
       })
 
+      // Quando QUALQUER usuário (neste ou em outro computador) salva
+      // produção/meta para o mesmo estabelecimento, o backend emite esse
+      // evento. Rebuscamos a meta do dia para refletir a mudança na hora,
+      // sem precisar trocar de data ou dar F5 — igual ao PainelProfissionais.
+      if (cnpj) {
+        socket.on(`nova_atualizacao_${cnpj}`, () => {
+          this.onAtualizacaoRemota()
+        })
+      }
+
       // O beforeUnmount chama socket.disconnect(), então ao remontar
       // o componente precisamos reconectar manualmente.
       if (!socket.connected) {
@@ -451,6 +471,16 @@ export default {
         this.socketConectado = true
       }
     },
+
+    // Debounced: evita disparar várias buscas seguidas se chegarem
+    // vários eventos em rajada (ex: vários funcionários salvando juntos).
+    onAtualizacaoRemota: debounce(function () {
+      // Não interrompe o usuário enquanto ele está digitando em um
+      // campo de quantidade/tempo: o blur/input já dispara o salvamento
+      // (debounced) antes, então é seguro rebuscar — os valores que ele
+      // acabou de digitar já foram enviados ao servidor.
+      this.buscarMetaDia()
+    }, 800),
 
     // Espera o socket estar realmente conectado antes de prosseguir,
     // com um timeout de segurança para não travar a tela pra sempre
@@ -904,15 +934,47 @@ export default {
       // (protege chamadas vindas do watch de dataSelecionada também)
       await this.aguardarConexaoSocket()
 
+      // Guarda a data que está sendo buscada NO MOMENTO do emit e gera
+      // um token único para esta chamada. Como socket.emit com callback
+      // não garante que as respostas voltem na mesma ordem dos pedidos,
+      // se a pessoa trocar a data rapidamente (ou um evento de atualização
+      // remota chegar no meio do caminho), uma resposta antiga pode chegar
+      // depois de uma mais nova. Sem essa proteção, a tela ficava com os
+      // dados da data errada — parecendo que "a data não mudou".
+      const dataDaRequisicao = this.dataSelecionada
+      this.ultimaBuscaId = (this.ultimaBuscaId || 0) + 1
+      const buscaId = this.ultimaBuscaId
+      this.carregandoMeta = true
+
+      // Segurança: se o servidor nunca responder a este pedido específico,
+      // não deixa o indicador "Atualizando…" preso para sempre.
+      setTimeout(() => {
+        if (buscaId === this.ultimaBuscaId) {
+          this.carregandoMeta = false
+        }
+      }, 8000)
+
       socket.emit(
         'buscar-meta-dia',
         {
           estabelecimento:
             this.store.pegar_usuario.cnpj,
-          data: this.dataSelecionada,
+          data: dataDaRequisicao,
         },
 
         response => {
+
+          // Descarta a resposta se não é mais a busca mais recente,
+          // ou se a data selecionada na tela já mudou de novo enquanto
+          // esperávamos o servidor responder.
+          if (
+            buscaId !== this.ultimaBuscaId ||
+            dataDaRequisicao !== this.dataSelecionada
+          ) {
+            return
+          }
+
+          this.carregandoMeta = false
 
           if (!response?.sucesso) {
             return
@@ -1092,6 +1154,20 @@ export default {
   padding: 0 14px;
   font-family: inherit;
   background: white;
+}
+
+.data-loading {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0d6632;
+  display: flex;
+  align-items: center;
+  animation: pulseFade 1.1s ease-in-out infinite;
+}
+
+@keyframes pulseFade {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
 }
 
 /* ── SETUP CARD ────────────────────────────────────── */

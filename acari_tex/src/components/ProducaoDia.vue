@@ -275,17 +275,28 @@ export default {
       opsAtivas: [],
       funcionariosDia: [],
       pecas: [],
-
-      horasTurno: {
-        manha: ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00'],
-        tarde: ['13:00', '14:00', '15:00', '16:00', '17:00', '18:00'],
-      },
     }
   },
 
   computed: {
+    // Antes: array fixo de horas (07:00 → 18:00). Agora os horários de
+    // apontamento são configuráveis (ApontamentoDia permite início/fim
+    // customizados), então as horas precisam ser descobertas a partir
+    // dos próprios registros vindos do banco (hora_registro), em vez de
+    // assumidas fixas. Isso garante que qualquer horário real registrado
+    // (ex: 11:30, 12:30...) apareça corretamente aqui.
     todasHoras() {
-      return [...this.horasTurno.manha, ...this.horasTurno.tarde]
+      const horasSet = new Set()
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          for (const hora of Object.keys(linha.registros || {})) {
+            horasSet.add(hora)
+          }
+        }
+      }
+
+      return [...horasSet].sort((a, b) => this.horaParaMinutos(a) - this.horaParaMinutos(b))
     },
 
     funcionariosOrdenados() {
@@ -309,11 +320,33 @@ export default {
         : null
     },
 
+    // Eficiência da turma ponderada pelas peças FINALIZADAS (etapa final),
+    // não mais uma média simples das eficiências individuais.
+    // Fórmula: soma(quantidade × tempoPadrao) / soma(tempoProduzido) × 100,
+    // considerando só os registros de etapas finais de todos os funcionários.
+    // Isso evita a distorção de "média das médias" (onde um funcionário com
+    // pouquíssima produção pesa igual a um com produção alta) e reflete a
+    // eficiência real agregada da operação.
     eficienciaMediaTurma() {
-      const funcs = this.funcionariosOrdenados
-      if (!funcs.length) return 0
-      const soma = funcs.reduce((acc, f) => acc + this.calcularEficienciaFuncionario(f), 0)
-      return Math.round(soma / funcs.length)
+      let somaProduzida = 0
+      let somaTempo = 0
+
+      for (const func of this.funcionariosOrdenados) {
+        for (const linha of func.linhas || []) {
+          if (!this.isEtapaFinal(linha)) continue
+          if (!linha?.registros) continue
+
+          for (const reg of Object.values(linha.registros)) {
+            if (reg && reg.quantidade > 0) {
+              somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
+              somaTempo += reg.tempoProduzido || 60
+            }
+          }
+        }
+      }
+
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
     },
 
     totalPecasGeral() {
@@ -345,6 +378,13 @@ export default {
   },
 
   methods: {
+    // ── HORA HELPERS ──────────────────────────────────────
+    horaParaMinutos(hora) {
+      if (!hora || typeof hora !== 'string') return 0
+      const [h, m] = hora.split(':').map(Number)
+      return (h || 0) * 60 + (m || 0)
+    },
+
     // ── SOCKET ────────────────────────────────────────────
     iniciarSocket() {
       socket.on('connect', () => { this.socketConectado = true })
@@ -401,8 +441,10 @@ export default {
           metaDia: p.meta || 0,
         }))
 
-        // Reconstruir funcionariosDia com linhas e registros
-        // Mesmo algoritmo do ApontamentoDia
+        // Reconstruir funcionariosDia com linhas e registros.
+        // Cada linha agora guarda apenas as horas que de fato têm
+        // registro no banco (ver criarRegistros), preservando o
+        // hora_registro exato vindo da API (ex: "11:30").
         this.funcionariosDia = []
 
         for (const metaFunc of meta.funcionarios || []) {
@@ -421,13 +463,13 @@ export default {
                 descricao: producao.producao_etapa?.descricao || '',
                 tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
                 opId: producao.id_da_op || null,
-                registros: this.criarRegistros(),
+                registros: {},
               }
               linhas.push(linha)
             }
 
             const hora = producao.hora_registro
-            if (!hora || !linha.registros?.[hora]) continue
+            if (!hora) continue
 
             linha.registros[hora] = {
               quantidade: producao.quantidade_pecas || 0,
@@ -449,19 +491,11 @@ export default {
       }
     },
 
-    criarRegistros() {
-      const registros = {}
-      for (const hora of this.todasHoras) {
-        registros[hora] = { quantidade: 0, tempoProduzido: 60 }
-      }
-      return registros
-    },
-
     // ── ETAPA FINAL ───────────────────────────────────────
     isEtapaFinal(linha) {
       if (!linha?.descricao) return false
       const desc = linha.descricao.toLowerCase()
-      const palavrasFinal = ['final', 'acabamento', 'finalização', 'finalizacao','revisão', 'revisao', 'embalagem', 'embalar', 'expedição', 'expedicao']
+      const palavrasFinal = ['final', 'acabamento', 'finalização', 'finalizacao','revisão', 'revisao', 'expedição', 'expedicao']
       return palavrasFinal.some(palavra => desc.includes(palavra))
     },
 
@@ -536,6 +570,8 @@ export default {
     },
 
     // ── POR HORA ──────────────────────────────────────────
+    // Usa this.todasHoras (já dinâmico e ordenado cronologicamente)
+    // para agrupar os registros do funcionário selecionado.
     horasPorFuncionario(func) {
       if (!func?.linhas?.length) return []
 

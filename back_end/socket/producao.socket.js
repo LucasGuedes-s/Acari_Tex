@@ -15,7 +15,7 @@ module.exports = (io, socket) => {
             )
 
         io.emit(
-          'producao-atualizada',
+          `nova_atualizacao_${payload.cnpj}`,
           producao
         )
 
