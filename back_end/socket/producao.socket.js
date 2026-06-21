@@ -8,12 +8,7 @@ module.exports = (io, socket) => {
 
       try {
 
-        const producao =
-          await producaoService
-            .salvarProducao(
-              payload
-            )
-
+        const producao = await producaoService.salvarProducao(payload)
         io.emit(
           `nova_atualizacao_${payload.cnpj}`,
           producao
