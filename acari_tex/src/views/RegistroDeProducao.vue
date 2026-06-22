@@ -167,7 +167,9 @@
                     <!-- HORAS -->
                     <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
                       <div class="hora-box">
-                        <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0" :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']" @blur="onInputQuantidade(funcionario, linha, hora)"/>
+                        <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
+                          :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                          @blur="onInputQuantidade(funcionario, linha, hora)" />
                         <div class="tempo-wrap">
                           <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
                             class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
@@ -191,7 +193,7 @@
                         {{
                           calcularEficienciaFuncionario(funcionario)
                             ? calcularEficienciaFuncionario(funcionario) + '%'
-                        : '—'
+                            : '—'
                         }}
                       </div>
                     </td>
@@ -580,13 +582,13 @@ export default {
 
     // ── FUNCIONÁRIOS ──────────────────────────────────────
     inicializarFuncionarios() {
-    this.funcionariosDia = this.funcionarios
-      .filter(func => Number(func.permissoes) !== 1)
-      .map(func => ({
-        ...func,
-        linhas: [this.novaLinha('principal')],
-      }))
-  },
+      this.funcionariosDia = this.funcionarios
+        .filter(func => Number(func.permissoes) !== 1)
+        .map(func => ({
+          ...func,
+          linhas: [this.novaLinha('principal')],
+        }))
+    },
     novaLinha(tipo = 'extra') {
       return {
         id: Date.now() + Math.random(),
@@ -660,18 +662,32 @@ export default {
 
     // ── ETAPA FINAL ──────────────────────────────────────
     isEtapaFinal(linha) {
-    if (!linha?.descricao) return false;
+      if (!linha?.descricao) return false;
 
-    const descricao = linha.descricao.toLowerCase();
+      const descricao = linha.descricao.toLowerCase();
 
-    return (
-      descricao.includes('final') ||
-      descricao.includes('revisão') ||
-      descricao.includes('revisao') ||
-      descricao.includes('acabamento') ||
-      descricao.includes('qualidade')
-    );
-  },
+      // Ignora "revisão média"
+      if (
+        descricao.includes('revisão médio') ||
+        descricao.includes('revisao medio') ||
+        descricao.includes('revisão média') ||
+        descricao.includes('revisao media') ||
+        descricao.includes('revisão intermediaria') ||
+        descricao.includes('revisao intermediaria')
+      ) {
+        return false;
+      }
+
+      return (
+        descricao.includes('final') ||
+        descricao.includes('revisão final') ||
+        descricao.includes('revisao final') ||
+        descricao.includes('revisão') ||
+        descricao.includes('revisao') ||
+        descricao.includes('acabamento') ||
+        descricao.includes('qualidade')
+      );
+    },
 
     // ── TOTAIS ────────────────────────────────────────────
     calcularTotalLinha(linha) {
@@ -885,7 +901,7 @@ export default {
       const pecasAtivas =
         this.opsAtivasComPeca
 
-      if (!pecasAtivas.length) return 
+      if (!pecasAtivas.length) return
       console.log('Salvando meta do dia...', {
         estabelecimento: this.store.pegar_usuario.cnpj,
         usuario: this.store.pegar_usuario.email,
@@ -1167,8 +1183,15 @@ export default {
 }
 
 @keyframes pulseFade {
-  0%, 100% { opacity: .5; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: .5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── SETUP CARD ────────────────────────────────────── */

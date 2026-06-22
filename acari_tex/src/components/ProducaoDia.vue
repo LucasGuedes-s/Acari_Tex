@@ -493,11 +493,43 @@ export default {
 
     // ── ETAPA FINAL ───────────────────────────────────────
     isEtapaFinal(linha) {
-      if (!linha?.descricao) return false
-      const desc = linha.descricao.toLowerCase()
-      const palavrasFinal = ['final', 'acabamento', 'finalização', 'finalizacao','revisão', 'revisao', 'expedição', 'expedicao']
-      return palavrasFinal.some(palavra => desc.includes(palavra))
-    },
+  if (!linha?.descricao) return false
+
+  const desc = linha.descricao.toLowerCase()
+
+  // Etapas que NÃO devem ser consideradas finais
+  const palavrasIgnoradas = [
+    'revisão médio',
+    'revisao medio',
+    'revisão média',
+    'revisao media',
+    'revisão intermediaria',
+    'revisão intermediária',
+    'revisao intermediaria',
+    'revisao intermediária'
+  ]
+
+  if (palavrasIgnoradas.some(palavra => desc.includes(palavra))) {
+    return false
+  }
+
+  // Etapas consideradas finais
+  const palavrasFinal = [
+    'final',
+    'acabamento',
+    'finalização',
+    'finalizacao',
+    'revisão final',
+    'revisao final',
+    'revisão',
+    'revisao',
+    'qualidade',
+    'expedição',
+    'expedicao'
+  ]
+
+  return palavrasFinal.some(palavra => desc.includes(palavra))
+},
 
     // ── TOTAIS ────────────────────────────────────────────
     calcularTotalLinha(linha) {
