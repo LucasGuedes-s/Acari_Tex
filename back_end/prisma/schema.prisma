@@ -110,6 +110,9 @@ model Etapa {
 
   @@index([grupoEtapaId], map: "Etapa_grupoEtapaId_fkey")
   @@index([id_Estabelecimento], map: "Etapa_id_Estabelecimento_fkey")
+  
+  @@unique([descricao, tempo_padrao, id_Estabelecimento])
+
 }
 
 model GrupoEtapas {

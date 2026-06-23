@@ -279,12 +279,6 @@ export default {
   },
 
   computed: {
-    // Antes: array fixo de horas (07:00 → 18:00). Agora os horários de
-    // apontamento são configuráveis (ApontamentoDia permite início/fim
-    // customizados), então as horas precisam ser descobertas a partir
-    // dos próprios registros vindos do banco (hora_registro), em vez de
-    // assumidas fixas. Isso garante que qualquer horário real registrado
-    // (ex: 11:30, 12:30...) apareça corretamente aqui.
     todasHoras() {
       const horasSet = new Set()
 
@@ -320,41 +314,37 @@ export default {
         : null
     },
 
-    // Eficiência da turma ponderada pelas peças FINALIZADAS (etapa final),
-    // não mais uma média simples das eficiências individuais.
-    // Fórmula: soma(quantidade × tempoPadrao) / soma(tempoProduzido) × 100,
-    // considerando só os registros de etapas finais de todos os funcionários.
-    // Isso evita a distorção de "média das médias" (onde um funcionário com
-    // pouquíssima produção pesa igual a um com produção alta) e reflete a
-    // eficiência real agregada da operação.
+    // Eficiência da turma ponderada pelas peças FINALIZADAS (etapa final).
+    // Só considera registros com tempoProduzido > 0 — sem fallback fictício.
     eficienciaMediaTurma() {
-      let somaProduzida = 0
-      let somaTempo = 0
+      // SAM e tempo do turno vêm da OP ativa
+      const op = this.pecas.find(p => p.id_da_op === this.opsAtivas[0]?.pecaId)
+      const sam = op?.tempo_padrao || 0
+      // const tempoTurno = op?.Estabelecimento?.tempo_de_producao || 540 // minutos
+      const tempoTurno = 540 // minutos
 
+      const nFuncionarios = this.funcionariosOrdenados.length
+      if (!nFuncionarios || !sam || !tempoTurno) return 0
+
+      // Soma peças finalizadas de todos os funcionários no dia
+      let totalPecas = 0
       for (const func of this.funcionariosOrdenados) {
-        for (const linha of func.linhas || []) {
-          if (!this.isEtapaFinal(linha)) continue
-          if (!linha?.registros) continue
-
-          for (const reg of Object.values(linha.registros)) {
-            if (reg && reg.quantidade > 0) {
-              somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
-              somaTempo += reg.tempoProduzido || 60
-            }
-          }
-        }
+        totalPecas += this.calcularTotalFinalizadoFuncionario(func)
       }
 
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      // (Qtd × SAM) / (Nº Operadores × Tempo do Turno) × 100
+      const tempoDisponivel = nFuncionarios * tempoTurno
+      // console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
+      // console.log(Math.round((totalPecas * sam) / tempoDisponivel * 100))
+      return Math.round((totalPecas * sam) / tempoDisponivel * 100)
     },
 
     totalPecasGeral() {
-  return this.funcionariosOrdenados.reduce(
-    (soma, f) => soma + this.calcularTotalFinalizadoFuncionario(f),
-    0
-  )
-},
+      return this.funcionariosOrdenados.reduce(
+        (soma, f) => soma + this.calcularTotalFinalizadoFuncionario(f),
+        0
+      )
+    },
   },
 
   watch: {
@@ -390,7 +380,6 @@ export default {
       socket.on('connect', () => { this.socketConectado = true })
       socket.on('disconnect', () => { this.socketConectado = false })
 
-      // Ouve atualizações do estabelecimento e rebusca via rota
       const cnpj = this.store.pegar_usuario.cnpj
       socket.on(`nova_atualizacao_${cnpj}`, () => {
         this.buscarMetaDia()
@@ -404,6 +393,7 @@ export default {
           headers: { Authorization: this.store.pegar_token },
         })
         this.pecas = res.data.peca.em_progresso || []
+        console.log('Peças carregadas:', this.pecas)
       } catch (err) {
         console.error(err)
       }
@@ -426,7 +416,6 @@ export default {
           },
         })
 
-        // A rota retorna a mesma estrutura do buscar-meta-dia
         const meta = res.data.metaDia
         if (!meta) {
           this.opsAtivas = []
@@ -434,17 +423,12 @@ export default {
           return
         }
 
-        // Restaurar OPs
         this.opsAtivas = (meta.pecas || []).map(p => ({
           _uid: Date.now() + Math.random(),
           pecaId: p.id_da_op,
           metaDia: p.meta || 0,
         }))
 
-        // Reconstruir funcionariosDia com linhas e registros.
-        // Cada linha agora guarda apenas as horas que de fato têm
-        // registro no banco (ver criarRegistros), preservando o
-        // hora_registro exato vindo da API (ex: "11:30").
         this.funcionariosDia = []
 
         for (const metaFunc of meta.funcionarios || []) {
@@ -473,7 +457,7 @@ export default {
 
             linha.registros[hora] = {
               quantidade: producao.quantidade_pecas || 0,
-              tempoProduzido: producao.tempo_produzido || 60,
+              tempoProduzido: producao.tempo_produzido || 0,
             }
           }
 
@@ -493,43 +477,41 @@ export default {
 
     // ── ETAPA FINAL ───────────────────────────────────────
     isEtapaFinal(linha) {
-  if (!linha?.descricao) return false
+      if (!linha?.descricao) return false
 
-  const desc = linha.descricao.toLowerCase()
+      const desc = linha.descricao.toLowerCase()
 
-  // Etapas que NÃO devem ser consideradas finais
-  const palavrasIgnoradas = [
-    'revisão médio',
-    'revisao medio',
-    'revisão média',
-    'revisao media',
-    'revisão intermediaria',
-    'revisão intermediária',
-    'revisao intermediaria',
-    'revisao intermediária'
-  ]
+      const palavrasIgnoradas = [
+        'revisão médio',
+        'revisao medio',
+        'revisão média',
+        'revisao media',
+        'revisão intermediaria',
+        'revisão intermediária',
+        'revisao intermediaria',
+        'revisao intermediária'
+      ]
 
-  if (palavrasIgnoradas.some(palavra => desc.includes(palavra))) {
-    return false
-  }
+      if (palavrasIgnoradas.some(palavra => desc.includes(palavra))) {
+        return false
+      }
 
-  // Etapas consideradas finais
-  const palavrasFinal = [
-    'final',
-    'acabamento',
-    'finalização',
-    'finalizacao',
-    'revisão final',
-    'revisao final',
-    'revisão',
-    'revisao',
-    'qualidade',
-    'expedição',
-    'expedicao'
-  ]
+      const palavrasFinal = [
+        'final',
+        'acabamento',
+        'finalização',
+        'finalizacao',
+        'revisão final',
+        'revisao final',
+        'revisão',
+        'revisao',
+        'qualidade',
+        'expedição',
+        'expedicao'
+      ]
 
-  return palavrasFinal.some(palavra => desc.includes(palavra))
-},
+      return palavrasFinal.some(palavra => desc.includes(palavra))
+    },
 
     // ── TOTAIS ────────────────────────────────────────────
     calcularTotalLinha(linha) {
@@ -540,14 +522,11 @@ export default {
       )
     },
 
-    // Só soma etapa final — idêntico ao ApontamentoDia
-    // Total geral do funcionário em QUALQUER etapa (produção bruta)
     calcularTotalFuncionario(func) {
       if (!Array.isArray(func?.linhas)) return 0
       return func.linhas.reduce((soma, linha) => soma + this.calcularTotalLinha(linha), 0)
     },
 
-    // Total de peças FINALIZADAS do funcionário (só etapa final)
     calcularTotalFinalizadoFuncionario(func) {
       if (!Array.isArray(func?.linhas)) return 0
       return func.linhas.reduce((soma, linha) => {
@@ -557,23 +536,22 @@ export default {
     },
 
     // ── EFICIÊNCIA ────────────────────────────────────────
-    // (quantidade × tempoPadrao) / tempoProduzido × 100
-    // idêntico ao calcularEficienciaRegistro do ApontamentoDia
+    // Só considera registros com tempoProduzido > 0 — sem || 60 fictício.
+
     calcularEficienciaRegistro(quantidade, tempoProduzido, tempoPadrao) {
       if (!quantidade || !tempoProduzido || !tempoPadrao) return 0
       return Math.round(((quantidade * tempoPadrao) / tempoProduzido) * 100)
     },
 
-    // Acumula todos os registros da linha
     calcularEficienciaLinha(linha) {
       if (!linha?.registros) return 0
       let produzido = 0
       let tempoProduzido = 0
 
       for (const reg of Object.values(linha.registros)) {
-        if (reg && reg.quantidade > 0) {
+        if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
           produzido += reg.quantidade * (linha.tempoPadrao || 0)
-          tempoProduzido += reg.tempoProduzido || 60
+          tempoProduzido += reg.tempoProduzido
         }
       }
 
@@ -581,7 +559,6 @@ export default {
       return Math.round((produzido / tempoProduzido) * 100)
     },
 
-    // Acumula todas as linhas do funcionário
     calcularEficienciaFuncionario(func) {
       if (!func?.linhas?.length) return 0
       let somaProduzida = 0
@@ -590,9 +567,9 @@ export default {
       for (const linha of func.linhas) {
         if (!linha?.registros) continue
         for (const reg of Object.values(linha.registros)) {
-          if (reg && reg.quantidade > 0) {
+          if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
             somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
-            somaTempo += reg.tempoProduzido || 60
+            somaTempo += reg.tempoProduzido
           }
         }
       }
@@ -602,8 +579,6 @@ export default {
     },
 
     // ── POR HORA ──────────────────────────────────────────
-    // Usa this.todasHoras (já dinâmico e ordenado cronologicamente)
-    // para agrupar os registros do funcionário selecionado.
     horasPorFuncionario(func) {
       if (!func?.linhas?.length) return []
 
@@ -617,7 +592,7 @@ export default {
 
         for (const linha of func.linhas) {
           const reg = linha.registros?.[hora]
-          if (!reg || !reg.quantidade) continue
+          if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
           const eficiencia = this.calcularEficienciaRegistro(
             reg.quantidade,
@@ -635,7 +610,7 @@ export default {
 
           totalPecas += reg.quantidade
           somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
-          somaTempoProduzido += reg.tempoProduzido || 60
+          somaTempoProduzido += reg.tempoProduzido
         }
 
         if (!etapas.length) continue

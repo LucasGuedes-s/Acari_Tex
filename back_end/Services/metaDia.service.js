@@ -138,7 +138,6 @@ async function buscarMetaDia({ estabelecimento, data }) {
         },
     })
 
-    console.log('AQUJIs')
 
     const metaDia = await prisma.metaDia.findFirst({
         where: {
@@ -169,7 +168,7 @@ async function buscarMetaDia({ estabelecimento, data }) {
             },
         },
     })
-    console.log(JSON.stringify(metaDia.funcionarios, null, 2))
+    //console.log(JSON.stringify(metaDia.funcionarios, null, 2))
     if (!metaDia) {
         return null
     }
