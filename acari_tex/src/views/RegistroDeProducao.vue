@@ -118,111 +118,158 @@
 
         </div>
 
-        <!-- TABELA -->
-        <div v-if="opsAtivasComPeca.length > 0" class="table-wrapper">
-          <div class="table-scroll">
-            <table class="apontamento-table">
-              <thead>
-                <tr>
-                  <th class="func-col">Funcionário</th>
-                  <th class="etapa-col">Etapa</th>
-                  <th v-for="hora in horasVisiveis" :key="hora" class="hora-th">{{ hora }}h</th>
-                  <th class="total-col">Total</th>
-                  <th class="efic-col">Eficiência</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template v-for="funcionario in funcionariosDia" :key="funcionario.email">
-                  <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
-                    :class="{ 'linha-extra': linha.tipo === 'extra' }">
+        <!-- TABELA AGRUPADA POR OP (MÓDULOS) -->
+        <div v-if="opsAtivasComPeca.length > 0 && funcionariosAgrupadosPorOp.length > 0" class="ops-modulos-wrapper">
+          <template v-for="grupo in funcionariosAgrupadosPorOp" :key="grupo.opId || 'sem-op'">
 
-                    <!-- FUNCIONÁRIO -->
-                    <td class="func-col">
-                      <div v-if="idxLinha === 0" class="func-info">
-                        <img :src="funcionario.foto || '/default-avatar.png'" />
-                        <span>{{ funcionario.nome }}</span>
-                      </div>
-                      <div v-else class="extra-tag">↳ Extra</div>
-                    </td>
+            <!-- HEADER DO MÓDULO -->
+            <div
+              :class="[
+                'op-module-header',
+                !grupo.opId ? 'op-module-header--empty' : '',
+                opsAtivasComPeca.length === 1 ? 'op-module-header--single' : ''
+              ]">
+              <span class="op-module-badge">
+                <span v-if="!grupo.opId">⚠ {{ grupo.label }}</span>
+                <span v-else>📦 {{ grupo.label }}</span>
+              </span>
+              <span class="op-module-stats">
+                <span class="stat">👥 <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong> func</span>
+                <span class="stat" v-if="grupo.opId">📊 Produção: <strong>{{ calcularTotalOp(grupo.opId) }}</strong></span>
+                <span class="stat" v-if="grupo.opId">⚙ Capacidade: <strong>{{ calcularCapacidadeOp(grupo.opId) }}</strong></span>
+                <span class="stat" v-if="grupo.opId">🎯 Eficiência: <strong>{{ calcularEficienciaOp(grupo.opId) }}%</strong></span>
+              </span>
+            </div>
 
-                    <!-- ETAPA -->
-                    <td class="etapa-col">
-                      <div class="etapa-wrap">
-                        <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha, funcionario)">
-                          <option value="">Etapa</option>
-                          <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
-                            <option v-for="etapa in etapasDaOp(op.pecaId)" :key="etapa.id_da_funcao"
-                              :value="etapa.id_da_funcao">
-                              {{ etapa.etapa?.descricao }} ({{ etapa.etapa?.tempo_padrao }}min)
-                            </option>
-                          </optgroup>
-                        </select>
-                        <button v-if="linha.tipo === 'principal'" class="btn-add-linha"
-                          @click="adicionarLinhaExtra(funcionario)">+</button>
-                        <button v-else class="btn-remove-linha"
-                          @click="removerLinhaExtra(funcionario, idxLinha)">×</button>
-                      </div>
+            <!-- TABELA DO MÓDULO -->
+            <div class="table-wrapper">
+              <div class="table-scroll">
+                <table class="apontamento-table">
+                  <thead>
+                    <tr>
+                      <th class="func-col">Funcionário</th>
+                      <th class="etapa-col">Etapa</th>
+                      <th v-for="hora in horasVisiveis" :key="hora" class="hora-th">{{ hora }}h</th>
+                      <th class="total-col">Total</th>
+                      <th class="efic-col">Eficiência</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template v-for="funcionario in grupo.funcionarios" :key="funcionario.email + '_' + (grupo.opId || 'sem')">
+                      <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
+                        :class="{ 'linha-extra': linha.tipo === 'extra' }">
 
-                      <!-- TOGGLE TEMPO PADRÃO vs TEMPO DO FUNCIONÁRIO -->
-                      <div v-if="linha.etapaId" class="tempo-toggle-wrap">
-                        <button
-                          :class="['tempo-toggle-btn', linha.modoTempo === 'padrao' ? 'tempo-ativo' : '']"
-                          @click="alterarModoTempo(linha, 'padrao')"
-                          :title="`Tempo padrão da etapa: ${linha.tempoPadrao} min`">
-                          ⏱ {{ linha.tempoPadrao }}min
-                        </button>
-                        <button
-                          v-if="linha.tempoReferencia"
-                          :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
-                          @click="alterarModoTempo(linha, 'referencia')"
-                          :title="`Tempo medido do funcionário: ${linha.tempoReferencia} min`">
-                          👤 {{ linha.tempoReferencia }}min
-                        </button>
-                        <span v-if="!linha.tempoReferencia" class="sem-referencia" title="Nenhuma medição registrada para este funcionário nesta etapa">
-                          sem medição
-                        </span>
-                      </div>
-                    </td>
+                        <!-- FUNCIONÁRIO -->
+                        <td class="func-col">
+                          <div v-if="idxLinha === 0" class="func-info">
+                            <img :src="funcionario.foto || '/default-avatar.png'" />
+                            <span>{{ funcionario.nome }}</span>
+                          </div>
+                          <div v-else class="extra-tag">↳ Extra</div>
+                        </td>
 
-                    <!-- HORAS -->
-                    <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
-                      <div class="hora-box">
-                        <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
-                          :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                          @blur="onInputQuantidade(funcionario, linha, hora)" />
-                        <div class="tempo-wrap">
-                          <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
-                            class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
-                          <span class="min-label">min</span>
-                        </div>
-                        <div v-if="linha.registros[hora].quantidade > 0"
-                          :class="['efic-chip', getEficClass(calcularEficienciaRegistro(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
-                          {{ calcularEficienciaRegistro(linha.registros[hora].quantidade,
-                            linha.registros[hora].tempoProduzido, linha) }}%
-                        </div>
-                      </div>
-                    </td>
+                        <!-- ETAPA -->
+                        <td class="etapa-col">
+                          <div class="etapa-wrap">
+                            <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha, funcionario)">
+                              <option value="">Etapa</option>
+                              <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
+                                <option v-for="etapa in etapasDaOp(op.pecaId)" :key="etapa.id_da_funcao"
+                                  :value="etapa.id_da_funcao">
+                                  {{ etapa.etapa?.descricao }} ({{ etapa.etapa?.tempo_padrao }}min)
+                                </option>
+                              </optgroup>
+                            </select>
+                            <button v-if="linha.tipo === 'principal'" class="btn-add-linha"
+                              @click="adicionarLinhaExtra(funcionario)">+</button>
+                            <button v-else class="btn-remove-linha"
+                              @click="removerLinhaExtra(funcionario, idxLinha)">×</button>
+                          </div>
 
-                    <!-- TOTAL -->
-                    <td class="total-col">{{ calcularTotalLinha(linha) }}</td>
+                          <!-- TOGGLE TEMPO PADRÃO vs TEMPO DO FUNCIONÁRIO -->
+                          <div v-if="linha.etapaId" class="tempo-toggle-wrap">
+                            <button
+                              :class="['tempo-toggle-btn', linha.modoTempo === 'padrao' ? 'tempo-ativo' : '']"
+                              @click="alterarModoTempo(linha, 'padrao')"
+                              :title="`Tempo padrão da etapa: ${linha.tempoPadrao} min`">
+                              ⏱ {{ linha.tempoPadrao }}min
+                            </button>
 
-                    <!-- EFICIÊNCIA -->
-                    <td class="efic-col">
-                      <div v-if="idxLinha === 0"
-                        :class="['efic-badge', getEficClass(calcularEficienciaFuncionario(funcionario))]">
-                        {{
-                          calcularEficienciaFuncionario(funcionario)
-                            ? calcularEficienciaFuncionario(funcionario) + '%'
-                            : '—'
-                        }}
-                      </div>
-                    </td>
+                            <!-- 1 ref: botão único (UX original) -->
+                            <button
+                              v-if="linha.tempoReferenciaOpcoes.length === 1"
+                              :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
+                              @click="alterarModoTempo(linha, 'referencia')"
+                              :title="`Tempo medido do funcionário: ${linha.tempoReferencia} min`">
+                              👤 {{ linha.tempoReferencia }}min
+                            </button>
 
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
+                            <!-- N refs: dropdown -->
+                            <div v-else-if="linha.tempoReferenciaOpcoes.length > 1" class="tempo-ref-dropdown">
+                              <button
+                                :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
+                                @click.stop="toggleRefDropdown(linha)"
+                                :title="`${linha.tempoReferenciaOpcoes.length} medições disponíveis`">
+                                👤 {{ linha.tempoReferencia }}min ▾
+                              </button>
+                              <ul v-if="refDropdownAberto[linha.id]" class="ref-list" @click.stop>
+                                <li
+                                  v-for="opt in linha.tempoReferenciaOpcoes"
+                                  :key="opt.id"
+                                  :class="{ active: opt.id === linha.referenciaSelecionadaId }"
+                                  @click="selecionarReferencia(linha, opt)">
+                                  {{ opt.label }}
+                                </li>
+                              </ul>
+                            </div>
+
+                            <span v-if="linha.tempoReferenciaOpcoes.length === 0" class="sem-referencia" title="Nenhuma medição registrada para este funcionário nesta etapa">
+                              sem medição
+                            </span>
+                          </div>
+                        </td>
+
+                        <!-- HORAS -->
+                        <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
+                          <div class="hora-box">
+                            <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
+                              :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                              @blur="onInputQuantidade(funcionario, linha, hora)" />
+                            <div class="tempo-wrap">
+                              <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
+                                class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
+                              <span class="min-label">min</span>
+                            </div>
+                            <div v-if="linha.registros[hora].quantidade > 0"
+                              :class="['efic-chip', getEficClass(calcularEficienciaRegistro(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
+                              {{ calcularEficienciaRegistro(linha.registros[hora].quantidade,
+                                linha.registros[hora].tempoProduzido, linha) }}%
+                            </div>
+                          </div>
+                        </td>
+
+                        <!-- TOTAL -->
+                        <td class="total-col">{{ calcularTotalLinha(linha) }}</td>
+
+                        <!-- EFICIÊNCIA -->
+                        <td class="efic-col">
+                          <div v-if="idxLinha === 0"
+                            :class="['efic-badge', getEficClass(calcularEficienciaFuncionario(funcionario))]">
+                            {{
+                              calcularEficienciaFuncionario(funcionario)
+                                ? calcularEficienciaFuncionario(funcionario) + '%'
+                                : '—'
+                            }}
+                          </div>
+                        </td>
+
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
         </div>
 
       </div>
@@ -273,6 +320,8 @@ export default {
       configHorarios: this.carregarConfigHorarios(),
       ultimaBuscaId: 0,
       carregandoMeta: false,
+      // UI: mapa linhaId → boolean para dropdown de múltiplas refs
+      refDropdownAberto: {},
     }
   },
 
@@ -299,6 +348,55 @@ export default {
     opsAtivasComPeca() {
       return this.opsAtivas.filter(op => op.pecaId)
     },
+
+    /**
+     * Agrupa funcionários por OP baseado em linha.opId.
+     * Funcionário pode aparecer em mais de um módulo (uma fatia por OP).
+     */
+    funcionariosAgrupadosPorOp() {
+      const gruposMap = new Map()
+
+      // Cria um grupo para cada OP ativa + um grupo "Sem OP"
+      gruposMap.set(null, {
+        opId: null,
+        label: 'Funcionários sem OP',
+        funcionarios: [],
+      })
+
+      for (const op of this.opsAtivasComPeca) {
+        gruposMap.set(op.pecaId, {
+          opId: op.pecaId,
+          label: this.nomeDaOp(op.pecaId),
+          funcionarios: [],
+        })
+      }
+
+      // Distribui as linhas dos funcionários pelos grupos
+      for (const func of this.funcionariosDia) {
+        const linhasPorOp = new Map()
+
+        for (const linha of func.linhas || []) {
+          const key = linha.opId || null
+          if (!linhasPorOp.has(key)) linhasPorOp.set(key, [])
+          linhasPorOp.get(key).push(linha)
+        }
+
+        for (const [opId, linhas] of linhasPorOp) {
+          const grupo = gruposMap.get(opId) || gruposMap.get(null)
+          grupo.funcionarios.push({
+            ...func,
+            linhas,
+            _grupoOpId: opId,
+          })
+        }
+      }
+
+      // Mantém ordem: OPs ativas primeiro, depois "Sem OP"
+      const ordem = [...this.opsAtivasComPeca.map(o => o.pecaId), null]
+      return ordem
+        .map(id => gruposMap.get(id))
+        .filter(g => g.funcionarios.length > 0)
+    },
   },
 
   watch: {
@@ -313,11 +411,21 @@ export default {
     await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
+    // Fecha dropdowns de ref ao clicar fora
+    this.onClickFora = () => {
+      if (Object.values(this.refDropdownAberto || {}).some(Boolean)) {
+        this.refDropdownAberto = {}
+      }
+    }
+    document.addEventListener('click', this.onClickFora)
   },
 
   beforeUnmount() {
     socket.off()
     socket.disconnect()
+    if (this.onClickFora) {
+      document.removeEventListener('click', this.onClickFora)
+    }
   },
 
   methods: {
@@ -580,8 +688,12 @@ export default {
         etapaId: '',
         descricao: '',
         tempoPadrao: 0,
-        // Tempo medido para o funcionário nessa etapa (tempo_por_peca do TempoReferencia)
+        // Tempo medido para o funcionário nessa etapa (tempo_por_peca do TempoReferencia ativo)
         tempoReferencia: null,
+        // Lista de medições disponíveis para este (etapa, funcionário)
+        tempoReferenciaOpcoes: [],
+        // id da medição ativa dentro de tempoReferenciaOpcoes
+        referenciaSelecionadaId: null,
         // Qual tempo está sendo usado no cálculo: 'padrao' | 'referencia'
         modoTempo: 'padrao',
         // O valor efetivo sendo usado no cálculo (pode ser tempoPadrao ou tempoReferencia)
@@ -625,12 +737,39 @@ export default {
 
     // ── ETAPA ─────────────────────────────────────────────
     /**
+     * Retorna todas as medições (tempo_referencia) do funcionário para a etapa.
+     * Cada item: { id, tempo_por_peca, label }
+     */
+    listarRefsDoFuncionario(etapa, funcionario) {
+      if (!etapa?.etapa?.tempo_referencia?.length || !funcionario?.email) {
+        return []
+      }
+      return etapa.etapa.tempo_referencia
+        .filter(r => r.id_funcionario === funcionario.email && r.tempo_por_peca)
+        .map(r => ({
+          id: r.id,
+          tempo_por_peca: r.tempo_por_peca,
+          label: `Medição #${r.id} — ${r.tempo_por_peca}min`,
+        }))
+    },
+
+    /**
+     * Aplica uma seleção de tempo de referência na linha (não muda modoTempo).
+     */
+    aplicarReferencia(linha, opt) {
+      if (!opt) return
+      linha.referenciaSelecionadaId = opt.id
+      linha.tempoReferencia = opt.tempo_por_peca
+      linha.tempoEscolhido = opt.tempo_por_peca
+    },
+
+    /**
      * Ao selecionar/trocar a etapa de uma linha, atualiza todos os campos
      * relacionados a tempo, incluindo a busca do tempo de referência do funcionário.
      *
      * O campo tempo_referencia na etapa é um array de objetos TempoReferencia.
-     * Buscamos pelo id_funcionario que corresponde ao email do funcionário da linha.
-     * Usamos tempo_por_peca pois é o valor já calculado (tempo_minutos / quantidade_pecas * fator_ritmo * tolerancia).
+     * Pode haver N medições para o mesmo (etapa, funcionário); quando há mais de 1,
+     * a UI exibe um dropdown para o usuário escolher qual usar.
      */
     onAlterarEtapa(linha, funcionario) {
       const etapa = this.buscarEtapa(linha.etapaId)
@@ -639,16 +778,18 @@ export default {
       linha.descricao = etapa?.etapa?.descricao || ''
       linha.opId = etapa?.id_da_op || null
 
-      // Busca tempo de referência específico do funcionário nessa etapa
-      const refs = etapa?.etapa?.tempo_referencia || []
-      const refDoFuncionario = refs.find(r => r.id_funcionario === funcionario.email)
+      // Busca TODAS as medições do funcionário nessa etapa
+      const opcoes = this.listarRefsDoFuncionario(etapa, funcionario)
+      linha.tempoReferenciaOpcoes = opcoes
 
-      if (refDoFuncionario && refDoFuncionario.tempo_por_peca) {
-        linha.tempoReferencia = refDoFuncionario.tempo_por_peca
-        // Por padrão já seleciona o tempo do funcionário quando disponível
+      if (opcoes.length > 0) {
+        // Seleciona a primeira medição automaticamente
+        linha.referenciaSelecionadaId = opcoes[0].id
+        linha.tempoReferencia = opcoes[0].tempo_por_peca
         linha.modoTempo = 'referencia'
-        linha.tempoEscolhido = refDoFuncionario.tempo_por_peca
+        linha.tempoEscolhido = opcoes[0].tempo_por_peca
       } else {
+        linha.referenciaSelecionadaId = null
         linha.tempoReferencia = null
         linha.modoTempo = 'padrao'
         linha.tempoEscolhido = linha.tempoPadrao
@@ -662,9 +803,36 @@ export default {
      */
     alterarModoTempo(linha, modo) {
       linha.modoTempo = modo
-      linha.tempoEscolhido = modo === 'referencia'
-        ? linha.tempoReferencia
-        : linha.tempoPadrao
+      if (modo === 'referencia') {
+        // Garante que a ref ativa continua refletida no tempoEscolhido
+        const ativo = linha.tempoReferenciaOpcoes?.find(
+          o => o.id === linha.referenciaSelecionadaId
+        )
+        linha.tempoReferencia = ativo?.tempo_por_peca ?? linha.tempoReferencia
+        linha.tempoEscolhido = linha.tempoReferencia || linha.tempoPadrao
+      } else {
+        linha.tempoEscolhido = linha.tempoPadrao
+      }
+      this.refDropdownAberto[linha.id] = false
+    },
+
+    /**
+     * Abre/fecha o dropdown de múltiplas medições para a linha.
+     */
+    toggleRefDropdown(linha) {
+      this.refDropdownAberto = {
+        ...this.refDropdownAberto,
+        [linha.id]: !this.refDropdownAberto[linha.id],
+      }
+    },
+
+    /**
+     * Seleciona uma medição específica da lista.
+     */
+    selecionarReferencia(linha, opt) {
+      this.aplicarReferencia(linha, opt)
+      linha.modoTempo = 'referencia'
+      this.refDropdownAberto = { ...this.refDropdownAberto, [linha.id]: false }
     },
 
     buscarEtapa(etapaId) {
@@ -736,6 +904,67 @@ export default {
         }
       }
       return total
+    },
+
+    /**
+     * Quantidade de funcionários únicos alocados (com linhas) em uma OP.
+     */
+    calcularFuncionariosOp(opId) {
+      if (!opId) return 0
+      const emails = new Set()
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId === opId) {
+            emails.add(func.email)
+            break
+          }
+        }
+      }
+      return emails.size
+    },
+
+    /**
+     * Eficiência consolidada de uma OP (soma produzida / soma tempo * 100).
+     */
+    calcularEficienciaOp(opId) {
+      if (!opId) return 0
+      let somaProduzida = 0
+      let somaTempo = 0
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId !== opId) continue
+          const tempo = linha.tempoEscolhido || linha.tempoPadrao || 0
+          for (const hora in linha.registros || {}) {
+            const reg = linha.registros[hora]
+            if (reg && reg.quantidade > 0) {
+              somaProduzida += reg.quantidade * tempo
+              somaTempo += reg.tempoProduzido || 60
+            }
+          }
+        }
+      }
+
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
+    },
+
+    /**
+     * Capacidade produtiva estimada da OP: soma de floor(minutos_uteis / tempoEscolhido)
+     * para cada linha da OP. minutos_uteis = horasVisiveis.length * 60.
+     */
+    calcularCapacidadeOp(opId) {
+      if (!opId) return 0
+      const minutosUteis = (this.horasVisiveis?.length || 1) * 60
+      let capacidade = 0
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId !== opId) continue
+          const t = linha.tempoEscolhido || linha.tempoPadrao || 60
+          if (t > 0) capacidade += Math.floor(minutosUteis / t)
+        }
+      }
+      return capacidade
     },
 
     // ── EFICIÊNCIA ────────────────────────────────────────
@@ -849,6 +1078,9 @@ export default {
           linhas: (func.linhas || []).map(linha => ({
             tipo: linha.tipo,
             etapaId: linha.etapaId,
+            opId: linha.opId,
+            modoTempo: linha.modoTempo,
+            referenciaSelecionadaId: linha.referenciaSelecionadaId,
           })),
         })),
       })
@@ -927,14 +1159,16 @@ export default {
 
                 // Restaura tempo de referência do funcionário ao carregar do banco
                 const etapaGlobal = this.buscarEtapa(etapaId)
-                const refs = etapaGlobal?.etapa?.tempo_referencia || []
-                const refDoFuncionario = refs.find(r => r.id_funcionario === funcionario.email)
+                const opcoes = this.listarRefsDoFuncionario(etapaGlobal, funcionario)
+                linha.tempoReferenciaOpcoes = opcoes
 
-                if (refDoFuncionario && refDoFuncionario.tempo_por_peca) {
-                  linha.tempoReferencia = refDoFuncionario.tempo_por_peca
+                if (opcoes.length > 0) {
+                  linha.referenciaSelecionadaId = opcoes[0].id
+                  linha.tempoReferencia = opcoes[0].tempo_por_peca
                   linha.modoTempo = 'referencia'
-                  linha.tempoEscolhido = refDoFuncionario.tempo_por_peca
+                  linha.tempoEscolhido = opcoes[0].tempo_por_peca
                 } else {
+                  linha.referenciaSelecionadaId = null
                   linha.tempoReferencia = null
                   linha.modoTempo = 'padrao'
                   linha.tempoEscolhido = linha.tempoPadrao
@@ -1702,6 +1936,112 @@ export default {
 .efic-col {
   width: 100px;
   text-align: center;
+}
+
+/* ── MÓDULOS POR OP ────────────────────────────────── */
+.ops-modulos-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.op-module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: linear-gradient(90deg, #e7f8ef, #f8fcf9);
+  border: 1px solid #dceee3;
+  border-radius: 14px;
+  padding: 12px 18px;
+  margin-top: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.op-module-header--single {
+  background: #f8fcf9;
+  border-color: #e3f0e7;
+  box-shadow: none;
+}
+
+.op-module-header--empty {
+  background: #fff8e1;
+  border-color: #f0d97a;
+}
+
+.op-module-badge {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0d6632;
+  letter-spacing: 0.02em;
+}
+
+.op-module-header--empty .op-module-badge {
+  color: #8a6a00;
+}
+
+.op-module-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #537664;
+  font-weight: 700;
+}
+
+.op-module-stats .stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.op-module-stats .stat strong {
+  color: #052e14;
+  font-weight: 800;
+}
+
+/* ── DROPDOWN DE REFS ──────────────────────────────── */
+.tempo-ref-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.ref-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  background: white;
+  border: 1px solid #dceee3;
+  border-radius: 10px;
+  min-width: 200px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.ref-list li {
+  padding: 8px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #052e14;
+  transition: background 0.15s;
+}
+
+.ref-list li:hover {
+  background: #f4faf6;
+  color: #0d6632;
+}
+
+.ref-list li.active {
+  background: #ede8ff;
+  color: #5030b0;
+  font-weight: 700;
 }
 
 /* ── RESPONSIVO ────────────────────────────────────── */
