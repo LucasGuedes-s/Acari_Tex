@@ -171,12 +171,12 @@
                         <!-- ETAPA -->
                         <td class="etapa-col">
                           <div class="etapa-wrap">
-                            <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha, funcionario)">
+                            <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha)">
                               <option value="">Etapa</option>
                               <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
-                                <option v-for="etapa in etapasDaOp(op.pecaId)" :key="etapa.id_da_funcao"
-                                  :value="etapa.id_da_funcao">
-                                  {{ etapa.etapa?.descricao }} ({{ etapa.etapa?.tempo_padrao }}min)
+                                <option v-for="etapa in etapasDaOp(op.pecaId)" :key="(etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
+                                  :value="etapa.id_da_funcao || etapa.etapa?.id_da_funcao">
+                                  {{ etapa.descricao || etapa.etapa?.descricao }} ({{ etapa.tempo_padrao || etapa.etapa?.tempo_padrao }}min)
                                 </option>
                               </optgroup>
                             </select>
@@ -191,25 +191,25 @@
                             <button
                               :class="['tempo-toggle-btn', linha.modoTempo === 'padrao' ? 'tempo-ativo' : '']"
                               @click="alterarModoTempo(linha, 'padrao')"
-                              :title="`Tempo padrão da etapa: ${linha.tempoPadrao} min`">
+                              :title="`Tempo padrão da etapa (fallback): ${linha.tempoPadrao} min`">
                               ⏱ {{ linha.tempoPadrao }}min
                             </button>
 
-                            <!-- 1 ref: botão único (UX original) -->
+                            <!-- 1 ref: botão único (medição real da etapa) -->
                             <button
                               v-if="linha.tempoReferenciaOpcoes.length === 1"
                               :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
                               @click="alterarModoTempo(linha, 'referencia')"
-                              :title="`Tempo medido do funcionário: ${linha.tempoReferencia} min`">
+                              :title="`Medição real da etapa: ${linha.tempoReferencia} min`">
                               👤 {{ linha.tempoReferencia }}min
                             </button>
 
-                            <!-- N refs: dropdown -->
+                            <!-- N refs: dropdown de medições reais -->
                             <div v-else-if="linha.tempoReferenciaOpcoes.length > 1" class="tempo-ref-dropdown">
                               <button
                                 :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
                                 @click.stop="toggleRefDropdown(linha)"
-                                :title="`${linha.tempoReferenciaOpcoes.length} medições disponíveis`">
+                                :title="`${linha.tempoReferenciaOpcoes.length} medições reais registradas`">
                                 👤 {{ linha.tempoReferencia }}min ▾
                               </button>
                               <ul v-if="refDropdownAberto[linha.id]" class="ref-list" @click.stop>
@@ -223,7 +223,7 @@
                               </ul>
                             </div>
 
-                            <span v-if="linha.tempoReferenciaOpcoes.length === 0" class="sem-referencia" title="Nenhuma medição registrada para este funcionário nesta etapa">
+                            <span v-if="linha.tempoReferenciaOpcoes.length === 0" class="sem-referencia" title="Nenhuma medição registrada para esta etapa. Usando tempo padrão.">
                               sem medição
                             </span>
                           </div>
@@ -611,13 +611,27 @@ export default {
         console.log('Pecas carregadas:', this.pecas)
         this.etapas = this.pecas.map(p => p.etapas || [])
 
-        // Monta mapa id_da_funcao → etapa global para lookup rápido de tempo_referencia
-        // A API de /pecas retorna as etapas da OP com campo etapa contendo tempo_referencia[]
+        // Diagnóstico: confirma estrutura da primeira etapa para validar onde está tempo_referencia
+        const primeiraEtapa = this.etapas.flat()[0]
+        if (primeiraEtapa) {
+          console.log('[DIAGNÓSTICO] Estrutura da etapa:', {
+            raiz_tem_tempo_referencia: Array.isArray(primeiraEtapa.tempo_referencia),
+            etapa_tem_tempo_referencia: Array.isArray(primeiraEtapa.etapa?.tempo_referencia),
+            raiz_tem_id_da_funcao: !!primeiraEtapa.id_da_funcao,
+            etapa_tem_id_da_funcao: !!primeiraEtapa.etapa?.id_da_funcao,
+            amostra: primeiraEtapa,
+          })
+        }
+
+        // Monta mapa de etapas (item raiz) indexado por id_da_funcao.
+        // A API de /pecas pode retornar id_da_funcao na raiz ou dentro de etapa;
+        // toleramos ambos para conseguir localizar tempo_referencia corretamente.
         this.etapasMap = {}
         for (const listaEtapas of this.etapas) {
           for (const e of listaEtapas) {
-            if (e.id_da_funcao && e.etapa) {
-              this.etapasMap[e.id_da_funcao] = e.etapa
+            const idFuncao = e.id_da_funcao || e.etapa?.id_da_funcao
+            if (idFuncao) {
+              this.etapasMap[idFuncao] = e
             }
           }
         }
@@ -737,15 +751,18 @@ export default {
 
     // ── ETAPA ─────────────────────────────────────────────
     /**
-     * Retorna todas as medições (tempo_referencia) do funcionário para a etapa.
-     * Cada item: { id, tempo_por_peca, label }
+     * Retorna todas as medições (tempo_referencia) registradas para a etapa.
+     * tempo_referencia é um dado de medição da etapa como um todo.
+     * Cada item: { id, tempo_por_peca, label }.
+     * Tolerante a diferentes formatos do backend: tempo_referencia pode estar
+     * na raiz do item (e.tempo_referencia) ou dentro de e.etapa.tempo_referencia.
      */
-    listarRefsDoFuncionario(etapa, funcionario) {
-      if (!etapa?.etapa?.tempo_referencia?.length || !funcionario?.email) {
-        return []
-      }
-      return etapa.etapa.tempo_referencia
-        .filter(r => r.id_funcionario === funcionario.email && r.tempo_por_peca)
+    listarRefsDaEtapa(etapa) {
+      if (!etapa) return []
+      const refs = etapa.tempo_referencia || etapa.etapa?.tempo_referencia || []
+      if (!refs.length) return []
+      return refs
+        .filter(r => r && r.tempo_por_peca)
         .map(r => ({
           id: r.id,
           tempo_por_peca: r.tempo_por_peca,
@@ -765,30 +782,30 @@ export default {
 
     /**
      * Ao selecionar/trocar a etapa de uma linha, atualiza todos os campos
-     * relacionados a tempo, incluindo a busca do tempo de referência do funcionário.
-     *
-     * O campo tempo_referencia na etapa é um array de objetos TempoReferencia.
-     * Pode haver N medições para o mesmo (etapa, funcionário); quando há mais de 1,
-     * a UI exibe um dropdown para o usuário escolher qual usar.
+     * relacionados a tempo. tempo_referencia é um dado de medição real da etapa:
+     * se houver N registros, a UI mostra um dropdown para o usuário escolher qual usar.
+     * Se não houver nenhuma medição, o sistema cai automaticamente para tempo_padrao.
      */
-    onAlterarEtapa(linha, funcionario) {
+    onAlterarEtapa(linha) {
       const etapa = this.buscarEtapa(linha.etapaId)
 
-      linha.tempoPadrao = etapa?.etapa?.tempo_padrao || 0
-      linha.descricao = etapa?.etapa?.descricao || ''
+      // Tolerante a backend: campos podem estar na raiz (e.tempo_padrao) ou dentro de etapa (e.etapa.tempo_padrao)
+      linha.tempoPadrao = etapa?.tempo_padrao || etapa?.etapa?.tempo_padrao || 0
+      linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || ''
       linha.opId = etapa?.id_da_op || null
 
-      // Busca TODAS as medições do funcionário nessa etapa
-      const opcoes = this.listarRefsDoFuncionario(etapa, funcionario)
+      // Busca TODAS as medições registradas para a etapa (escopo da etapa)
+      const opcoes = this.listarRefsDaEtapa(etapa)
       linha.tempoReferenciaOpcoes = opcoes
 
       if (opcoes.length > 0) {
-        // Seleciona a primeira medição automaticamente
+        // Seleciona a primeira medição automaticamente; usuário pode trocar via dropdown
         linha.referenciaSelecionadaId = opcoes[0].id
         linha.tempoReferencia = opcoes[0].tempo_por_peca
         linha.modoTempo = 'referencia'
         linha.tempoEscolhido = opcoes[0].tempo_por_peca
       } else {
+        // Sem medições: fallback automático para tempo padrão
         linha.referenciaSelecionadaId = null
         linha.tempoReferencia = null
         linha.modoTempo = 'padrao'
@@ -1157,16 +1174,19 @@ export default {
                 linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
                 linha.opId = producao.id_da_op || null
 
-                // Restaura tempo de referência do funcionário ao carregar do banco
+                // Restaura medições reais da etapa ao carregar do banco
                 const etapaGlobal = this.buscarEtapa(etapaId)
-                const opcoes = this.listarRefsDoFuncionario(etapaGlobal, funcionario)
+                const opcoes = this.listarRefsDaEtapa(etapaGlobal)
                 linha.tempoReferenciaOpcoes = opcoes
 
                 if (opcoes.length > 0) {
-                  linha.referenciaSelecionadaId = opcoes[0].id
-                  linha.tempoReferencia = opcoes[0].tempo_por_peca
+                  // Tenta restaurar a ref antes salva; se não existir mais, usa a primeira
+                  const persistidaId = producao.referencia_selecionada_id
+                  const persistida = opcoes.find(o => o.id === persistidaId) || opcoes[0]
+                  linha.referenciaSelecionadaId = persistida.id
+                  linha.tempoReferencia = persistida.tempo_por_peca
                   linha.modoTempo = 'referencia'
-                  linha.tempoEscolhido = opcoes[0].tempo_por_peca
+                  linha.tempoEscolhido = persistida.tempo_por_peca
                 } else {
                   linha.referenciaSelecionadaId = null
                   linha.tempoReferencia = null
