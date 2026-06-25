@@ -148,7 +148,7 @@
                     <!-- ETAPA -->
                     <td class="etapa-col">
                       <div class="etapa-wrap">
-                        <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha)">
+                        <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha, funcionario)">
                           <option value="">Etapa</option>
                           <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
                             <option v-for="etapa in etapasDaOp(op.pecaId)" :key="etapa.id_da_funcao"
@@ -161,6 +161,26 @@
                           @click="adicionarLinhaExtra(funcionario)">+</button>
                         <button v-else class="btn-remove-linha"
                           @click="removerLinhaExtra(funcionario, idxLinha)">×</button>
+                      </div>
+
+                      <!-- TOGGLE TEMPO PADRÃO vs TEMPO DO FUNCIONÁRIO -->
+                      <div v-if="linha.etapaId" class="tempo-toggle-wrap">
+                        <button
+                          :class="['tempo-toggle-btn', linha.modoTempo === 'padrao' ? 'tempo-ativo' : '']"
+                          @click="alterarModoTempo(linha, 'padrao')"
+                          :title="`Tempo padrão da etapa: ${linha.tempoPadrao} min`">
+                          ⏱ {{ linha.tempoPadrao }}min
+                        </button>
+                        <button
+                          v-if="linha.tempoReferencia"
+                          :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
+                          @click="alterarModoTempo(linha, 'referencia')"
+                          :title="`Tempo medido do funcionário: ${linha.tempoReferencia} min`">
+                          👤 {{ linha.tempoReferencia }}min
+                        </button>
+                        <span v-if="!linha.tempoReferencia" class="sem-referencia" title="Nenhuma medição registrada para este funcionário nesta etapa">
+                          sem medição
+                        </span>
                       </div>
                     </td>
 
@@ -176,9 +196,9 @@
                           <span class="min-label">min</span>
                         </div>
                         <div v-if="linha.registros[hora].quantidade > 0"
-                          :class="['efic-chip', getEficClass(calcularEficienciaRegistro(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha.tempoPadrao))]">
+                          :class="['efic-chip', getEficClass(calcularEficienciaRegistro(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
                           {{ calcularEficienciaRegistro(linha.registros[hora].quantidade,
-                            linha.registros[hora].tempoProduzido, linha.tempoPadrao) }}%
+                            linha.registros[hora].tempoProduzido, linha) }}%
                         </div>
                       </div>
                     </td>
@@ -224,7 +244,6 @@ const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] 
 
 const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
 
-// Configuração padrão (igual ao comportamento antigo, fixo)
 const CONFIG_PADRAO = {
   manha: { inicio: '08:00', fim: '12:30' },
   tarde: { inicio: '13:30', fim: '18:00' },
@@ -243,16 +262,15 @@ export default {
       socketConectado: false,
       dataSelecionada: this.formatarDataLocal(),
       turnoAtivo: 'manha',
-      // Array de OPs ativas, cada uma com { _uid, pecaId, metaDia }
       opsAtivas: [this.novaOpSetup()],
       funcionarios: [],
       funcionariosDia: [],
       pecas: [],
+      // etapas globais com tempo_referencia incluído
       etapas: [],
-      // Configuração de horário por turno: { manha: { inicio, fim }, tarde: { inicio, fim } }
+      // mapa: id_da_funcao → objeto etapa (para lookup rápido)
+      etapasMap: {},
       configHorarios: this.carregarConfigHorarios(),
-      // Controle interno para descartar respostas desatualizadas do
-      // socket quando a data é trocada rapidamente (ver buscarMetaDia)
       ultimaBuscaId: 0,
       carregandoMeta: false,
     }
@@ -263,19 +281,16 @@ export default {
       return this.configHorarios[this.turnoAtivo]
     },
 
-    // Lista de horários "cheios" possíveis para início (06:00 → 22:00)
     opcoesHoraInicio() {
       return this.gerarOpcoesHorario(6, 22)
     },
 
-    // Opções de fim sempre depois do início escolhido
     opcoesHoraFim() {
       const todas = this.gerarOpcoesHorario(6, 23)
       const inicioMin = this.horaParaMinutos(this.configTurnoAtivo.inicio)
       return todas.filter(h => this.horaParaMinutos(h) > inicioMin)
     },
 
-    // Gera a sequência de hora em hora a partir do início até o fim do turno ativo
     horasVisiveis() {
       const { inicio, fim } = this.configTurnoAtivo
       return this.gerarSequenciaHoras(inicio, fim)
@@ -284,7 +299,6 @@ export default {
     opsAtivasComPeca() {
       return this.opsAtivas.filter(op => op.pecaId)
     },
-
   },
 
   watch: {
@@ -312,7 +326,7 @@ export default {
       return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`
     },
 
-    // ── HORÁRIOS CONFIGURÁVEIS ───────────────────────────
+    // ── HORÁRIOS ──────────────────────────────────────────
     horaParaMinutos(hora) {
       const [h, m] = hora.split(':').map(Number)
       return h * 60 + m
@@ -324,7 +338,6 @@ export default {
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
     },
 
-    // Gera opções de horário "redondo" (de 30 em 30 min) entre horaInicial e horaFinal
     gerarOpcoesHorario(horaInicial, horaFinal) {
       const opcoes = []
       for (let h = horaInicial; h <= horaFinal; h++) {
@@ -334,9 +347,6 @@ export default {
       return opcoes
     },
 
-    // Gera a sequência de hora em hora a partir de um horário de início até um horário de fim
-    // Ex: início 08:00, fim 12:30 → 08:00, 09:00, 10:00, 11:00, 12:30
-    // Ex: início 11:30, fim 18:00 → 11:30, 12:30, 13:30, 14:30, 15:30, 16:30, 17:30, 18:00 (último ajustado)
     gerarSequenciaHoras(inicio, fim) {
       const inicioMin = this.horaParaMinutos(inicio)
       const fimMin = this.horaParaMinutos(fim)
@@ -353,7 +363,6 @@ export default {
         atual += 60
       }
 
-      // Garante que o horário final sempre apareça como última marcação
       const ultimaHora = this.minutosParaHora(atual)
       if (ultimaHora !== fim) {
         sequencia.push(fim)
@@ -395,7 +404,6 @@ export default {
     },
 
     onAlterarConfigHorario() {
-      // Garante que o fim sempre fique depois do início
       const inicioMin = this.horaParaMinutos(this.configTurnoAtivo.inicio)
       const fimMin = this.horaParaMinutos(this.configTurnoAtivo.fim)
 
@@ -408,8 +416,6 @@ export default {
       this.ajustarRegistrosParaNovasHoras()
     },
 
-    // Quando o intervalo de horas muda, garante que todas as linhas tenham
-    // um objeto de registro para cada hora nova, sem perder o que já tinha
     ajustarRegistrosParaNovasHoras() {
       const horasAtuais = this.horasVisiveis
 
@@ -431,8 +437,6 @@ export default {
 
     // ── SOCKET ────────────────────────────────────────────
     iniciarSocket() {
-      // Remove listeners antigos antes de registrar de novo
-      // (evita handlers duplicados ao remontar o componente)
       socket.off('connect')
       socket.off('disconnect')
       socket.off('erro-producao')
@@ -442,52 +446,27 @@ export default {
         socket.off(`nova_atualizacao_${cnpj}`)
       }
 
-      socket.on('connect', () => {
-        this.socketConectado = true
-      })
+      socket.on('connect', () => { this.socketConectado = true })
+      socket.on('disconnect', () => { this.socketConectado = false })
+      socket.on('erro-producao', err => { console.log(err) })
 
-      socket.on('disconnect', () => {
-        this.socketConectado = false
-      })
-
-      socket.on('erro-producao', err => {
-        console.log(err)
-      })
-
-      // Quando QUALQUER usuário (neste ou em outro computador) salva
-      // produção/meta para o mesmo estabelecimento, o backend emite esse
-      // evento. Rebuscamos a meta do dia para refletir a mudança na hora,
-      // sem precisar trocar de data ou dar F5 — igual ao PainelProfissionais.
       if (cnpj) {
         socket.on(`nova_atualizacao_${cnpj}`, () => {
-          console.log('Recebida atualização de produção para o estabelecimento, rebuscando meta do dia...')
           this.onAtualizacaoRemota()
         })
       }
 
-      // O beforeUnmount chama socket.disconnect(), então ao remontar
-      // o componente precisamos reconectar manualmente.
       if (!socket.connected) {
         socket.connect()
       } else {
-        // já estava conectado (ex: navegação rápida) — sincroniza o estado
         this.socketConectado = true
       }
     },
 
-    // Debounced: evita disparar várias buscas seguidas se chegarem
-    // vários eventos em rajada (ex: vários funcionários salvando juntos).
     onAtualizacaoRemota: debounce(function () {
-      // Não interrompe o usuário enquanto ele está digitando em um
-      // campo de quantidade/tempo: o blur/input já dispara o salvamento
-      // (debounced) antes, então é seguro rebuscar — os valores que ele
-      // acabou de digitar já foram enviados ao servidor.
       this.buscarMetaDia()
     }, 800),
 
-    // Espera o socket estar realmente conectado antes de prosseguir,
-    // com um timeout de segurança para não travar a tela pra sempre
-    // caso o servidor esteja fora do ar.
     aguardarConexaoSocket(timeoutMs = 5000) {
       if (socket.connected) {
         this.socketConectado = true
@@ -515,19 +494,28 @@ export default {
         const token = this.store.pegar_token
 
         const [resFuncs, resPecas] = await Promise.all([
-          api.get('/Funcionarios', {
-            headers: { Authorization: token },
-          }),
-
-          api.get('/pecas', {
-            headers: { Authorization: token },
-          }),
+          api.get('/Funcionarios', { headers: { Authorization: token } }),
+          api.get('/pecas', { headers: { Authorization: token } }),
         ])
 
         this.funcionarios = resFuncs.data.funcionarios || []
         this.pecas = resPecas.data.peca.em_progresso || []
+        console.log('Pecas carregadas:', this.pecas)
         this.etapas = this.pecas.map(p => p.etapas || [])
-        console.log('Funcionários:', this.funcionarios)
+
+        // Monta mapa id_da_funcao → etapa global para lookup rápido de tempo_referencia
+        // A API de /pecas retorna as etapas da OP com campo etapa contendo tempo_referencia[]
+        this.etapasMap = {}
+        for (const listaEtapas of this.etapas) {
+          for (const e of listaEtapas) {
+            if (e.id_da_funcao && e.etapa) {
+              this.etapasMap[e.id_da_funcao] = e.etapa
+            }
+          }
+        }
+
+        // console.log('Funcionários:', this.funcionarios)
+        // console.log('Etapas map:', this.etapasMap)
         this.inicializarFuncionarios()
 
       } catch (err) {
@@ -561,16 +549,11 @@ export default {
         .map(o => o.pecaId)
         .filter(id => id && id !== pecaIdAtual)
 
-      return this.pecas.filter(
-        p => !selecionadas.includes(p.id_da_op)
-      )
+      return this.pecas.filter(p => !selecionadas.includes(p.id_da_op))
     },
 
     nomeDaOp(pecaId) {
-      const peca = this.pecas.find(
-        p => p.id_da_op === pecaId
-      )
-
+      const peca = this.pecas.find(p => p.id_da_op === pecaId)
       return peca?.descricao || pecaId
     },
 
@@ -589,6 +572,7 @@ export default {
           linhas: [this.novaLinha('principal')],
         }))
     },
+
     novaLinha(tipo = 'extra') {
       return {
         id: Date.now() + Math.random(),
@@ -596,6 +580,12 @@ export default {
         etapaId: '',
         descricao: '',
         tempoPadrao: 0,
+        // Tempo medido para o funcionário nessa etapa (tempo_por_peca do TempoReferencia)
+        tempoReferencia: null,
+        // Qual tempo está sendo usado no cálculo: 'padrao' | 'referencia'
+        modoTempo: 'padrao',
+        // O valor efetivo sendo usado no cálculo (pode ser tempoPadrao ou tempoReferencia)
+        tempoEscolhido: 0,
         opId: null,
         registros: this.criarRegistros(),
       }
@@ -604,8 +594,6 @@ export default {
     criarRegistros() {
       const registros = {}
 
-      // Cria registros para todas as horas possíveis dos dois turnos,
-      // usando a configuração atual de horários (manhã + tarde)
       const horas = [
         ...this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim),
         ...this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim),
@@ -626,10 +614,7 @@ export default {
         funcionario.linhas = []
       }
 
-      funcionario.linhas.push(
-        this.novaLinha('extra')
-      )
-
+      funcionario.linhas.push(this.novaLinha('extra'))
       this.salvarMetaDia()
     },
 
@@ -639,19 +624,47 @@ export default {
     },
 
     // ── ETAPA ─────────────────────────────────────────────
-    onAlterarEtapa(linha) {
+    /**
+     * Ao selecionar/trocar a etapa de uma linha, atualiza todos os campos
+     * relacionados a tempo, incluindo a busca do tempo de referência do funcionário.
+     *
+     * O campo tempo_referencia na etapa é um array de objetos TempoReferencia.
+     * Buscamos pelo id_funcionario que corresponde ao email do funcionário da linha.
+     * Usamos tempo_por_peca pois é o valor já calculado (tempo_minutos / quantidade_pecas * fator_ritmo * tolerancia).
+     */
+    onAlterarEtapa(linha, funcionario) {
       const etapa = this.buscarEtapa(linha.etapaId)
 
-      linha.tempoPadrao =
-        etapa?.etapa?.tempo_padrao || 0
+      linha.tempoPadrao = etapa?.etapa?.tempo_padrao || 0
+      linha.descricao = etapa?.etapa?.descricao || ''
+      linha.opId = etapa?.id_da_op || null
 
-      linha.descricao =
-        etapa?.etapa?.descricao || ''
+      // Busca tempo de referência específico do funcionário nessa etapa
+      const refs = etapa?.etapa?.tempo_referencia || []
+      const refDoFuncionario = refs.find(r => r.id_funcionario === funcionario.email)
 
-      linha.opId =
-        etapa?.id_da_op || null
+      if (refDoFuncionario && refDoFuncionario.tempo_por_peca) {
+        linha.tempoReferencia = refDoFuncionario.tempo_por_peca
+        // Por padrão já seleciona o tempo do funcionário quando disponível
+        linha.modoTempo = 'referencia'
+        linha.tempoEscolhido = refDoFuncionario.tempo_por_peca
+      } else {
+        linha.tempoReferencia = null
+        linha.modoTempo = 'padrao'
+        linha.tempoEscolhido = linha.tempoPadrao
+      }
 
       this.salvarMetaDia()
+    },
+
+    /**
+     * Alterna entre usar o tempo padrão da etapa ou o tempo medido do funcionário.
+     */
+    alterarModoTempo(linha, modo) {
+      linha.modoTempo = modo
+      linha.tempoEscolhido = modo === 'referencia'
+        ? linha.tempoReferencia
+        : linha.tempoPadrao
     },
 
     buscarEtapa(etapaId) {
@@ -662,20 +675,15 @@ export default {
 
     // ── ETAPA FINAL ──────────────────────────────────────
     isEtapaFinal(linha) {
-      if (!linha?.descricao) return false;
+      if (!linha?.descricao) return false
 
-      const descricao = linha.descricao.toLowerCase();
+      const descricao = linha.descricao.toLowerCase()
 
-      // Ignora "revisão média"
       if (
-        descricao.includes('revisão médio') ||
-        descricao.includes('revisao medio') ||
-        descricao.includes('revisão média') ||
-        descricao.includes('revisao media') ||
         descricao.includes('revisão intermediaria') ||
         descricao.includes('revisao intermediaria')
       ) {
-        return false;
+        return false
       }
 
       return (
@@ -686,7 +694,7 @@ export default {
         descricao.includes('revisao') ||
         descricao.includes('acabamento') ||
         descricao.includes('qualidade')
-      );
+      )
     },
 
     // ── TOTAIS ────────────────────────────────────────────
@@ -694,159 +702,104 @@ export default {
       if (!linha?.registros) return 0
 
       let total = 0
-
       for (const hora in linha.registros) {
-        total += Number(
-          linha.registros[hora]?.quantidade || 0
-        )
+        total += Number(linha.registros[hora]?.quantidade || 0)
       }
-
       return total
     },
 
     calcularTotalFuncionario(funcionario) {
-      if (!Array.isArray(funcionario?.linhas)) {
-        return 0
-      }
+      if (!Array.isArray(funcionario?.linhas)) return 0
 
-      return funcionario.linhas.reduce(
-        (soma, linha) => {
-
-          // só soma etapa final
-          if (!this.isEtapaFinal(linha)) {
-            return soma
-          }
-
-          return soma + this.calcularTotalLinha(linha)
-
-        },
-        0
-      )
+      return funcionario.linhas.reduce((soma, linha) => {
+        if (!this.isEtapaFinal(linha)) return soma
+        return soma + this.calcularTotalLinha(linha)
+      }, 0)
     },
 
     calcularTotalGeral() {
       return this.funcionariosDia.reduce(
-        (soma, funcionario) =>
-          soma + this.calcularTotalFuncionario(funcionario),
+        (soma, funcionario) => soma + this.calcularTotalFuncionario(funcionario),
         0
       )
     },
 
-    // ── TOTAL DA OP (SOMENTE ETAPA FINAL) ────────────────
     calcularTotalOp(pecaId) {
       if (!pecaId) return 0
 
       let total = 0
-
       for (const func of this.funcionariosDia) {
-
         for (const linha of func.linhas || []) {
-
-          // precisa ser etapa final
-          if (!this.isEtapaFinal(linha)) {
-            continue
-          }
-
-          // precisa pertencer à OP
-          if (linha.opId !== pecaId) {
-            continue
-          }
-
+          if (!this.isEtapaFinal(linha)) continue
+          if (linha.opId !== pecaId) continue
           total += this.calcularTotalLinha(linha)
         }
       }
-
       return total
     },
 
     // ── EFICIÊNCIA ────────────────────────────────────────
-    calcularEficienciaRegistro(
-      quantidade,
-      tempoProduzido,
-      tempoPadrao
-    ) {
+    /**
+     * Calcula eficiência de um registro individual.
+     * Usa linha.tempoEscolhido, que pode ser o tempo padrão da etapa
+     * ou o tempo medido do funcionário (tempo_por_peca do TempoReferencia).
+     */
+    calcularEficienciaRegistro(quantidade, tempoProduzido, linha) {
+      const tempo = linha?.tempoEscolhido || linha?.tempoPadrao || 0
 
-      if (
-        !quantidade ||
-        !tempoProduzido ||
-        !tempoPadrao
-      ) {
-        return 0
-      }
+      if (!quantidade || !tempoProduzido || !tempo) return 0
 
-      return Math.round(
-        ((quantidade * tempoPadrao) / tempoProduzido) * 100
-      )
+      return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
     },
 
+    /**
+     * Eficiência total da linha usando tempoEscolhido de cada linha.
+     */
     calcularEficienciaLinha(linha) {
-
-      if (!linha?.registros) {
-        return 0
-      }
+      if (!linha?.registros) return 0
 
       let produzido = 0
       let tempoProduzido = 0
+      const tempo = linha.tempoEscolhido || linha.tempoPadrao || 0
 
       for (const hora in linha.registros) {
-
         const reg = linha.registros[hora]
-
         if (reg && reg.quantidade > 0) {
-
-          produzido +=
-            reg.quantidade *
-            (linha.tempoPadrao || 0)
-
-          tempoProduzido +=
-            reg.tempoProduzido || 60
+          produzido += reg.quantidade * tempo
+          tempoProduzido += reg.tempoProduzido || 60
         }
       }
 
-      if (!tempoProduzido) {
-        return 0
-      }
-
-      return Math.round(
-        (produzido / tempoProduzido) * 100
-      )
+      if (!tempoProduzido) return 0
+      return Math.round((produzido / tempoProduzido) * 100)
     },
-    calcularEficienciaFuncionario(funcionario) {
 
-      if (!funcionario?.linhas?.length) {
-        return 0
-      }
+    /**
+     * Eficiência geral do funcionário, somando todas as linhas
+     * com seus respectivos tempoEscolhido.
+     */
+    calcularEficienciaFuncionario(funcionario) {
+      if (!funcionario?.linhas?.length) return 0
 
       let somaProduzida = 0
       let somaTempo = 0
 
       for (const linha of funcionario.linhas) {
-
         if (!linha?.registros) continue
 
+        const tempo = linha.tempoEscolhido || linha.tempoPadrao || 0
+
         for (const hora in linha.registros) {
-
           const reg = linha.registros[hora]
-
           if (reg && reg.quantidade > 0) {
-
-            somaProduzida +=
-              reg.quantidade *
-              (linha.tempoPadrao || 0)
-
-            somaTempo +=
-              reg.tempoProduzido || 60
+            somaProduzida += reg.quantidade * tempo
+            somaTempo += reg.tempoProduzido || 60
           }
         }
       }
 
-      if (!somaTempo) {
-        return 0
-      }
-
-      return Math.round(
-        (somaProduzida / somaTempo) * 100
-      )
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
     },
 
     getEficClass(pct) {
@@ -857,27 +810,13 @@ export default {
     },
 
     // ── INPUT ─────────────────────────────────────────────
-    onInputQuantidade: debounce(function (
-      funcionario,
-      linha,
-      hora
-    ) {
-
+    onInputQuantidade: debounce(function (funcionario, linha, hora) {
       const registro = linha.registros[hora]
 
-      if (
-        !funcionario?.email ||
-        !linha?.etapaId
-      ) {
-        return
-      }
+      if (!funcionario?.email || !linha?.etapaId) return
 
-      const etapa = this.buscarEtapa(
-        linha.etapaId
-      )
-
-      const opId =
-        etapa?.id_da_op || null
+      const etapa = this.buscarEtapa(linha.etapaId)
+      const opId = etapa?.id_da_op || null
 
       socket.emit('salvar-producao', {
         funcionarioId: funcionario.email,
@@ -886,23 +825,18 @@ export default {
         quantidade: registro.quantidade || 0,
         hora,
         data: this.dataSelecionada,
-        estabelecimento:
-          this.store.pegar_usuario.cnpj,
+        estabelecimento: this.store.pegar_usuario.cnpj,
         tipoRegistro: linha.tipo,
-        tempoProduzido:
-          registro.tempoProduzido || 60,
+        tempoProduzido: registro.tempoProduzido || 60,
       })
-
     }, 1500),
 
     // ── META ──────────────────────────────────────────────
     salvarMetaDia: debounce(function () {
-
-      const pecasAtivas =
-        this.opsAtivasComPeca
-
+      const pecasAtivas = this.opsAtivasComPeca
       if (!pecasAtivas.length) return
-      console.log('Salvando meta do dia...', {
+
+      socket.emit('salvar-meta-dia', {
         estabelecimento: this.store.pegar_usuario.cnpj,
         usuario: this.store.pegar_usuario.email,
         data: this.dataSelecionada,
@@ -918,53 +852,17 @@ export default {
           })),
         })),
       })
-
-      socket.emit('salvar-meta-dia', {
-        estabelecimento:
-          this.store.pegar_usuario.cnpj,
-
-        usuario:
-          this.store.pegar_usuario.email,
-
-        data: this.dataSelecionada,
-
-        pecas: pecasAtivas.map(op => ({
-          id_da_op: op.pecaId,
-          meta: op.metaDia,
-        })),
-
-        funcionarios: this.funcionariosDia.map(func => ({
-          funcionarioId: func.email,
-
-          linhas: (func.linhas || []).map(linha => ({
-            tipo: linha.tipo,
-            etapaId: linha.etapaId,
-          })),
-        })),
-      })
-
     }, 500),
 
     // ── BUSCAR META ───────────────────────────────────────
     async buscarMetaDia() {
-      // Garante que o socket está conectado antes de emitir
-      // (protege chamadas vindas do watch de dataSelecionada também)
       await this.aguardarConexaoSocket()
 
-      // Guarda a data que está sendo buscada NO MOMENTO do emit e gera
-      // um token único para esta chamada. Como socket.emit com callback
-      // não garante que as respostas voltem na mesma ordem dos pedidos,
-      // se a pessoa trocar a data rapidamente (ou um evento de atualização
-      // remota chegar no meio do caminho), uma resposta antiga pode chegar
-      // depois de uma mais nova. Sem essa proteção, a tela ficava com os
-      // dados da data errada — parecendo que "a data não mudou".
       const dataDaRequisicao = this.dataSelecionada
       this.ultimaBuscaId = (this.ultimaBuscaId || 0) + 1
       const buscaId = this.ultimaBuscaId
       this.carregandoMeta = true
 
-      // Segurança: se o servidor nunca responder a este pedido específico,
-      // não deixa o indicador "Atualizando…" preso para sempre.
       setTimeout(() => {
         if (buscaId === this.ultimaBuscaId) {
           this.carregandoMeta = false
@@ -974,16 +872,10 @@ export default {
       socket.emit(
         'buscar-meta-dia',
         {
-          estabelecimento:
-            this.store.pegar_usuario.cnpj,
+          estabelecimento: this.store.pegar_usuario.cnpj,
           data: dataDaRequisicao,
         },
-
         response => {
-
-          // Descarta a resposta se não é mais a busca mais recente,
-          // ou se a data selecionada na tela já mudou de novo enquanto
-          // esperávamos o servidor responder.
           if (
             buscaId !== this.ultimaBuscaId ||
             dataDaRequisicao !== this.dataSelecionada
@@ -993,25 +885,17 @@ export default {
 
           this.carregandoMeta = false
 
-          if (!response?.sucesso) {
-            return
-          }
+          if (!response?.sucesso) return
 
           const meta = response.metaDia
           if (!meta) {
-
-            this.opsAtivas = [
-              this.novaOpSetup()
-            ]
-
+            this.opsAtivas = [this.novaOpSetup()]
             this.inicializarFuncionarios()
-
             return
           }
 
           // Restaurar OPs
           if (meta.pecas?.length) {
-
             this.opsAtivas = meta.pecas.map(p => ({
               _uid: Date.now() + Math.random(),
               pecaId: p.id_da_op,
@@ -1022,70 +906,55 @@ export default {
           this.inicializarFuncionarios()
 
           for (const metaFunc of meta.funcionarios || []) {
-
-            const funcionario =
-              this.funcionariosDia.find(
-                f => f.email === metaFunc.funcionarioId
-              )
-
+            const funcionario = this.funcionariosDia.find(
+              f => f.email === metaFunc.funcionarioId
+            )
             if (!funcionario) continue
 
             const linhas = []
 
             for (const producao of metaFunc.producoes || []) {
+              const etapaId = producao.id_da_funcao
 
-              const etapaId =
-                producao.id_da_funcao
-
-              let linha = linhas.find(
-                l => l.etapaId === etapaId
-              )
+              let linha = linhas.find(l => l.etapaId === etapaId)
 
               if (!linha) {
-
-                linha = this.novaLinha(
-                  linhas.length === 0
-                    ? 'principal'
-                    : 'extra'
-                )
-
+                linha = this.novaLinha(linhas.length === 0 ? 'principal' : 'extra')
                 linha.etapaId = etapaId
+                linha.descricao = producao.producao_etapa?.descricao || ''
+                linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
+                linha.opId = producao.id_da_op || null
 
-                linha.descricao =
-                  producao.producao_etapa?.descricao || ''
+                // Restaura tempo de referência do funcionário ao carregar do banco
+                const etapaGlobal = this.buscarEtapa(etapaId)
+                const refs = etapaGlobal?.etapa?.tempo_referencia || []
+                const refDoFuncionario = refs.find(r => r.id_funcionario === funcionario.email)
 
-                linha.tempoPadrao =
-                  producao.producao_etapa?.tempo_padrao || 0
-
-                linha.opId =
-                  producao.id_da_op || null
+                if (refDoFuncionario && refDoFuncionario.tempo_por_peca) {
+                  linha.tempoReferencia = refDoFuncionario.tempo_por_peca
+                  linha.modoTempo = 'referencia'
+                  linha.tempoEscolhido = refDoFuncionario.tempo_por_peca
+                } else {
+                  linha.tempoReferencia = null
+                  linha.modoTempo = 'padrao'
+                  linha.tempoEscolhido = linha.tempoPadrao
+                }
 
                 linhas.push(linha)
               }
 
-              const hora =
-                producao.hora_registro
-
-              if (
-                !hora ||
-                !linha.registros?.[hora]
-              ) {
-                continue
-              }
+              const hora = producao.hora_registro
+              if (!hora || !linha.registros?.[hora]) continue
 
               linha.registros[hora] = {
-                quantidade:
-                  producao.quantidade_pecas || 0,
-
-                tempoProduzido:
-                  producao.tempo_produzido || 60,
+                quantidade: producao.quantidade_pecas || 0,
+                tempoProduzido: producao.tempo_produzido || 60,
               }
             }
 
-            funcionario.linhas =
-              linhas.length
-                ? linhas
-                : [this.novaLinha('principal')]
+            funcionario.linhas = linhas.length
+              ? linhas
+              : [this.novaLinha('principal')]
           }
         }
       )
@@ -1118,19 +987,6 @@ export default {
   gap: 1rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
-}
-
-.title {
-  margin: 0;
-  font-size: 30px;
-  font-weight: 700;
-  color: #052e14;
-}
-
-.subtitle {
-  margin-top: 4px;
-  font-size: 13px;
-  color: #7ca18c;
 }
 
 .header-actions {
@@ -1183,15 +1039,8 @@ export default {
 }
 
 @keyframes pulseFade {
-
-  0%,
-  100% {
-    opacity: .5;
-  }
-
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
 }
 
 /* ── SETUP CARD ────────────────────────────────────── */
@@ -1274,7 +1123,6 @@ export default {
   box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
 }
 
-/* ── CONFIGURAÇÃO DE HORÁRIOS (inline, compacto) ──── */
 .turno-config-group {
   display: flex;
   align-items: center;
@@ -1462,7 +1310,6 @@ export default {
   box-shadow: 0 6px 16px rgba(13, 102, 50, .2);
 }
 
-/* PROGRESSO */
 .meta-progress {
   margin-top: .25rem;
   padding: .85rem 1rem;
@@ -1508,7 +1355,6 @@ export default {
   color: #648673;
 }
 
-/* BOTÃO NOVA OP */
 .btn-add-op {
   align-self: flex-start;
   display: flex;
@@ -1537,7 +1383,6 @@ export default {
   line-height: 1;
 }
 
-/* TOTAL GERAL */
 .total-geral-row {
   display: flex;
   align-items: center;
@@ -1638,8 +1483,8 @@ export default {
 }
 
 .etapa-col {
-  width: 220px;
-  min-width: 220px;
+  width: 240px;
+  min-width: 240px;
 }
 
 .etapa-wrap {
@@ -1685,6 +1530,76 @@ export default {
   background: #f8fcf9;
 }
 
+/* ── TOGGLE TEMPO ──────────────────────────────────── */
+.tempo-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+.tempo-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 20px;
+  border: 1.5px solid #dceee3;
+  background: #f4faf6;
+  color: #5d8470;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.tempo-toggle-btn:hover {
+  border-color: #0d6632;
+  color: #0d6632;
+  background: #edf7f1;
+}
+
+/* Botão de tempo padrão ativo */
+.tempo-toggle-btn.tempo-ativo {
+  background: #0d6632;
+  border-color: #0d6632;
+  color: white;
+  box-shadow: 0 2px 6px rgba(13, 102, 50, .25);
+}
+
+/* Botão de tempo do funcionário (inativo) */
+.tempo-toggle-btn--ref {
+  border-color: #c8b7f0;
+  background: #f7f4ff;
+  color: #6d48c9;
+}
+
+.tempo-toggle-btn--ref:hover {
+  border-color: #6d48c9;
+  background: #ede8ff;
+  color: #5030b0;
+}
+
+/* Botão de tempo do funcionário ativo */
+.tempo-toggle-btn--ref.tempo-ativo {
+  background: #6d48c9;
+  border-color: #6d48c9;
+  color: white;
+  box-shadow: 0 2px 6px rgba(109, 72, 201, .3);
+}
+
+.sem-referencia {
+  font-size: 10px;
+  color: #b0c5b8;
+  font-style: italic;
+  padding-left: 2px;
+}
+
+/* ── HORAS ─────────────────────────────────────────── */
 .hora-th {
   min-width: 120px;
 }
@@ -1847,6 +1762,11 @@ export default {
 
   .horario-select-sm {
     flex: 1;
+  }
+
+  .tempo-toggle-wrap {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

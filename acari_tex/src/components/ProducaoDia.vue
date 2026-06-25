@@ -482,10 +482,10 @@ export default {
       const desc = linha.descricao.toLowerCase()
 
       const palavrasIgnoradas = [
-        'revisão médio',
-        'revisao medio',
-        'revisão média',
-        'revisao media',
+        // 'revisão médio',
+        // 'revisao medio',
+        // 'revisão média',
+        // 'revisao media',
         'revisão intermediaria',
         'revisão intermediária',
         'revisao intermediaria',

@@ -313,11 +313,13 @@ async function postProducaoPecaLote(req, res) {
     return res.status(500).json({ error: 'Erro interno ao registrar produção.' });
   }
 }
-
 async function getPecasOP(req) {
   const cnpj = req.cnpj;
+
   const pecasOp = await prisma.pecasOP.findMany({
-    where: { id_Estabelecimento: cnpj },
+    where: {
+      id_Estabelecimento: cnpj,
+    },
     include: {
       Estabelecimento: true,
       producao_peca: {
@@ -325,15 +327,15 @@ async function getPecasOP(req) {
           producao_funcionario: {
             select: {
               nome: true,
-              email: true // opcional
-            }
+              email: true,
+            },
           },
           producao_etapa: {
             select: {
-              descricao: true
-            }
-          }
-        }
+              descricao: true,
+            },
+          },
+        },
       },
       etapas: {
         include: {
@@ -343,24 +345,64 @@ async function getPecasOP(req) {
     },
   });
 
-
-  if (!pecasOp) {
-    return { finalizado: [], em_progresso: [], nao_iniciado: [], coleta: [] };
+  if (!pecasOp.length) {
+    return {
+      finalizado: [],
+      em_progresso: [],
+      nao_iniciado: [],
+      coleta: [],
+    };
   }
 
-  const finalizado = pecasOp.filter(peca => peca.status === "finalizado");
-  const em_progresso = pecasOp.filter(peca => peca.status === "em_progresso");
-  const nao_iniciado = pecasOp.filter(peca => peca.status === "nao_iniciado");
-  const coleta = pecasOp.filter(peca => peca.status === "coleta");
+  // Busca todos os tempos de referência do estabelecimento
+  const temposReferencia = await prisma.tempoReferencia.findMany({
+    where: {
+      estabelecimentoCnpj: cnpj,
+    },
+    include: {
+      usuario: {
+        select: {
+          nome: true,
+          email: true,
+        },
+      },
+    },
+  })
+
+  // Adiciona os tempos de referência em cada etapa
+  const pecasOpComTempo = pecasOp.map(op => ({
+    ...op,
+    etapas: op.etapas.map(etapa => ({
+      ...etapa,
+      tempo_referencia: temposReferencia.filter(
+        tempo => tempo.id_da_funcao === etapa.id_da_funcao
+      ),
+    })),
+  }));
+
+  const finalizado = pecasOpComTempo.filter(
+    peca => peca.status === "finalizado"
+  );
+
+  const em_progresso = pecasOpComTempo.filter(
+    peca => peca.status === "em_progresso"
+  );
+
+  const nao_iniciado = pecasOpComTempo.filter(
+    peca => peca.status === "nao_iniciado"
+  );
+
+  const coleta = pecasOpComTempo.filter(
+    peca => peca.status === "coleta"
+  );
 
   return {
     finalizado,
     em_progresso,
     nao_iniciado,
-    coleta
+    coleta,
   };
 }
-
 async function getEtapasProducaoPorPeca(req, res) {
   try {
     const id_da_op = req;

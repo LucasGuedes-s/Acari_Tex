@@ -14,9 +14,9 @@ datasource db {
 
 model Usuarios {
   nome                 String
-  email                String            @id
+  email                String               @id
   senha                String
-  foto                 String            @db.VarChar(2048)
+  foto                 String               @db.VarChar(2048)
   idade                Int
   funcoes              String?
   identidade           String?
@@ -25,16 +25,17 @@ model Usuarios {
   pis                  String?
   pix                  String?
   notas                String?
-  status               String?           @default("ativo")
+  status               String?              @default("ativo")
   estabelecimentoCnpj  String
   salario              Float?
   telefone             String?
-  meta_diaria          MetaDiaFuncionario[]
   chatIAResultados     ChatIAResultado[]
   equipes              EquipesUsuarios[]
+  meta_diaria          MetaDiaFuncionario[]
   producao_funcionario Producao[]
   tempo_referencia     TempoReferencia[]
-  Estabelecimento      Estabelecimento   @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  alocacaoProducaoDia  AlocacaoProducaoDia[]
+  Estabelecimento      Estabelecimento      @relation(fields: [estabelecimentoCnpj], references: [cnpj])
 
   @@index([estabelecimentoCnpj], map: "Usuarios_estabelecimentoCnpj_fkey")
 }
@@ -75,10 +76,12 @@ model PecasOP {
   tempo_padrao        Float?
   cem_porcento        Float?
   local_armazenamento String?
+  metaDiaPeca         MetaDiaPeca[]
   etapas              PecasEtapas[]
   Estabelecimento     Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_peca       Producao[]
-  metaDiaPeca        MetaDiaPeca[]
+  alocacaoProducaoDia   AlocacaoProducaoDia[]
+
   @@index([id_Estabelecimento], map: "PecasOP_id_Estabelecimento_fkey")
 }
 
@@ -95,24 +98,20 @@ model EficienciaTurma {
 }
 
 model Etapa {
-  id_da_funcao       Int               @id @default(autoincrement())
+  id_da_funcao       Int                  @id @default(autoincrement())
   descricao          String
   tempo_padrao       Float?
   id_Estabelecimento String?
   grupoEtapaId       Int?
-
-  grupoEtapa         GrupoEtapas?      @relation(fields: [grupoEtapaId], references: [id])
-  Estabelecimento    Estabelecimento?  @relation(fields: [id_Estabelecimento], references: [cnpj])
+  grupoEtapa         GrupoEtapas?         @relation(fields: [grupoEtapaId], references: [id])
+  Estabelecimento    Estabelecimento?     @relation(fields: [id_Estabelecimento], references: [cnpj])
+  meta_diaria        MetaDiaFuncionario[]
   pecas              PecasEtapas[]
   producao_etapa     Producao[]
   tempo_referencia   TempoReferencia[]
-  meta_diaria        MetaDiaFuncionario[]
-
+  alocacaoProducaoDia  AlocacaoProducaoDia[]
   @@index([grupoEtapaId], map: "Etapa_grupoEtapaId_fkey")
   @@index([id_Estabelecimento], map: "Etapa_id_Estabelecimento_fkey")
-  
-  @@unique([descricao, tempo_padrao, id_Estabelecimento])
-
 }
 
 model GrupoEtapas {
@@ -147,18 +146,17 @@ model Producao {
   id_funcionario       String
   id_da_funcao         Int
   data_inicio          DateTime?
-
-  dataReferencia       DateTime? @db.Date
-  tempo_produzido      Float? @default(60)
   hora_registro        String?
   horaNumero           Int?
-  tipoRegistro         String? @default("principal")
+  dataReferencia       DateTime?       @db.Date
+  tipoRegistro         String?         @default("principal")
+  tempo_produzido      Float?          @default(60)
   Estabelecimento      Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_etapa       Etapa           @relation(fields: [id_da_funcao], references: [id_da_funcao])
   producao_peca        PecasOP         @relation(fields: [id_da_op], references: [id_da_op])
   producao_funcionario Usuarios        @relation(fields: [id_funcionario], references: [email])
 
-  @@unique([ id_funcionario, id_da_funcao, id_da_op, dataReferencia, hora_registro, tipoRegistro ])
+  @@unique([id_funcionario, id_da_funcao, id_da_op, dataReferencia, hora_registro, tipoRegistro])
   @@index([id_da_op])
   @@index([id_da_funcao])
   @@index([id_Estabelecimento])
@@ -188,7 +186,27 @@ model EquipesGrupos {
 
   @@index([estabelecimentoCnpj], map: "EquipesGrupos_estabelecimentoCnpj_fkey")
 }
+model AlocacaoProducaoDia {
+  id Int @id @default(autoincrement())
 
+  estabelecimentoCnpj String
+  data DateTime
+
+  id_da_op Int
+  op PecasOP @relation(fields: [id_da_op], references: [id_da_op])
+
+  funcionarioEmail String
+  funcionario Usuarios @relation(fields: [funcionarioEmail], references: [email])
+
+  etapaId Int?
+  etapa Etapa? @relation(fields: [etapaId], references: [id_da_funcao])
+
+  quantidadePlanejada Int?
+  status String @default("ativa")
+
+  @@index([data, id_da_op])
+  @@index([funcionarioEmail])
+}
 model EquipesUsuarios {
   id           Int           @id @default(autoincrement())
   usuarioEmail String
@@ -257,50 +275,46 @@ model Intercorrencias {
 }
 
 model metaDia {
-  id                  Int      @id @default(autoincrement())
+  id                  Int                  @id @default(autoincrement())
   estabelecimentoCnpj String
   data                DateTime
   meta_diaria         Int?
   observacoes         String?
-  criadoEm            DateTime @default(now())
+  criadoEm            DateTime             @default(now())
   registradoPor       String?
+  id_da_op            Int?
+  funcionarios        MetaDiaFuncionario[]
+  pecas               MetaDiaPeca[]
 
-  id_da_op Int?
-
-  pecas MetaDiaPeca[]
-
-  funcionarios MetaDiaFuncionario[]
   @@unique([estabelecimentoCnpj, data])
 }
-model MetaDiaPeca {
-  id        Int @id @default(autoincrement())
 
+model MetaDiaPeca {
+  id        Int     @id @default(autoincrement())
   metaDiaId Int
   id_da_op  Int
-
-  meta      Int @default(0)
-
+  meta      Int     @default(0)
+  peca      PecasOP @relation(fields: [id_da_op], references: [id_da_op])
   metaDia   metaDia @relation(fields: [metaDiaId], references: [id])
 
-  peca      PecasOP @relation(fields: [id_da_op], references: [id_da_op])
-
   @@unique([metaDiaId, id_da_op])
+  @@index([id_da_op], map: "MetaDiaPeca_id_da_op_fkey")
 }
+
 model MetaDiaFuncionario {
-  id              Int @id @default(autoincrement())
-
-  metaDiaId       Int
-  funcionarioId   String
-  etapaPadraoId   Int?
-
-  metaDia         metaDia @relation(fields: [metaDiaId], references: [id])
-
-  funcionario Usuarios @relation(fields: [funcionarioId], references: [email])
-
-  etapa Etapa? @relation(fields: [etapaPadraoId], references: [id_da_funcao])
+  id            Int      @id @default(autoincrement())
+  metaDiaId     Int
+  funcionarioId String
+  etapaPadraoId Int?
+  etapa         Etapa?   @relation(fields: [etapaPadraoId], references: [id_da_funcao])
+  funcionario   Usuarios @relation(fields: [funcionarioId], references: [email])
+  metaDia       metaDia  @relation(fields: [metaDiaId], references: [id])
 
   @@unique([metaDiaId, funcionarioId])
+  @@index([etapaPadraoId], map: "MetaDiaFuncionario_etapaPadraoId_fkey")
+  @@index([funcionarioId], map: "MetaDiaFuncionario_funcionarioId_fkey")
 }
+
 model ChatIAResultado {
   id                  Int             @id @default(autoincrement())
   resultado           String          @db.Text

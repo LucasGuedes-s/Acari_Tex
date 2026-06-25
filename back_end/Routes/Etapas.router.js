@@ -259,6 +259,7 @@ router.post(
             data: {
               descricao: descricao_peca,
               quantidade_pecas,
+              data_do_pedido: new Date(),
               valor_peca,
               status: "nao_iniciado",
               tempo_padrao: tempoTotal,
@@ -266,55 +267,85 @@ router.post(
             },
           });
 
-          // cria etapas em lote
-          await tx.etapa.createMany({
-            data: etapasParaCriar,
-            skipDuplicates: true,
-          });
-
-          // busca etapas atualizadas
-          const etapasBanco = await tx.etapa.findMany({
+          // 🔎 Busca etapas já existentes no banco para este estabelecimento
+          const etapasExistentes = await tx.etapa.findMany({
             where: { id_Estabelecimento: cnpj },
           });
 
-          // monta vínculos
-          const vinculos = [];
+          const etapasParaVincular = [];
+          const etapasParaCriarNoBanco = [];
 
           for (const etapa of etapasParaCriar) {
-            const encontrada = etapasBanco.find(
-              (e) => normalizar(e.descricao) === normalizar(etapa.descricao)
+            const jaExiste = etapasExistentes.find(
+              (e) =>
+                normalizar(e.descricao) === normalizar(etapa.descricao) &&
+                e.tempo_padrao === etapa.tempo_padrao
             );
 
-            if (encontrada) {
-              vinculos.push({
-                id_da_op: peca.id_da_op,
-                id_da_funcao: encontrada.id_da_funcao,
-                quantidade_meta: quantidade_pecas,
-              });
+            if (jaExiste) {
+              // ✅ Já existe com mesmo nome e tempo — só vincula
+              etapasParaVincular.push(jaExiste);
+            } else {
+              // 🆕 Não existe — precisa criar
+              etapasParaCriarNoBanco.push(etapa);
             }
           }
 
-          // cria vínculos em lote
-          await tx.pecasEtapas.createMany({
-            data: vinculos,
-            skipDuplicates: true,
-          });
+          // Cria apenas as etapas novas
+          if (etapasParaCriarNoBanco.length > 0) {
+            await tx.etapa.createMany({
+              data: etapasParaCriarNoBanco,
+              skipDuplicates: true,
+            });
+          }
+
+          // Busca as recém-criadas para pegar os IDs gerados
+          const etapasRecemCriadas =
+            etapasParaCriarNoBanco.length > 0
+              ? await tx.etapa.findMany({
+                  where: {
+                    id_Estabelecimento: cnpj,
+                    descricao: {
+                      in: etapasParaCriarNoBanco.map((e) => e.descricao),
+                    },
+                  },
+                })
+              : [];
+
+          // Monta vínculos: existentes + recém-criadas
+          const todasEtapasParaVincular = [
+            ...etapasParaVincular,
+            ...etapasRecemCriadas,
+          ];
+
+          const vinculos = todasEtapasParaVincular.map((etapa) => ({
+            id_da_op: peca.id_da_op,
+            id_da_funcao: etapa.id_da_funcao,
+            quantidade_meta: quantidade_pecas,
+          }));
+
+          if (vinculos.length > 0) {
+            await tx.pecasEtapas.createMany({
+              data: vinculos,
+              skipDuplicates: true,
+            });
+          }
 
           return {
             peca,
-            etapasCriadas: etapasParaCriar.length,
+            etapasCriadas: etapasParaCriarNoBanco.length,
+            etapasReutilizadas: etapasParaVincular.length,
             tempoTotal,
           };
         },
-        {
-          timeout: 20000,
-        }
+        { timeout: 20000 }
       );
 
       return res.json({
         sucesso: true,
         pecaCriada: resultado.peca.descricao,
         etapasCriadas: resultado.etapasCriadas,
+        etapasReutilizadas: resultado.etapasReutilizadas,
         tempoTotal: resultado.tempoTotal,
       });
 
@@ -327,6 +358,5 @@ router.post(
     }
   }
 );
-
 
 module.exports = router;
