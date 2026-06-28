@@ -129,16 +129,80 @@
                 !grupo.opId ? 'op-module-header--empty' : '',
                 opsAtivasComPeca.length === 1 ? 'op-module-header--single' : ''
               ]">
+
               <span class="op-module-badge">
                 <span v-if="!grupo.opId">⚠ {{ grupo.label }}</span>
                 <span v-else>📦 {{ grupo.label }}</span>
               </span>
-              <span class="op-module-stats">
+
+              <!-- PAINÉIS DE CÁLCULO DUPLO — apenas para OPs com pecaId -->
+              <div v-if="grupo.opId" class="calc-panels">
+
+                <!-- PAINEL 1: FICHA TÉCNICA (tempo_padrao uniforme) -->
+                <div class="calc-panel calc-panel--padrao">
+                  <div class="calc-panel-title">
+                    <span class="calc-panel-icon">📋</span>
+                    Ficha Técnica
+                  </div>
+                  <div class="calc-panel-stats">
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">👥 Funcionários</span>
+                      <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong>
+                    </div>
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">📊 Produção</span>
+                      <strong>{{ calcularTotalOp(grupo.opId) }}</strong>
+                    </div>
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">⚙ Capacidade</span>
+                      <strong>{{ calcularCapacidadeOpPadrao(grupo.opId) }}</strong>
+                    </div>
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">🎯 Eficiência</span>
+                      <strong :class="getEficClass(calcularEficienciaOpPadrao(grupo.opId))">
+                        {{ calcularEficienciaOpPadrao(grupo.opId) }}%
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="calc-panel-divider">vs</div>
+
+                <!-- PAINEL 2: TEMPO DE REFERÊNCIA (individual por funcionário) -->
+                <div class="calc-panel calc-panel--referencia">
+                  <div class="calc-panel-title">
+                    <span class="calc-panel-icon">👤</span>
+                    Tempo de Referência
+                  </div>
+                  <div class="calc-panel-stats">
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">👥 Funcionários</span>
+                      <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong>
+                    </div>
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">📊 Produção</span>
+                      <strong>{{ calcularTotalOp(grupo.opId) }}</strong>
+                    </div>
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">⚙ Capacidade</span>
+                      <strong>{{ calcularCapacidadeOpReferencia(grupo.opId) }}</strong>
+                    </div>
+                    <div class="calc-stat">
+                      <span class="calc-stat-label">🎯 Eficiência</span>
+                      <strong :class="getEficClass(calcularEficienciaOpReferencia(grupo.opId))">
+                        {{ calcularEficienciaOpReferencia(grupo.opId) }}%
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Grupo sem OP: contagem simples -->
+              <span v-else class="op-module-stats">
                 <span class="stat">👥 <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong> func</span>
-                <span class="stat" v-if="grupo.opId">📊 Produção: <strong>{{ calcularTotalOp(grupo.opId) }}</strong></span>
-                <span class="stat" v-if="grupo.opId">⚙ Capacidade: <strong>{{ calcularCapacidadeOp(grupo.opId) }}</strong></span>
-                <span class="stat" v-if="grupo.opId">🎯 Eficiência: <strong>{{ calcularEficienciaOp(grupo.opId) }}%</strong></span>
               </span>
+
             </div>
 
             <!-- TABELA DO MÓDULO -->
@@ -151,7 +215,8 @@
                       <th class="etapa-col">Etapa</th>
                       <th v-for="hora in horasVisiveis" :key="hora" class="hora-th">{{ hora }}h</th>
                       <th class="total-col">Total</th>
-                      <th class="efic-col">Eficiência</th>
+                      <th class="efic-col">Efic. Ficha</th>
+                      <th class="efic-col efic-col--ref">Efic. Ref.</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -168,13 +233,14 @@
                           <div v-else class="extra-tag">↳ Extra</div>
                         </td>
 
-                        <!-- ETAPA -->
+                        <!-- ETAPA + indicadores de tempo (somente leitura) -->
                         <td class="etapa-col">
                           <div class="etapa-wrap">
                             <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha)">
                               <option value="">Etapa</option>
                               <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
-                                <option v-for="etapa in etapasDaOp(op.pecaId)" :key="(etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
+                                <option v-for="etapa in etapasDaOp(op.pecaId)"
+                                  :key="(etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
                                   :value="etapa.id_da_funcao || etapa.etapa?.id_da_funcao">
                                   {{ etapa.descricao || etapa.etapa?.descricao }} ({{ etapa.tempo_padrao || etapa.etapa?.tempo_padrao }}min)
                                 </option>
@@ -186,64 +252,46 @@
                               @click="removerLinhaExtra(funcionario, idxLinha)">×</button>
                           </div>
 
-                          <!-- TOGGLE TEMPO PADRÃO vs TEMPO DO FUNCIONÁRIO -->
-                          <div v-if="linha.etapaId" class="tempo-toggle-wrap">
-                            <button
-                              :class="['tempo-toggle-btn', linha.modoTempo === 'padrao' ? 'tempo-ativo' : '']"
-                              @click="alterarModoTempo(linha, 'padrao')"
-                              :title="`Tempo padrão da etapa (fallback): ${linha.tempoPadrao} min`">
-                              ⏱ {{ linha.tempoPadrao }}min
-                            </button>
-
-                            <!-- 1 ref: botão único (medição real da etapa) -->
-                            <button
-                              v-if="linha.tempoReferenciaOpcoes.length === 1"
-                              :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
-                              @click="alterarModoTempo(linha, 'referencia')"
-                              :title="`Medição real da etapa: ${linha.tempoReferencia} min`">
-                              👤 {{ linha.tempoReferencia }}min
-                            </button>
-
-                            <!-- N refs: dropdown de medições reais -->
-                            <div v-else-if="linha.tempoReferenciaOpcoes.length > 1" class="tempo-ref-dropdown">
-                              <button
-                                :class="['tempo-toggle-btn', 'tempo-toggle-btn--ref', linha.modoTempo === 'referencia' ? 'tempo-ativo' : '']"
-                                @click.stop="toggleRefDropdown(linha)"
-                                :title="`${linha.tempoReferenciaOpcoes.length} medições reais registradas`">
-                                👤 {{ linha.tempoReferencia }}min ▾
-                              </button>
-                              <ul v-if="refDropdownAberto[linha.id]" class="ref-list" @click.stop>
-                                <li
-                                  v-for="opt in linha.tempoReferenciaOpcoes"
-                                  :key="opt.id"
-                                  :class="{ active: opt.id === linha.referenciaSelecionadaId }"
-                                  @click="selecionarReferencia(linha, opt)">
-                                  {{ opt.label }}
-                                </li>
-                              </ul>
-                            </div>
-
-                            <span v-if="linha.tempoReferenciaOpcoes.length === 0" class="sem-referencia" title="Nenhuma medição registrada para esta etapa. Usando tempo padrão.">
-                              sem medição
+                          <!-- Chips informativos de tempo — sem interação -->
+                          <div v-if="linha.etapaId" class="tempo-info-wrap">
+                            <span class="tempo-info-chip tempo-info-chip--padrao"
+                              title="Tempo padrão da ficha técnica">
+                              📋 {{ linha.tempoPadrao }}min
+                            </span>
+                            <span
+                              v-if="resolverTempoReferencia(funcionario, linha) !== null"
+                              class="tempo-info-chip tempo-info-chip--ref"
+                              title="Tempo de referência deste funcionário para esta etapa">
+                              👤 {{ resolverTempoReferencia(funcionario, linha) }}min
+                            </span>
+                            <span v-else class="tempo-info-chip tempo-info-chip--sem-ref"
+                              title="Sem tempo de referência — usando tempo padrão">
+                              sem ref.
                             </span>
                           </div>
                         </td>
 
                         <!-- HORAS -->
                         <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
-                          <div class="hora-box">
-                            <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
-                              :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                              @blur="onInputQuantidade(funcionario, linha, hora)" />
-                            <div class="tempo-wrap">
-                              <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
-                                class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
-                              <span class="min-label">min</span>
+                          <div class="hora-box-outer">
+                            <div class="hora-box-inputs">
+                              <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
+                                :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                                @blur="onInputQuantidade(funcionario, linha, hora)" />
+                              <div class="tempo-wrap">
+                                <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
+                                  class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
+                                <span class="min-label">min</span>
+                              </div>
                             </div>
-                            <div v-if="linha.registros[hora].quantidade > 0"
-                              :class="['efic-chip', getEficClass(calcularEficienciaRegistro(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
-                              {{ calcularEficienciaRegistro(linha.registros[hora].quantidade,
-                                linha.registros[hora].tempoProduzido, linha) }}%
+                            <!-- Dois chips de eficiência (ficha + ref) por célula -->
+                            <div v-if="linha.registros[hora].quantidade > 0" class="efic-chips-col">
+                              <div :class="['efic-chip', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
+                                {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha) }}%
+                              </div>
+                              <div :class="['efic-chip efic-chip--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
+                                {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario) }}%
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -251,15 +299,23 @@
                         <!-- TOTAL -->
                         <td class="total-col">{{ calcularTotalLinha(linha) }}</td>
 
-                        <!-- EFICIÊNCIA -->
+                        <!-- EFICIÊNCIA FICHA (por funcionário) -->
                         <td class="efic-col">
                           <div v-if="idxLinha === 0"
-                            :class="['efic-badge', getEficClass(calcularEficienciaFuncionario(funcionario))]">
-                            {{
-                              calcularEficienciaFuncionario(funcionario)
-                                ? calcularEficienciaFuncionario(funcionario) + '%'
-                                : '—'
-                            }}
+                            :class="['efic-badge', getEficClass(calcularEficienciaFuncionarioPadrao(funcionario))]">
+                            {{ calcularEficienciaFuncionarioPadrao(funcionario)
+                              ? calcularEficienciaFuncionarioPadrao(funcionario) + '%'
+                              : '—' }}
+                          </div>
+                        </td>
+
+                        <!-- EFICIÊNCIA REFERÊNCIA (por funcionário) -->
+                        <td class="efic-col efic-col--ref">
+                          <div v-if="idxLinha === 0"
+                            :class="['efic-badge efic-badge--ref', getEficClass(calcularEficienciaFuncionarioReferencia(funcionario))]">
+                            {{ calcularEficienciaFuncionarioReferencia(funcionario)
+                              ? calcularEficienciaFuncionarioReferencia(funcionario) + '%'
+                              : '—' }}
                           </div>
                         </td>
 
@@ -313,15 +369,11 @@ export default {
       funcionarios: [],
       funcionariosDia: [],
       pecas: [],
-      // etapas globais com tempo_referencia incluído
       etapas: [],
-      // mapa: id_da_funcao → objeto etapa (para lookup rápido)
       etapasMap: {},
       configHorarios: this.carregarConfigHorarios(),
       ultimaBuscaId: 0,
       carregandoMeta: false,
-      // UI: mapa linhaId → boolean para dropdown de múltiplas refs
-      refDropdownAberto: {},
     }
   },
 
@@ -349,14 +401,9 @@ export default {
       return this.opsAtivas.filter(op => op.pecaId)
     },
 
-    /**
-     * Agrupa funcionários por OP baseado em linha.opId.
-     * Funcionário pode aparecer em mais de um módulo (uma fatia por OP).
-     */
     funcionariosAgrupadosPorOp() {
       const gruposMap = new Map()
 
-      // Cria um grupo para cada OP ativa + um grupo "Sem OP"
       gruposMap.set(null, {
         opId: null,
         label: 'Funcionários sem OP',
@@ -371,7 +418,6 @@ export default {
         })
       }
 
-      // Distribui as linhas dos funcionários pelos grupos
       for (const func of this.funcionariosDia) {
         const linhasPorOp = new Map()
 
@@ -383,15 +429,10 @@ export default {
 
         for (const [opId, linhas] of linhasPorOp) {
           const grupo = gruposMap.get(opId) || gruposMap.get(null)
-          grupo.funcionarios.push({
-            ...func,
-            linhas,
-            _grupoOpId: opId,
-          })
+          grupo.funcionarios.push({ ...func, linhas, _grupoOpId: opId })
         }
       }
 
-      // Mantém ordem: OPs ativas primeiro, depois "Sem OP"
       const ordem = [...this.opsAtivasComPeca.map(o => o.pecaId), null]
       return ordem
         .map(id => gruposMap.get(id))
@@ -411,21 +452,11 @@ export default {
     await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
-    // Fecha dropdowns de ref ao clicar fora
-    this.onClickFora = () => {
-      if (Object.values(this.refDropdownAberto || {}).some(Boolean)) {
-        this.refDropdownAberto = {}
-      }
-    }
-    document.addEventListener('click', this.onClickFora)
   },
 
   beforeUnmount() {
     socket.off()
     socket.disconnect()
-    if (this.onClickFora) {
-      document.removeEventListener('click', this.onClickFora)
-    }
   },
 
   methods: {
@@ -471,13 +502,7 @@ export default {
         atual += 60
       }
 
-      const ultimaHora = this.minutosParaHora(atual)
-      if (ultimaHora !== fim) {
-        sequencia.push(fim)
-      } else {
-        sequencia.push(fim)
-      }
-
+      sequencia.push(fim)
       return sequencia
     },
 
@@ -516,8 +541,7 @@ export default {
       const fimMin = this.horaParaMinutos(this.configTurnoAtivo.fim)
 
       if (fimMin <= inicioMin) {
-        const opcoesValidas = this.opcoesHoraFim
-        this.configTurnoAtivo.fim = opcoesValidas[0] || this.configTurnoAtivo.inicio
+        this.configTurnoAtivo.fim = this.opcoesHoraFim[0] || this.configTurnoAtivo.inicio
       }
 
       this.salvarConfigHorarios()
@@ -533,10 +557,7 @@ export default {
 
           for (const hora of horasAtuais) {
             if (!linha.registros[hora]) {
-              linha.registros[hora] = {
-                quantidade: null,
-                tempoProduzido: 60,
-              }
+              linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
             }
           }
         }
@@ -550,18 +571,14 @@ export default {
       socket.off('erro-producao')
 
       const cnpj = this.store.pegar_usuario?.cnpj
-      if (cnpj) {
-        socket.off(`nova_atualizacao_${cnpj}`)
-      }
+      if (cnpj) socket.off(`nova_atualizacao_${cnpj}`)
 
       socket.on('connect', () => { this.socketConectado = true })
       socket.on('disconnect', () => { this.socketConectado = false })
       socket.on('erro-producao', err => { console.log(err) })
 
       if (cnpj) {
-        socket.on(`nova_atualizacao_${cnpj}`, () => {
-          this.onAtualizacaoRemota()
-        })
+        socket.on(`nova_atualizacao_${cnpj}`, () => this.onAtualizacaoRemota())
       }
 
       if (!socket.connected) {
@@ -608,36 +625,16 @@ export default {
 
         this.funcionarios = resFuncs.data.funcionarios || []
         this.pecas = resPecas.data.peca.em_progresso || []
-        console.log('Pecas carregadas:', this.pecas)
         this.etapas = this.pecas.map(p => p.etapas || [])
 
-        // Diagnóstico: confirma estrutura da primeira etapa para validar onde está tempo_referencia
-        const primeiraEtapa = this.etapas.flat()[0]
-        if (primeiraEtapa) {
-          console.log('[DIAGNÓSTICO] Estrutura da etapa:', {
-            raiz_tem_tempo_referencia: Array.isArray(primeiraEtapa.tempo_referencia),
-            etapa_tem_tempo_referencia: Array.isArray(primeiraEtapa.etapa?.tempo_referencia),
-            raiz_tem_id_da_funcao: !!primeiraEtapa.id_da_funcao,
-            etapa_tem_id_da_funcao: !!primeiraEtapa.etapa?.id_da_funcao,
-            amostra: primeiraEtapa,
-          })
-        }
-
-        // Monta mapa de etapas (item raiz) indexado por id_da_funcao.
-        // A API de /pecas pode retornar id_da_funcao na raiz ou dentro de etapa;
-        // toleramos ambos para conseguir localizar tempo_referencia corretamente.
         this.etapasMap = {}
         for (const listaEtapas of this.etapas) {
           for (const e of listaEtapas) {
             const idFuncao = e.id_da_funcao || e.etapa?.id_da_funcao
-            if (idFuncao) {
-              this.etapasMap[idFuncao] = e
-            }
+            if (idFuncao) this.etapasMap[idFuncao] = e
           }
         }
 
-        // console.log('Funcionários:', this.funcionarios)
-        // console.log('Etapas map:', this.etapasMap)
         this.inicializarFuncionarios()
 
       } catch (err) {
@@ -650,11 +647,7 @@ export default {
 
     // ── OPs SETUP ─────────────────────────────────────────
     novaOpSetup() {
-      return {
-        _uid: Date.now() + Math.random(),
-        pecaId: '',
-        metaDia: 0,
-      }
+      return { _uid: Date.now() + Math.random(), pecaId: '', metaDia: 0 }
     },
 
     adicionarOp() {
@@ -667,10 +660,7 @@ export default {
     },
 
     pecasDisponiveis(pecaIdAtual) {
-      const selecionadas = this.opsAtivas
-        .map(o => o.pecaId)
-        .filter(id => id && id !== pecaIdAtual)
-
+      const selecionadas = this.opsAtivas.map(o => o.pecaId).filter(id => id && id !== pecaIdAtual)
       return this.pecas.filter(p => !selecionadas.includes(p.id_da_op))
     },
 
@@ -680,9 +670,7 @@ export default {
     },
 
     etapasDaOp(pecaId) {
-      return this.etapas
-        .flat()
-        .filter(e => e.id_da_op === pecaId)
+      return this.etapas.flat().filter(e => e.id_da_op === pecaId)
     },
 
     // ── FUNCIONÁRIOS ──────────────────────────────────────
@@ -702,16 +690,6 @@ export default {
         etapaId: '',
         descricao: '',
         tempoPadrao: 0,
-        // Tempo medido para o funcionário nessa etapa (tempo_por_peca do TempoReferencia ativo)
-        tempoReferencia: null,
-        // Lista de medições disponíveis para este (etapa, funcionário)
-        tempoReferenciaOpcoes: [],
-        // id da medição ativa dentro de tempoReferenciaOpcoes
-        referenciaSelecionadaId: null,
-        // Qual tempo está sendo usado no cálculo: 'padrao' | 'referencia'
-        modoTempo: 'padrao',
-        // O valor efetivo sendo usado no cálculo (pode ser tempoPadrao ou tempoReferencia)
-        tempoEscolhido: 0,
         opId: null,
         registros: this.criarRegistros(),
       }
@@ -719,27 +697,18 @@ export default {
 
     criarRegistros() {
       const registros = {}
-
       const horas = [
         ...this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim),
         ...this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim),
       ]
-
       for (const hora of horas) {
-        registros[hora] = {
-          quantidade: null,
-          tempoProduzido: 60,
-        }
+        registros[hora] = { quantidade: null, tempoProduzido: 60 }
       }
-
       return registros
     },
 
     adicionarLinhaExtra(funcionario) {
-      if (!Array.isArray(funcionario.linhas)) {
-        funcionario.linhas = []
-      }
-
+      if (!Array.isArray(funcionario.linhas)) funcionario.linhas = []
       funcionario.linhas.push(this.novaLinha('extra'))
       this.salvarMetaDia()
     },
@@ -749,153 +718,82 @@ export default {
       this.salvarMetaDia()
     },
 
+    // ── RESOLVERS DE TEMPO ────────────────────────────────
+    /**
+     * Retorna o tempo_padrao da ficha técnica para uma linha.
+     * Ponto único de verdade para o cálculo pela Ficha Técnica.
+     * Tolerante a backend: lê da etapa global ou do campo cacheado na linha.
+     */
+    resolverTempoPadrao(linha) {
+      const etapa = this.buscarEtapa(linha?.etapaId)
+      return Number(
+        etapa?.tempo_padrao
+        ?? etapa?.etapa?.tempo_padrao
+        ?? linha?.tempoPadrao
+        ?? 0
+      )
+    },
+
+    /**
+     * Retorna o tempo_minutos do funcionário em tempo_referencia da etapa,
+     * ou null se não houver registro para este funcionário.
+     * NÃO faz fallback — o chamador decide o que fazer com null.
+     */
+    resolverTempoReferencia(funcionario, linha) {
+      const etapa = this.buscarEtapa(linha?.etapaId)
+      const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+
+      if (!Array.isArray(refs) || !funcionario?.email) return null
+
+      const ref = refs.find(r => r && r.id_funcionario === funcionario.email)
+      if (!ref) return null
+
+      const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+      return t > 0 ? t : null
+    },
+
+    /**
+     * Tempo efetivo para o cálculo por Referência Individual:
+     * usa tempo_referencia do funcionário quando existe,
+     * cai para tempo_padrao da ficha técnica como fallback.
+     */
+    resolverTempoEfetivoReferencia(funcionario, linha) {
+      return this.resolverTempoReferencia(funcionario, linha) ?? this.resolverTempoPadrao(linha)
+    },
+
     // ── ETAPA ─────────────────────────────────────────────
-    /**
-     * Retorna todas as medições (tempo_referencia) registradas para a etapa.
-     * tempo_referencia é um dado de medição da etapa como um todo.
-     * Cada item: { id, tempo_por_peca, label }.
-     * Tolerante a diferentes formatos do backend: tempo_referencia pode estar
-     * na raiz do item (e.tempo_referencia) ou dentro de e.etapa.tempo_referencia.
-     */
-    listarRefsDaEtapa(etapa) {
-      if (!etapa) return []
-      const refs = etapa.tempo_referencia || etapa.etapa?.tempo_referencia || []
-      if (!refs.length) return []
-      return refs
-        .filter(r => r && r.tempo_por_peca)
-        .map(r => ({
-          id: r.id,
-          tempo_por_peca: r.tempo_por_peca,
-          label: `Medição #${r.id} — ${r.tempo_por_peca}min`,
-        }))
-    },
-
-    /**
-     * Aplica uma seleção de tempo de referência na linha (não muda modoTempo).
-     */
-    aplicarReferencia(linha, opt) {
-      if (!opt) return
-      linha.referenciaSelecionadaId = opt.id
-      linha.tempoReferencia = opt.tempo_por_peca
-      linha.tempoEscolhido = opt.tempo_por_peca
-    },
-
-    /**
-     * Ao selecionar/trocar a etapa de uma linha, atualiza todos os campos
-     * relacionados a tempo. tempo_referencia é um dado de medição real da etapa:
-     * se houver N registros, a UI mostra um dropdown para o usuário escolher qual usar.
-     * Se não houver nenhuma medição, o sistema cai automaticamente para tempo_padrao.
-     */
     onAlterarEtapa(linha) {
       const etapa = this.buscarEtapa(linha.etapaId)
-
-      // Tolerante a backend: campos podem estar na raiz (e.tempo_padrao) ou dentro de etapa (e.etapa.tempo_padrao)
-      linha.tempoPadrao = etapa?.tempo_padrao || etapa?.etapa?.tempo_padrao || 0
+      linha.tempoPadrao = Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
       linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || ''
       linha.opId = etapa?.id_da_op || null
-
-      // Busca TODAS as medições registradas para a etapa (escopo da etapa)
-      const opcoes = this.listarRefsDaEtapa(etapa)
-      linha.tempoReferenciaOpcoes = opcoes
-
-      if (opcoes.length > 0) {
-        // Seleciona a primeira medição automaticamente; usuário pode trocar via dropdown
-        linha.referenciaSelecionadaId = opcoes[0].id
-        linha.tempoReferencia = opcoes[0].tempo_por_peca
-        linha.modoTempo = 'referencia'
-        linha.tempoEscolhido = opcoes[0].tempo_por_peca
-      } else {
-        // Sem medições: fallback automático para tempo padrão
-        linha.referenciaSelecionadaId = null
-        linha.tempoReferencia = null
-        linha.modoTempo = 'padrao'
-        linha.tempoEscolhido = linha.tempoPadrao
-      }
-
       this.salvarMetaDia()
     },
 
-    /**
-     * Alterna entre usar o tempo padrão da etapa ou o tempo medido do funcionário.
-     */
-    alterarModoTempo(linha, modo) {
-      linha.modoTempo = modo
-      if (modo === 'referencia') {
-        // Garante que a ref ativa continua refletida no tempoEscolhido
-        const ativo = linha.tempoReferenciaOpcoes?.find(
-          o => o.id === linha.referenciaSelecionadaId
-        )
-        linha.tempoReferencia = ativo?.tempo_por_peca ?? linha.tempoReferencia
-        linha.tempoEscolhido = linha.tempoReferencia || linha.tempoPadrao
-      } else {
-        linha.tempoEscolhido = linha.tempoPadrao
-      }
-      this.refDropdownAberto[linha.id] = false
-    },
-
-    /**
-     * Abre/fecha o dropdown de múltiplas medições para a linha.
-     */
-    toggleRefDropdown(linha) {
-      this.refDropdownAberto = {
-        ...this.refDropdownAberto,
-        [linha.id]: !this.refDropdownAberto[linha.id],
-      }
-    },
-
-    /**
-     * Seleciona uma medição específica da lista.
-     */
-    selecionarReferencia(linha, opt) {
-      this.aplicarReferencia(linha, opt)
-      linha.modoTempo = 'referencia'
-      this.refDropdownAberto = { ...this.refDropdownAberto, [linha.id]: false }
-    },
-
     buscarEtapa(etapaId) {
-      return this.etapas
-        .flat()
-        .find(e => e.id_da_funcao === etapaId)
+      return this.etapas.flat().find(e => e.id_da_funcao === etapaId)
     },
 
     // ── ETAPA FINAL ──────────────────────────────────────
     isEtapaFinal(linha) {
       if (!linha?.descricao) return false
-
-      const descricao = linha.descricao.toLowerCase()
-
-      if (
-        descricao.includes('revisão intermediaria') ||
-        descricao.includes('revisao intermediaria')
-      ) {
-        return false
-      }
-
+      const d = linha.descricao.toLowerCase()
+      if (d.includes('revisão intermediaria') || d.includes('revisao intermediaria')) return false
       return (
-        descricao.includes('final') ||
-        descricao.includes('revisão final') ||
-        descricao.includes('revisao final') ||
-        descricao.includes('revisão') ||
-        descricao.includes('revisao') ||
-        descricao.includes('acabamento') ||
-        descricao.includes('qualidade')
+        d.includes('final') || d.includes('revisão final') || d.includes('revisao final') ||
+        d.includes('revisão') || d.includes('revisao') ||
+        d.includes('acabamento') || d.includes('qualidade')
       )
     },
 
     // ── TOTAIS ────────────────────────────────────────────
     calcularTotalLinha(linha) {
       if (!linha?.registros) return 0
-
-      let total = 0
-      for (const hora in linha.registros) {
-        total += Number(linha.registros[hora]?.quantidade || 0)
-      }
-      return total
+      return Object.values(linha.registros).reduce((s, r) => s + Number(r?.quantidade || 0), 0)
     },
 
     calcularTotalFuncionario(funcionario) {
       if (!Array.isArray(funcionario?.linhas)) return 0
-
       return funcionario.linhas.reduce((soma, linha) => {
         if (!this.isEtapaFinal(linha)) return soma
         return soma + this.calcularTotalLinha(linha)
@@ -903,47 +801,38 @@ export default {
     },
 
     calcularTotalGeral() {
-      return this.funcionariosDia.reduce(
-        (soma, funcionario) => soma + this.calcularTotalFuncionario(funcionario),
-        0
-      )
+      return this.funcionariosDia.reduce((s, f) => s + this.calcularTotalFuncionario(f), 0)
     },
 
     calcularTotalOp(pecaId) {
       if (!pecaId) return 0
-
       let total = 0
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
-          if (!this.isEtapaFinal(linha)) continue
-          if (linha.opId !== pecaId) continue
+          if (!this.isEtapaFinal(linha) || linha.opId !== pecaId) continue
           total += this.calcularTotalLinha(linha)
         }
       }
       return total
     },
 
-    /**
-     * Quantidade de funcionários únicos alocados (com linhas) em uma OP.
-     */
     calcularFuncionariosOp(opId) {
       if (!opId) return 0
       const emails = new Set()
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
-          if (linha.opId === opId) {
-            emails.add(func.email)
-            break
-          }
+          if (linha.opId === opId) { emails.add(func.email); break }
         }
       }
       return emails.size
     },
 
+    // ── CÁLCULOS — FICHA TÉCNICA (tempo_padrao uniforme) ──
     /**
-     * Eficiência consolidada de uma OP (soma produzida / soma tempo * 100).
+     * Eficiência da OP usando tempo_padrao para todos os funcionários.
+     * Lógica original preservada sem alteração.
      */
-    calcularEficienciaOp(opId) {
+    calcularEficienciaOpPadrao(opId) {
       if (!opId) return 0
       let somaProduzida = 0
       let somaTempo = 0
@@ -951,9 +840,8 @@ export default {
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const tempo = linha.tempoEscolhido || linha.tempoPadrao || 0
-          for (const hora in linha.registros || {}) {
-            const reg = linha.registros[hora]
+          const tempo = this.resolverTempoPadrao(linha)
+          for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
               somaProduzida += reg.quantidade * tempo
               somaTempo += reg.tempoProduzido || 60
@@ -967,76 +855,35 @@ export default {
     },
 
     /**
-     * Capacidade produtiva estimada da OP: soma de floor(minutos_uteis / tempoEscolhido)
-     * para cada linha da OP. minutos_uteis = horasVisiveis.length * 60.
+     * Capacidade da OP usando tempo_padrao.
      */
-    calcularCapacidadeOp(opId) {
+    calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
       const minutosUteis = (this.horasVisiveis?.length || 1) * 60
       let capacidade = 0
+
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const t = linha.tempoEscolhido || linha.tempoPadrao || 60
+          const t = this.resolverTempoPadrao(linha) || 60
           if (t > 0) capacidade += Math.floor(minutosUteis / t)
         }
       }
       return capacidade
     },
 
-    // ── EFICIÊNCIA ────────────────────────────────────────
     /**
-     * Calcula eficiência de um registro individual.
-     * Usa linha.tempoEscolhido, que pode ser o tempo padrão da etapa
-     * ou o tempo medido do funcionário (tempo_por_peca do TempoReferencia).
+     * Eficiência do funcionário usando tempo_padrao em todas as linhas.
      */
-    calcularEficienciaRegistro(quantidade, tempoProduzido, linha) {
-      const tempo = linha?.tempoEscolhido || linha?.tempoPadrao || 0
-
-      if (!quantidade || !tempoProduzido || !tempo) return 0
-
-      return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
-    },
-
-    /**
-     * Eficiência total da linha usando tempoEscolhido de cada linha.
-     */
-    calcularEficienciaLinha(linha) {
-      if (!linha?.registros) return 0
-
-      let produzido = 0
-      let tempoProduzido = 0
-      const tempo = linha.tempoEscolhido || linha.tempoPadrao || 0
-
-      for (const hora in linha.registros) {
-        const reg = linha.registros[hora]
-        if (reg && reg.quantidade > 0) {
-          produzido += reg.quantidade * tempo
-          tempoProduzido += reg.tempoProduzido || 60
-        }
-      }
-
-      if (!tempoProduzido) return 0
-      return Math.round((produzido / tempoProduzido) * 100)
-    },
-
-    /**
-     * Eficiência geral do funcionário, somando todas as linhas
-     * com seus respectivos tempoEscolhido.
-     */
-    calcularEficienciaFuncionario(funcionario) {
+    calcularEficienciaFuncionarioPadrao(funcionario) {
       if (!funcionario?.linhas?.length) return 0
-
       let somaProduzida = 0
       let somaTempo = 0
 
       for (const linha of funcionario.linhas) {
         if (!linha?.registros) continue
-
-        const tempo = linha.tempoEscolhido || linha.tempoPadrao || 0
-
-        for (const hora in linha.registros) {
-          const reg = linha.registros[hora]
+        const tempo = this.resolverTempoPadrao(linha)
+        for (const reg of Object.values(linha.registros)) {
           if (reg && reg.quantidade > 0) {
             somaProduzida += reg.quantidade * tempo
             somaTempo += reg.tempoProduzido || 60
@@ -1048,6 +895,94 @@ export default {
       return Math.round((somaProduzida / somaTempo) * 100)
     },
 
+    /**
+     * Eficiência de um registro individual — Ficha Técnica.
+     */
+    calcularEficienciaRegistroPadrao(quantidade, tempoProduzido, linha) {
+      const tempo = this.resolverTempoPadrao(linha)
+      if (!quantidade || !tempoProduzido || !tempo) return 0
+      return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
+    },
+
+    // ── CÁLCULOS — TEMPO DE REFERÊNCIA (individual) ───────
+    /**
+     * Eficiência da OP usando o tempo efetivo de cada funcionário.
+     * Lucas → tempo_referencia de Lucas; Maria → tempo_padrao (sem ref); etc.
+     * Consolidado após cálculo individual.
+     */
+    calcularEficienciaOpReferencia(opId) {
+      if (!opId) return 0
+      let somaProduzida = 0
+      let somaTempo = 0
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId !== opId) continue
+          const tempo = this.resolverTempoEfetivoReferencia(func, linha)
+          for (const reg of Object.values(linha.registros || {})) {
+            if (reg && reg.quantidade > 0) {
+              somaProduzida += reg.quantidade * tempo
+              somaTempo += reg.tempoProduzido || 60
+            }
+          }
+        }
+      }
+
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
+    },
+
+    /**
+     * Capacidade da OP usando o tempo efetivo individual de cada funcionário.
+     */
+    calcularCapacidadeOpReferencia(opId) {
+      if (!opId) return 0
+      const minutosUteis = (this.horasVisiveis?.length || 1) * 60
+      let capacidade = 0
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId !== opId) continue
+          const t = this.resolverTempoEfetivoReferencia(func, linha) || 60
+          if (t > 0) capacidade += Math.floor(minutosUteis / t)
+        }
+      }
+      return capacidade
+    },
+
+    /**
+     * Eficiência do funcionário usando tempo_referencia individual por linha.
+     */
+    calcularEficienciaFuncionarioReferencia(funcionario) {
+      if (!funcionario?.linhas?.length) return 0
+      let somaProduzida = 0
+      let somaTempo = 0
+
+      for (const linha of funcionario.linhas) {
+        if (!linha?.registros) continue
+        const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
+        for (const reg of Object.values(linha.registros)) {
+          if (reg && reg.quantidade > 0) {
+            somaProduzida += reg.quantidade * tempo
+            somaTempo += reg.tempoProduzido || 60
+          }
+        }
+      }
+
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
+    },
+
+    /**
+     * Eficiência de um registro individual — Tempo de Referência.
+     */
+    calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
+      const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
+      if (!quantidade || !tempoProduzido || !tempo) return 0
+      return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
+    },
+
+    // ── UTILITÁRIOS ───────────────────────────────────────
     getEficClass(pct) {
       if (pct >= 100) return 'efic-alta'
       if (pct >= 75) return 'efic-media'
@@ -1056,18 +991,16 @@ export default {
     },
 
     // ── INPUT ─────────────────────────────────────────────
+    // Payload idêntico ao original — zero campos de tempo adicionados
     onInputQuantidade: debounce(function (funcionario, linha, hora) {
       const registro = linha.registros[hora]
-
       if (!funcionario?.email || !linha?.etapaId) return
 
       const etapa = this.buscarEtapa(linha.etapaId)
-      const opId = etapa?.id_da_op || null
-
       socket.emit('salvar-producao', {
         funcionarioId: funcionario.email,
         etapaId: linha.etapaId,
-        opId,
+        opId: etapa?.id_da_op || null,
         quantidade: registro.quantidade || 0,
         hora,
         data: this.dataSelecionada,
@@ -1078,6 +1011,7 @@ export default {
     }, 1500),
 
     // ── META ──────────────────────────────────────────────
+    // Payload idêntico ao original — zero campos de tempo adicionados
     salvarMetaDia: debounce(function () {
       const pecasAtivas = this.opsAtivasComPeca
       if (!pecasAtivas.length) return
@@ -1096,8 +1030,6 @@ export default {
             tipo: linha.tipo,
             etapaId: linha.etapaId,
             opId: linha.opId,
-            modoTempo: linha.modoTempo,
-            referenciaSelecionadaId: linha.referenciaSelecionadaId,
           })),
         })),
       })
@@ -1113,27 +1045,16 @@ export default {
       this.carregandoMeta = true
 
       setTimeout(() => {
-        if (buscaId === this.ultimaBuscaId) {
-          this.carregandoMeta = false
-        }
+        if (buscaId === this.ultimaBuscaId) this.carregandoMeta = false
       }, 8000)
 
       socket.emit(
         'buscar-meta-dia',
-        {
-          estabelecimento: this.store.pegar_usuario.cnpj,
-          data: dataDaRequisicao,
-        },
+        { estabelecimento: this.store.pegar_usuario.cnpj, data: dataDaRequisicao },
         response => {
-          if (
-            buscaId !== this.ultimaBuscaId ||
-            dataDaRequisicao !== this.dataSelecionada
-          ) {
-            return
-          }
+          if (buscaId !== this.ultimaBuscaId || dataDaRequisicao !== this.dataSelecionada) return
 
           this.carregandoMeta = false
-
           if (!response?.sucesso) return
 
           const meta = response.metaDia
@@ -1143,7 +1064,6 @@ export default {
             return
           }
 
-          // Restaurar OPs
           if (meta.pecas?.length) {
             this.opsAtivas = meta.pecas.map(p => ({
               _uid: Date.now() + Math.random(),
@@ -1155,16 +1075,13 @@ export default {
           this.inicializarFuncionarios()
 
           for (const metaFunc of meta.funcionarios || []) {
-            const funcionario = this.funcionariosDia.find(
-              f => f.email === metaFunc.funcionarioId
-            )
+            const funcionario = this.funcionariosDia.find(f => f.email === metaFunc.funcionarioId)
             if (!funcionario) continue
 
             const linhas = []
 
             for (const producao of metaFunc.producoes || []) {
               const etapaId = producao.id_da_funcao
-
               let linha = linhas.find(l => l.etapaId === etapaId)
 
               if (!linha) {
@@ -1173,27 +1090,8 @@ export default {
                 linha.descricao = producao.producao_etapa?.descricao || ''
                 linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
                 linha.opId = producao.id_da_op || null
-
-                // Restaura medições reais da etapa ao carregar do banco
-                const etapaGlobal = this.buscarEtapa(etapaId)
-                const opcoes = this.listarRefsDaEtapa(etapaGlobal)
-                linha.tempoReferenciaOpcoes = opcoes
-
-                if (opcoes.length > 0) {
-                  // Tenta restaurar a ref antes salva; se não existir mais, usa a primeira
-                  const persistidaId = producao.referencia_selecionada_id
-                  const persistida = opcoes.find(o => o.id === persistidaId) || opcoes[0]
-                  linha.referenciaSelecionadaId = persistida.id
-                  linha.tempoReferencia = persistida.tempo_por_peca
-                  linha.modoTempo = 'referencia'
-                  linha.tempoEscolhido = persistida.tempo_por_peca
-                } else {
-                  linha.referenciaSelecionadaId = null
-                  linha.tempoReferencia = null
-                  linha.modoTempo = 'padrao'
-                  linha.tempoEscolhido = linha.tempoPadrao
-                }
-
+                // tempo_referencia é lido da etapa global em tempo de execução —
+                // nenhuma informação de modo ou seleção é restaurada/persistida.
                 linhas.push(linha)
               }
 
@@ -1206,9 +1104,7 @@ export default {
               }
             }
 
-            funcionario.linhas = linhas.length
-              ? linhas
-              : [this.novaLinha('principal')]
+            funcionario.linhas = linhas.length ? linhas : [this.novaLinha('principal')]
           }
         }
       )
@@ -1218,9 +1114,7 @@ export default {
 </script>
 
 <style scoped>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 .content-wrapper {
   flex-grow: 1;
@@ -1229,11 +1123,9 @@ export default {
   min-height: 100vh;
 }
 
-.page-section {
-  padding: 1.2rem;
-}
+.page-section { padding: 1.2rem; }
 
-/* ── HEADER ────────────────────────────────────────── */
+/* ── HEADER ─────────────────────────────────────────── */
 .header {
   display: flex;
   justify-content: space-between;
@@ -1243,11 +1135,7 @@ export default {
   flex-wrap: wrap;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.header-actions { display: flex; align-items: center; gap: 10px; }
 
 .socket-status {
   display: flex;
@@ -1256,16 +1144,13 @@ export default {
   height: 38px;
   padding: 0 14px;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   background: #ffecec;
   color: #d23b3b;
 }
 
-.socket-status.online {
-  background: #e7f8ef;
-  color: #0d7a3f;
-}
+.socket-status.online { background: #e7f8ef; color: #0d7a3f; }
 
 .status-dot {
   width: 8px;
@@ -1284,11 +1169,9 @@ export default {
 }
 
 .data-loading {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: #0d6632;
-  display: flex;
-  align-items: center;
   animation: pulseFade 1.1s ease-in-out infinite;
 }
 
@@ -1297,14 +1180,14 @@ export default {
   50% { opacity: 1; }
 }
 
-/* ── SETUP CARD ────────────────────────────────────── */
+/* ── SETUP CARD ─────────────────────────────────────── */
 .setup-card {
   background: linear-gradient(135deg, #ffffff, #f8fcf9);
   border-radius: 24px;
   border: 1px solid #dceee3;
   padding: 1.4rem;
   margin-bottom: 1rem;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, .03);
+  box-shadow: 0 4px 18px rgba(0,0,0,.03);
 }
 
 .setup-topbar {
@@ -1316,11 +1199,7 @@ export default {
   flex-wrap: wrap;
 }
 
-.setup-title {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
+.setup-title { display: flex; align-items: center; gap: 14px; }
 
 .setup-icon {
   width: 52px;
@@ -1332,19 +1211,11 @@ export default {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
   font-size: 22px;
-  box-shadow: 0 8px 20px rgba(13, 102, 50, .2);
+  box-shadow: 0 8px 20px rgba(13,102,50,.2);
 }
 
-.setup-title h3 {
-  margin: 0;
-  font-size: 22px;
-  color: #052e14;
-}
-
-.setup-title span {
-  font-size: 13px;
-  color: #72907e;
-}
+.setup-title h3 { margin: 0; font-size: 23px; color: #052e14; }
+.setup-title span { font-size: 14px; color: #72907e; }
 
 .turno-switch {
   display: flex;
@@ -1364,31 +1235,19 @@ export default {
   font-weight: 700;
   cursor: pointer;
   transition: 0.2s;
-  font-size: 13px;
+  font-size: 14px;
 }
 
-.turno-btn:hover {
-  background: rgba(13, 102, 50, .08);
-}
+.turno-btn:hover { background: rgba(13,102,50,.08); }
 
 .turno-btn.active {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
-  box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
+  box-shadow: 0 4px 14px rgba(13,102,50,.25);
 }
 
-.turno-config-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.horarios-config-inline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.turno-config-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.horarios-config-inline { display: flex; align-items: center; gap: 6px; }
 
 .horario-select-sm {
   height: 42px;
@@ -1397,7 +1256,7 @@ export default {
   background: white;
   padding: 0 10px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #052e14;
   transition: .2s;
@@ -1405,28 +1264,15 @@ export default {
 
 .horario-select-sm:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
   outline: none;
 }
 
-.horario-ate {
-  font-size: 12px;
-  font-weight: 700;
-  color: #648673;
-}
+.horario-ate { font-size: 13px; font-weight: 700; color: #648673; }
 
-/* ── OPs SECTION ───────────────────────────────────── */
-.ops-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.ops-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
+/* ── OPs SECTION ────────────────────────────────────── */
+.ops-section { display: flex; flex-direction: column; gap: 1rem; }
+.ops-list { display: flex; flex-wrap: wrap; gap: 1rem; }
 
 .op-card {
   flex: 1 1 340px;
@@ -1437,17 +1283,13 @@ export default {
   display: flex;
   flex-direction: column;
   gap: .75rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .03);
+  box-shadow: 0 2px 10px rgba(0,0,0,.03);
 }
 
-.op-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+.op-card-header { display: flex; align-items: center; justify-content: space-between; }
 
 .op-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .06em;
   color: #0d6632;
@@ -1458,16 +1300,10 @@ export default {
 }
 
 .btn-remove-op {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 8px;
-  background: #ffecec;
-  color: #d93b3b;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  line-height: 1;
+  width: 26px; height: 26px;
+  border: none; border-radius: 8px;
+  background: #ffecec; color: #d93b3b;
+  font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
 }
 
 .op-fields {
@@ -1477,18 +1313,9 @@ export default {
   align-items: end;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.field { display: flex; flex-direction: column; gap: 6px; }
 
-.field label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #648673;
-  padding-left: 2px;
-}
+.field label { font-size: 12px; font-weight: 700; color: #648673; padding-left: 2px; }
 
 .field select {
   height: 46px;
@@ -1497,14 +1324,14 @@ export default {
   background: white;
   padding: 0 12px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   width: 100%;
   transition: .2s;
 }
 
 .field select:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
   outline: none;
 }
 
@@ -1521,166 +1348,100 @@ export default {
 
 .meta-input-wrap:focus-within {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
 }
 
 .meta-input {
-  flex: 1;
-  height: 100%;
-  border: none;
-  background: transparent;
-  padding: 0 12px;
-  font-size: 17px;
-  font-weight: 700;
-  color: #052e14;
+  flex: 1; height: 100%; border: none; background: transparent;
+  padding: 0 12px; font-size: 17px; font-weight: 700; color: #052e14;
 }
 
-.meta-input:focus {
-  outline: none;
-}
+.meta-input:focus { outline: none; }
 
 .meta-suffix {
-  height: 100%;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  background: #f2f8f4;
-  border-left: 1px solid #e2eee7;
-  color: #5d8470;
-  font-size: 11px;
-  font-weight: 700;
+  height: 100%; padding: 0 12px;
+  display: flex; align-items: center;
+  background: #f2f8f4; border-left: 1px solid #e2eee7;
+  color: #5d8470; font-size: 12px; font-weight: 700;
 }
 
 .total-box {
-  height: 46px;
-  border-radius: 13px;
+  height: 46px; border-radius: 13px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: 800;
-  box-shadow: 0 6px 16px rgba(13, 102, 50, .2);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-size: 23px; font-weight: 800;
+  box-shadow: 0 6px 16px rgba(13,102,50,.2);
 }
 
 .meta-progress {
-  margin-top: .25rem;
-  padding: .85rem 1rem;
+  margin-top: .25rem; padding: .85rem 1rem;
   border-radius: 14px;
   background: linear-gradient(135deg, #f7fcf9, #edf7f1);
   border: 1px solid #dceee3;
 }
 
 .meta-progress-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: #537664;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px; font-size: 13px; color: #537664;
 }
 
-.meta-progress-top strong {
-  color: #052e14;
-  font-size: 13px;
-}
+.meta-progress-top strong { color: #052e14; font-size: 14px; }
 
 .progress-bar {
-  width: 100%;
-  height: 12px;
-  border-radius: 999px;
-  background: #dceee3;
-  overflow: hidden;
+  width: 100%; height: 12px; border-radius: 999px;
+  background: #dceee3; overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%;
-  border-radius: inherit;
+  height: 100%; border-radius: inherit;
   background: linear-gradient(90deg, #0d6632, #20b15a);
   transition: width .3s ease;
 }
 
 .progress-footer {
-  margin-top: 8px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: #648673;
+  margin-top: 8px; display: flex; justify-content: space-between;
+  font-size: 12px; color: #648673;
 }
 
 .btn-add-op {
   align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 18px;
-  border: 2px dashed #b2d9c0;
-  border-radius: 13px;
-  background: transparent;
-  color: #0d6632;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: .2s;
-  font-family: inherit;
+  display: flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 18px;
+  border: 2px dashed #b2d9c0; border-radius: 13px;
+  background: transparent; color: #0d6632;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: .2s; font-family: inherit;
 }
 
-.btn-add-op:hover {
-  background: #edf7f1;
-  border-color: #0d6632;
-}
-
-.btn-add-op span {
-  font-size: 18px;
-  line-height: 1;
-}
+.btn-add-op:hover { background: #edf7f1; border-color: #0d6632; }
+.btn-add-op span { font-size: 18px; line-height: 1; }
 
 .total-geral-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 1rem;
-  padding-top: 1rem;
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 12px; margin-top: 1rem; padding-top: 1rem;
   border-top: 1px solid #e6f2ea;
-  font-size: 13px;
-  font-weight: 700;
-  color: #537664;
+  font-size: 14px; font-weight: 700; color: #537664;
 }
 
 .total-box-sm {
-  min-width: 80px;
-  height: 40px;
-  border-radius: 12px;
+  min-width: 80px; height: 40px; border-radius: 12px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 800;
-  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-size: 19px; font-weight: 800;
+  box-shadow: 0 4px 12px rgba(13,102,50,.2);
   padding: 0 16px;
 }
 
-/* ── TABLE ─────────────────────────────────────────── */
+/* ── TABLE ──────────────────────────────────────────── */
 .table-wrapper {
-  background: white;
-  border-radius: 20px;
-  border: 1px solid #e3f0e7;
-  overflow: hidden;
+  background: white; border-radius: 20px;
+  border: 1px solid #e3f0e7; overflow: hidden;
 }
 
-.table-scroll {
-  overflow-x: auto;
-}
+.table-scroll { overflow-x: auto; }
 
 .apontamento-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 1400px;
+  width: 100%; border-collapse: collapse; min-width: 1400px;
 }
 
 .apontamento-table thead {
@@ -1688,104 +1449,48 @@ export default {
 }
 
 .apontamento-table th {
-  height: 54px;
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 0 8px;
-  text-align: justify;
-  white-space: nowrap;
+  height: 54px; color: white; font-size: 14px; font-weight: 700;
+  padding: 0 8px; text-align: left; white-space: nowrap;
 }
 
 .apontamento-table td {
-  border-bottom: 1px solid #edf6f1;
-  padding: 6px;
-  vertical-align: top;
+  border-bottom: 1px solid #edf6f1; padding: 6px; vertical-align: top;
 }
 
-.func-col {
-  width: 190px;
-  min-width: 190px;
-}
+.func-col { width: 190px; min-width: 190px; }
 
-.func-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 50px;
-}
+.func-info { display: flex; align-items: center; gap: 10px; min-height: 50px; }
 
 .func-info img {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  object-fit: cover;
-  flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 10px;
+  object-fit: cover; flex-shrink: 0;
 }
 
-.func-info span {
-  font-size: 12px;
-  font-weight: 700;
-  color: #052e14;
-}
+.func-info span { font-size: 13px; font-weight: 700; color: #052e14; }
 
-.extra-tag {
-  padding-left: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #5d8972;
-}
+.extra-tag { padding-left: 12px; font-size: 12px; font-weight: 700; color: #5d8972; }
 
-.etapa-col {
-  width: 240px;
-  min-width: 240px;
-}
+.etapa-col { width: 240px; min-width: 240px; }
 
-.etapa-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.etapa-wrap { display: flex; align-items: center; gap: 6px; }
 
 .etapa-select {
-  width: 100%;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid #dceee3;
-  padding: 0 10px;
-  font-size: 11px;
-  font-family: inherit;
-  background: white;
+  width: 100%; height: 36px; border-radius: 10px;
+  border: 1px solid #dceee3; padding: 0 10px;
+  font-size: 12px; font-family: inherit; background: white;
 }
 
-.btn-add-linha,
-.btn-remove-linha {
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 8px;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
-  flex-shrink: 0;
+.btn-add-linha, .btn-remove-linha {
+  width: 28px; height: 28px; border: none; border-radius: 8px;
+  font-size: 18px; font-weight: 700; cursor: pointer; flex-shrink: 0;
 }
 
-.btn-add-linha {
-  background: #0d6632;
-  color: white;
-}
+.btn-add-linha { background: #0d6632; color: white; }
+.btn-remove-linha { background: #ffecec; color: #d93b3b; }
+.linha-extra { background: #f8fcf9; }
 
-.btn-remove-linha {
-  background: #ffecec;
-  color: #d93b3b;
-}
-
-.linha-extra {
-  background: #f8fcf9;
-}
-
-/* ── TOGGLE TEMPO ──────────────────────────────────── */
-.tempo-toggle-wrap {
+/* ── CHIPS DE TEMPO INFORMATIVOS ────────────────────── */
+.tempo-info-wrap {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1793,177 +1498,122 @@ export default {
   flex-wrap: wrap;
 }
 
-.tempo-toggle-btn {
+.tempo-info-chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 22px;
+  height: 20px;
   padding: 0 8px;
   border-radius: 20px;
-  border: 1.5px solid #dceee3;
-  background: #f4faf6;
-  color: #5d8470;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all .15s;
   white-space: nowrap;
+  user-select: none;
+  cursor: default;
 }
 
-.tempo-toggle-btn:hover {
-  border-color: #0d6632;
+.tempo-info-chip--padrao {
+  background: #e7f8ef;
   color: #0d6632;
-  background: #edf7f1;
+  border: 1px solid #b2d9c0;
 }
 
-/* Botão de tempo padrão ativo */
-.tempo-toggle-btn.tempo-ativo {
-  background: #0d6632;
-  border-color: #0d6632;
-  color: white;
-  box-shadow: 0 2px 6px rgba(13, 102, 50, .25);
-}
-
-/* Botão de tempo do funcionário (inativo) */
-.tempo-toggle-btn--ref {
-  border-color: #c8b7f0;
-  background: #f7f4ff;
-  color: #6d48c9;
-}
-
-.tempo-toggle-btn--ref:hover {
-  border-color: #6d48c9;
+.tempo-info-chip--ref {
   background: #ede8ff;
   color: #5030b0;
+  border: 1px solid #c8b7f0;
 }
 
-/* Botão de tempo do funcionário ativo */
-.tempo-toggle-btn--ref.tempo-ativo {
-  background: #6d48c9;
-  border-color: #6d48c9;
-  color: white;
-  box-shadow: 0 2px 6px rgba(109, 72, 201, .3);
-}
-
-.sem-referencia {
-  font-size: 10px;
-  color: #b0c5b8;
+.tempo-info-chip--sem-ref {
+  background: #f5f5f5;
+  color: #b0b0b0;
+  border: 1px solid #e0e0e0;
   font-style: italic;
-  padding-left: 2px;
 }
 
-/* ── HORAS ─────────────────────────────────────────── */
-.hora-th {
-  min-width: 120px;
+/* ── HORAS ──────────────────────────────────────────── */
+.hora-th { min-width: 130px; }
+.hora-td { padding: 4px; }
+
+.hora-box-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.hora-td {
-  padding: 4px;
-}
-
-.hora-box {
+.hora-box-inputs {
   display: flex;
   gap: 4px;
   align-items: center;
 }
 
 .hora-input {
-  width: 56px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid #dceee3;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: inherit;
-  transition: .15s;
+  width: 56px; height: 34px; border-radius: 8px;
+  border: 1px solid #dceee3; text-align: center;
+  font-size: 14px; font-weight: 700; font-family: inherit; transition: .15s;
 }
 
-.hora-input:focus {
-  outline: none;
-  border-color: #0d6632;
-}
+.hora-input:focus { outline: none; border-color: #0d6632; }
 
 .hora-input.tem-producao {
-  background: #e9f2ff;
-  border-color: #2b77d9;
-  color: #1454ad;
+  background: #e9f2ff; border-color: #2b77d9; color: #1454ad;
 }
 
-.tempo-wrap {
+.tempo-wrap { display: flex; align-items: center; gap: 2px; }
+
+.min-input {
+  width: 40px; height: 24px; border-radius: 6px;
+  border: 1px solid #ddebe3; text-align: center;
+  font-size: 11px; background: #f8fcf9; color: #69907b;
+}
+
+.min-label { font-size: 11px; color: #8ca998; }
+
+/* Dois chips de eficiência empilhados por célula */
+.efic-chips-col {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 2px;
 }
 
-.min-input {
-  width: 40px;
-  height: 24px;
-  border-radius: 6px;
-  border: 1px solid #ddebe3;
-  text-align: center;
-  font-size: 10px;
-  background: #f8fcf9;
-  color: #69907b;
-}
-
-.min-label {
-  font-size: 10px;
-  color: #8ca998;
-}
-
 .efic-chip {
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 20px;
-  padding: 2px 6px;
-  white-space: nowrap;
+  font-size: 11px; font-weight: 700;
+  border-radius: 20px; padding: 2px 7px; white-space: nowrap;
+  display: inline-block;
+}
+
+/* chip de referência: borda tracejada para distinguir visualmente */
+.efic-chip--ref {
+  border: 1px dashed currentColor;
+  opacity: 0.85;
 }
 
 .efic-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  height: 30px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 58px; height: 30px; border-radius: 20px;
+  font-size: 13px; font-weight: 700; padding: 0 10px;
 }
 
-.efic-alta {
-  background: #d4f1df;
-  color: #0c6b34;
+/* badge de referência: fundo transparente + borda tracejada */
+.efic-badge--ref {
+  background: transparent !important;
+  border: 1.5px dashed currentColor;
 }
 
-.efic-media {
-  background: #fff4cf;
-  color: #8a6a00;
+.efic-alta { background: #d4f1df; color: #0c6b34; }
+.efic-media { background: #fff4cf; color: #8a6a00; }
+.efic-baixa { background: #ffe8e8; color: #b12626; }
+
+.total-col { width: 80px; text-align: center; }
+.efic-col { width: 100px; text-align: center; }
+
+/* coluna de referência: leve fundo violeta para distinguir do cabeçalho */
+.efic-col--ref {
+  background: rgba(109, 72, 201, 0.06);
 }
 
-.efic-baixa {
-  background: #ffe8e8;
-  color: #b12626;
-}
-
-.total-col {
-  width: 80px;
-  text-align: center;
-}
-
-.efic-col {
-  width: 100px;
-  text-align: center;
-}
-
-/* ── MÓDULOS POR OP ────────────────────────────────── */
-.ops-modulos-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
+/* ── MÓDULOS POR OP ─────────────────────────────────── */
+.ops-modulos-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
 
 .op-module-header {
   display: flex;
@@ -1974,159 +1624,132 @@ export default {
   background: linear-gradient(90deg, #e7f8ef, #f8fcf9);
   border: 1px solid #dceee3;
   border-radius: 14px;
-  padding: 12px 18px;
+  padding: 14px 20px;
   margin-top: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 2px 8px rgba(0,0,0,.02);
 }
 
-.op-module-header--single {
-  background: #f8fcf9;
-  border-color: #e3f0e7;
-  box-shadow: none;
-}
+.op-module-header--single { background: #f8fcf9; border-color: #e3f0e7; box-shadow: none; }
+.op-module-header--empty { background: #fff8e1; border-color: #f0d97a; }
 
-.op-module-header--empty {
-  background: #fff8e1;
-  border-color: #f0d97a;
-}
-
-.op-module-badge {
-  font-size: 13px;
-  font-weight: 800;
-  color: #0d6632;
-  letter-spacing: 0.02em;
-}
-
-.op-module-header--empty .op-module-badge {
-  color: #8a6a00;
-}
+.op-module-badge { font-size: 14px; font-weight: 800; color: #0d6632; letter-spacing: .02em; }
+.op-module-header--empty .op-module-badge { color: #8a6a00; }
 
 .op-module-stats {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  font-size: 12px; color: #537664; font-weight: 700;
+}
+
+.op-module-stats .stat { display: inline-flex; align-items: center; gap: 4px; }
+.op-module-stats .stat strong { color: #052e14; font-weight: 800; font-size: 13px; }
+
+/* ── PAINÉIS DE CÁLCULO DUPLO ───────────────────────── */
+.calc-panels {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: wrap;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.calc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  min-width: 220px;
+}
+
+.calc-panel--padrao {
+  background: linear-gradient(135deg, #f0faf5, #e7f8ef);
+  border: 1px solid #b2d9c0;
+}
+
+.calc-panel--referencia {
+  background: linear-gradient(135deg, #f5f0ff, #ede8ff);
+  border: 1px solid #c8b7f0;
+}
+
+.calc-panel-title {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: #537664;
-  font-weight: 700;
-}
-
-.op-module-stats .stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.op-module-stats .stat strong {
-  color: #052e14;
+  gap: 6px;
+  font-size: 12px;
   font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
-/* ── DROPDOWN DE REFS ──────────────────────────────── */
-.tempo-ref-dropdown {
-  position: relative;
-  display: inline-block;
+.calc-panel--padrao .calc-panel-title { color: #0d6632; }
+.calc-panel--referencia .calc-panel-title { color: #5030b0; }
+
+.calc-panel-icon { font-size: 14px; }
+
+.calc-panel-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 
-.ref-list {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 50;
-  background: white;
-  border: 1px solid #dceee3;
-  border-radius: 10px;
-  min-width: 200px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding: 4px 0;
-  margin: 0;
-  list-style: none;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+.calc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.ref-list li {
-  padding: 8px 12px;
+.calc-stat-label {
   font-size: 11px;
-  cursor: pointer;
+  color: #7a8d80;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.calc-stat strong {
+  font-size: 15px;
+  font-weight: 800;
   color: #052e14;
-  transition: background 0.15s;
 }
 
-.ref-list li:hover {
-  background: #f4faf6;
-  color: #0d6632;
+/* eficiência colorida dentro do painel */
+.calc-stat strong.efic-alta { color: #0c6b34; }
+.calc-stat strong.efic-media { color: #8a6a00; }
+.calc-stat strong.efic-baixa { color: #b12626; }
+
+.calc-panel-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #a0b8a8;
+  letter-spacing: .05em;
+  align-self: center;
 }
 
-.ref-list li.active {
-  background: #ede8ff;
-  color: #5030b0;
-  font-weight: 700;
-}
-
-/* ── RESPONSIVO ────────────────────────────────────── */
+/* ── RESPONSIVO ─────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .content-wrapper {
-    padding-left: 0;
-  }
-
-  .page-section {
-    padding: 1rem;
-  }
-
-  .op-fields {
-    grid-template-columns: 1fr;
-  }
+  .content-wrapper { padding-left: 0; }
+  .page-section { padding: 1rem; }
+  .op-fields { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
-  .header {
-    align-items: stretch;
-  }
+  .header { align-items: stretch; }
+  .header-actions { width: 100%; flex-wrap: wrap; }
+  .date-input { width: 100%; }
+  .turno-switch { width: 100%; }
+  .turno-btn { flex: 1; }
+  .progress-footer { flex-direction: column; gap: 4px; }
+  .ops-list { flex-direction: column; }
+  .turno-config-group { width: 100%; flex-direction: column; align-items: stretch; }
+  .horarios-config-inline { width: 100%; }
+  .horario-select-sm { flex: 1; }
 
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .date-input {
-    width: 100%;
-  }
-
-  .turno-switch {
-    width: 100%;
-  }
-
-  .turno-btn {
-    flex: 1;
-  }
-
-  .progress-footer {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .ops-list {
-    flex-direction: column;
-  }
-
-  .turno-config-group {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .horarios-config-inline {
-    width: 100%;
-  }
-
-  .horario-select-sm {
-    flex: 1;
-  }
-
-  .tempo-toggle-wrap {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  .calc-panels { justify-content: stretch; }
+  .calc-panel { min-width: 100%; }
+  .calc-panel-divider { padding: 6px 0; }
 }
 </style>

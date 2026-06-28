@@ -191,6 +191,8 @@ model AlocacaoProducaoDia {
 
   estabelecimentoCnpj String
   data DateTime
+  modoTempo              String  @default("padrao")
+  referenciaSelecionadaId Int?
 
   id_da_op Int
   op PecasOP @relation(fields: [id_da_op], references: [id_da_op])
