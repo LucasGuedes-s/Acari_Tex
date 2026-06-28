@@ -624,7 +624,10 @@ export default {
         ])
 
         this.funcionarios = resFuncs.data.funcionarios || []
-        this.pecas = resPecas.data.peca.em_progresso || []
+        this.pecas = [
+          ...(resPecas.data.peca.em_progresso || []),
+          ...(resPecas.data.peca.coleta || [])
+        ]
         this.etapas = this.pecas.map(p => p.etapas || [])
 
         this.etapasMap = {}

@@ -13,18 +13,17 @@ module.exports = defineConfig({
   },
 
   pwa: {
-    name: 'Linha Tex',
-    themeColor: '#0d3927',
-    msTileColor: '#0d3927',
+  name: 'Linha Tex',
+  themeColor: '#0d3927',
+  msTileColor: '#0d3927',
 
-    manifestOptions: {
-      name: 'Linha Tex',
-      short_name: 'LinhaTex',
-      start_url: '.',
-      display: 'standalone',
-      background_color: '#0d3927',
-      theme_color: '#0d3927'
-    }
+  iconPaths: {
+    favicon32: 'img/Logo.png',
+    favicon16: 'img/Logo.png',
+    appleTouchIcon: 'img/Logo.png',
+    maskIcon: 'img/Logo.png',
+    msTileImage: 'img/Logo.png'
   }
+}
 
 })

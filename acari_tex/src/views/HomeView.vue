@@ -171,8 +171,12 @@ export default {
     })
   },
   methods: {
-    Login() {
-      this.$router.push('/login');
+    async Login() {
+      try {
+        await this.$router.push('/login')
+      } catch (err) {
+        console.error(err)
+      }
     }
   }
 }
