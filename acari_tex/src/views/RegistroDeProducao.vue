@@ -209,6 +209,14 @@
             <div class="table-wrapper">
               <div class="table-scroll">
                 <table class="apontamento-table">
+                  <colgroup>
+                    <col class="col-func" />
+                    <col class="col-etapa" />
+                    <col v-for="hora in horasVisiveis" :key="'col-' + hora" class="col-hora" />
+                    <col class="col-total" />
+                    <col class="col-efic" />
+                    <col class="col-efic-ref" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th class="func-col">Funcionário</th>
@@ -236,7 +244,7 @@
                         <!-- ETAPA + indicadores de tempo (somente leitura) -->
                         <td class="etapa-col">
                           <div class="etapa-wrap">
-                            <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(linha)">
+                            <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(funcionario, linha)">
                               <option value="">Etapa</option>
                               <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
                                 <option v-for="etapa in etapasDaOp(op.pecaId)"
@@ -872,11 +880,24 @@ export default {
     },
 
     // ── ETAPA ─────────────────────────────────────────────
-    onAlterarEtapa(linha) {
+    onAlterarEtapa(funcionario, linha) {
       const etapa = this.buscarEtapa(linha.etapaId)
       linha.tempoPadrao = Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
       linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || ''
       linha.opId = etapa?.id_da_op || null
+
+      // Seleção automática do tempo de referência do próprio funcionário.
+      // Funcionário pode ser a fatia do grupo (com _funcRef apontando ao real).
+      const real = funcionario?._funcRef || funcionario
+      const tRef = this.resolverTempoReferencia(real, linha)
+      if (tRef && tRef > 0) {
+        linha.modoTempo = 'referencia'
+        linha.referenciaSelecionadaId = real?.email || null
+      } else {
+        linha.modoTempo = 'padrao'
+        linha.referenciaSelecionadaId = null
+      }
+
       this.salvarMetaDia()
     },
 
@@ -1612,8 +1633,17 @@ export default {
 .table-scroll { overflow-x: auto; }
 
 .apontamento-table {
-  width: 100%; border-collapse: collapse; min-width: 1400px;
+  width: 100%; border-collapse: collapse; min-width: 1500px;
+  table-layout: fixed;
 }
+
+/* ── COLGROUP: larguras fixas para alinhar cabeçalho e corpo ── */
+.col-func     { width: 180px; }
+.col-etapa    { width: 230px; }
+.col-hora     { width: 170px; }
+.col-total    { width: 80px; }
+.col-efic     { width: 100px; }
+.col-efic-ref { width: 100px; }
 
 .apontamento-table thead {
   background: linear-gradient(90deg, #0d6632, #084d24);
@@ -1621,17 +1651,19 @@ export default {
 
 .apontamento-table th {
   height: 48px; color: white; font-size: 13px; font-weight: 700;
-  padding: 0 10px; text-align: left; white-space: nowrap;
+  align-content: center;
+  padding: 0 8px; text-align: left; white-space: nowrap; box-sizing: border-box;
 }
 
 .apontamento-table td {
   border-bottom: 1px solid #edf6f1;
-  padding: 8px 10px;
+  padding: 8px 8px;
   vertical-align: middle;
+  box-sizing: border-box;
 }
 
 /* ── COLUNA FUNCIONÁRIO ─────────────────────────────── */
-.func-col { width: 180px; min-width: 180px; }
+.func-col { width: 180px; min-width: 180px; box-sizing: border-box; }
 
 .func-info {
   display: flex; align-items: center; gap: 10px;
@@ -1650,7 +1682,7 @@ export default {
 }
 
 /* ── COLUNA ETAPA ───────────────────────────────────── */
-.etapa-col { width: 230px; min-width: 230px; vertical-align: top; padding-top: 10px; }
+.etapa-col { width: 230px; min-width: 230px; vertical-align: top; padding-top: 10px; box-sizing: border-box; }
 
 .etapa-wrap { display: flex; align-items: center; gap: 5px; }
 
@@ -1690,18 +1722,22 @@ export default {
 .sem-referencia { font-size: 10px; color: #b0c5b8; font-style: italic; }
 
 /* ── COLUNAS DE HORA ────────────────────────────────── */
-.hora-th { min-width: 120px; text-align: center !important; }
-.hora-td { padding: 6px 6px; vertical-align: middle; }
+.hora-th { width: 170px; min-width: 170px; text-align: center !important; box-sizing: border-box; }
+.hora-td { padding: 6px 6px; vertical-align: middle; box-sizing: border-box; position: relative; }
 
-/* Linha horizontal: [quantidade + min] [FT / TR] */
+/* Bloco esquerdo (input + min) centralizado dentro da célula.
+   Isso garante que o input de quantidade fique geometricamente no
+   centro do <th>, independentemente do conteúdo lateral. */
 .hora-box-outer {
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
   gap: 6px;
 }
 
-/* Bloco esquerdo: input de quantidade + input de minutos */
+/* Bloco esquerdo: input de quantidade + input de minutos,
+   empilhados verticalmente, centralizados como um único bloco. */
 .hora-box-inputs {
   display: flex;
   flex-direction: column;
@@ -1733,25 +1769,35 @@ export default {
 .min-label { font-size: 10px; color: #8ca998; }
 
 /* ── INDICADORES FT / TR (à direita do input) ───────── */
+/* Posicionamento absoluto no canto direito da célula — não participa
+   do flex, portanto não afeta a posição do input de quantidade.
+   O input continua centralizado na célula, com FT/TR flutuando à direita. */
 .efic-inline-col {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  bottom: 6px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
-  flex-shrink: 0;
+  align-items: flex-end;
+  pointer-events: auto;
 }
 
 .efic-inline {
     display: inline-flex;
-    margin: 5px;
     align-items: center;
-    gap: 13px;
-    height: 15px;
+    justify-content: center;
+    gap: 3px;
+    height: 18px;
     border-radius: 4px;
-    padding: 0 15px;
-    font-size: 12px;
+    padding: 0 6px;
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
     line-height: 1;
+    margin: 0;
 }
 
 .efic-inline-label {
@@ -1785,8 +1831,8 @@ export default {
 .efic-baixa { background: #ffe8e8; color: #b12626; }
 
 /* ── COLUNAS TOTAIS / EFIC ───────────────────────────── */
-.total-col { width: 72px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; }
-.efic-col  { width: 96px; text-align: center; }
+.total-col { width: 80px; min-width: 80px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; box-sizing: border-box; }
+.efic-col  { width: 100px; min-width: 100px; text-align: center; box-sizing: border-box; }
 
 .efic-col--ref { background: rgba(109, 72, 201, 0.05); }
 

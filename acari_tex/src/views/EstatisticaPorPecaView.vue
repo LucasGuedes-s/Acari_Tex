@@ -1,5 +1,5 @@
 <template>
-  <div class="detalhes-page">
+  <div class="d-flex flex-column flex-xl-row">
     <SidebarNav />
     <main class="content-wrapper">
 
