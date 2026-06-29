@@ -246,34 +246,36 @@
                                 </option>
                               </optgroup>
                             </select>
-                            <button v-if="linha.tipo === 'principal'" class="btn-add-linha"
-                              @click="adicionarLinhaExtra(funcionario)">+</button>
-                            <button v-else class="btn-remove-linha"
-                              @click="removerLinhaExtra(funcionario, idxLinha)">×</button>
+                            <!-- × em todas as linhas extras -->
+                            <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
+                              @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
+                            <!-- + sempre na última linha do funcionário (usa _funcRef para comprimento real) -->
+                            <button v-if="idxLinha === (funcionario._funcRef || funcionario).linhas.length - 1"
+                              class="btn-add-linha"
+                              @click="adicionarLinhaExtra(funcionario)" title="Adicionar etapa">+</button>
                           </div>
 
-                          <!-- Chips informativos de tempo — sem interação -->
-                          <div v-if="linha.etapaId" class="tempo-info-wrap">
-                            <span class="tempo-info-chip tempo-info-chip--padrao"
-                              title="Tempo padrão da ficha técnica">
-                              📋 {{ linha.tempoPadrao }}min
-                            </span>
-                            <span
-                              v-if="resolverTempoReferencia(funcionario, linha) !== null"
-                              class="tempo-info-chip tempo-info-chip--ref"
-                              title="Tempo de referência deste funcionário para esta etapa">
-                              👤 {{ resolverTempoReferencia(funcionario, linha) }}min
-                            </span>
-                            <span v-else class="tempo-info-chip tempo-info-chip--sem-ref"
-                              title="Sem tempo de referência — usando tempo padrão">
-                              sem ref.
-                            </span>
+                          <!-- SELETOR DE TEMPO: padrão ou uma das referências da etapa -->
+                          <div v-if="linha.etapaId" class="tempo-toggle-wrap">
+                            <select
+                              class="tempo-select"
+                              :value="linha.modoTempo === 'referencia' ? linha.referenciaSelecionadaId : '__padrao__'"
+                              @change="onSelecionarTempo(linha, $event.target.value)">
+                              <option value="__padrao__">⏱ Ficha: {{ linha.tempoPadrao }}min</option>
+                              <option
+                                v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId))"
+                                :key="ref.id"
+                                :value="ref.id">
+                                👤 {{ ref.nomeFunc }}: {{ ref.tempo }}min
+                              </option>
+                            </select>
                           </div>
                         </td>
 
                         <!-- HORAS -->
                         <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
                           <div class="hora-box-outer">
+                            <!-- Esquerda: campo de quantidade + minutos -->
                             <div class="hora-box-inputs">
                               <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
                                 :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
@@ -284,14 +286,16 @@
                                 <span class="min-label">min</span>
                               </div>
                             </div>
-                            <!-- Dois chips de eficiência (ficha + ref) por célula -->
-                            <div v-if="linha.registros[hora].quantidade > 0" class="efic-chips-col">
-                              <div :class="['efic-chip', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
+                            <!-- Direita: FT e TR, só visíveis quando há produção -->
+                            <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
+                              <span :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
+                                <span class="efic-inline-label">FT</span>
                                 {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha) }}%
-                              </div>
-                              <div :class="['efic-chip efic-chip--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
+                              </span>
+                              <span :class="['efic-inline efic-inline--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
+                                <span class="efic-inline-label">TR</span>
                                 {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario) }}%
-                              </div>
+                              </span>
                             </div>
                           </div>
                         </td>
@@ -429,7 +433,9 @@ export default {
 
         for (const [opId, linhas] of linhasPorOp) {
           const grupo = gruposMap.get(opId) || gruposMap.get(null)
-          grupo.funcionarios.push({ ...func, linhas, _grupoOpId: opId })
+          // Preserva referência ao objeto real: adicionarLinhaExtra e
+          // removerLinhaExtra devem mutar func._funcRef.linhas, não a fatia.
+          grupo.funcionarios.push({ ...func, linhas, _grupoOpId: opId, _funcRef: func })
         }
       }
 
@@ -624,10 +630,7 @@ export default {
         ])
 
         this.funcionarios = resFuncs.data.funcionarios || []
-        this.pecas = [
-          ...(resPecas.data.peca.em_progresso || []),
-          ...(resPecas.data.peca.coleta || [])
-        ]
+        this.pecas = resPecas.data.peca.em_progresso || []
         this.etapas = this.pecas.map(p => p.etapas || [])
 
         this.etapasMap = {}
@@ -694,6 +697,11 @@ export default {
         descricao: '',
         tempoPadrao: 0,
         opId: null,
+        // Qual tempo está sendo usado na exibição: 'padrao' | 'referencia'
+        // Usado apenas para colorir o toggle na UI — os dois painéis de
+        // cálculo (Ficha Técnica e Referência) sempre existem em paralelo.
+        modoTempo: 'padrao',
+        referenciaSelecionadaId: null,
         registros: this.criarRegistros(),
       }
     },
@@ -711,17 +719,99 @@ export default {
     },
 
     adicionarLinhaExtra(funcionario) {
-      if (!Array.isArray(funcionario.linhas)) funcionario.linhas = []
-      funcionario.linhas.push(this.novaLinha('extra'))
+      // funcionario pode ser a fatia do grupo (com _funcRef apontando ao real)
+      const real = funcionario._funcRef || funcionario
+      if (!Array.isArray(real.linhas)) real.linhas = []
+      real.linhas.push(this.novaLinha('extra'))
       this.salvarMetaDia()
     },
 
     removerLinhaExtra(funcionario, idxLinha) {
-      funcionario.linhas.splice(idxLinha, 1)
+      const real = funcionario._funcRef || funcionario
+      real.linhas.splice(idxLinha, 1)
       this.salvarMetaDia()
     },
 
+    /**
+     * Lista todas as referências de tempo de uma etapa, com nome do
+     * funcionário resolvido a partir de this.funcionarios.
+     * Retorna: [{ id, nomeFunc, tempo }]
+     */
+    listarRefsDaEtapa(etapa) {
+      if (!etapa) return []
+      const refs = etapa.tempo_referencia || etapa.etapa?.tempo_referencia || []
+      if (!Array.isArray(refs) || !refs.length) return []
+
+      return refs
+        .filter(r => r && (r.tempo_minutos || r.tempo_por_peca))
+        .map(r => {
+          const t = Number(r.tempo_minutos ?? r.tempo_por_peca ?? 0)
+          const func = this.funcionarios.find(f => f.email === r.id_funcionario)
+          return {
+            id: r.id_funcionario,           // usa email como id único
+            nomeFunc: func?.nome || r.id_funcionario,
+            tempo: t,
+          }
+        })
+        .filter(r => r.tempo > 0)
+    },
+
+    /**
+     * Chamado quando o select de tempo muda.
+     * Se o valor for '__padrao__', usa tempo padrão da ficha técnica.
+     * Caso contrário, é o id da referência escolhida (email do funcionário).
+     */
+    onSelecionarTempo(linha, valor) {
+      if (valor === '__padrao__') {
+        linha.modoTempo = 'padrao'
+        linha.referenciaSelecionadaId = null
+      } else {
+        linha.modoTempo = 'referencia'
+        linha.referenciaSelecionadaId = valor
+      }
+    },
+
     // ── RESOLVERS DE TEMPO ────────────────────────────────
+    /**
+     * Retorna todas as referências de tempo cadastradas para uma OP,
+     * cruzando funcionários alocados com as etapas dessa OP.
+     * Retorna: [{ funcionarioId, nomeFunc, foto, etapaId, etapaDescricao, tempo, tempoPadrao }]
+     * Exibido no painel de referências acima de cada tabela de módulo.
+     */
+    listarReferenciasOp(opId) {
+      if (!opId) return []
+      const resultado = []
+      const etapasOp = this.etapas.flat().filter(e => e.id_da_op === opId)
+
+      for (const func of this.funcionariosDia) {
+        // verifica se o funcionário tem pelo menos uma linha nessa OP
+        const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
+        if (!temLinhaOp) continue
+
+        for (const etapa of etapasOp) {
+          const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+          if (!Array.isArray(refs)) continue
+
+          const ref = refs.find(r => r && r.id_funcionario === func.email)
+          if (!ref) continue
+
+          const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+          if (!t) continue
+
+          resultado.push({
+            funcionarioId: func.email,
+            nomeFunc: func.nome || func.email,
+            foto: func.foto || null,
+            etapaId: etapa.id_da_funcao || etapa.etapa?.id_da_funcao,
+            etapaDescricao: etapa.descricao || etapa.etapa?.descricao || '—',
+            tempo: t,
+            tempoPadrao: Number(etapa.tempo_padrao ?? etapa.etapa?.tempo_padrao ?? 0),
+          })
+        }
+      }
+
+      return resultado
+    },
     /**
      * Retorna o tempo_padrao da ficha técnica para uma linha.
      * Ponto único de verdade para o cálculo pela Ficha Técnica.
@@ -756,12 +846,29 @@ export default {
     },
 
     /**
-     * Tempo efetivo para o cálculo por Referência Individual:
-     * usa tempo_referencia do funcionário quando existe,
-     * cai para tempo_padrao da ficha técnica como fallback.
+     * Tempo efetivo para o cálculo pelo painel "Tempo de Referência".
+     *
+     * Respeita a escolha do select de cada linha:
+     *   – modoTempo === 'referencia' → usa o tempo da referência selecionada
+     *     (referenciaSelecionadaId é o id_funcionario do registro escolhido)
+     *   – modoTempo === 'padrao' (ou sem escolha) → usa tempo_padrao
+     *
+     * Fallback final: se a referência escolhida não for encontrada, usa tempo_padrao.
      */
     resolverTempoEfetivoReferencia(funcionario, linha) {
-      return this.resolverTempoReferencia(funcionario, linha) ?? this.resolverTempoPadrao(linha)
+      if (linha?.modoTempo === 'referencia' && linha?.referenciaSelecionadaId) {
+        const etapa = this.buscarEtapa(linha.etapaId)
+        const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+        const ref = Array.isArray(refs)
+          ? refs.find(r => r && r.id_funcionario === linha.referenciaSelecionadaId)
+          : null
+        if (ref) {
+          const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+          if (t > 0) return t
+        }
+      }
+      // Fallback: tempo padrão da ficha técnica
+      return this.resolverTempoPadrao(linha)
     },
 
     // ── ETAPA ─────────────────────────────────────────────
@@ -858,20 +965,46 @@ export default {
     },
 
     /**
-     * Capacidade da OP usando tempo_padrao.
+     * Capacidade da OP pela Ficha Técnica.
+     *
+     * Usa o tempo realmente registrado (soma de tempoProduzido de cada
+     * registro com produção > 0) em vez de uma jornada fixa.
+     * Fórmula: Σ floor(tempoProduzido_do_registro / tempo_padrao)
+     * — ou seja, quantas peças o padrão indicaria naquele intervalo real.
+     * Quando nenhum registro existe ainda, estima com as horas visíveis.
      */
     calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
-      const minutosUteis = (this.horasVisiveis?.length || 1) * 60
       let capacidade = 0
+      let tempoRegistrado = 0
 
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const t = this.resolverTempoPadrao(linha) || 60
-          if (t > 0) capacidade += Math.floor(minutosUteis / t)
+          const t = this.resolverTempoPadrao(linha)
+          if (!t) continue
+          for (const reg of Object.values(linha.registros || {})) {
+            if (reg && reg.quantidade > 0) {
+              const minutos = reg.tempoProduzido || 60
+              capacidade += Math.floor(minutos / t)
+              tempoRegistrado += minutos
+            }
+          }
         }
       }
+
+      // Sem registros ainda: estima pela configuração do turno
+      if (!tempoRegistrado) {
+        const minutosUteis = (this.horasVisiveis?.length || 1) * 60
+        for (const func of this.funcionariosDia) {
+          for (const linha of func.linhas || []) {
+            if (linha.opId !== opId) continue
+            const t = this.resolverTempoPadrao(linha) || 60
+            if (t > 0) capacidade += Math.floor(minutosUteis / t)
+          }
+        }
+      }
+
       return capacidade
     },
 
@@ -936,20 +1069,45 @@ export default {
     },
 
     /**
-     * Capacidade da OP usando o tempo efetivo individual de cada funcionário.
+     * Capacidade da OP pelo Tempo de Referência Individual.
+     *
+     * Mesma fórmula que a Ficha Técnica, mas o tempo usado por linha é:
+     *   – tempo_referencia do funcionário, quando existir
+     *   – tempo_padrao como fallback
+     * Cada funcionário pode ter um tempo diferente para a mesma etapa.
      */
     calcularCapacidadeOpReferencia(opId) {
       if (!opId) return 0
-      const minutosUteis = (this.horasVisiveis?.length || 1) * 60
       let capacidade = 0
+      let tempoRegistrado = 0
 
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const t = this.resolverTempoEfetivoReferencia(func, linha) || 60
-          if (t > 0) capacidade += Math.floor(minutosUteis / t)
+          const t = this.resolverTempoEfetivoReferencia(func, linha)
+          if (!t) continue
+          for (const reg of Object.values(linha.registros || {})) {
+            if (reg && reg.quantidade > 0) {
+              const minutos = reg.tempoProduzido || 60
+              capacidade += Math.floor(minutos / t)
+              tempoRegistrado += minutos
+            }
+          }
         }
       }
+
+      // Sem registros ainda: estima pela configuração do turno
+      if (!tempoRegistrado) {
+        const minutosUteis = (this.horasVisiveis?.length || 1) * 60
+        for (const func of this.funcionariosDia) {
+          for (const linha of func.linhas || []) {
+            if (linha.opId !== opId) continue
+            const t = this.resolverTempoEfetivoReferencia(func, linha) || 60
+            if (t > 0) capacidade += Math.floor(minutosUteis / t)
+          }
+        }
+      }
+
       return capacidade
     },
 
@@ -1099,7 +1257,17 @@ export default {
               }
 
               const hora = producao.hora_registro
-              if (!hora || !linha.registros?.[hora]) continue
+              if (!hora) continue
+
+              // Garante que a hora existe no objeto de registros mesmo que
+              // o turno configurado tenha mudado desde o lançamento original.
+              // Isso também suporta múltiplas etapas no mesmo período:
+              // cada linha tem seu próprio objeto registros, portanto dois
+              // lançamentos na mesma hora mas em etapas distintas ficam em
+              // linhas separadas sem conflito.
+              if (!linha.registros[hora]) {
+                linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
+              }
 
               linha.registros[hora] = {
                 quantidade: producao.quantidade_pecas || 0,
@@ -1452,106 +1620,98 @@ export default {
 }
 
 .apontamento-table th {
-  height: 54px; color: white; font-size: 14px; font-weight: 700;
-  padding: 0 8px; text-align: left; white-space: nowrap;
+  height: 48px; color: white; font-size: 13px; font-weight: 700;
+  padding: 0 10px; text-align: left; white-space: nowrap;
 }
 
 .apontamento-table td {
-  border-bottom: 1px solid #edf6f1; padding: 6px; vertical-align: top;
+  border-bottom: 1px solid #edf6f1;
+  padding: 8px 10px;
+  vertical-align: middle;
 }
 
-.func-col { width: 190px; min-width: 190px; }
+/* ── COLUNA FUNCIONÁRIO ─────────────────────────────── */
+.func-col { width: 180px; min-width: 180px; }
 
-.func-info { display: flex; align-items: center; gap: 10px; min-height: 50px; }
+.func-info {
+  display: flex; align-items: center; gap: 10px;
+}
 
 .func-info img {
-  width: 38px; height: 38px; border-radius: 10px;
+  width: 36px; height: 36px; border-radius: 9px;
   object-fit: cover; flex-shrink: 0;
 }
 
 .func-info span { font-size: 13px; font-weight: 700; color: #052e14; }
 
-.extra-tag { padding-left: 12px; font-size: 12px; font-weight: 700; color: #5d8972; }
-
-.etapa-col { width: 240px; min-width: 240px; }
-
-.etapa-wrap { display: flex; align-items: center; gap: 6px; }
-
-.etapa-select {
-  width: 100%; height: 36px; border-radius: 10px;
-  border: 1px solid #dceee3; padding: 0 10px;
-  font-size: 12px; font-family: inherit; background: white;
+.extra-tag {
+  padding-left: 8px;
+  font-size: 12px; font-weight: 700; color: #5d8972;
 }
 
+/* ── COLUNA ETAPA ───────────────────────────────────── */
+.etapa-col { width: 230px; min-width: 230px; vertical-align: top; padding-top: 10px; }
+
+.etapa-wrap { display: flex; align-items: center; gap: 5px; }
+
+.etapa-select {
+  flex: 1; height: 34px; border-radius: 9px;
+  border: 1px solid #dceee3; padding: 0 8px;
+  font-size: 12px; font-family: inherit; background: white;
+  min-width: 0;
+}
+
+.etapa-select:focus { outline: none; border-color: #118a43; }
+
 .btn-add-linha, .btn-remove-linha {
-  width: 28px; height: 28px; border: none; border-radius: 8px;
-  font-size: 18px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  width: 26px; height: 26px; border: none; border-radius: 7px;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  flex-shrink: 0; line-height: 1; display: flex;
+  align-items: center; justify-content: center;
 }
 
 .btn-add-linha { background: #0d6632; color: white; }
 .btn-remove-linha { background: #ffecec; color: #d93b3b; }
-.linha-extra { background: #f8fcf9; }
+.linha-extra { background: #f9fcfa; }
 
-/* ── CHIPS DE TEMPO INFORMATIVOS ────────────────────── */
-.tempo-info-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 5px;
-  flex-wrap: wrap;
+/* ── SELETOR DE TEMPO ───────────────────────────────── */
+.tempo-toggle-wrap { margin-top: 5px; }
+
+.tempo-select {
+  height: 22px; border-radius: 7px;
+  border: 1px solid #d4e8dc; background: #f2faf5;
+  color: #052e14; font-size: 11px; font-weight: 600;
+  font-family: inherit; padding: 0 6px; cursor: pointer;
+  width: 100%; max-width: 240px; transition: border-color .15s;
 }
 
-.tempo-info-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  user-select: none;
-  cursor: default;
-}
+.tempo-select:focus { outline: none; border-color: #0d6632; }
 
-.tempo-info-chip--padrao {
-  background: #e7f8ef;
-  color: #0d6632;
-  border: 1px solid #b2d9c0;
-}
+.sem-referencia { font-size: 10px; color: #b0c5b8; font-style: italic; }
 
-.tempo-info-chip--ref {
-  background: #ede8ff;
-  color: #5030b0;
-  border: 1px solid #c8b7f0;
-}
+/* ── COLUNAS DE HORA ────────────────────────────────── */
+.hora-th { min-width: 120px; text-align: center !important; }
+.hora-td { padding: 6px 6px; vertical-align: middle; }
 
-.tempo-info-chip--sem-ref {
-  background: #f5f5f5;
-  color: #b0b0b0;
-  border: 1px solid #e0e0e0;
-  font-style: italic;
-}
-
-/* ── HORAS ──────────────────────────────────────────── */
-.hora-th { min-width: 130px; }
-.hora-td { padding: 4px; }
-
+/* Linha horizontal: [quantidade + min] [FT / TR] */
 .hora-box-outer {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
+/* Bloco esquerdo: input de quantidade + input de minutos */
 .hora-box-inputs {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
   align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .hora-input {
-  width: 56px; height: 34px; border-radius: 8px;
+  width: 52px; height: 32px; border-radius: 8px;
   border: 1px solid #dceee3; text-align: center;
   font-size: 14px; font-weight: 700; font-family: inherit; transition: .15s;
 }
@@ -1565,55 +1725,70 @@ export default {
 .tempo-wrap { display: flex; align-items: center; gap: 2px; }
 
 .min-input {
-  width: 40px; height: 24px; border-radius: 6px;
+  width: 36px; height: 20px; border-radius: 6px;
   border: 1px solid #ddebe3; text-align: center;
-  font-size: 11px; background: #f8fcf9; color: #69907b;
+  font-size: 10px; background: #f8fcf9; color: #69907b;
 }
 
-.min-label { font-size: 11px; color: #8ca998; }
+.min-label { font-size: 10px; color: #8ca998; }
 
-/* Dois chips de eficiência empilhados por célula */
-.efic-chips-col {
+/* ── INDICADORES FT / TR (à direita do input) ───────── */
+.efic-inline-col {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex-shrink: 0;
 }
 
-.efic-chip {
-  font-size: 11px; font-weight: 700;
-  border-radius: 20px; padding: 2px 7px; white-space: nowrap;
-  display: inline-block;
+.efic-inline {
+    display: inline-flex;
+    margin: 5px;
+    align-items: center;
+    gap: 13px;
+    height: 15px;
+    border-radius: 4px;
+    padding: 0 15px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1;
 }
 
-/* chip de referência: borda tracejada para distinguir visualmente */
-.efic-chip--ref {
+.efic-inline-label {
+  font-size: 9px;
+  font-weight: 800;
+  opacity: 0.65;
+  letter-spacing: .02em;
+}
+
+/* TR: borda tracejada, sem fundo sólido */
+.efic-inline--ref {
+  background: transparent !important;
   border: 1px dashed currentColor;
-  opacity: 0.85;
 }
 
+/* ── BADGES DE EFICIÊNCIA POR FUNCIONÁRIO ───────────── */
 .efic-badge {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 58px; height: 30px; border-radius: 20px;
-  font-size: 13px; font-weight: 700; padding: 0 10px;
+  min-width: 56px; height: 28px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; padding: 0 10px;
 }
 
-/* badge de referência: fundo transparente + borda tracejada */
 .efic-badge--ref {
   background: transparent !important;
   border: 1.5px dashed currentColor;
 }
 
+/* ── CORES COMPARTILHADAS ────────────────────────────── */
 .efic-alta { background: #d4f1df; color: #0c6b34; }
 .efic-media { background: #fff4cf; color: #8a6a00; }
 .efic-baixa { background: #ffe8e8; color: #b12626; }
 
-.total-col { width: 80px; text-align: center; }
-.efic-col { width: 100px; text-align: center; }
+/* ── COLUNAS TOTAIS / EFIC ───────────────────────────── */
+.total-col { width: 72px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; }
+.efic-col  { width: 96px; text-align: center; }
 
-/* coluna de referência: leve fundo violeta para distinguir do cabeçalho */
-.efic-col--ref {
-  background: rgba(109, 72, 201, 0.06);
-}
+.efic-col--ref { background: rgba(109, 72, 201, 0.05); }
 
 /* ── MÓDULOS POR OP ─────────────────────────────────── */
 .ops-modulos-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
