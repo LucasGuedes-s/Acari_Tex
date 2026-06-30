@@ -3,7 +3,9 @@
     <!-- Botões topo -->
     <div class="top-actions">
       <!--<button class="btn-outline">Cadastre-se</button> -->
-      <button class="btn-solid" @click="Login()">Entre</button>
+    <button class="login-btn" @click="$router.push('/login')">
+      Entre
+    </button>
     </div>
 
     <!-- Onda só aparece no desktop -->
@@ -236,7 +238,41 @@ export default {
   width: 100%;
   display: block;
 }
+.login-btn {
+  background: #fff;
+  color: (var(--verde-escuro));
+  border: none;
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .3s ease;
+  box-shadow: 0 8px 24px rgba(13, 57, 39, .25);
+}
 
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(13, 57, 39, .35);
+}
+
+.login-btn:active {
+  transform: scale(.98);
+}
+
+.login-btn:focus-visible {
+  outline: 3px solid rgba(20, 90, 50, .25);
+  outline-offset: 3px;
+}
+
+@media (max-width: 768px) {
+  .login-btn {
+    width: 100%;
+    max-width: 170px;
+    padding: 11px 22px;
+    font-size: 14px;
+  }
+}
 /* Mobile */
 @media (max-width: 768px) {
   .ai-container {
