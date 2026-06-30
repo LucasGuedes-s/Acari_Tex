@@ -135,10 +135,9 @@
                 <span v-else>📦 {{ grupo.label }}</span>
               </span>
 
-              <!-- PAINÉIS DE CÁLCULO DUPLO — apenas para OPs com pecaId -->
+              <!-- PAINÉIS DE CÁLCULO DUPLO — apenas para OPs com pecaId
               <div v-if="grupo.opId" class="calc-panels">
 
-                <!-- PAINEL 1: FICHA TÉCNICA (tempo_padrao uniforme) -->
                 <div class="calc-panel calc-panel--padrao">
                   <div class="calc-panel-title">
                     <span class="calc-panel-icon">📋</span>
@@ -168,7 +167,6 @@
 
                 <div class="calc-panel-divider">vs</div>
 
-                <!-- PAINEL 2: TEMPO DE REFERÊNCIA (individual por funcionário) -->
                 <div class="calc-panel calc-panel--referencia">
                   <div class="calc-panel-title">
                     <span class="calc-panel-icon">👤</span>
@@ -196,12 +194,11 @@
                   </div>
                 </div>
 
-              </div>
+              </div> 
 
-              <!-- Grupo sem OP: contagem simples -->
               <span v-else class="op-module-stats">
                 <span class="stat">👥 <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong> func</span>
-              </span>
+              </span>-->
 
             </div>
 
