@@ -204,6 +204,8 @@ router.post(
       const normalizar = (texto) =>
         String(texto || "").trim().toLowerCase();
 
+      const primeiroNome = (texto) => normalizar(texto).split(" ")[0];
+
       const etapasValidas = linhas.filter(
         (l) => l.descricao_etapa && String(l.descricao_etapa).trim() !== ""
       );
@@ -224,6 +226,7 @@ router.post(
       for (const linha of etapasValidas) {
         const desc = normalizar(linha.descricao_etapa);
 
+        // ---- tempo_padrao (da etapa) ----
         let tempo = linha.tempo_padrao ?? null;
 
         if (tempo !== null) {
@@ -238,17 +241,75 @@ router.post(
           ? `${desc} (${tempo} min)`
           : desc;
 
+        // ---- funcionario / tempo_funcionario (referência individual) ----
+        const nomeFuncionario = linha.funcionario
+          ? String(linha.funcionario).trim()
+          : null;
+
+        let tempoFuncionario = linha.tempo_funcionario ?? null;
+
+        if (tempoFuncionario !== null) {
+          tempoFuncionario = Number(String(tempoFuncionario).replace(",", "."));
+        }
+
+        if (Number.isNaN(tempoFuncionario)) tempoFuncionario = null;
+
         etapasMap.set(descricaoFinal, {
           descricao: descricaoFinal,
           tempo_padrao: tempo,
           id_Estabelecimento: cnpj,
+          nomeFuncionario,
+          tempoFuncionario,
         });
       }
 
       const etapasParaCriar = Array.from(etapasMap.values());
 
       // =========================
-      // 🔥 TRANSACTION LEVE
+      // 🔥 PRÉ-BUSCA DE FUNCIONÁRIOS (FORA DA TRANSACTION)
+      // Compara pelo PRIMEIRO NOME, já que a planilha só
+      // traz o primeiro nome do funcionário. Compatível com
+      // qualquer banco (sem `mode: insensitive`, que só
+      // existe no provider PostgreSQL/MongoDB).
+      // =========================
+
+      const nomesFuncionarios = [
+        ...new Set(
+          etapasParaCriar
+            .map((e) => e.nomeFuncionario)
+            .filter(Boolean)
+        ),
+      ];
+
+      let funcionarioMap = new Map();
+      let nomesNaoEncontrados = [];
+      let nomesAmbiguos = [];
+
+      if (nomesFuncionarios.length > 0) {
+        const funcionariosDoEstabelecimento = await prisma.Usuarios.findMany({
+          where: {
+            estabelecimentoCnpj: cnpj,
+          },
+        });
+
+        for (const nome of nomesFuncionarios) {
+          const candidatos = funcionariosDoEstabelecimento.filter(
+            (f) => primeiroNome(f.nome) === primeiroNome(nome)
+          );
+
+          if (candidatos.length === 1) {
+            funcionarioMap.set(normalizar(nome), candidatos[0].email);
+          } else if (candidatos.length > 1) {
+            // Mais de um funcionário com o mesmo primeiro nome
+            nomesAmbiguos.push(nome);
+          } else {
+            nomesNaoEncontrados.push(nome);
+          }
+        }
+      }
+
+      // =========================
+      // 🔥 TRANSACTION
       // =========================
 
       const resultado = await prisma.$transaction(
@@ -259,7 +320,7 @@ router.post(
             data: {
               descricao: descricao_peca,
               quantidade_pecas,
-              data_do_pedido: new Date(),
+              data_do_pedido: new Date().toISOString().split("T")[0],
               valor_peca,
               status: "nao_iniciado",
               tempo_padrao: tempoTotal,
@@ -284,17 +345,23 @@ router.post(
 
             if (jaExiste) {
               // ✅ Já existe com mesmo nome e tempo — só vincula
-              etapasParaVincular.push(jaExiste);
+              etapasParaVincular.push({
+                ...jaExiste,
+                nomeFuncionario: etapa.nomeFuncionario,
+                tempoFuncionario: etapa.tempoFuncionario,
+              });
             } else {
               // 🆕 Não existe — precisa criar
               etapasParaCriarNoBanco.push(etapa);
             }
           }
 
-          // Cria apenas as etapas novas
+          // Cria apenas as etapas novas (sem os campos auxiliares de funcionário)
           if (etapasParaCriarNoBanco.length > 0) {
             await tx.etapa.createMany({
-              data: etapasParaCriarNoBanco,
+              data: etapasParaCriarNoBanco.map(
+                ({ nomeFuncionario, tempoFuncionario, ...rest }) => rest
+              ),
               skipDuplicates: true,
             });
           }
@@ -312,10 +379,22 @@ router.post(
                 })
               : [];
 
+          // Reanexa nomeFuncionario / tempoFuncionario nas recém-criadas
+          const etapasRecemCriadasComDados = etapasRecemCriadas.map((e) => {
+            const original = etapasParaCriarNoBanco.find(
+              (o) => normalizar(o.descricao) === normalizar(e.descricao)
+            );
+            return {
+              ...e,
+              nomeFuncionario: original?.nomeFuncionario ?? null,
+              tempoFuncionario: original?.tempoFuncionario ?? null,
+            };
+          });
+
           // Monta vínculos: existentes + recém-criadas
           const todasEtapasParaVincular = [
             ...etapasParaVincular,
-            ...etapasRecemCriadas,
+            ...etapasRecemCriadasComDados,
           ];
 
           const vinculos = todasEtapasParaVincular.map((etapa) => ({
@@ -331,11 +410,44 @@ router.post(
             });
           }
 
+          // =========================
+          // ✅ CRIA TempoReferencia (tempo individual do funcionário)
+          // =========================
+
+          const temposReferencia = [];
+
+          for (const etapa of todasEtapasParaVincular) {
+            if (!etapa.nomeFuncionario || !etapa.tempoFuncionario) continue;
+
+            const idFuncionario = funcionarioMap.get(
+              normalizar(etapa.nomeFuncionario)
+            );
+            if (!idFuncionario) continue; // não encontrado ou ambíguo — pula silenciosamente
+
+            temposReferencia.push({
+              estabelecimentoCnpj: cnpj,
+              id_funcionario: idFuncionario,
+              id_da_funcao: etapa.id_da_funcao,
+              tempo_minutos: etapa.tempoFuncionario, // tempo individual, NÃO o tempo_padrao da etapa
+              tipo_medicao: "planilha",
+              data_medicao: new Date(),
+              opId: peca.id_da_op,
+            });
+          }
+
+          if (temposReferencia.length > 0) {
+            await tx.TempoReferencia.createMany({
+              data: temposReferencia,
+              skipDuplicates: true,
+            });
+          }
+
           return {
             peca,
             etapasCriadas: etapasParaCriarNoBanco.length,
             etapasReutilizadas: etapasParaVincular.length,
             tempoTotal,
+            temposReferenciaCriados: temposReferencia.length,
           };
         },
         { timeout: 20000 }
@@ -347,6 +459,17 @@ router.post(
         etapasCriadas: resultado.etapasCriadas,
         etapasReutilizadas: resultado.etapasReutilizadas,
         tempoTotal: resultado.tempoTotal,
+        temposReferenciaCriados: resultado.temposReferenciaCriados,
+        ...(nomesNaoEncontrados.length > 0 && {
+          avisos: nomesNaoEncontrados.map(
+            (n) => `Funcionário "${n}" não encontrado no estabelecimento — tempo de referência não criado`
+          ),
+        }),
+        ...(nomesAmbiguos.length > 0 && {
+          avisosAmbiguidade: nomesAmbiguos.map(
+            (n) => `Mais de um funcionário com o nome "${n}" — informe o nome completo na planilha para esse caso`
+          ),
+        }),
       });
 
     } catch (error) {
