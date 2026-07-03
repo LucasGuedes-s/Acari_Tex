@@ -123,12 +123,11 @@
           <template v-for="grupo in funcionariosAgrupadosPorOp" :key="grupo.opId || 'sem-op'">
 
             <!-- HEADER DO MÓDULO -->
-            <div
-              :class="[
-                'op-module-header',
-                !grupo.opId ? 'op-module-header--empty' : '',
-                opsAtivasComPeca.length === 1 ? 'op-module-header--single' : ''
-              ]">
+            <div :class="[
+              'op-module-header',
+              !grupo.opId ? 'op-module-header--empty' : '',
+              opsAtivasComPeca.length === 1 ? 'op-module-header--single' : ''
+            ]">
 
               <span class="op-module-badge">
                 <span v-if="!grupo.opId">⚠ {{ grupo.label }}</span>
@@ -225,7 +224,8 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <template v-for="funcionario in grupo.funcionarios" :key="funcionario.email + '_' + (grupo.opId || 'sem')">
+                    <template v-for="funcionario in grupo.funcionarios"
+                      :key="funcionario.email + '_' + (grupo.opId || 'sem')">
                       <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
                         :class="{ 'linha-extra': linha.tipo === 'extra' }">
 
@@ -257,30 +257,35 @@
                                 <option v-for="etapa in etapasDaOp(op.pecaId)"
                                   :key="op.pecaId + '::' + (etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
                                   :value="op.pecaId + '::' + (etapa.id_da_funcao || etapa.etapa?.id_da_funcao)">
-                                  {{ etapa.descricao || etapa.etapa?.descricao }} ({{ etapa.tempo_padrao || etapa.etapa?.tempo_padrao }}min)
+                                  {{ etapa.descricao || etapa.etapa?.descricao }} ({{ etapa.tempo_padrao ||
+                                  etapa.etapa?.tempo_padrao }}min)
                                 </option>
                               </optgroup>
                             </select>
                             <!-- × em todas as linhas extras -->
                             <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
                               @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
-                            <!-- + sempre na última linha do funcionário (usa _funcRef para comprimento real) -->
-                            <button v-if="idxLinha === (funcionario._funcRef || funcionario).linhas.length - 1"
-                              class="btn-add-linha"
+                            <!--
+                              + sempre na última linha DESTE MÓDULO (desta OP).
+                              IMPORTANTE: usa funcionario.linhas.length (a lista já
+                              filtrada por OP pelo agrupamento), NÃO o total geral de
+                              linhas do funcionário. Antes, ao usar o total geral, o
+                              botão "+" desaparecia sempre que o funcionário já tinha
+                              uma linha em OUTRA OP — impedindo lançar uma segunda
+                              etapa extra para ele dentro desta mesma OP.
+                            -->
+                            <button v-if="idxLinha === funcionario.linhas.length - 1" class="btn-add-linha"
                               @click="adicionarLinhaExtra(funcionario)" title="Adicionar etapa">+</button>
                           </div>
 
                           <!-- SELETOR DE TEMPO: padrão ou uma das referências da etapa -->
                           <div v-if="linha.etapaId" class="tempo-toggle-wrap">
-                            <select
-                              class="tempo-select"
+                            <select class="tempo-select"
                               :value="linha.modoTempo === 'referencia' ? linha.referenciaSelecionadaId : '__padrao__'"
                               @change="onSelecionarTempo(linha, $event.target.value)">
                               <option value="__padrao__">⏱ Ficha: {{ linha.tempoPadrao }}min</option>
-                              <option
-                                v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId, linha.opId))"
-                                :key="ref.id"
-                                :value="ref.id">
+                              <option v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId, linha.opId))"
+                                :key="ref.id" :value="ref.id">
                                 👤 {{ ref.nomeFunc }}: {{ ref.tempo }}min
                               </option>
                             </select>
@@ -292,24 +297,29 @@
                           <div class="hora-box-outer">
                             <!-- Esquerda: campo de quantidade + minutos -->
                             <div class="hora-box-inputs">
-                              <input v-model.number="linha.registros[hora].quantidade" type="number" min="0" placeholder="0"
+                              <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
+                                placeholder="0"
                                 :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
                                 @blur="onInputQuantidade(funcionario, linha, hora)" />
                               <div class="tempo-wrap">
-                                <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1" max="60"
-                                  class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
+                                <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
+                                  max="60" class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
                                 <span class="min-label">min</span>
                               </div>
                             </div>
                             <!-- Direita: FT e TR, só visíveis quando há produção -->
                             <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
-                              <span :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
+                              <span
+                                :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
                                 <span class="efic-inline-label">FT</span>
-                                {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha) }}%
+                                {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade,
+                                  linha.registros[hora].tempoProduzido, linha) }}%
                               </span>
-                              <span :class="['efic-inline efic-inline--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
+                              <span
+                                :class="['efic-inline efic-inline--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
                                 <span class="efic-inline-label">TR</span>
-                                {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario) }}%
+                                {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade,
+                                  linha.registros[hora].tempoProduzido, linha, funcionario) }}%
                               </span>
                             </div>
                           </div>
@@ -430,8 +440,8 @@ export default {
       })
 
       for (const op of this.opsAtivasComPeca) {
-        gruposMap.set(op.pecaId, {
-          opId: op.pecaId,
+        gruposMap.set(String(op.pecaId), {
+          opId: String(op.pecaId),
           label: this.nomeDaOp(op.pecaId),
           funcionarios: [],
         })
@@ -440,25 +450,40 @@ export default {
       for (const func of this.funcionariosDia) {
         const linhasPorOp = new Map()
 
-        for (const linha of func.linhas || []) {
-          const key = linha.opId || null
-          if (!linhasPorOp.has(key)) linhasPorOp.set(key, [])
-          linhasPorOp.get(key).push(linha)
+        for (const linha of (func.linhas || [])) {
+          const chave =
+            linha.opId === null || linha.opId === undefined || linha.opId === ''
+              ? null
+              : String(linha.opId)
+
+          if (!linhasPorOp.has(chave)) {
+            linhasPorOp.set(chave, [])
+          }
+
+          linhasPorOp.get(chave).push(linha)
         }
 
-        for (const [opId, linhas] of linhasPorOp) {
+        for (const [opId, linhas] of linhasPorOp.entries()) {
           const grupo = gruposMap.get(opId) || gruposMap.get(null)
-          // Preserva referência ao objeto real: adicionarLinhaExtra e
-          // removerLinhaExtra devem mutar func._funcRef.linhas, não a fatia.
-          grupo.funcionarios.push({ ...func, linhas, _grupoOpId: opId, _funcRef: func })
+
+          grupo.funcionarios.push({
+            ...func,
+            linhas: [...linhas],
+            _grupoOpId: opId,
+            _funcRef: func,
+          })
         }
       }
 
-      const ordem = [...this.opsAtivasComPeca.map(o => o.pecaId), null]
+      const ordem = [
+        ...this.opsAtivasComPeca.map(op => String(op.pecaId)),
+        null,
+      ]
+
       return ordem
         .map(id => gruposMap.get(id))
-        .filter(g => g.funcionarios.length > 0)
-    },
+        .filter(g => g && g.funcionarios.length)
+    }
   },
 
   watch: {
@@ -648,12 +673,6 @@ export default {
         this.pecas = resPecas.data.peca.em_progresso || []
         this.etapas = this.pecas.map(p => p.etapas || [])
 
-        // Chave composta (OP + etapa): duas fichas técnicas diferentes podem
-        // reaproveitar o mesmo id_da_funcao para uma etapa de mesmo nome
-        // (ex.: "Costura Lateral" em dois produtos). Se a chave fosse apenas
-        // o id_da_funcao, a segunda OP processada sobrescreveria a etapa da
-        // primeira neste mapa, misturando tempo_padrao/tempo_referencia
-        // entre OPs distintas.
         this.etapasMap = {}
         for (const listaEtapas of this.etapas) {
           for (const e of listaEtapas) {
@@ -744,33 +763,36 @@ export default {
       // funcionario pode ser a fatia do grupo (com _funcRef apontando ao real)
       const real = funcionario._funcRef || funcionario
       if (!Array.isArray(real.linhas)) real.linhas = []
-      real.linhas.push(this.novaLinha('extra'))
+
+      const linhaExtra = this.novaLinha('extra')
+
+      if (funcionario._grupoOpId) {
+        linhaExtra.opId = funcionario._grupoOpId
+      }
+
+      real.linhas.push(linhaExtra)
       this.salvarMetaDia()
     },
 
     removerLinhaExtra(funcionario, idxLinha) {
       const real = funcionario._funcRef || funcionario
-      real.linhas.splice(idxLinha, 1)
+
+      const linhaAlvo = funcionario.linhas?.[idxLinha]
+      if (!linhaAlvo) return
+
+      const indiceReal = real.linhas.findIndex(l => l.id === linhaAlvo.id)
+      if (indiceReal === -1) return
+
+      real.linhas.splice(indiceReal, 1)
       this.salvarMetaDia()
     },
 
-    /**
-     * Constrói o valor composto "opId::etapaId" usado como value do
-     * <select> de etapa. Retorna string vazia quando não há etapa
-     * selecionada. Ponto único de verdade para o formato da chave.
-     */
     valorEtapaSelecionada(linha) {
       if (!linha?.etapaId) return ''
       return `${linha.opId ?? ''}::${linha.etapaId}`
     },
 
-    /**
-     * Handler do <select> de etapa. Recebe o valor composto "opId::etapaId"
-     * e grava opId e etapaId separadamente na linha ANTES de resolver a
-     * etapa — assim toda a resolução subsequente (tempo padrão, tempo de
-     * referência, descrição) já acontece no escopo correto da OP, mesmo
-     * que outra OP tenha uma etapa com o mesmo id_da_funcao.
-     */
+    
     onAlterarEtapaSelecionada(funcionario, linha, valorComposto) {
       if (!valorComposto) {
         linha.etapaId = ''
@@ -793,11 +815,6 @@ export default {
       this.onAlterarEtapa(funcionario, linha)
     },
 
-    /**
-     * Lista todas as referências de tempo de uma etapa, com nome do
-     * funcionário resolvido a partir de this.funcionarios.
-     * Retorna: [{ id, nomeFunc, tempo }]
-     */
     listarRefsDaEtapa(etapa) {
       if (!etapa) return []
       const refs = etapa.tempo_referencia || etapa.etapa?.tempo_referencia || []
@@ -817,11 +834,6 @@ export default {
         .filter(r => r.tempo > 0)
     },
 
-    /**
-     * Chamado quando o select de tempo muda.
-     * Se o valor for '__padrao__', usa tempo padrão da ficha técnica.
-     * Caso contrário, é o id da referência escolhida (email do funcionário).
-     */
     onSelecionarTempo(linha, valor) {
       if (valor === '__padrao__') {
         linha.modoTempo = 'padrao'
@@ -833,12 +845,7 @@ export default {
     },
 
     // ── RESOLVERS DE TEMPO ────────────────────────────────
-    /**
-     * Retorna todas as referências de tempo cadastradas para uma OP,
-     * cruzando funcionários alocados com as etapas dessa OP.
-     * Retorna: [{ funcionarioId, nomeFunc, foto, etapaId, etapaDescricao, tempo, tempoPadrao }]
-     * Exibido no painel de referências acima de cada tabela de módulo.
-     */
+
     listarReferenciasOp(opId) {
       if (!opId) return []
       const resultado = []
@@ -873,13 +880,7 @@ export default {
 
       return resultado
     },
-    /**
-     * Retorna o tempo_padrao da ficha técnica para uma linha.
-     * Ponto único de verdade para o cálculo pela Ficha Técnica.
-     * Tolerante a backend: lê da etapa global ou do campo cacheado na linha.
-     * A busca é escopada pela OP da própria linha, evitando pegar a etapa
-     * de outra OP que reaproveite o mesmo id_da_funcao.
-     */
+
     resolverTempoPadrao(linha) {
       const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
       return Number(
@@ -890,13 +891,6 @@ export default {
       )
     },
 
-    /**
-     * Retorna o tempo_minutos do funcionário em tempo_referencia da etapa,
-     * ou null se não houver registro para este funcionário.
-     * NÃO faz fallback — o chamador decide o que fazer com null.
-     * Escopado por OP: a mesma etapa (id_da_funcao) em outra OP não deve
-     * ser considerada.
-     */
     resolverTempoReferencia(funcionario, linha) {
       const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
       const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
@@ -910,20 +904,6 @@ export default {
       return t > 0 ? t : null
     },
 
-    /**
-     * Tempo efetivo para o cálculo pelo painel "Tempo de Referência".
-     *
-     * Respeita a escolha do select de cada linha:
-     *   – modoTempo === 'referencia' → usa o tempo da referência selecionada
-     *     (referenciaSelecionadaId é o id_funcionario do registro escolhido)
-     *   – modoTempo === 'padrao' (ou sem escolha) → usa tempo_padrao
-     *
-     * A etapa usada para localizar a referência é sempre escopada pela OP
-     * da linha (linha.opId), garantindo que a mesma etapa em duas OPs
-     * distintas não compartilhe tempo de referência.
-     *
-     * Fallback final: se a referência escolhida não for encontrada, usa tempo_padrao.
-     */
     resolverTempoEfetivoReferencia(funcionario, linha) {
       if (linha?.modoTempo === 'referencia' && linha?.referenciaSelecionadaId) {
         const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
@@ -940,32 +920,31 @@ export default {
       return this.resolverTempoPadrao(linha)
     },
 
-    // ── ETAPA ─────────────────────────────────────────────
-    /**
-     * Aplica os dados da etapa selecionada à linha. linha.opId já deve ter
-     * sido definido por onAlterarEtapaSelecionada (fonte de verdade),
-     * garantindo que a busca abaixo não pegue a etapa de outra OP.
-     */
-    onAlterarEtapa(funcionario, linha) {
+    aplicarDadosDaEtapa(funcionarioReal, linha) {
       const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
-      linha.tempoPadrao = Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
-      linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || ''
-      // linha.opId já foi definido pela seleção composta (opId::etapaId).
-      // Só usamos o id_da_op da etapa como fallback de compatibilidade.
+
+      linha.tempoPadrao = Number(
+        etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? linha.tempoPadrao ?? 0
+      )
+      linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || ''
+      // linha.opId é a fonte de verdade (definida na seleção composta ou
+      // na restauração); só usamos o id_da_op da etapa como fallback.
       linha.opId = linha.opId || etapa?.id_da_op || null
 
-      // Seleção automática do tempo de referência do próprio funcionário.
-      // Funcionário pode ser a fatia do grupo (com _funcRef apontando ao real).
-      const real = funcionario?._funcRef || funcionario
-      const tRef = this.resolverTempoReferencia(real, linha)
+      const tRef = this.resolverTempoReferencia(funcionarioReal, linha)
       if (tRef && tRef > 0) {
         linha.modoTempo = 'referencia'
-        linha.referenciaSelecionadaId = real?.email || null
+        linha.referenciaSelecionadaId = funcionarioReal?.email || null
       } else {
         linha.modoTempo = 'padrao'
         linha.referenciaSelecionadaId = null
       }
+    },
 
+    onAlterarEtapa(funcionario, linha) {
+      // Funcionário pode ser a fatia do grupo (com _funcRef apontando ao real).
+      const real = funcionario?._funcRef || funcionario
+      this.aplicarDadosDaEtapa(real, linha)
       this.salvarMetaDia()
     },
 
@@ -986,17 +965,24 @@ export default {
       if (!etapaId) return null
 
       const candidatas = this.etapas.flat().filter(e => {
-        const id = e.id_da_funcao || e.etapa?.id_da_funcao
-        return id === etapaId
+        const id = String(e.id_da_funcao || e.etapa?.id_da_funcao)
+        return id === String(etapaId)
+      })
+
+      console.log({
+        etapaId,
+        opId,
+        candidatas
       })
 
       if (opId != null && opId !== '') {
-        const match = candidatas.find(e => e.id_da_op === opId)
+        const match = candidatas.find(
+          e => String(e.id_da_op) === String(opId)
+        )
+
         if (match) return match
       }
 
-      // Fallback de compatibilidade (sem opId informado, ou nenhuma
-      // etapa daquela OP encontrada): retorna a primeira correspondência.
       return candidatas[0] || null
     },
 
@@ -1053,11 +1039,6 @@ export default {
       return emails.size
     },
 
-    // ── CÁLCULOS — FICHA TÉCNICA (tempo_padrao uniforme) ──
-    /**
-     * Eficiência da OP usando tempo_padrao para todos os funcionários.
-     * Lógica original preservada sem alteração.
-     */
     calcularEficienciaOpPadrao(opId) {
       if (!opId) return 0
       let somaProduzida = 0
@@ -1080,15 +1061,6 @@ export default {
       return Math.round((somaProduzida / somaTempo) * 100)
     },
 
-    /**
-     * Capacidade da OP pela Ficha Técnica.
-     *
-     * Usa o tempo realmente registrado (soma de tempoProduzido de cada
-     * registro com produção > 0) em vez de uma jornada fixa.
-     * Fórmula: Σ floor(tempoProduzido_do_registro / tempo_padrao)
-     * — ou seja, quantas peças o padrão indicaria naquele intervalo real.
-     * Quando nenhum registro existe ainda, estima com as horas visíveis.
-     */
     calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
       let capacidade = 0
@@ -1124,9 +1096,6 @@ export default {
       return capacidade
     },
 
-    /**
-     * Eficiência do funcionário usando tempo_padrao em todas as linhas.
-     */
     calcularEficienciaFuncionarioPadrao(funcionario) {
       if (!funcionario?.linhas?.length) return 0
       let somaProduzida = 0
@@ -1147,21 +1116,12 @@ export default {
       return Math.round((somaProduzida / somaTempo) * 100)
     },
 
-    /**
-     * Eficiência de um registro individual — Ficha Técnica.
-     */
     calcularEficienciaRegistroPadrao(quantidade, tempoProduzido, linha) {
       const tempo = this.resolverTempoPadrao(linha)
       if (!quantidade || !tempoProduzido || !tempo) return 0
       return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
     },
 
-    // ── CÁLCULOS — TEMPO DE REFERÊNCIA (individual) ───────
-    /**
-     * Eficiência da OP usando o tempo efetivo de cada funcionário.
-     * Lucas → tempo_referencia de Lucas; Maria → tempo_padrao (sem ref); etc.
-     * Consolidado após cálculo individual.
-     */
     calcularEficienciaOpReferencia(opId) {
       if (!opId) return 0
       let somaProduzida = 0
@@ -1184,14 +1144,6 @@ export default {
       return Math.round((somaProduzida / somaTempo) * 100)
     },
 
-    /**
-     * Capacidade da OP pelo Tempo de Referência Individual.
-     *
-     * Mesma fórmula que a Ficha Técnica, mas o tempo usado por linha é:
-     *   – tempo_referencia do funcionário, quando existir
-     *   – tempo_padrao como fallback
-     * Cada funcionário pode ter um tempo diferente para a mesma etapa.
-     */
     calcularCapacidadeOpReferencia(opId) {
       if (!opId) return 0
       let capacidade = 0
@@ -1227,9 +1179,6 @@ export default {
       return capacidade
     },
 
-    /**
-     * Eficiência do funcionário usando tempo_referencia individual por linha.
-     */
     calcularEficienciaFuncionarioReferencia(funcionario) {
       if (!funcionario?.linhas?.length) return 0
       let somaProduzida = 0
@@ -1250,9 +1199,6 @@ export default {
       return Math.round((somaProduzida / somaTempo) * 100)
     },
 
-    /**
-     * Eficiência de um registro individual — Tempo de Referência.
-     */
     calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
       const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
       if (!quantidade || !tempoProduzido || !tempo) return 0
@@ -1267,10 +1213,6 @@ export default {
       return ''
     },
 
-    // ── INPUT ─────────────────────────────────────────────
-    // Payload idêntico ao original — zero campos de tempo adicionados.
-    // opId agora vem diretamente de linha.opId (fonte de verdade definida
-    // na seleção da etapa), em vez de ser relido de buscarEtapa sem escopo.
     onInputQuantidade: debounce(function (funcionario, linha, hora) {
       const registro = linha.registros[hora]
       if (!funcionario?.email || !linha?.etapaId) return
@@ -1336,9 +1278,22 @@ export default {
           if (!response?.sucesso) return
 
           const meta = response.metaDia
+
+          const alocacoesPendentes = new Map()
+          for (const func of this.funcionariosDia) {
+            const pendentes = (func.linhas || []).filter(l => l.etapaId)
+            if (pendentes.length) {
+              alocacoesPendentes.set(func.email, pendentes.map(l => ({
+                etapaId: l.etapaId,
+                opId: l.opId || null,
+              })))
+            }
+          }
+
           if (!meta) {
             this.opsAtivas = [this.novaOpSetup()]
             this.inicializarFuncionarios()
+            this.reaplicarAlocacoesPendentes(alocacoesPendentes)
             return
           }
 
@@ -1360,12 +1315,12 @@ export default {
 
             for (const producao of metaFunc.producoes || []) {
               const etapaId = producao.id_da_funcao
-              const opId = producao.id_da_op || null
-              // Chave composta (etapaId, opId): a mesma etapa executada em
-              // OPs diferentes é tratada como alocação independente. Sem
-              // isso, João trabalhando "Costura Lateral" em OP 001 e OP 002
-              // teria seus lançamentos consolidados na mesma linha,
-              // misturando produção, tempo e eficiência entre as OPs.
+              let opId = producao.id_da_op || null
+              if (!opId) {
+                const etapaInferida = this.buscarEtapa(etapaId)
+                opId = etapaInferida?.id_da_op || null
+              }
+
               let linha = linhas.find(l => l.etapaId === etapaId && l.opId === opId)
 
               if (!linha) {
@@ -1374,20 +1329,13 @@ export default {
                 linha.descricao = producao.producao_etapa?.descricao || ''
                 linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
                 linha.opId = opId
-                // tempo_referencia é lido da etapa global em tempo de execução —
-                // nenhuma informação de modo ou seleção é restaurada/persistida.
+
                 linhas.push(linha)
               }
 
               const hora = producao.hora_registro
               if (!hora) continue
 
-              // Garante que a hora existe no objeto de registros mesmo que
-              // o turno configurado tenha mudado desde o lançamento original.
-              // Isso também suporta múltiplas etapas no mesmo período:
-              // cada linha tem seu próprio objeto registros, portanto dois
-              // lançamentos na mesma hora mas em etapas distintas ficam em
-              // linhas separadas sem conflito.
               if (!linha.registros[hora]) {
                 linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
               }
@@ -1399,16 +1347,53 @@ export default {
             }
 
             funcionario.linhas = linhas.length ? linhas : [this.novaLinha('principal')]
+
+            for (const linha of funcionario.linhas) {
+              if (linha.etapaId) this.aplicarDadosDaEtapa(funcionario, linha)
+            }
           }
+
+          this.reaplicarAlocacoesPendentes(alocacoesPendentes)
         }
       )
+    },
+
+    reaplicarAlocacoesPendentes(mapaAlocacoes) {
+      for (const [email, alocacoes] of mapaAlocacoes) {
+        const funcionario = this.funcionariosDia.find(f => f.email === email)
+        if (!funcionario) continue
+        if (!Array.isArray(funcionario.linhas)) funcionario.linhas = []
+
+        for (const alocacao of alocacoes) {
+          const jaExiste = funcionario.linhas.some(
+            l => l.etapaId === alocacao.etapaId && (l.opId || null) === alocacao.opId
+          )
+          if (jaExiste) continue
+
+          const linha = this.novaLinha('extra')
+          linha.etapaId = alocacao.etapaId
+          linha.opId = alocacao.opId
+          this.aplicarDadosDaEtapa(funcionario, linha)
+          funcionario.linhas.push(linha)
+        }
+
+        // Remove o slot inicial em branco (sem etapa) quando já existe ao
+        // menos uma alocação real, para não deixar uma linha vazia
+        // redundante na tabela.
+        if (funcionario.linhas.length > 1) {
+          const comEtapa = funcionario.linhas.filter(l => l.etapaId)
+          if (comEtapa.length) funcionario.linhas = comEtapa
+        }
+      }
     },
   },
 }
 </script>
 
 <style scoped>
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 .content-wrapper {
   flex-grow: 1;
@@ -1417,7 +1402,9 @@ export default {
   min-height: 100vh;
 }
 
-.page-section { padding: 1.2rem; }
+.page-section {
+  padding: 1.2rem;
+}
 
 /* ── HEADER ─────────────────────────────────────────── */
 .header {
@@ -1429,7 +1416,11 @@ export default {
   flex-wrap: wrap;
 }
 
-.header-actions { display: flex; align-items: center; gap: 10px; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 .socket-status {
   display: flex;
@@ -1444,7 +1435,10 @@ export default {
   color: #d23b3b;
 }
 
-.socket-status.online { background: #e7f8ef; color: #0d7a3f; }
+.socket-status.online {
+  background: #e7f8ef;
+  color: #0d7a3f;
+}
 
 .status-dot {
   width: 8px;
@@ -1470,8 +1464,15 @@ export default {
 }
 
 @keyframes pulseFade {
-  0%, 100% { opacity: .5; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: .5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── SETUP CARD ─────────────────────────────────────── */
@@ -1481,7 +1482,7 @@ export default {
   border: 1px solid #dceee3;
   padding: 1.4rem;
   margin-bottom: 1rem;
-  box-shadow: 0 4px 18px rgba(0,0,0,.03);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .03);
 }
 
 .setup-topbar {
@@ -1493,7 +1494,11 @@ export default {
   flex-wrap: wrap;
 }
 
-.setup-title { display: flex; align-items: center; gap: 14px; }
+.setup-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 
 .setup-icon {
   width: 52px;
@@ -1505,11 +1510,19 @@ export default {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
   font-size: 22px;
-  box-shadow: 0 8px 20px rgba(13,102,50,.2);
+  box-shadow: 0 8px 20px rgba(13, 102, 50, .2);
 }
 
-.setup-title h3 { margin: 0; font-size: 23px; color: #052e14; }
-.setup-title span { font-size: 14px; color: #72907e; }
+.setup-title h3 {
+  margin: 0;
+  font-size: 23px;
+  color: #052e14;
+}
+
+.setup-title span {
+  font-size: 14px;
+  color: #72907e;
+}
 
 .turno-switch {
   display: flex;
@@ -1532,16 +1545,28 @@ export default {
   font-size: 14px;
 }
 
-.turno-btn:hover { background: rgba(13,102,50,.08); }
+.turno-btn:hover {
+  background: rgba(13, 102, 50, .08);
+}
 
 .turno-btn.active {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
-  box-shadow: 0 4px 14px rgba(13,102,50,.25);
+  box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
 }
 
-.turno-config-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.horarios-config-inline { display: flex; align-items: center; gap: 6px; }
+.turno-config-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horarios-config-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .horario-select-sm {
   height: 42px;
@@ -1558,15 +1583,28 @@ export default {
 
 .horario-select-sm:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
   outline: none;
 }
 
-.horario-ate { font-size: 13px; font-weight: 700; color: #648673; }
+.horario-ate {
+  font-size: 13px;
+  font-weight: 700;
+  color: #648673;
+}
 
 /* ── OPs SECTION ────────────────────────────────────── */
-.ops-section { display: flex; flex-direction: column; gap: 1rem; }
-.ops-list { display: flex; flex-wrap: wrap; gap: 1rem; }
+.ops-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ops-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
 
 .op-card {
   flex: 1 1 340px;
@@ -1577,10 +1615,14 @@ export default {
   display: flex;
   flex-direction: column;
   gap: .75rem;
-  box-shadow: 0 2px 10px rgba(0,0,0,.03);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .03);
 }
 
-.op-card-header { display: flex; align-items: center; justify-content: space-between; }
+.op-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
 .op-badge {
   font-size: 12px;
@@ -1594,10 +1636,16 @@ export default {
 }
 
 .btn-remove-op {
-  width: 26px; height: 26px;
-  border: none; border-radius: 8px;
-  background: #ffecec; color: #d93b3b;
-  font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: #ffecec;
+  color: #d93b3b;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
 }
 
 .op-fields {
@@ -1607,9 +1655,18 @@ export default {
   align-items: end;
 }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-.field label { font-size: 12px; font-weight: 700; color: #648673; padding-left: 2px; }
+.field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #648673;
+  padding-left: 2px;
+}
 
 .field select {
   height: 46px;
@@ -1625,7 +1682,7 @@ export default {
 
 .field select:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
   outline: none;
 }
 
@@ -1642,119 +1699,208 @@ export default {
 
 .meta-input-wrap:focus-within {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
 }
 
 .meta-input {
-  flex: 1; height: 100%; border: none; background: transparent;
-  padding: 0 12px; font-size: 17px; font-weight: 700; color: #052e14;
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #052e14;
 }
 
-.meta-input:focus { outline: none; }
+.meta-input:focus {
+  outline: none;
+}
 
 .meta-suffix {
-  height: 100%; padding: 0 12px;
-  display: flex; align-items: center;
-  background: #f2f8f4; border-left: 1px solid #e2eee7;
-  color: #5d8470; font-size: 12px; font-weight: 700;
+  height: 100%;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  background: #f2f8f4;
+  border-left: 1px solid #e2eee7;
+  color: #5d8470;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .total-box {
-  height: 46px; border-radius: 13px;
+  height: 46px;
+  border-radius: 13px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white; display: flex; align-items: center; justify-content: center;
-  font-size: 23px; font-weight: 800;
-  box-shadow: 0 6px 16px rgba(13,102,50,.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 23px;
+  font-weight: 800;
+  box-shadow: 0 6px 16px rgba(13, 102, 50, .2);
 }
 
 .meta-progress {
-  margin-top: .25rem; padding: .85rem 1rem;
+  margin-top: .25rem;
+  padding: .85rem 1rem;
   border-radius: 14px;
   background: linear-gradient(135deg, #f7fcf9, #edf7f1);
   border: 1px solid #dceee3;
 }
 
 .meta-progress-top {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 8px; font-size: 13px; color: #537664;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #537664;
 }
 
-.meta-progress-top strong { color: #052e14; font-size: 14px; }
+.meta-progress-top strong {
+  color: #052e14;
+  font-size: 14px;
+}
 
 .progress-bar {
-  width: 100%; height: 12px; border-radius: 999px;
-  background: #dceee3; overflow: hidden;
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: #dceee3;
+  overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%; border-radius: inherit;
+  height: 100%;
+  border-radius: inherit;
   background: linear-gradient(90deg, #0d6632, #20b15a);
   transition: width .3s ease;
 }
 
 .progress-footer {
-  margin-top: 8px; display: flex; justify-content: space-between;
-  font-size: 12px; color: #648673;
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #648673;
 }
 
 .btn-add-op {
   align-self: flex-start;
-  display: flex; align-items: center; gap: 6px;
-  height: 40px; padding: 0 18px;
-  border: 2px dashed #b2d9c0; border-radius: 13px;
-  background: transparent; color: #0d6632;
-  font-size: 14px; font-weight: 700; cursor: pointer;
-  transition: .2s; font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  border: 2px dashed #b2d9c0;
+  border-radius: 13px;
+  background: transparent;
+  color: #0d6632;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+  font-family: inherit;
 }
 
-.btn-add-op:hover { background: #edf7f1; border-color: #0d6632; }
-.btn-add-op span { font-size: 18px; line-height: 1; }
+.btn-add-op:hover {
+  background: #edf7f1;
+  border-color: #0d6632;
+}
+
+.btn-add-op span {
+  font-size: 18px;
+  line-height: 1;
+}
 
 .total-geral-row {
-  display: flex; align-items: center; justify-content: flex-end;
-  gap: 12px; margin-top: 1rem; padding-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid #e6f2ea;
-  font-size: 14px; font-weight: 700; color: #537664;
+  font-size: 14px;
+  font-weight: 700;
+  color: #537664;
 }
 
 .total-box-sm {
-  min-width: 80px; height: 40px; border-radius: 12px;
+  min-width: 80px;
+  height: 40px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white; display: flex; align-items: center; justify-content: center;
-  font-size: 19px; font-weight: 800;
-  box-shadow: 0 4px 12px rgba(13,102,50,.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
   padding: 0 16px;
 }
 
 /* ── TABLE ──────────────────────────────────────────── */
 .table-wrapper {
-  background: white; border-radius: 20px;
-  border: 1px solid #e3f0e7; overflow: hidden;
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #e3f0e7;
+  overflow: hidden;
 }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll {
+  overflow-x: auto;
+}
 
 .apontamento-table {
-  width: 100%; border-collapse: collapse; min-width: 1500px;
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1500px;
   table-layout: fixed;
 }
 
 /* ── COLGROUP: larguras fixas para alinhar cabeçalho e corpo ── */
-.col-func     { width: 180px; }
-.col-etapa    { width: 230px; }
-.col-hora     { width: 170px; }
-.col-total    { width: 80px; }
-.col-efic     { width: 100px; }
-.col-efic-ref { width: 100px; }
+.col-func {
+  width: 180px;
+}
+
+.col-etapa {
+  width: 230px;
+}
+
+.col-hora {
+  width: 170px;
+}
+
+.col-total {
+  width: 80px;
+}
+
+.col-efic {
+  width: 100px;
+}
+
+.col-efic-ref {
+  width: 100px;
+}
 
 .apontamento-table thead {
   background: linear-gradient(90deg, #0d6632, #084d24);
 }
 
 .apontamento-table th {
-  height: 48px; color: white; font-size: 13px; font-weight: 700;
+  height: 48px;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
   align-content: center;
-  padding: 0 8px; text-align: left; white-space: nowrap; box-sizing: border-box;
+  padding: 0 8px;
+  text-align: left;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .apontamento-table td {
@@ -1765,71 +1911,148 @@ export default {
 }
 
 /* ── COLUNA FUNCIONÁRIO ─────────────────────────────── */
-.func-col { width: 180px; min-width: 180px; box-sizing: border-box; }
+.func-col {
+  width: 180px;
+  min-width: 180px;
+  box-sizing: border-box;
+}
 
 .func-info {
-  display: flex; align-items: center; gap: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .func-info img {
-  width: 36px; height: 36px; border-radius: 9px;
-  object-fit: cover; flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
-.func-info span { font-size: 13px; font-weight: 700; color: #052e14; }
+.func-info span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
+}
 
 .extra-tag {
   padding-left: 8px;
-  font-size: 12px; font-weight: 700; color: #5d8972;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5d8972;
 }
 
 /* ── COLUNA ETAPA ───────────────────────────────────── */
-.etapa-col { width: 230px; min-width: 230px; vertical-align: top; padding-top: 10px; box-sizing: border-box; }
+.etapa-col {
+  width: 230px;
+  min-width: 230px;
+  vertical-align: top;
+  padding-top: 10px;
+  box-sizing: border-box;
+}
 
-.etapa-wrap { display: flex; align-items: center; gap: 5px; }
+.etapa-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 
 .etapa-select {
-  flex: 1; height: 34px; border-radius: 9px;
-  border: 1px solid #dceee3; padding: 0 8px;
-  font-size: 12px; font-family: inherit; background: white;
+  flex: 1;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid #dceee3;
+  padding: 0 8px;
+  font-size: 12px;
+  font-family: inherit;
+  background: white;
   min-width: 0;
 }
 
-.etapa-select:focus { outline: none; border-color: #118a43; }
-
-.btn-add-linha, .btn-remove-linha {
-  width: 26px; height: 26px; border: none; border-radius: 7px;
-  font-size: 16px; font-weight: 700; cursor: pointer;
-  flex-shrink: 0; line-height: 1; display: flex;
-  align-items: center; justify-content: center;
+.etapa-select:focus {
+  outline: none;
+  border-color: #118a43;
 }
 
-.btn-add-linha { background: #0d6632; color: white; }
-.btn-remove-linha { background: #ffecec; color: #d93b3b; }
-.linha-extra { background: #f9fcfa; }
+.btn-add-linha,
+.btn-remove-linha {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-add-linha {
+  background: #0d6632;
+  color: white;
+}
+
+.btn-remove-linha {
+  background: #ffecec;
+  color: #d93b3b;
+}
+
+.linha-extra {
+  background: #f9fcfa;
+}
 
 /* ── SELETOR DE TEMPO ───────────────────────────────── */
-.tempo-toggle-wrap { margin-top: 5px; }
-
-.tempo-select {
-  height: 22px; border-radius: 7px;
-  border: 1px solid #d4e8dc; background: #f2faf5;
-  color: #052e14; font-size: 11px; font-weight: 600;
-  font-family: inherit; padding: 0 6px; cursor: pointer;
-  width: 100%; max-width: 240px; transition: border-color .15s;
+.tempo-toggle-wrap {
+  margin-top: 5px;
 }
 
-.tempo-select:focus { outline: none; border-color: #0d6632; }
+.tempo-select {
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid #d4e8dc;
+  background: #f2faf5;
+  color: #052e14;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0 6px;
+  cursor: pointer;
+  width: 100%;
+  max-width: 240px;
+  transition: border-color .15s;
+}
 
-.sem-referencia { font-size: 10px; color: #b0c5b8; font-style: italic; }
+.tempo-select:focus {
+  outline: none;
+  border-color: #0d6632;
+}
+
+.sem-referencia {
+  font-size: 10px;
+  color: #b0c5b8;
+  font-style: italic;
+}
 
 /* ── COLUNAS DE HORA ────────────────────────────────── */
-.hora-th { width: 170px; min-width: 170px; text-align: center !important; box-sizing: border-box; }
-.hora-td { padding: 6px 6px; vertical-align: middle; box-sizing: border-box; position: relative; }
+.hora-th {
+  width: 170px;
+  min-width: 170px;
+  text-align: center !important;
+  box-sizing: border-box;
+}
 
-/* Bloco esquerdo (input + min) centralizado dentro da célula.
-   Isso garante que o input de quantidade fique geometricamente no
-   centro do <th>, independentemente do conteúdo lateral. */
+.hora-td {
+  padding: 6px 6px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  position: relative;
+}
+
 .hora-box-outer {
   display: flex;
   flex-direction: row;
@@ -1849,26 +2072,49 @@ export default {
 }
 
 .hora-input {
-  width: 52px; height: 32px; border-radius: 8px;
-  border: 1px solid #dceee3; text-align: center;
-  font-size: 14px; font-weight: 700; font-family: inherit; transition: .15s;
+  width: 52px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #dceee3;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: .15s;
 }
 
-.hora-input:focus { outline: none; border-color: #0d6632; }
+.hora-input:focus {
+  outline: none;
+  border-color: #0d6632;
+}
 
 .hora-input.tem-producao {
-  background: #e9f2ff; border-color: #2b77d9; color: #1454ad;
+  background: #e9f2ff;
+  border-color: #2b77d9;
+  color: #1454ad;
 }
 
-.tempo-wrap { display: flex; align-items: center; gap: 2px; }
+.tempo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 
 .min-input {
-  width: 36px; height: 20px; border-radius: 6px;
-  border: 1px solid #ddebe3; text-align: center;
-  font-size: 10px; background: #f8fcf9; color: #69907b;
+  width: 36px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #ddebe3;
+  text-align: center;
+  font-size: 10px;
+  background: #f8fcf9;
+  color: #69907b;
 }
 
-.min-label { font-size: 10px; color: #8ca998; }
+.min-label {
+  font-size: 10px;
+  color: #8ca998;
+}
 
 /* ── INDICADORES FT / TR (à direita do input) ───────── */
 /* Posicionamento absoluto no canto direito da célula — não participa
@@ -1888,18 +2134,18 @@ export default {
 }
 
 .efic-inline {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    height: 18px;
-    border-radius: 4px;
-    padding: 0 6px;
-    font-size: 11px;
-    font-weight: 700;
-    white-space: nowrap;
-    line-height: 1;
-    margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 18px;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  margin: 0;
 }
 
 .efic-inline-label {
@@ -1917,9 +2163,15 @@ export default {
 
 /* ── BADGES DE EFICIÊNCIA POR FUNCIONÁRIO ───────────── */
 .efic-badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 56px; height: 28px; border-radius: 20px;
-  font-size: 12px; font-weight: 700; padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  height: 28px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 10px;
 }
 
 .efic-badge--ref {
@@ -1928,18 +2180,49 @@ export default {
 }
 
 /* ── CORES COMPARTILHADAS ────────────────────────────── */
-.efic-alta { background: #d4f1df; color: #0c6b34; }
-.efic-media { background: #fff4cf; color: #8a6a00; }
-.efic-baixa { background: #ffe8e8; color: #b12626; }
+.efic-alta {
+  background: #d4f1df;
+  color: #0c6b34;
+}
+
+.efic-media {
+  background: #fff4cf;
+  color: #8a6a00;
+}
+
+.efic-baixa {
+  background: #ffe8e8;
+  color: #b12626;
+}
 
 /* ── COLUNAS TOTAIS / EFIC ───────────────────────────── */
-.total-col { width: 80px; min-width: 80px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; box-sizing: border-box; }
-.efic-col  { width: 100px; min-width: 100px; text-align: center; box-sizing: border-box; }
+.total-col {
+  width: 80px;
+  min-width: 80px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
+  box-sizing: border-box;
+}
 
-.efic-col--ref { background: rgba(109, 72, 201, 0.05); }
+.efic-col {
+  width: 100px;
+  min-width: 100px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.efic-col--ref {
+  background: rgba(109, 72, 201, 0.05);
+}
 
 /* ── MÓDULOS POR OP ─────────────────────────────────── */
-.ops-modulos-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
+.ops-modulos-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 
 .op-module-header {
   display: flex;
@@ -1952,22 +2235,52 @@ export default {
   border-radius: 14px;
   padding: 14px 20px;
   margin-top: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .02);
 }
 
-.op-module-header--single { background: #f8fcf9; border-color: #e3f0e7; box-shadow: none; }
-.op-module-header--empty { background: #fff8e1; border-color: #f0d97a; }
+.op-module-header--single {
+  background: #f8fcf9;
+  border-color: #e3f0e7;
+  box-shadow: none;
+}
 
-.op-module-badge { font-size: 14px; font-weight: 800; color: #0d6632; letter-spacing: .02em; }
-.op-module-header--empty .op-module-badge { color: #8a6a00; }
+.op-module-header--empty {
+  background: #fff8e1;
+  border-color: #f0d97a;
+}
+
+.op-module-badge {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0d6632;
+  letter-spacing: .02em;
+}
+
+.op-module-header--empty .op-module-badge {
+  color: #8a6a00;
+}
 
 .op-module-stats {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  font-size: 12px; color: #537664; font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #537664;
+  font-weight: 700;
 }
 
-.op-module-stats .stat { display: inline-flex; align-items: center; gap: 4px; }
-.op-module-stats .stat strong { color: #052e14; font-weight: 800; font-size: 13px; }
+.op-module-stats .stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.op-module-stats .stat strong {
+  color: #052e14;
+  font-weight: 800;
+  font-size: 13px;
+}
 
 /* ── PAINÉIS DE CÁLCULO DUPLO ───────────────────────── */
 .calc-panels {
@@ -2008,10 +2321,17 @@ export default {
   text-transform: uppercase;
 }
 
-.calc-panel--padrao .calc-panel-title { color: #0d6632; }
-.calc-panel--referencia .calc-panel-title { color: #5030b0; }
+.calc-panel--padrao .calc-panel-title {
+  color: #0d6632;
+}
 
-.calc-panel-icon { font-size: 14px; }
+.calc-panel--referencia .calc-panel-title {
+  color: #5030b0;
+}
+
+.calc-panel-icon {
+  font-size: 14px;
+}
 
 .calc-panel-stats {
   display: flex;
@@ -2039,9 +2359,17 @@ export default {
 }
 
 /* eficiência colorida dentro do painel */
-.calc-stat strong.efic-alta { color: #0c6b34; }
-.calc-stat strong.efic-media { color: #8a6a00; }
-.calc-stat strong.efic-baixa { color: #b12626; }
+.calc-stat strong.efic-alta {
+  color: #0c6b34;
+}
+
+.calc-stat strong.efic-media {
+  color: #8a6a00;
+}
+
+.calc-stat strong.efic-baixa {
+  color: #b12626;
+}
 
 .calc-panel-divider {
   display: flex;
@@ -2057,25 +2385,74 @@ export default {
 
 /* ── RESPONSIVO ─────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .content-wrapper { padding-left: 0; }
-  .page-section { padding: 1rem; }
-  .op-fields { grid-template-columns: 1fr; }
+  .content-wrapper {
+    padding-left: 0;
+  }
+
+  .page-section {
+    padding: 1rem;
+  }
+
+  .op-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
-  .header { align-items: stretch; }
-  .header-actions { width: 100%; flex-wrap: wrap; }
-  .date-input { width: 100%; }
-  .turno-switch { width: 100%; }
-  .turno-btn { flex: 1; }
-  .progress-footer { flex-direction: column; gap: 4px; }
-  .ops-list { flex-direction: column; }
-  .turno-config-group { width: 100%; flex-direction: column; align-items: stretch; }
-  .horarios-config-inline { width: 100%; }
-  .horario-select-sm { flex: 1; }
+  .header {
+    align-items: stretch;
+  }
 
-  .calc-panels { justify-content: stretch; }
-  .calc-panel { min-width: 100%; }
-  .calc-panel-divider { padding: 6px 0; }
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .date-input {
+    width: 100%;
+  }
+
+  .turno-switch {
+    width: 100%;
+  }
+
+  .turno-btn {
+    flex: 1;
+  }
+
+  .progress-footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ops-list {
+    flex-direction: column;
+  }
+
+  .turno-config-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .horarios-config-inline {
+    width: 100%;
+  }
+
+  .horario-select-sm {
+    flex: 1;
+  }
+
+  .calc-panels {
+    justify-content: stretch;
+  }
+
+  .calc-panel {
+    min-width: 100%;
+  }
+
+  .calc-panel-divider {
+    padding: 6px 0;
+  }
 }
 </style>
