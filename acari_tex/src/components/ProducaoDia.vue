@@ -436,8 +436,12 @@ export default {
 
           for (const producao of metaFunc.producoes || []) {
             const etapaId = producao.id_da_funcao
+            const opId = producao.id_da_op || null
 
-            let linha = linhas.find(l => l.etapaId === etapaId)
+            // Chave composta (etapaId, opId): a mesma etapa executada em
+            // OPs diferentes deve ser tratada como alocação independente,
+            // para não misturar produção, tempo e eficiência entre as OPs.
+            let linha = linhas.find(l => l.etapaId === etapaId && l.opId === opId)
 
             if (!linha) {
               linha = {
@@ -446,7 +450,7 @@ export default {
                 etapaId,
                 descricao: producao.producao_etapa?.descricao || '',
                 tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
-                opId: producao.id_da_op || null,
+                opId,
                 registros: {},
               }
               linhas.push(linha)

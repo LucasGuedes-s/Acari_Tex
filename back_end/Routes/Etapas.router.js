@@ -197,9 +197,7 @@ router.post(
         });
       }
 
-      const linhas = XLSX.utils.sheet_to_json(sheet, {
-        range: headerIndex,
-      });
+      const linhas = XLSX.utils.sheet_to_json(sheet, { range: headerIndex });
 
       const normalizar = (texto) =>
         String(texto || "").trim().toLowerCase();
@@ -217,68 +215,73 @@ router.post(
       }
 
       // =========================
-      // 🔥 PRÉ-PROCESSAMENTO (FORA DA TRANSACTION)
+      // 🔥 PRÉ-PROCESSAMENTO
+      //
+      // etapasMap  → deduplicado por (descricao + tempo_padrao)
+      //              usado para criar/reutilizar a Etapa no banco
+      //
+      // vincsFuncionario → lista com TODOS os vínculos de funcionário,
+      //              inclusive duplicatas de etapa (ex: dois funcionários
+      //              na mesma etapa). Indexado por descricaoFinal para
+      //              depois associar ao id_da_funcao correto.
       // =========================
 
       let tempoTotal = 0;
-      const etapasMap = new Map();
+      const etapasMap = new Map();       // chave: descricaoFinal → dados da etapa (único)
+      const vincsFuncionario = [];       // lista plana, aceita repetição de etapa
 
       for (const linha of etapasValidas) {
         const desc = normalizar(linha.descricao_etapa);
 
         // ---- tempo_padrao (da etapa) ----
         let tempo = linha.tempo_padrao ?? null;
-
-        if (tempo !== null) {
-          tempo = Number(String(tempo).replace(",", "."));
-        }
-
+        if (tempo !== null) tempo = Number(String(tempo).replace(",", "."));
         if (Number.isNaN(tempo)) tempo = null;
 
-        if (tempo) tempoTotal += tempo;
+        const descricaoFinal = tempo ? `${desc} (${tempo} min)` : desc;
 
-        const descricaoFinal = tempo
-          ? `${desc} (${tempo} min)`
-          : desc;
+        // Só adiciona a etapa ao Map se ainda não existir
+        // (evita duplicar UNIR OMBROS no banco, mas não perde nenhuma linha)
+        if (!etapasMap.has(descricaoFinal)) {
+          if (tempo) tempoTotal += tempo;
 
-        // ---- funcionario / tempo_funcionario (referência individual) ----
+          etapasMap.set(descricaoFinal, {
+            descricao: descricaoFinal,
+            tempo_padrao: tempo,
+            id_Estabelecimento: cnpj,
+          });
+        }
+
+        // ---- funcionario / tempo_funcionario ----
+        // Sempre empilha na lista, mesmo que a etapa seja repetida
         const nomeFuncionario = linha.funcionario
           ? String(linha.funcionario).trim()
           : null;
 
         let tempoFuncionario = linha.tempo_funcionario ?? null;
-
         if (tempoFuncionario !== null) {
           tempoFuncionario = Number(String(tempoFuncionario).replace(",", "."));
         }
-
         if (Number.isNaN(tempoFuncionario)) tempoFuncionario = null;
 
-        etapasMap.set(descricaoFinal, {
-          descricao: descricaoFinal,
-          tempo_padrao: tempo,
-          id_Estabelecimento: cnpj,
-          nomeFuncionario,
-          tempoFuncionario,
-        });
+        if (nomeFuncionario && tempoFuncionario) {
+          vincsFuncionario.push({
+            descricaoFinal,   // usada depois para achar o id_da_funcao
+            nomeFuncionario,
+            tempoFuncionario,
+          });
+        }
       }
 
       const etapasParaCriar = Array.from(etapasMap.values());
 
       // =========================
-      // 🔥 PRÉ-BUSCA DE FUNCIONÁRIOS (FORA DA TRANSACTION)
-      // Compara pelo PRIMEIRO NOME, já que a planilha só
-      // traz o primeiro nome do funcionário. Compatível com
-      // qualquer banco (sem `mode: insensitive`, que só
-      // existe no provider PostgreSQL/MongoDB).
+      // 🔥 PRÉ-BUSCA DE FUNCIONÁRIOS
+      // Compara pelo PRIMEIRO NOME. Compatível com qualquer banco.
       // =========================
 
       const nomesFuncionarios = [
-        ...new Set(
-          etapasParaCriar
-            .map((e) => e.nomeFuncionario)
-            .filter(Boolean)
-        ),
+        ...new Set(vincsFuncionario.map((v) => v.nomeFuncionario).filter(Boolean)),
       ];
 
       let funcionarioMap = new Map();
@@ -287,9 +290,7 @@ router.post(
 
       if (nomesFuncionarios.length > 0) {
         const funcionariosDoEstabelecimento = await prisma.Usuarios.findMany({
-          where: {
-            estabelecimentoCnpj: cnpj,
-          },
+          where: { estabelecimentoCnpj: cnpj },
         });
 
         for (const nome of nomesFuncionarios) {
@@ -300,7 +301,6 @@ router.post(
           if (candidatos.length === 1) {
             funcionarioMap.set(normalizar(nome), candidatos[0].email);
           } else if (candidatos.length > 1) {
-            // Mais de um funcionário com o mesmo primeiro nome
             nomesAmbiguos.push(nome);
           } else {
             nomesNaoEncontrados.push(nome);
@@ -315,7 +315,7 @@ router.post(
       const resultado = await prisma.$transaction(
         async (tx) => {
 
-          // cria peça
+          // Cria peça
           const peca = await tx.pecasOP.create({
             data: {
               descricao: descricao_peca,
@@ -328,7 +328,7 @@ router.post(
             },
           });
 
-          // 🔎 Busca etapas já existentes no banco para este estabelecimento
+          // 🔎 Busca etapas já existentes
           const etapasExistentes = await tx.etapa.findMany({
             where: { id_Estabelecimento: cnpj },
           });
@@ -344,29 +344,19 @@ router.post(
             );
 
             if (jaExiste) {
-              // ✅ Já existe com mesmo nome e tempo — só vincula
-              etapasParaVincular.push({
-                ...jaExiste,
-                nomeFuncionario: etapa.nomeFuncionario,
-                tempoFuncionario: etapa.tempoFuncionario,
-              });
+              etapasParaVincular.push(jaExiste);
             } else {
-              // 🆕 Não existe — precisa criar
               etapasParaCriarNoBanco.push(etapa);
             }
           }
 
-          // Cria apenas as etapas novas (sem os campos auxiliares de funcionário)
           if (etapasParaCriarNoBanco.length > 0) {
             await tx.etapa.createMany({
-              data: etapasParaCriarNoBanco.map(
-                ({ nomeFuncionario, tempoFuncionario, ...rest }) => rest
-              ),
+              data: etapasParaCriarNoBanco,
               skipDuplicates: true,
             });
           }
 
-          // Busca as recém-criadas para pegar os IDs gerados
           const etapasRecemCriadas =
             etapasParaCriarNoBanco.length > 0
               ? await tx.etapa.findMany({
@@ -379,25 +369,15 @@ router.post(
                 })
               : [];
 
-          // Reanexa nomeFuncionario / tempoFuncionario nas recém-criadas
-          const etapasRecemCriadasComDados = etapasRecemCriadas.map((e) => {
-            const original = etapasParaCriarNoBanco.find(
-              (o) => normalizar(o.descricao) === normalizar(e.descricao)
-            );
-            return {
-              ...e,
-              nomeFuncionario: original?.nomeFuncionario ?? null,
-              tempoFuncionario: original?.tempoFuncionario ?? null,
-            };
-          });
+          const todasEtapas = [...etapasParaVincular, ...etapasRecemCriadas];
 
-          // Monta vínculos: existentes + recém-criadas
-          const todasEtapasParaVincular = [
-            ...etapasParaVincular,
-            ...etapasRecemCriadasComDados,
-          ];
+          // Monta mapa descricaoFinal → id_da_funcao para lookup rápido
+          const etapasPorDescricao = new Map(
+            todasEtapas.map((e) => [normalizar(e.descricao), e.id_da_funcao])
+          );
 
-          const vinculos = todasEtapasParaVincular.map((etapa) => ({
+          // Vínculos peça ↔ etapa (deduplicado — cada etapa aparece uma vez)
+          const vinculos = todasEtapas.map((etapa) => ({
             id_da_op: peca.id_da_op,
             id_da_funcao: etapa.id_da_funcao,
             quantidade_meta: quantidade_pecas,
@@ -411,24 +391,29 @@ router.post(
           }
 
           // =========================
-          // ✅ CRIA TempoReferencia (tempo individual do funcionário)
+          // ✅ CRIA TempoReferencia
+          // Percorre a lista completa (com repetições de etapa),
+          // garantindo um registro por funcionário por etapa.
           // =========================
 
           const temposReferencia = [];
 
-          for (const etapa of todasEtapasParaVincular) {
-            if (!etapa.nomeFuncionario || !etapa.tempoFuncionario) continue;
-
+          for (const vinc of vincsFuncionario) {
             const idFuncionario = funcionarioMap.get(
-              normalizar(etapa.nomeFuncionario)
+              normalizar(vinc.nomeFuncionario)
             );
-            if (!idFuncionario) continue; // não encontrado ou ambíguo — pula silenciosamente
+            if (!idFuncionario) continue; // não encontrado ou ambíguo
+
+            const idFuncao = etapasPorDescricao.get(
+              normalizar(vinc.descricaoFinal)
+            );
+            if (!idFuncao) continue;
 
             temposReferencia.push({
               estabelecimentoCnpj: cnpj,
               id_funcionario: idFuncionario,
-              id_da_funcao: etapa.id_da_funcao,
-              tempo_minutos: etapa.tempoFuncionario, // tempo individual, NÃO o tempo_padrao da etapa
+              id_da_funcao: idFuncao,
+              tempo_minutos: vinc.tempoFuncionario,
               tipo_medicao: "planilha",
               data_medicao: new Date(),
               opId: peca.id_da_op,

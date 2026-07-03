@@ -241,12 +241,22 @@
                         <!-- ETAPA + indicadores de tempo (somente leitura) -->
                         <td class="etapa-col">
                           <div class="etapa-wrap">
-                            <select v-model="linha.etapaId" class="etapa-select" @change="onAlterarEtapa(funcionario, linha)">
+                            <!--
+                              O value de cada <option> é uma CHAVE COMPOSTA "opId::etapaId".
+                              Isso é essencial: duas OPs diferentes podem ter uma etapa com o
+                              MESMO id_da_funcao (ex.: "Costura Lateral" reaproveitada em fichas
+                              técnicas distintas). Se o value fosse apenas o id_da_funcao, as
+                              duas <option> (uma em cada <optgroup>) teriam valores idênticos e
+                              o <select> não conseguiria distinguir em qual OP o funcionário
+                              está sendo alocado — misturando produção/eficiência das duas OPs.
+                            -->
+                            <select :value="valorEtapaSelecionada(linha)" class="etapa-select"
+                              @change="onAlterarEtapaSelecionada(funcionario, linha, $event.target.value)">
                               <option value="">Etapa</option>
                               <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
                                 <option v-for="etapa in etapasDaOp(op.pecaId)"
-                                  :key="(etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
-                                  :value="etapa.id_da_funcao || etapa.etapa?.id_da_funcao">
+                                  :key="op.pecaId + '::' + (etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
+                                  :value="op.pecaId + '::' + (etapa.id_da_funcao || etapa.etapa?.id_da_funcao)">
                                   {{ etapa.descricao || etapa.etapa?.descricao }} ({{ etapa.tempo_padrao || etapa.etapa?.tempo_padrao }}min)
                                 </option>
                               </optgroup>
@@ -268,7 +278,7 @@
                               @change="onSelecionarTempo(linha, $event.target.value)">
                               <option value="__padrao__">⏱ Ficha: {{ linha.tempoPadrao }}min</option>
                               <option
-                                v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId))"
+                                v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId, linha.opId))"
                                 :key="ref.id"
                                 :value="ref.id">
                                 👤 {{ ref.nomeFunc }}: {{ ref.tempo }}min
@@ -638,11 +648,18 @@ export default {
         this.pecas = resPecas.data.peca.em_progresso || []
         this.etapas = this.pecas.map(p => p.etapas || [])
 
+        // Chave composta (OP + etapa): duas fichas técnicas diferentes podem
+        // reaproveitar o mesmo id_da_funcao para uma etapa de mesmo nome
+        // (ex.: "Costura Lateral" em dois produtos). Se a chave fosse apenas
+        // o id_da_funcao, a segunda OP processada sobrescreveria a etapa da
+        // primeira neste mapa, misturando tempo_padrao/tempo_referencia
+        // entre OPs distintas.
         this.etapasMap = {}
         for (const listaEtapas of this.etapas) {
           for (const e of listaEtapas) {
             const idFuncao = e.id_da_funcao || e.etapa?.id_da_funcao
-            if (idFuncao) this.etapasMap[idFuncao] = e
+            const idOp = e.id_da_op
+            if (idFuncao) this.etapasMap[`${idOp}::${idFuncao}`] = e
           }
         }
 
@@ -738,6 +755,45 @@ export default {
     },
 
     /**
+     * Constrói o valor composto "opId::etapaId" usado como value do
+     * <select> de etapa. Retorna string vazia quando não há etapa
+     * selecionada. Ponto único de verdade para o formato da chave.
+     */
+    valorEtapaSelecionada(linha) {
+      if (!linha?.etapaId) return ''
+      return `${linha.opId ?? ''}::${linha.etapaId}`
+    },
+
+    /**
+     * Handler do <select> de etapa. Recebe o valor composto "opId::etapaId"
+     * e grava opId e etapaId separadamente na linha ANTES de resolver a
+     * etapa — assim toda a resolução subsequente (tempo padrão, tempo de
+     * referência, descrição) já acontece no escopo correto da OP, mesmo
+     * que outra OP tenha uma etapa com o mesmo id_da_funcao.
+     */
+    onAlterarEtapaSelecionada(funcionario, linha, valorComposto) {
+      if (!valorComposto) {
+        linha.etapaId = ''
+        linha.opId = null
+        linha.descricao = ''
+        linha.tempoPadrao = 0
+        linha.modoTempo = 'padrao'
+        linha.referenciaSelecionadaId = null
+        this.salvarMetaDia()
+        return
+      }
+
+      const separador = valorComposto.indexOf('::')
+      const opId = valorComposto.slice(0, separador)
+      const etapaId = valorComposto.slice(separador + 2)
+
+      linha.etapaId = etapaId
+      linha.opId = opId
+
+      this.onAlterarEtapa(funcionario, linha)
+    },
+
+    /**
      * Lista todas as referências de tempo de uma etapa, com nome do
      * funcionário resolvido a partir de this.funcionarios.
      * Retorna: [{ id, nomeFunc, tempo }]
@@ -821,9 +877,11 @@ export default {
      * Retorna o tempo_padrao da ficha técnica para uma linha.
      * Ponto único de verdade para o cálculo pela Ficha Técnica.
      * Tolerante a backend: lê da etapa global ou do campo cacheado na linha.
+     * A busca é escopada pela OP da própria linha, evitando pegar a etapa
+     * de outra OP que reaproveite o mesmo id_da_funcao.
      */
     resolverTempoPadrao(linha) {
-      const etapa = this.buscarEtapa(linha?.etapaId)
+      const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
       return Number(
         etapa?.tempo_padrao
         ?? etapa?.etapa?.tempo_padrao
@@ -836,9 +894,11 @@ export default {
      * Retorna o tempo_minutos do funcionário em tempo_referencia da etapa,
      * ou null se não houver registro para este funcionário.
      * NÃO faz fallback — o chamador decide o que fazer com null.
+     * Escopado por OP: a mesma etapa (id_da_funcao) em outra OP não deve
+     * ser considerada.
      */
     resolverTempoReferencia(funcionario, linha) {
-      const etapa = this.buscarEtapa(linha?.etapaId)
+      const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
       const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
 
       if (!Array.isArray(refs) || !funcionario?.email) return null
@@ -858,11 +918,15 @@ export default {
      *     (referenciaSelecionadaId é o id_funcionario do registro escolhido)
      *   – modoTempo === 'padrao' (ou sem escolha) → usa tempo_padrao
      *
+     * A etapa usada para localizar a referência é sempre escopada pela OP
+     * da linha (linha.opId), garantindo que a mesma etapa em duas OPs
+     * distintas não compartilhe tempo de referência.
+     *
      * Fallback final: se a referência escolhida não for encontrada, usa tempo_padrao.
      */
     resolverTempoEfetivoReferencia(funcionario, linha) {
       if (linha?.modoTempo === 'referencia' && linha?.referenciaSelecionadaId) {
-        const etapa = this.buscarEtapa(linha.etapaId)
+        const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
         const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
         const ref = Array.isArray(refs)
           ? refs.find(r => r && r.id_funcionario === linha.referenciaSelecionadaId)
@@ -877,11 +941,18 @@ export default {
     },
 
     // ── ETAPA ─────────────────────────────────────────────
+    /**
+     * Aplica os dados da etapa selecionada à linha. linha.opId já deve ter
+     * sido definido por onAlterarEtapaSelecionada (fonte de verdade),
+     * garantindo que a busca abaixo não pegue a etapa de outra OP.
+     */
     onAlterarEtapa(funcionario, linha) {
-      const etapa = this.buscarEtapa(linha.etapaId)
+      const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
       linha.tempoPadrao = Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
       linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || ''
-      linha.opId = etapa?.id_da_op || null
+      // linha.opId já foi definido pela seleção composta (opId::etapaId).
+      // Só usamos o id_da_op da etapa como fallback de compatibilidade.
+      linha.opId = linha.opId || etapa?.id_da_op || null
 
       // Seleção automática do tempo de referência do próprio funcionário.
       // Funcionário pode ser a fatia do grupo (com _funcRef apontando ao real).
@@ -898,8 +969,35 @@ export default {
       this.salvarMetaDia()
     },
 
-    buscarEtapa(etapaId) {
-      return this.etapas.flat().find(e => e.id_da_funcao === etapaId)
+    /**
+     * Busca uma etapa por id_da_funcao, restringindo à OP informada.
+     *
+     * Isso é o núcleo da correção: duas fichas técnicas diferentes podem
+     * reaproveitar o mesmo id_da_funcao para uma etapa (mesmo nome, mesmo
+     * tempo padrão) em OPs distintas. Sem o filtro por opId, a primeira
+     * etapa encontrada no array global "vencia" e todos os cálculos
+     * (tempo padrão, tempo de referência, capacidade, eficiência) de uma
+     * OP podiam acabar usando os dados da etapa da OUTRA OP.
+     *
+     * @param {string} etapaId - id_da_funcao da etapa
+     * @param {string|null} opId - id_da_op para escopar a busca
+     */
+    buscarEtapa(etapaId, opId = null) {
+      if (!etapaId) return null
+
+      const candidatas = this.etapas.flat().filter(e => {
+        const id = e.id_da_funcao || e.etapa?.id_da_funcao
+        return id === etapaId
+      })
+
+      if (opId != null && opId !== '') {
+        const match = candidatas.find(e => e.id_da_op === opId)
+        if (match) return match
+      }
+
+      // Fallback de compatibilidade (sem opId informado, ou nenhuma
+      // etapa daquela OP encontrada): retorna a primeira correspondência.
+      return candidatas[0] || null
     },
 
     // ── ETAPA FINAL ──────────────────────────────────────
@@ -1170,16 +1268,17 @@ export default {
     },
 
     // ── INPUT ─────────────────────────────────────────────
-    // Payload idêntico ao original — zero campos de tempo adicionados
+    // Payload idêntico ao original — zero campos de tempo adicionados.
+    // opId agora vem diretamente de linha.opId (fonte de verdade definida
+    // na seleção da etapa), em vez de ser relido de buscarEtapa sem escopo.
     onInputQuantidade: debounce(function (funcionario, linha, hora) {
       const registro = linha.registros[hora]
       if (!funcionario?.email || !linha?.etapaId) return
 
-      const etapa = this.buscarEtapa(linha.etapaId)
       socket.emit('salvar-producao', {
         funcionarioId: funcionario.email,
         etapaId: linha.etapaId,
-        opId: etapa?.id_da_op || null,
+        opId: linha.opId || null,
         quantidade: registro.quantidade || 0,
         hora,
         data: this.dataSelecionada,
@@ -1261,14 +1360,20 @@ export default {
 
             for (const producao of metaFunc.producoes || []) {
               const etapaId = producao.id_da_funcao
-              let linha = linhas.find(l => l.etapaId === etapaId)
+              const opId = producao.id_da_op || null
+              // Chave composta (etapaId, opId): a mesma etapa executada em
+              // OPs diferentes é tratada como alocação independente. Sem
+              // isso, João trabalhando "Costura Lateral" em OP 001 e OP 002
+              // teria seus lançamentos consolidados na mesma linha,
+              // misturando produção, tempo e eficiência entre as OPs.
+              let linha = linhas.find(l => l.etapaId === etapaId && l.opId === opId)
 
               if (!linha) {
                 linha = this.novaLinha(linhas.length === 0 ? 'principal' : 'extra')
                 linha.etapaId = etapaId
                 linha.descricao = producao.producao_etapa?.descricao || ''
                 linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
-                linha.opId = producao.id_da_op || null
+                linha.opId = opId
                 // tempo_referencia é lido da etapa global em tempo de execução —
                 // nenhuma informação de modo ou seleção é restaurada/persistida.
                 linhas.push(linha)
