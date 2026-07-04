@@ -79,6 +79,12 @@
                 <span v-if="etapa.grupoEtapa" class="card-badge">{{ etapa.grupoEtapa.nome }}</span>
               </div>
               <div class="card-actions">
+                <button class="card-btn card-btn--time" title="Cronoanálise" @click="adicionarTempoReferencia(etapa)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </button>
                 <button class="card-btn card-btn--time" title="Cronoanálise" @click="abrirModalCronoanalise(etapa)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10" />
@@ -893,6 +899,114 @@ export default {
         console.error("Erro ao buscar funcionários:", error)
       }
     },
+    async adicionarTempoReferencia(etapa) {
+  if (!this.funcionarios.length) {
+    await this.buscarFuncionarios()
+  }
+
+  const options = this.funcionarios
+    .map(
+      (f) => `
+        <option value="${f.email}">
+          ${f.nome}
+        </option>
+      `
+    )
+    .join("")
+
+  const { value, isConfirmed } = await Swal.fire({
+    title: "Adicionar tempo de referência",
+    html: `
+      <div style="text-align:left">
+
+        <p style="
+          margin-bottom:10px;
+          font-weight:600;
+          color:#333;
+        ">
+          Etapa: ${etapa.descricao}
+        </p>
+
+        <label>Funcionário</label>
+        <select id="funcionario" class="swal2-select">
+          ${options}
+        </select>
+
+        <label style="margin-top:10px">Tempo (minutos)</label>
+        <input
+          id="tempo"
+          type="number"
+          min="0"
+          step="0.01"
+          class="swal2-input"
+          placeholder="Ex.: 5.2"
+        >
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonText: "Salvar",
+    cancelButtonText: "Cancelar",
+
+    preConfirm: () => {
+      const id_funcionario =
+        document.getElementById("funcionario").value
+
+      const tempo_minutos = Number(
+        document.getElementById("tempo").value
+      )
+
+      if (!id_funcionario) {
+        Swal.showValidationMessage("Selecione um funcionário.")
+        return false
+      }
+
+      if (!tempo_minutos || tempo_minutos <= 0) {
+        Swal.showValidationMessage("Informe um tempo válido.")
+        return false
+      }
+
+      return {
+        id_funcionario,
+        tempo_minutos,
+      }
+    },
+  })
+
+  if (!isConfirmed) return
+
+  try {
+    await api.post(
+      "/tempo-referencia",
+      {
+        id_funcionario: value.id_funcionario,
+        id_da_funcao: etapa.id_da_funcao,
+        tempo_minutos: value.tempo_minutos,
+      },
+      {
+        headers: {
+          Authorization: this.store.pegar_token,
+        },
+      }
+    )
+
+    Swal.fire({
+      icon: "success",
+      title: "Tempo salvo com sucesso!",
+      timer: 1500,
+      showConfirmButton: false,
+    })
+  } catch (error) {
+    console.error(error)
+
+    Swal.fire({
+      icon: "error",
+      title: "Erro",
+      text:
+        error.response?.data?.erro ||
+        "Erro ao salvar tempo de referência.",
+    })
+  }
+},
 
     abrirModalCronoanalise(etapa) {
       this.etapaCronoanalise = { ...etapa }

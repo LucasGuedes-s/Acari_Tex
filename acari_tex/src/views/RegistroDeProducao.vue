@@ -15,6 +15,9 @@
             </div>
             <input v-model="dataSelecionada" type="date" class="date-input" />
             <span v-if="carregandoMeta" class="data-loading">Atualizando…</span>
+            <button class="btn-gerar-pdf" :disabled="gerandoPdf" @click="onClicarGerarPdf">
+              📄 {{ gerandoPdf ? 'Gerando PDF…' : 'Gerar PDF' }}
+            </button>
           </div>
         </div>
 
@@ -134,71 +137,6 @@
                 <span v-else>📦 {{ grupo.label }}</span>
               </span>
 
-              <!-- PAINÉIS DE CÁLCULO DUPLO — apenas para OPs com pecaId
-              <div v-if="grupo.opId" class="calc-panels">
-
-                <div class="calc-panel calc-panel--padrao">
-                  <div class="calc-panel-title">
-                    <span class="calc-panel-icon">📋</span>
-                    Ficha Técnica
-                  </div>
-                  <div class="calc-panel-stats">
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">👥 Funcionários</span>
-                      <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong>
-                    </div>
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">📊 Produção</span>
-                      <strong>{{ calcularTotalOp(grupo.opId) }}</strong>
-                    </div>
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">⚙ Capacidade</span>
-                      <strong>{{ calcularCapacidadeOpPadrao(grupo.opId) }}</strong>
-                    </div>
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">🎯 Eficiência</span>
-                      <strong :class="getEficClass(calcularEficienciaOpPadrao(grupo.opId))">
-                        {{ calcularEficienciaOpPadrao(grupo.opId) }}%
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="calc-panel-divider">vs</div>
-
-                <div class="calc-panel calc-panel--referencia">
-                  <div class="calc-panel-title">
-                    <span class="calc-panel-icon">👤</span>
-                    Tempo de Referência
-                  </div>
-                  <div class="calc-panel-stats">
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">👥 Funcionários</span>
-                      <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong>
-                    </div>
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">📊 Produção</span>
-                      <strong>{{ calcularTotalOp(grupo.opId) }}</strong>
-                    </div>
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">⚙ Capacidade</span>
-                      <strong>{{ calcularCapacidadeOpReferencia(grupo.opId) }}</strong>
-                    </div>
-                    <div class="calc-stat">
-                      <span class="calc-stat-label">🎯 Eficiência</span>
-                      <strong :class="getEficClass(calcularEficienciaOpReferencia(grupo.opId))">
-                        {{ calcularEficienciaOpReferencia(grupo.opId) }}%
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-
-              </div> 
-
-              <span v-else class="op-module-stats">
-                <span class="stat">👥 <strong>{{ calcularFuncionariosOp(grupo.opId) }}</strong> func</span>
-              </span>-->
-
             </div>
 
             <!-- TABELA DO MÓDULO -->
@@ -241,24 +179,12 @@
                         <!-- ETAPA + indicadores de tempo (somente leitura) -->
                         <td class="etapa-col">
                           <div class="etapa-wrap">
-                            <!--
-                              O value de cada <option> é uma CHAVE COMPOSTA "opId::etapaId".
-                              Isso é essencial: duas OPs diferentes podem ter uma etapa com o
-                              MESMO id_da_funcao (ex.: "Costura Lateral" reaproveitada em fichas
-                              técnicas distintas). Se o value fosse apenas o id_da_funcao, as
-                              duas <option> (uma em cada <optgroup>) teriam valores idênticos e
-                              o <select> não conseguiria distinguir em qual OP o funcionário
-                              está sendo alocado — misturando produção/eficiência das duas OPs.
-                            -->
-                            <select :value="valorEtapaSelecionada(linha)" class="etapa-select"
-                              @change="onAlterarEtapaSelecionada(funcionario, linha, $event.target.value)">
+                            <select :value="indiceOpcaoEtapa(linha)" class="etapa-select"
+                              @change="onAlterarEtapaPorIndice(funcionario, linha, $event.target.value)">
                               <option value="">Etapa</option>
                               <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
-                                <option v-for="etapa in etapasDaOp(op.pecaId)"
-                                  :key="op.pecaId + '::' + (etapa.id_da_funcao || etapa.etapa?.id_da_funcao)"
-                                  :value="op.pecaId + '::' + (etapa.id_da_funcao || etapa.etapa?.id_da_funcao)">
-                                  {{ etapa.descricao || etapa.etapa?.descricao }} ({{ etapa.tempo_padrao ||
-                                  etapa.etapa?.tempo_padrao }}min)
+                                <option v-for="opcao in opcoesParaOp(op.pecaId)" :key="opcao.idx" :value="opcao.idx">
+                                  {{ opcao.label }}
                                 </option>
                               </optgroup>
                             </select>
@@ -371,6 +297,7 @@ import router from '@/router'
 import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
+import { gerarPdfProducao } from '@/utils/Gerarpdfproducao.js'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
@@ -403,6 +330,7 @@ export default {
       configHorarios: this.carregarConfigHorarios(),
       ultimaBuscaId: 0,
       carregandoMeta: false,
+      gerandoPdf: false,
     }
   },
 
@@ -430,6 +358,35 @@ export default {
       return this.opsAtivas.filter(op => op.pecaId)
     },
 
+    /**
+     * Lista GLOBAL e ACHATADA de todas as combinações (OP, etapa)
+     * disponíveis nas OPs ativas no momento. Cada <select> de etapa usa o
+     * ÍNDICE desta lista como value — nunca uma string montada por
+     * concatenação. Isso elimina de vez a classe de bug em que o valor
+     * reconstruído (via parsing de "opId::etapaId") deixava de bater
+     * exatamente com o opId usado no agrupamento das tabelas: aqui não há
+     * conversão de tipo nem parsing nenhum, o índice aponta direto para o
+     * objeto com os valores originais (mesma referência de op.pecaId e
+     * etapa.id_da_funcao usados em todo o resto do componente).
+     */
+    opcoesEtapaTodas() {
+      const opcoes = []
+      for (const op of this.opsAtivasComPeca) {
+        for (const etapa of this.etapasDaOp(op.pecaId)) {
+          const etapaId = etapa.id_da_funcao || etapa.etapa?.id_da_funcao
+          if (!etapaId) continue
+          const descricao = etapa.descricao || etapa.etapa?.descricao || 'Etapa'
+          const tempoPadrao = etapa.tempo_padrao || etapa.etapa?.tempo_padrao || 0
+          opcoes.push({
+            opId: op.pecaId,
+            etapaId,
+            label: `${descricao} (${tempoPadrao}min)`,
+          })
+        }
+      }
+      return opcoes
+    },
+
     funcionariosAgrupadosPorOp() {
       const gruposMap = new Map()
 
@@ -440,8 +397,8 @@ export default {
       })
 
       for (const op of this.opsAtivasComPeca) {
-        gruposMap.set(String(op.pecaId), {
-          opId: String(op.pecaId),
+        gruposMap.set(op.pecaId, {
+          opId: op.pecaId,
           label: this.nomeDaOp(op.pecaId),
           funcionarios: [],
         })
@@ -451,21 +408,13 @@ export default {
         const linhasPorOp = new Map()
 
         for (const linha of (func.linhas || [])) {
-          const chave =
-            linha.opId === null || linha.opId === undefined || linha.opId === ''
-              ? null
-              : String(linha.opId)
-
-          if (!linhasPorOp.has(chave)) {
-            linhasPorOp.set(chave, [])
-          }
-
+          const chave = linha.opId || null
+          if (!linhasPorOp.has(chave)) linhasPorOp.set(chave, [])
           linhasPorOp.get(chave).push(linha)
         }
 
         for (const [opId, linhas] of linhasPorOp.entries()) {
           const grupo = gruposMap.get(opId) || gruposMap.get(null)
-
           grupo.funcionarios.push({
             ...func,
             linhas: [...linhas],
@@ -475,11 +424,7 @@ export default {
         }
       }
 
-      const ordem = [
-        ...this.opsAtivasComPeca.map(op => String(op.pecaId)),
-        null,
-      ]
-
+      const ordem = [...this.opsAtivasComPeca.map(op => op.pecaId), null]
       return ordem
         .map(id => gruposMap.get(id))
         .filter(g => g && g.funcionarios.length)
@@ -720,6 +665,62 @@ export default {
       return this.etapas.flat().filter(e => e.id_da_op === pecaId)
     },
 
+    /**
+     * Subconjunto de opcoesEtapaTodas pertencente a uma OP específica,
+     * já com o índice GLOBAL anexado (idx) — é esse índice que vai no
+     * value do <option>, nunca o id da etapa isolado.
+     */
+    opcoesParaOp(pecaId) {
+      const resultado = []
+      this.opcoesEtapaTodas.forEach((opcao, idx) => {
+        if (opcao.opId === pecaId) resultado.push({ idx, label: opcao.label })
+      })
+      return resultado
+    },
+
+    /**
+     * Índice (em opcoesEtapaTodas) correspondente à etapa/OP já
+     * selecionados nesta linha — usado para marcar a opção atual do
+     * <select> sem depender de nenhuma string composta.
+     */
+    indiceOpcaoEtapa(linha) {
+      if (!linha?.etapaId) return ''
+      const idx = this.opcoesEtapaTodas.findIndex(
+        o => o.etapaId === linha.etapaId && o.opId === linha.opId
+      )
+      return idx === -1 ? '' : idx
+    },
+
+    /**
+     * Handler do <select> de etapa. Recebe o ÍNDICE (string, vindo do
+     * DOM) dentro de opcoesEtapaTodas e usa o objeto encontrado para
+     * atribuir etapaId/opId à linha — sem parsing de texto, sem
+     * concatenação, sem qualquer conversão de tipo. Isso resolve
+     * definitivamente o problema de linhas da segunda OP "sumirem" do
+     * agrupamento: opId é atribuído com a MESMA referência de valor usada
+     * para construir os grupos (op.pecaId), garantindo igualdade estrita.
+     */
+    onAlterarEtapaPorIndice(funcionario, linha, valorIndice) {
+      if (valorIndice === '' || valorIndice === null || valorIndice === undefined) {
+        linha.etapaId = ''
+        linha.opId = null
+        linha.descricao = ''
+        linha.tempoPadrao = 0
+        linha.modoTempo = 'padrao'
+        linha.referenciaSelecionadaId = null
+        this.salvarMetaDia()
+        return
+      }
+
+      const opcao = this.opcoesEtapaTodas[Number(valorIndice)]
+      if (!opcao) return
+
+      linha.etapaId = opcao.etapaId
+      linha.opId = opcao.opId
+
+      this.onAlterarEtapa(funcionario, linha)
+    },
+
     // ── FUNCIONÁRIOS ──────────────────────────────────────
     inicializarFuncionarios() {
       this.funcionariosDia = this.funcionarios
@@ -738,9 +739,6 @@ export default {
         descricao: '',
         tempoPadrao: 0,
         opId: null,
-        // Qual tempo está sendo usado na exibição: 'padrao' | 'referencia'
-        // Usado apenas para colorir o toggle na UI — os dois painéis de
-        // cálculo (Ficha Técnica e Referência) sempre existem em paralelo.
         modoTempo: 'padrao',
         referenciaSelecionadaId: null,
         registros: this.criarRegistros(),
@@ -760,7 +758,6 @@ export default {
     },
 
     adicionarLinhaExtra(funcionario) {
-      // funcionario pode ser a fatia do grupo (com _funcRef apontando ao real)
       const real = funcionario._funcRef || funcionario
       if (!Array.isArray(real.linhas)) real.linhas = []
 
@@ -787,34 +784,6 @@ export default {
       this.salvarMetaDia()
     },
 
-    valorEtapaSelecionada(linha) {
-      if (!linha?.etapaId) return ''
-      return `${linha.opId ?? ''}::${linha.etapaId}`
-    },
-
-    
-    onAlterarEtapaSelecionada(funcionario, linha, valorComposto) {
-      if (!valorComposto) {
-        linha.etapaId = ''
-        linha.opId = null
-        linha.descricao = ''
-        linha.tempoPadrao = 0
-        linha.modoTempo = 'padrao'
-        linha.referenciaSelecionadaId = null
-        this.salvarMetaDia()
-        return
-      }
-
-      const separador = valorComposto.indexOf('::')
-      const opId = valorComposto.slice(0, separador)
-      const etapaId = valorComposto.slice(separador + 2)
-
-      linha.etapaId = etapaId
-      linha.opId = opId
-
-      this.onAlterarEtapa(funcionario, linha)
-    },
-
     listarRefsDaEtapa(etapa) {
       if (!etapa) return []
       const refs = etapa.tempo_referencia || etapa.etapa?.tempo_referencia || []
@@ -826,7 +795,7 @@ export default {
           const t = Number(r.tempo_minutos ?? r.tempo_por_peca ?? 0)
           const func = this.funcionarios.find(f => f.email === r.id_funcionario)
           return {
-            id: r.id_funcionario,           // usa email como id único
+            id: r.id_funcionario,
             nomeFunc: func?.nome || r.id_funcionario,
             tempo: t,
           }
@@ -845,14 +814,12 @@ export default {
     },
 
     // ── RESOLVERS DE TEMPO ────────────────────────────────
-
     listarReferenciasOp(opId) {
       if (!opId) return []
       const resultado = []
       const etapasOp = this.etapas.flat().filter(e => e.id_da_op === opId)
 
       for (const func of this.funcionariosDia) {
-        // verifica se o funcionário tem pelo menos uma linha nessa OP
         const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
         if (!temLinhaOp) continue
 
@@ -916,7 +883,6 @@ export default {
           if (t > 0) return t
         }
       }
-      // Fallback: tempo padrão da ficha técnica
       return this.resolverTempoPadrao(linha)
     },
 
@@ -927,8 +893,6 @@ export default {
         etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? linha.tempoPadrao ?? 0
       )
       linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || ''
-      // linha.opId é a fonte de verdade (definida na seleção composta ou
-      // na restauração); só usamos o id_da_op da etapa como fallback.
       linha.opId = linha.opId || etapa?.id_da_op || null
 
       const tRef = this.resolverTempoReferencia(funcionarioReal, linha)
@@ -942,44 +906,21 @@ export default {
     },
 
     onAlterarEtapa(funcionario, linha) {
-      // Funcionário pode ser a fatia do grupo (com _funcRef apontando ao real).
       const real = funcionario?._funcRef || funcionario
       this.aplicarDadosDaEtapa(real, linha)
       this.salvarMetaDia()
     },
 
-    /**
-     * Busca uma etapa por id_da_funcao, restringindo à OP informada.
-     *
-     * Isso é o núcleo da correção: duas fichas técnicas diferentes podem
-     * reaproveitar o mesmo id_da_funcao para uma etapa (mesmo nome, mesmo
-     * tempo padrão) em OPs distintas. Sem o filtro por opId, a primeira
-     * etapa encontrada no array global "vencia" e todos os cálculos
-     * (tempo padrão, tempo de referência, capacidade, eficiência) de uma
-     * OP podiam acabar usando os dados da etapa da OUTRA OP.
-     *
-     * @param {string} etapaId - id_da_funcao da etapa
-     * @param {string|null} opId - id_da_op para escopar a busca
-     */
     buscarEtapa(etapaId, opId = null) {
       if (!etapaId) return null
 
       const candidatas = this.etapas.flat().filter(e => {
-        const id = String(e.id_da_funcao || e.etapa?.id_da_funcao)
-        return id === String(etapaId)
-      })
-
-      console.log({
-        etapaId,
-        opId,
-        candidatas
+        const id = e.id_da_funcao || e.etapa?.id_da_funcao
+        return id === etapaId
       })
 
       if (opId != null && opId !== '') {
-        const match = candidatas.find(
-          e => String(e.id_da_op) === String(opId)
-        )
-
+        const match = candidatas.find(e => e.id_da_op === opId)
         if (match) return match
       }
 
@@ -1002,6 +943,57 @@ export default {
     calcularTotalLinha(linha) {
       if (!linha?.registros) return 0
       return Object.values(linha.registros).reduce((s, r) => s + Number(r?.quantidade || 0), 0)
+    },
+
+    /**
+     * Soma dos minutos efetivamente utilizados em uma linha (apenas
+     * registros com produção > 0). Extraído como método reutilizável
+     * para não duplicar este padrão de soma nas eficiências e no PDF.
+     */
+    calcularTempoUtilizadoLinha(linha) {
+      if (!linha?.registros) return 0
+      return Object.values(linha.registros).reduce((soma, reg) => {
+        if (reg && reg.quantidade > 0) return soma + (reg.tempoProduzido || 60)
+        return soma
+      }, 0)
+    },
+
+    /**
+     * Eficiência (Ficha Técnica) de UMA linha isolada — usado no PDF para
+     * detalhar por etapa/funcionário sem misturar com as demais linhas do
+     * mesmo funcionário (diferente de calcularEficienciaFuncionarioPadrao,
+     * que soma TODAS as linhas do funcionário).
+     */
+    calcularEficienciaLinhaPadrao(linha) {
+      const tempo = this.resolverTempoPadrao(linha)
+      let somaProduzida = 0
+      let somaTempo = 0
+      for (const reg of Object.values(linha?.registros || {})) {
+        if (reg && reg.quantidade > 0) {
+          somaProduzida += reg.quantidade * tempo
+          somaTempo += reg.tempoProduzido || 60
+        }
+      }
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
+    },
+
+    /**
+     * Eficiência (Tempo de Referência) de uma linha isolada — equivalente
+     * ao método acima, mas usando o tempo efetivo de referência.
+     */
+    calcularEficienciaLinhaReferencia(funcionario, linha) {
+      const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
+      let somaProduzida = 0
+      let somaTempo = 0
+      for (const reg of Object.values(linha?.registros || {})) {
+        if (reg && reg.quantidade > 0) {
+          somaProduzida += reg.quantidade * tempo
+          somaTempo += reg.tempoProduzido || 60
+        }
+      }
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
     },
 
     calcularTotalFuncionario(funcionario) {
@@ -1081,7 +1073,6 @@ export default {
         }
       }
 
-      // Sem registros ainda: estima pela configuração do turno
       if (!tempoRegistrado) {
         const minutosUteis = (this.horasVisiveis?.length || 1) * 60
         for (const func of this.funcionariosDia) {
@@ -1164,7 +1155,6 @@ export default {
         }
       }
 
-      // Sem registros ainda: estima pela configuração do turno
       if (!tempoRegistrado) {
         const minutosUteis = (this.horasVisiveis?.length || 1) * 60
         for (const func of this.funcionariosDia) {
@@ -1231,7 +1221,6 @@ export default {
     }, 1500),
 
     // ── META ──────────────────────────────────────────────
-    // Payload idêntico ao original — zero campos de tempo adicionados
     salvarMetaDia: debounce(function () {
       const pecasAtivas = this.opsAtivasComPeca
       if (!pecasAtivas.length) return
@@ -1377,13 +1366,122 @@ export default {
           funcionario.linhas.push(linha)
         }
 
-        // Remove o slot inicial em branco (sem etapa) quando já existe ao
-        // menos uma alocação real, para não deixar uma linha vazia
-        // redundante na tabela.
         if (funcionario.linhas.length > 1) {
           const comEtapa = funcionario.linhas.filter(l => l.etapaId)
           if (comEtapa.length) funcionario.linhas = comEtapa
         }
+      }
+    },
+
+    // ── PDF ───────────────────────────────────────────────
+    /**
+     * Monta o objeto de dados (formato documentado em
+     * src/utils/gerarPdfProducao.js) usando SOMENTE informações e
+     * cálculos já existentes na tela — nenhum campo é inventado aqui.
+     * Um bloco por OP ativa, cada um com sua própria tabela de
+     * funcionários e de etapas.
+     */
+    montarDadosParaPdf() {
+      return {
+        emitidoEm: new Date(),
+        estabelecimento: this.store.pegar_usuario?.cnpj || '',
+        dataProducao: this.dataSelecionada,
+        turno: this.turnoAtivo === 'manha' ? 'Manhã' : 'Tarde',
+        ops: this.opsAtivasComPeca.map(op => this.montarDadosDaOpParaPdf(op)),
+      }
+    },
+
+    montarDadosDaOpParaPdf(op) {
+      const peca = this.pecas.find(p => p.id_da_op === op.pecaId)
+      const horasDisponiveisMin = (this.horasVisiveis?.length || 0) * 60
+
+      const funcionariosDaOp = []
+      const etapasMapa = new Map()
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId !== op.pecaId || !linha.etapaId) continue
+
+          const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
+          const descricaoEtapa = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || '—'
+          const tempoUtilizado = this.calcularTempoUtilizadoLinha(linha)
+          const producaoLinha = this.calcularTotalLinha(linha)
+
+          funcionariosDaOp.push({
+            nome: func.nome || func.email,
+            etapa: descricaoEtapa,
+            tempoUtilizado,
+            tempoReferencia: this.resolverTempoEfetivoReferencia(func, linha),
+            producaoRealizada: producaoLinha,
+            eficienciaFicha: this.calcularEficienciaLinhaPadrao(linha),
+            eficienciaReferencia: this.calcularEficienciaLinhaReferencia(func, linha),
+          })
+
+          if (!etapasMapa.has(linha.etapaId)) {
+            etapasMapa.set(linha.etapaId, {
+              descricao: descricaoEtapa,
+              tempoPadrao: this.resolverTempoPadrao(linha),
+              funcionarios: new Set(),
+              producao: 0,
+              tempoUtilizado: 0,
+            })
+          }
+
+          const infoEtapa = etapasMapa.get(linha.etapaId)
+          infoEtapa.funcionarios.add(func.email)
+          infoEtapa.producao += producaoLinha
+          infoEtapa.tempoUtilizado += tempoUtilizado
+        }
+      }
+
+      const funcionariosAlocados = this.calcularFuncionariosOp(op.pecaId)
+      const tempoDisponivel = funcionariosAlocados * horasDisponiveisMin
+      const tempoUtilizadoTotal = funcionariosDaOp.reduce((soma, f) => soma + f.tempoUtilizado, 0)
+
+      const dadosOp = {
+        numero: op.pecaId,
+        titulo: this.nomeDaOp(op.pecaId),
+        meta: op.metaDia || 0,
+        producaoRealizada: this.calcularTotalOp(op.pecaId),
+        funcionariosAlocados,
+        eficienciaFicha: this.calcularEficienciaOpPadrao(op.pecaId),
+        eficienciaReferencia: this.calcularEficienciaOpReferencia(op.pecaId),
+        capacidadeFicha: this.calcularCapacidadeOpPadrao(op.pecaId),
+        capacidadeReferencia: this.calcularCapacidadeOpReferencia(op.pecaId),
+        tempoDisponivel,
+        tempoUtilizado: tempoUtilizadoTotal,
+        ocupacao: tempoDisponivel ? Math.round((tempoUtilizadoTotal / tempoDisponivel) * 100) : 0,
+        funcionarios: funcionariosDaOp,
+        etapas: [...etapasMapa.values()].map(e => ({
+          descricao: e.descricao,
+          tempoPadrao: e.tempoPadrao,
+          tempoUtilizado: e.tempoUtilizado,
+          funcionariosAlocados: e.funcionarios.size,
+          producao: e.producao,
+          eficiencia: e.tempoUtilizado
+            ? Math.round(((e.producao * e.tempoPadrao) / e.tempoUtilizado) * 100)
+            : 0,
+        })),
+      }
+
+      // Só entra no relatório se o campo realmente existir no cadastro da
+      // peça — nunca inventamos "Cliente" ou "Observações" fictícios.
+      if (peca?.cliente) dadosOp.cliente = peca.cliente
+      if (peca?.observacoes) dadosOp.observacoes = peca.observacoes
+
+      return dadosOp
+    },
+
+    async onClicarGerarPdf() {
+      if (this.gerandoPdf) return
+      this.gerandoPdf = true
+      try {
+        await gerarPdfProducao(this.montarDadosParaPdf())
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Não foi possível gerar o PDF da produção.', 'error')
+      } finally {
+        this.gerandoPdf = false
       }
     },
   },
@@ -1391,9 +1489,7 @@ export default {
 </script>
 
 <style scoped>
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 .content-wrapper {
   flex-grow: 1;
@@ -1402,9 +1498,7 @@ export default {
   min-height: 100vh;
 }
 
-.page-section {
-  padding: 1.2rem;
-}
+.page-section { padding: 1.2rem; }
 
 /* ── HEADER ─────────────────────────────────────────── */
 .header {
@@ -1416,11 +1510,28 @@ export default {
   flex-wrap: wrap;
 }
 
-.header-actions {
+.header-actions { display: flex; align-items: center; gap: 10px; }
+
+.btn-gerar-pdf {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d6632, #118a43);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
+  transition: .2s;
+  font-family: inherit;
 }
+
+.btn-gerar-pdf:hover:not(:disabled) { filter: brightness(1.05); }
+.btn-gerar-pdf:disabled { opacity: .6; cursor: not-allowed; }
 
 .socket-status {
   display: flex;
@@ -1435,10 +1546,7 @@ export default {
   color: #d23b3b;
 }
 
-.socket-status.online {
-  background: #e7f8ef;
-  color: #0d7a3f;
-}
+.socket-status.online { background: #e7f8ef; color: #0d7a3f; }
 
 .status-dot {
   width: 8px;
@@ -1464,15 +1572,8 @@ export default {
 }
 
 @keyframes pulseFade {
-
-  0%,
-  100% {
-    opacity: .5;
-  }
-
-  50% {
-    opacity: 1;
-  }
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
 }
 
 /* ── SETUP CARD ─────────────────────────────────────── */
@@ -1482,7 +1583,7 @@ export default {
   border: 1px solid #dceee3;
   padding: 1.4rem;
   margin-bottom: 1rem;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, .03);
+  box-shadow: 0 4px 18px rgba(0,0,0,.03);
 }
 
 .setup-topbar {
@@ -1494,11 +1595,7 @@ export default {
   flex-wrap: wrap;
 }
 
-.setup-title {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
+.setup-title { display: flex; align-items: center; gap: 14px; }
 
 .setup-icon {
   width: 52px;
@@ -1510,19 +1607,11 @@ export default {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
   font-size: 22px;
-  box-shadow: 0 8px 20px rgba(13, 102, 50, .2);
+  box-shadow: 0 8px 20px rgba(13,102,50,.2);
 }
 
-.setup-title h3 {
-  margin: 0;
-  font-size: 23px;
-  color: #052e14;
-}
-
-.setup-title span {
-  font-size: 14px;
-  color: #72907e;
-}
+.setup-title h3 { margin: 0; font-size: 23px; color: #052e14; }
+.setup-title span { font-size: 14px; color: #72907e; }
 
 .turno-switch {
   display: flex;
@@ -1545,28 +1634,16 @@ export default {
   font-size: 14px;
 }
 
-.turno-btn:hover {
-  background: rgba(13, 102, 50, .08);
-}
+.turno-btn:hover { background: rgba(13,102,50,.08); }
 
 .turno-btn.active {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
-  box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
+  box-shadow: 0 4px 14px rgba(13,102,50,.25);
 }
 
-.turno-config-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.horarios-config-inline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.turno-config-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.horarios-config-inline { display: flex; align-items: center; gap: 6px; }
 
 .horario-select-sm {
   height: 42px;
@@ -1583,28 +1660,15 @@ export default {
 
 .horario-select-sm:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
   outline: none;
 }
 
-.horario-ate {
-  font-size: 13px;
-  font-weight: 700;
-  color: #648673;
-}
+.horario-ate { font-size: 13px; font-weight: 700; color: #648673; }
 
 /* ── OPs SECTION ────────────────────────────────────── */
-.ops-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.ops-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
+.ops-section { display: flex; flex-direction: column; gap: 1rem; }
+.ops-list { display: flex; flex-wrap: wrap; gap: 1rem; }
 
 .op-card {
   flex: 1 1 340px;
@@ -1615,14 +1679,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: .75rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .03);
+  box-shadow: 0 2px 10px rgba(0,0,0,.03);
 }
 
-.op-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+.op-card-header { display: flex; align-items: center; justify-content: space-between; }
 
 .op-badge {
   font-size: 12px;
@@ -1636,16 +1696,10 @@ export default {
 }
 
 .btn-remove-op {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 8px;
-  background: #ffecec;
-  color: #d93b3b;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  line-height: 1;
+  width: 26px; height: 26px;
+  border: none; border-radius: 8px;
+  background: #ffecec; color: #d93b3b;
+  font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
 }
 
 .op-fields {
@@ -1655,18 +1709,9 @@ export default {
   align-items: end;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.field { display: flex; flex-direction: column; gap: 6px; }
 
-.field label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #648673;
-  padding-left: 2px;
-}
+.field label { font-size: 12px; font-weight: 700; color: #648673; padding-left: 2px; }
 
 .field select {
   height: 46px;
@@ -1682,7 +1727,7 @@ export default {
 
 .field select:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
   outline: none;
 }
 
@@ -1699,208 +1744,118 @@ export default {
 
 .meta-input-wrap:focus-within {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
+  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
 }
 
 .meta-input {
-  flex: 1;
-  height: 100%;
-  border: none;
-  background: transparent;
-  padding: 0 12px;
-  font-size: 17px;
-  font-weight: 700;
-  color: #052e14;
+  flex: 1; height: 100%; border: none; background: transparent;
+  padding: 0 12px; font-size: 17px; font-weight: 700; color: #052e14;
 }
 
-.meta-input:focus {
-  outline: none;
-}
+.meta-input:focus { outline: none; }
 
 .meta-suffix {
-  height: 100%;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  background: #f2f8f4;
-  border-left: 1px solid #e2eee7;
-  color: #5d8470;
-  font-size: 12px;
-  font-weight: 700;
+  height: 100%; padding: 0 12px;
+  display: flex; align-items: center;
+  background: #f2f8f4; border-left: 1px solid #e2eee7;
+  color: #5d8470; font-size: 12px; font-weight: 700;
 }
 
 .total-box {
-  height: 46px;
-  border-radius: 13px;
+  height: 46px; border-radius: 13px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 23px;
-  font-weight: 800;
-  box-shadow: 0 6px 16px rgba(13, 102, 50, .2);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-size: 23px; font-weight: 800;
+  box-shadow: 0 6px 16px rgba(13,102,50,.2);
 }
 
 .meta-progress {
-  margin-top: .25rem;
-  padding: .85rem 1rem;
+  margin-top: .25rem; padding: .85rem 1rem;
   border-radius: 14px;
   background: linear-gradient(135deg, #f7fcf9, #edf7f1);
   border: 1px solid #dceee3;
 }
 
 .meta-progress-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: #537664;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px; font-size: 13px; color: #537664;
 }
 
-.meta-progress-top strong {
-  color: #052e14;
-  font-size: 14px;
-}
+.meta-progress-top strong { color: #052e14; font-size: 14px; }
 
 .progress-bar {
-  width: 100%;
-  height: 12px;
-  border-radius: 999px;
-  background: #dceee3;
-  overflow: hidden;
+  width: 100%; height: 12px; border-radius: 999px;
+  background: #dceee3; overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%;
-  border-radius: inherit;
+  height: 100%; border-radius: inherit;
   background: linear-gradient(90deg, #0d6632, #20b15a);
   transition: width .3s ease;
 }
 
 .progress-footer {
-  margin-top: 8px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #648673;
+  margin-top: 8px; display: flex; justify-content: space-between;
+  font-size: 12px; color: #648673;
 }
 
 .btn-add-op {
   align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 18px;
-  border: 2px dashed #b2d9c0;
-  border-radius: 13px;
-  background: transparent;
-  color: #0d6632;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: .2s;
-  font-family: inherit;
+  display: flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 18px;
+  border: 2px dashed #b2d9c0; border-radius: 13px;
+  background: transparent; color: #0d6632;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: .2s; font-family: inherit;
 }
 
-.btn-add-op:hover {
-  background: #edf7f1;
-  border-color: #0d6632;
-}
-
-.btn-add-op span {
-  font-size: 18px;
-  line-height: 1;
-}
+.btn-add-op:hover { background: #edf7f1; border-color: #0d6632; }
+.btn-add-op span { font-size: 18px; line-height: 1; }
 
 .total-geral-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 1rem;
-  padding-top: 1rem;
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 12px; margin-top: 1rem; padding-top: 1rem;
   border-top: 1px solid #e6f2ea;
-  font-size: 14px;
-  font-weight: 700;
-  color: #537664;
+  font-size: 14px; font-weight: 700; color: #537664;
 }
 
 .total-box-sm {
-  min-width: 80px;
-  height: 40px;
-  border-radius: 12px;
+  min-width: 80px; height: 40px; border-radius: 12px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 19px;
-  font-weight: 800;
-  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
+  color: white; display: flex; align-items: center; justify-content: center;
+  font-size: 19px; font-weight: 800;
+  box-shadow: 0 4px 12px rgba(13,102,50,.2);
   padding: 0 16px;
 }
 
 /* ── TABLE ──────────────────────────────────────────── */
 .table-wrapper {
-  background: white;
-  border-radius: 20px;
-  border: 1px solid #e3f0e7;
-  overflow: hidden;
+  background: white; border-radius: 20px;
+  border: 1px solid #e3f0e7; overflow: hidden;
 }
 
-.table-scroll {
-  overflow-x: auto;
-}
+.table-scroll { overflow-x: auto; }
 
 .apontamento-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 1500px;
+  width: 100%; border-collapse: collapse; min-width: 1500px;
   table-layout: fixed;
 }
 
-/* ── COLGROUP: larguras fixas para alinhar cabeçalho e corpo ── */
-.col-func {
-  width: 180px;
-}
-
-.col-etapa {
-  width: 230px;
-}
-
-.col-hora {
-  width: 170px;
-}
-
-.col-total {
-  width: 80px;
-}
-
-.col-efic {
-  width: 100px;
-}
-
-.col-efic-ref {
-  width: 100px;
-}
+.col-func     { width: 180px; }
+.col-etapa    { width: 230px; }
+.col-hora     { width: 170px; }
+.col-total    { width: 80px; }
+.col-efic     { width: 100px; }
+.col-efic-ref { width: 100px; }
 
 .apontamento-table thead {
   background: linear-gradient(90deg, #0d6632, #084d24);
 }
 
 .apontamento-table th {
-  height: 48px;
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
+  height: 48px; color: white; font-size: 13px; font-weight: 700;
   align-content: center;
-  padding: 0 8px;
-  text-align: left;
-  white-space: nowrap;
-  box-sizing: border-box;
+  padding: 0 8px; text-align: left; white-space: nowrap; box-sizing: border-box;
 }
 
 .apontamento-table td {
@@ -1910,148 +1865,62 @@ export default {
   box-sizing: border-box;
 }
 
-/* ── COLUNA FUNCIONÁRIO ─────────────────────────────── */
-.func-col {
-  width: 180px;
-  min-width: 180px;
-  box-sizing: border-box;
-}
+.func-col { width: 180px; min-width: 180px; box-sizing: border-box; }
 
-.func-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.func-info { display: flex; align-items: center; gap: 10px; }
 
 .func-info img {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  object-fit: cover;
-  flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 9px;
+  object-fit: cover; flex-shrink: 0;
 }
 
-.func-info span {
-  font-size: 13px;
-  font-weight: 700;
-  color: #052e14;
-}
+.func-info span { font-size: 13px; font-weight: 700; color: #052e14; }
 
 .extra-tag {
   padding-left: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #5d8972;
+  font-size: 12px; font-weight: 700; color: #5d8972;
 }
 
-/* ── COLUNA ETAPA ───────────────────────────────────── */
-.etapa-col {
-  width: 230px;
-  min-width: 230px;
-  vertical-align: top;
-  padding-top: 10px;
-  box-sizing: border-box;
-}
+.etapa-col { width: 230px; min-width: 230px; vertical-align: top; padding-top: 10px; box-sizing: border-box; }
 
-.etapa-wrap {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
+.etapa-wrap { display: flex; align-items: center; gap: 5px; }
 
 .etapa-select {
-  flex: 1;
-  height: 34px;
-  border-radius: 9px;
-  border: 1px solid #dceee3;
-  padding: 0 8px;
-  font-size: 12px;
-  font-family: inherit;
-  background: white;
+  flex: 1; height: 34px; border-radius: 9px;
+  border: 1px solid #dceee3; padding: 0 8px;
+  font-size: 12px; font-family: inherit; background: white;
   min-width: 0;
 }
 
-.etapa-select:focus {
-  outline: none;
-  border-color: #118a43;
+.etapa-select:focus { outline: none; border-color: #118a43; }
+
+.btn-add-linha, .btn-remove-linha {
+  width: 26px; height: 26px; border: none; border-radius: 7px;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  flex-shrink: 0; line-height: 1; display: flex;
+  align-items: center; justify-content: center;
 }
 
-.btn-add-linha,
-.btn-remove-linha {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 7px;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  flex-shrink: 0;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.btn-add-linha { background: #0d6632; color: white; }
+.btn-remove-linha { background: #ffecec; color: #d93b3b; }
+.linha-extra { background: #f9fcfa; }
 
-.btn-add-linha {
-  background: #0d6632;
-  color: white;
-}
-
-.btn-remove-linha {
-  background: #ffecec;
-  color: #d93b3b;
-}
-
-.linha-extra {
-  background: #f9fcfa;
-}
-
-/* ── SELETOR DE TEMPO ───────────────────────────────── */
-.tempo-toggle-wrap {
-  margin-top: 5px;
-}
+.tempo-toggle-wrap { margin-top: 5px; }
 
 .tempo-select {
-  height: 22px;
-  border-radius: 7px;
-  border: 1px solid #d4e8dc;
-  background: #f2faf5;
-  color: #052e14;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  padding: 0 6px;
-  cursor: pointer;
-  width: 100%;
-  max-width: 240px;
-  transition: border-color .15s;
+  height: 22px; border-radius: 7px;
+  border: 1px solid #d4e8dc; background: #f2faf5;
+  color: #052e14; font-size: 11px; font-weight: 600;
+  font-family: inherit; padding: 0 6px; cursor: pointer;
+  width: 100%; max-width: 240px; transition: border-color .15s;
 }
 
-.tempo-select:focus {
-  outline: none;
-  border-color: #0d6632;
-}
+.tempo-select:focus { outline: none; border-color: #0d6632; }
 
-.sem-referencia {
-  font-size: 10px;
-  color: #b0c5b8;
-  font-style: italic;
-}
+.sem-referencia { font-size: 10px; color: #b0c5b8; font-style: italic; }
 
-/* ── COLUNAS DE HORA ────────────────────────────────── */
-.hora-th {
-  width: 170px;
-  min-width: 170px;
-  text-align: center !important;
-  box-sizing: border-box;
-}
-
-.hora-td {
-  padding: 6px 6px;
-  vertical-align: middle;
-  box-sizing: border-box;
-  position: relative;
-}
+.hora-th { width: 170px; min-width: 170px; text-align: center !important; box-sizing: border-box; }
+.hora-td { padding: 6px 6px; vertical-align: middle; box-sizing: border-box; position: relative; }
 
 .hora-box-outer {
   display: flex;
@@ -2061,8 +1930,6 @@ export default {
   gap: 6px;
 }
 
-/* Bloco esquerdo: input de quantidade + input de minutos,
-   empilhados verticalmente, centralizados como um único bloco. */
 .hora-box-inputs {
   display: flex;
   flex-direction: column;
@@ -2072,54 +1939,27 @@ export default {
 }
 
 .hora-input {
-  width: 52px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid #dceee3;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  transition: .15s;
+  width: 52px; height: 32px; border-radius: 8px;
+  border: 1px solid #dceee3; text-align: center;
+  font-size: 14px; font-weight: 700; font-family: inherit; transition: .15s;
 }
 
-.hora-input:focus {
-  outline: none;
-  border-color: #0d6632;
-}
+.hora-input:focus { outline: none; border-color: #0d6632; }
 
 .hora-input.tem-producao {
-  background: #e9f2ff;
-  border-color: #2b77d9;
-  color: #1454ad;
+  background: #e9f2ff; border-color: #2b77d9; color: #1454ad;
 }
 
-.tempo-wrap {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
+.tempo-wrap { display: flex; align-items: center; gap: 2px; }
 
 .min-input {
-  width: 36px;
-  height: 20px;
-  border-radius: 6px;
-  border: 1px solid #ddebe3;
-  text-align: center;
-  font-size: 10px;
-  background: #f8fcf9;
-  color: #69907b;
+  width: 36px; height: 20px; border-radius: 6px;
+  border: 1px solid #ddebe3; text-align: center;
+  font-size: 10px; background: #f8fcf9; color: #69907b;
 }
 
-.min-label {
-  font-size: 10px;
-  color: #8ca998;
-}
+.min-label { font-size: 10px; color: #8ca998; }
 
-/* ── INDICADORES FT / TR (à direita do input) ───────── */
-/* Posicionamento absoluto no canto direito da célula — não participa
-   do flex, portanto não afeta a posição do input de quantidade.
-   O input continua centralizado na célula, com FT/TR flutuando à direita. */
 .efic-inline-col {
   position: absolute;
   right: 6px;
@@ -2134,18 +1974,18 @@ export default {
 }
 
 .efic-inline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 18px;
-  border-radius: 4px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  line-height: 1;
-  margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 18px;
+    border-radius: 4px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1;
+    margin: 0;
 }
 
 .efic-inline-label {
@@ -2155,23 +1995,15 @@ export default {
   letter-spacing: .02em;
 }
 
-/* TR: borda tracejada, sem fundo sólido */
 .efic-inline--ref {
   background: transparent !important;
   border: 1px dashed currentColor;
 }
 
-/* ── BADGES DE EFICIÊNCIA POR FUNCIONÁRIO ───────────── */
 .efic-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 56px;
-  height: 28px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 56px; height: 28px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; padding: 0 10px;
 }
 
 .efic-badge--ref {
@@ -2179,50 +2011,16 @@ export default {
   border: 1.5px dashed currentColor;
 }
 
-/* ── CORES COMPARTILHADAS ────────────────────────────── */
-.efic-alta {
-  background: #d4f1df;
-  color: #0c6b34;
-}
+.efic-alta { background: #d4f1df; color: #0c6b34; }
+.efic-media { background: #fff4cf; color: #8a6a00; }
+.efic-baixa { background: #ffe8e8; color: #b12626; }
 
-.efic-media {
-  background: #fff4cf;
-  color: #8a6a00;
-}
+.total-col { width: 80px; min-width: 80px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; box-sizing: border-box; }
+.efic-col  { width: 100px; min-width: 100px; text-align: center; box-sizing: border-box; }
 
-.efic-baixa {
-  background: #ffe8e8;
-  color: #b12626;
-}
+.efic-col--ref { background: rgba(109, 72, 201, 0.05); }
 
-/* ── COLUNAS TOTAIS / EFIC ───────────────────────────── */
-.total-col {
-  width: 80px;
-  min-width: 80px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: #052e14;
-  box-sizing: border-box;
-}
-
-.efic-col {
-  width: 100px;
-  min-width: 100px;
-  text-align: center;
-  box-sizing: border-box;
-}
-
-.efic-col--ref {
-  background: rgba(109, 72, 201, 0.05);
-}
-
-/* ── MÓDULOS POR OP ─────────────────────────────────── */
-.ops-modulos-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
+.ops-modulos-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
 
 .op-module-header {
   display: flex;
@@ -2235,224 +2033,40 @@ export default {
   border-radius: 14px;
   padding: 14px 20px;
   margin-top: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .02);
+  box-shadow: 0 2px 8px rgba(0,0,0,.02);
 }
 
-.op-module-header--single {
-  background: #f8fcf9;
-  border-color: #e3f0e7;
-  box-shadow: none;
-}
+.op-module-header--single { background: #f8fcf9; border-color: #e3f0e7; box-shadow: none; }
+.op-module-header--empty { background: #fff8e1; border-color: #f0d97a; }
 
-.op-module-header--empty {
-  background: #fff8e1;
-  border-color: #f0d97a;
-}
-
-.op-module-badge {
-  font-size: 14px;
-  font-weight: 800;
-  color: #0d6632;
-  letter-spacing: .02em;
-}
-
-.op-module-header--empty .op-module-badge {
-  color: #8a6a00;
-}
+.op-module-badge { font-size: 14px; font-weight: 800; color: #0d6632; letter-spacing: .02em; }
+.op-module-header--empty .op-module-badge { color: #8a6a00; }
 
 .op-module-stats {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: #537664;
-  font-weight: 700;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  font-size: 12px; color: #537664; font-weight: 700;
 }
 
-.op-module-stats .stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.op-module-stats .stat strong {
-  color: #052e14;
-  font-weight: 800;
-  font-size: 13px;
-}
-
-/* ── PAINÉIS DE CÁLCULO DUPLO ───────────────────────── */
-.calc-panels {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  flex-wrap: wrap;
-  flex: 1;
-  justify-content: flex-end;
-}
-
-.calc-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 12px;
-  min-width: 220px;
-}
-
-.calc-panel--padrao {
-  background: linear-gradient(135deg, #f0faf5, #e7f8ef);
-  border: 1px solid #b2d9c0;
-}
-
-.calc-panel--referencia {
-  background: linear-gradient(135deg, #f5f0ff, #ede8ff);
-  border: 1px solid #c8b7f0;
-}
-
-.calc-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-.calc-panel--padrao .calc-panel-title {
-  color: #0d6632;
-}
-
-.calc-panel--referencia .calc-panel-title {
-  color: #5030b0;
-}
-
-.calc-panel-icon {
-  font-size: 14px;
-}
-
-.calc-panel-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-}
-
-.calc-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.calc-stat-label {
-  font-size: 11px;
-  color: #7a8d80;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.calc-stat strong {
-  font-size: 15px;
-  font-weight: 800;
-  color: #052e14;
-}
-
-/* eficiência colorida dentro do painel */
-.calc-stat strong.efic-alta {
-  color: #0c6b34;
-}
-
-.calc-stat strong.efic-media {
-  color: #8a6a00;
-}
-
-.calc-stat strong.efic-baixa {
-  color: #b12626;
-}
-
-.calc-panel-divider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  font-size: 13px;
-  font-weight: 800;
-  color: #a0b8a8;
-  letter-spacing: .05em;
-  align-self: center;
-}
+.op-module-stats .stat { display: inline-flex; align-items: center; gap: 4px; }
+.op-module-stats .stat strong { color: #052e14; font-weight: 800; font-size: 13px; }
 
 /* ── RESPONSIVO ─────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .content-wrapper {
-    padding-left: 0;
-  }
-
-  .page-section {
-    padding: 1rem;
-  }
-
-  .op-fields {
-    grid-template-columns: 1fr;
-  }
+  .content-wrapper { padding-left: 0; }
+  .page-section { padding: 1rem; }
+  .op-fields { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
-  .header {
-    align-items: stretch;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .date-input {
-    width: 100%;
-  }
-
-  .turno-switch {
-    width: 100%;
-  }
-
-  .turno-btn {
-    flex: 1;
-  }
-
-  .progress-footer {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .ops-list {
-    flex-direction: column;
-  }
-
-  .turno-config-group {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .horarios-config-inline {
-    width: 100%;
-  }
-
-  .horario-select-sm {
-    flex: 1;
-  }
-
-  .calc-panels {
-    justify-content: stretch;
-  }
-
-  .calc-panel {
-    min-width: 100%;
-  }
-
-  .calc-panel-divider {
-    padding: 6px 0;
-  }
+  .header { align-items: stretch; }
+  .header-actions { width: 100%; flex-wrap: wrap; }
+  .date-input { width: 100%; }
+  .turno-switch { width: 100%; }
+  .turno-btn { flex: 1; }
+  .progress-footer { flex-direction: column; gap: 4px; }
+  .ops-list { flex-direction: column; }
+  .turno-config-group { width: 100%; flex-direction: column; align-items: stretch; }
+  .horarios-config-inline { width: 100%; }
+  .horario-select-sm { flex: 1; }
 }
 </style>

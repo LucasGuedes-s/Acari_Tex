@@ -466,5 +466,108 @@ router.post(
     }
   }
 );
+router.post(
+  "/tempo-referencia",
+  jwtMiddleware,
+  async (req, res) => {
+    try {
+      const cnpj = req.user.cnpj;
 
+      const {
+        id_funcionario,
+        id_da_funcao,
+        tempo_minutos,
+        tipo_medicao = "manual",
+      } = req.body;
+
+      if (
+        !id_funcionario ||
+        !id_da_funcao ||
+        tempo_minutos === undefined ||
+        tempo_minutos === null
+      ) {
+        return res.status(400).json({
+          erro: "Campos obrigatórios não informados.",
+        });
+      }
+
+      // Verifica funcionário
+      const funcionario = await prisma.Usuarios.findFirst({
+        where: {
+          email: id_funcionario,
+          estabelecimentoCnpj: cnpj,
+        },
+      });
+
+      if (!funcionario) {
+        return res.status(404).json({
+          erro: "Funcionário não encontrado.",
+        });
+      }
+
+      // Verifica etapa
+      const etapa = await prisma.etapa.findFirst({
+        where: {
+          id_da_funcao: Number(id_da_funcao),
+          id_Estabelecimento: cnpj,
+        },
+      });
+
+      if (!etapa) {
+        return res.status(404).json({
+          erro: "Etapa não encontrada.",
+        });
+      }
+
+      // Procura um tempo de referência já existente
+      const existente = await prisma.TempoReferencia.findFirst({
+        where: {
+          estabelecimentoCnpj: cnpj,
+          id_funcionario,
+          id_da_funcao: Number(id_da_funcao),
+          opId: null,
+        },
+      });
+
+      let tempoReferencia;
+
+      if (existente) {
+        tempoReferencia = await prisma.TempoReferencia.update({
+          where: {
+            id: existente.id,
+          },
+          data: {
+            tempo_minutos: Number(tempo_minutos),
+            tipo_medicao,
+            data_medicao: new Date(),
+          },
+        });
+      } else {
+        tempoReferencia = await prisma.TempoReferencia.create({
+          data: {
+            estabelecimentoCnpj: cnpj,
+            id_funcionario,
+            id_da_funcao: Number(id_da_funcao),
+            tempo_minutos: Number(tempo_minutos),
+            tipo_medicao,
+            data_medicao: new Date(),
+            opId: null,
+          },
+        });
+      }
+
+      return res.status(existente ? 200 : 201).json({
+        sucesso: true,
+        acao: existente ? "atualizado" : "criado",
+        tempoReferencia,
+      });
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        erro: error.message || "Erro ao salvar tempo de referência.",
+      });
+    }
+  }
+);
 module.exports = router;
