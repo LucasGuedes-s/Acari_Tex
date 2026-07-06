@@ -1,7 +1,6 @@
 const intercorrencia = require('../Services/Intercorrencias.services');
 async function postIntercorrencia(req, res, next){  
     try {
-        console.log('Chegou no controller');
         const intercorrencias = await intercorrencia.postIntercorrencia(req);
         res.status(201).json({intercorrencias});
     } catch (err) {

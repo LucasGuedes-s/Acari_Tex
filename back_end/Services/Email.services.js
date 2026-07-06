@@ -35,7 +35,6 @@ async function enviarEmailAlteracaoSenha(destinatario, nomeUsuario) {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email enviado: ', info.response);
   } catch (error) {
     console.error('Erro ao enviar e-mail:', error);
   }

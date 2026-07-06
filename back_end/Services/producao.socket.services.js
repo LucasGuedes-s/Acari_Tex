@@ -14,7 +14,6 @@ async function deleteAll() {
     }
   })
 
-  console.log(`Serão removidos ${total} registros`)
 }
 
 // deleteAll() 

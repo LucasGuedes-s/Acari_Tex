@@ -130,7 +130,6 @@ async function postFuncionario(funcionario, cnpj) {
     funcionario.fotoUrl = "https://pub-f5850e3c1d5b490ea1e15aacf2014355.r2.dev/uploads/648199935_18057936629679738_8568387996695226498_n.jpg"
   }
   const Estabelecimentocnpj = estabelecimento.cnpj;
-  console.log("CNPJ do Estabelecimento encontrado:", Estabelecimentocnpj);
   const addFuncionario = await prisma.usuarios.create({
     data: {
       email: funcionario.email,

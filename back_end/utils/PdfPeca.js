@@ -98,7 +98,6 @@ async function gerarPdfPeca(peca) {
 
   doc.end();
 
-  console.log("PDF gerado com sucesso:", filePath);
 }
 
 // Executar

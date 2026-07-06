@@ -2,7 +2,6 @@
   <div class="d-flex flex-column flex-xl-row">
     <SidebarNav />
 
-
     <main class="content-wrapper">
       <carregandoTela v-if="loading" />
       <div v-else class="page-body">
@@ -79,12 +78,6 @@
                 <span v-if="etapa.grupoEtapa" class="card-badge">{{ etapa.grupoEtapa.nome }}</span>
               </div>
               <div class="card-actions">
-                <button class="card-btn card-btn--time" title="Cronoanálise" @click="adicionarTempoReferencia(etapa)">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                </button>
                 <button class="card-btn card-btn--time" title="Cronoanálise" @click="abrirModalCronoanalise(etapa)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="10" />
@@ -113,8 +106,18 @@
 
               <!-- TEMPO PADRÃO -->
               <div class="tempo-principal">
-                <div class="tempo-label">
-                  Tempo Padrão
+                <div class="tempo-header">
+                  <div class="tempo-label">Tempo Padrão</div>
+                  <button
+                    class="btn-add-tempo"
+                    title="Adicionar tempo de referência"
+                    @click="adicionarTempoReferencia(etapa)"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
                 </div>
 
                 <div class="tempo-display">
@@ -122,39 +125,42 @@
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
-
-                  <span class="tempo-value">
-                    {{ etapa.tempo_padrao || '—' }}
-                  </span>
-
+                  <span class="tempo-value">{{ formatarMinutos(etapa.tempo_padrao) }}</span>
                   <span class="tempo-unit">min</span>
                 </div>
 
-                <small class="tempo-origem">
-                  Referência da ficha
-                </small>
+                <small class="tempo-origem">Referência da ficha</small>
               </div>
 
-              <!-- CRONOANÁLISE -->
-              <div v-if="etapa.tempo_referencia?.[0]?.tempo_por_peca" class="crono-box">
+              <!-- TEMPOS DE REFERÊNCIA (todos os funcionários) -->
+              <div v-if="etapa.tempo_referencia && etapa.tempo_referencia.length" class="crono-box">
                 <div class="crono-header">
-                  <span>Cronoanálise</span>
-
-                  <span class="crono-status" :class="{
-                    melhor: etapa.tempo_referencia[0].tempo_por_peca < etapa.tempo_padrao,
-                    pior: etapa.tempo_referencia[0].tempo_por_peca > etapa.tempo_padrao
-                  }">
-                    {{
-                      etapa.tempo_referencia[0].tempo_por_peca < etapa.tempo_padrao ? 'Melhor' : 'Acima' }} </span>
+                  <span>Tempos de Referência</span>
+                  <span class="crono-count">{{ etapa.tempo_referencia.length }}</span>
                 </div>
 
-                <div class="crono-tempo">
-                  {{ etapa.tempo_referencia[0].tempo_por_peca }} min
-                </div>
+                <ul class="ref-list">
+                  <li
+                    v-for="ref in etapa.tempo_referencia"
+                    :key="ref.id ?? ref.id_funcionario"
+                    class="ref-item"
+                  >
+                    <span class="ref-nome">
+                      {{ ref.nome_funcionario || ref.usuario?.nome || ref.id_funcionario }}
+                    </span>
+                    <span
+                      class="ref-tempo"
+                      :class="{
+                        melhor: etapa.tempo_padrao && ref.tempo_minutos < etapa.tempo_padrao,
+                        pior: etapa.tempo_padrao && ref.tempo_minutos > etapa.tempo_padrao
+                      }"
+                    >
+                      {{ formatarMinutos(ref.tempo_minutos) }} min
+                    </span>
+                  </li>
+                </ul>
 
-                <small class="crono-info">
-                  Tempo real medido na fábrica
-                </small>
+                <small class="crono-info">Tempo real medido na fábrica</small>
               </div>
 
             </div>
@@ -641,7 +647,6 @@
 
   </div>
 </template>
-
 <script>
 import SidebarNav from "@/components/Sidebar.vue"
 import carregandoTela from "@/components/carregandoTela.vue"
@@ -868,7 +873,13 @@ export default {
       this.rodando = false
       clearInterval(this.intervalo)
     },
-
+    formatarMinutos(valor) {
+      if (valor === null || valor === undefined || valor === '') return '—'
+      return Number(valor).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    },
     usarTempo() {
       const minutos = Math.round(this.tempo / 60)
       this.etapaEdicao.tempo_padrao = minutos
@@ -1154,7 +1165,6 @@ export default {
   },
 }
 </script>
-
 <style scoped>
 /* ── Root ── */
 .page-root {
@@ -1425,36 +1435,67 @@ export default {
 .card-body {
   padding: 1.25rem;
   flex: 1;
-}
-
-.tempo-container {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+/* ── Tempo Padrão ── */
 .tempo-principal {
   background: #f8fafc;
   border-radius: 14px;
   padding: 14px;
 }
 
+.tempo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
 .tempo-label {
   font-size: 12px;
   font-weight: 600;
   color: #64748b;
-  margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: .5px;
 }
 
-.tempo-display {
+.btn-add-tempo {
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  background: #0e6632;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-add-tempo:hover {
+  background: #0a4d26;
+  transform: scale(1.08);
+}
+
+.tempo-display {
+  display: flex;
+  align-items: baseline;
   gap: 6px;
 }
 
+.tempo-display svg {
+  color: #0e6632;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 .tempo-value {
+  font-family: "Syne", sans-serif;
   font-size: 24px;
   font-weight: 700;
   color: #0f172a;
@@ -1463,6 +1504,7 @@ export default {
 .tempo-unit {
   font-size: 13px;
   color: #64748b;
+  font-weight: 500;
 }
 
 .tempo-origem {
@@ -1472,6 +1514,7 @@ export default {
   font-size: 11px;
 }
 
+/* ── Tempos de Referência ── */
 .crono-box {
   border: 1px solid #dbeafe;
   background: #f8fbff;
@@ -1492,6 +1535,15 @@ export default {
   color: #1e293b;
 }
 
+.crono-count {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 .crono-status {
   padding: 4px 8px;
   border-radius: 999px;
@@ -1509,43 +1561,50 @@ export default {
   color: #991b1b;
 }
 
-.crono-tempo {
-  font-size: 18px;
-  font-weight: 700;
-  color: #2563eb;
-}
-
 .crono-info {
   color: #64748b;
   font-size: 11px;
 }
 
-.tempo-display {
+.ref-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  background: #f0faf4;
-  border: 1.5px solid #d0edda;
-  border-radius: 10px;
-  padding: 12px 14px;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.tempo-display svg {
-  color: #0e6632;
+.ref-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #1e293b;
+  padding: 4px 0;
+}
+
+.ref-nome {
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref-tempo {
+  font-weight: 700;
+  color: #2563eb;
   flex-shrink: 0;
 }
 
-.tempo-value {
-  font-family: "Syne", sans-serif;
-  font-size: 24px;
-  font-weight: 700;
-  color: #052e14;
+.ref-tempo.melhor {
+  color: #166534;
 }
 
-.tempo-unit {
-  font-size: 13px;
-  color: #7aaa8c;
-  font-weight: 500;
+.ref-tempo.pior {
+  color: #991b1b;
 }
 
 /* ── Empty State ── */
@@ -2190,6 +2249,26 @@ textarea {
 .modal-fade-enter-from .modal-box,
 .modal-fade-leave-to .modal-box {
   transform: scale(0.95) translateY(12px);
+}
+
+/* ── Checklist de etapas (Novo Grupo) ── */
+.etapas-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(10, 80, 40, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #0f1f16;
 }
 
 /* ── Responsivo ── */
