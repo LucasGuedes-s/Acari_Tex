@@ -297,7 +297,8 @@ import router from '@/router'
 import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
-import { gerarPdfProducao } from '@/utils/Gerarpdfproducao.js'
+import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
+import { calcularEficiencia, calcularCapacidade, calcularTempoDisponivelTotal, resolverSam } from '@/utils/calculosProducao'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
@@ -871,19 +872,37 @@ export default {
       return t > 0 ? t : null
     },
 
+    /**
+     * Tempo efetivo (SAM) para o painel "Tempo de Referência": respeita a
+     * escolha do usuário no toggle da linha (referência específica ou
+     * tempo padrão). Delegado a `resolverSam` para não duplicar a regra
+     * "referência quando existir, senão padrão" em mais de um lugar.
+     */
     resolverTempoEfetivoReferencia(funcionario, linha) {
+      let tempoReferencia = null
       if (linha?.modoTempo === 'referencia' && linha?.referenciaSelecionadaId) {
         const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
         const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
         const ref = Array.isArray(refs)
           ? refs.find(r => r && r.id_funcionario === linha.referenciaSelecionadaId)
           : null
-        if (ref) {
-          const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
-          if (t > 0) return t
-        }
+        const t = Number(ref?.tempo_minutos ?? ref?.tempo_por_peca ?? 0)
+        if (t > 0) tempoReferencia = t
       }
-      return this.resolverTempoPadrao(linha)
+      return resolverSam({ tempoReferencia, tempoPadrao: this.resolverTempoPadrao(linha) })
+    },
+
+    /**
+     * Minutos disponíveis de UM funcionário no DIA COMPLETO (manhã + tarde
+     * configuradas), independentemente de qual turno está selecionado na
+     * tela no momento. Usado para "Tempo Disponível" e para a estimativa
+     * de capacidade quando ainda não há produção lançada — usar apenas o
+     * turno ativo (horasVisiveis) subestimava o dia inteiro.
+     */
+    minutosDisponiveisDia() {
+      const horasManha = this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim)
+      const horasTarde = this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim)
+      return (horasManha.length + horasTarde.length) * 60
     },
 
     aplicarDadosDaEtapa(funcionarioReal, linha) {
@@ -935,7 +954,7 @@ export default {
       return (
         d.includes('final') || d.includes('revisão final') || d.includes('revisao final') ||
         d.includes('revisão') || d.includes('revisao') ||
-        d.includes('acabamento') || d.includes('qualidade')
+        d.includes('acabamento') || d.includes('qualidade') || d.includes('revisar peça pronta')
       )
     },
 
@@ -961,39 +980,40 @@ export default {
     /**
      * Eficiência (Ficha Técnica) de UMA linha isolada — usado no PDF para
      * detalhar por etapa/funcionário sem misturar com as demais linhas do
-     * mesmo funcionário (diferente de calcularEficienciaFuncionarioPadrao,
-     * que soma TODAS as linhas do funcionário).
+     * mesmo funcionário. Aplica a fórmula oficial:
+     *   (Peças × SAM × 100) / (Funcionários × Tempo Trabalhado)
+     * Aqui Funcionários = 1 (uma linha pertence sempre a um funcionário) e
+     * "Peças × SAM" é somado registro a registro pois o SAM (tempo padrão
+     * da etapa) é constante para a linha inteira.
      */
     calcularEficienciaLinhaPadrao(linha) {
-      const tempo = this.resolverTempoPadrao(linha)
-      let somaProduzida = 0
-      let somaTempo = 0
+      const sam = this.resolverTempoPadrao(linha)
+      let producaoPonderada = 0
+      let tempoTrabalhado = 0
       for (const reg of Object.values(linha?.registros || {})) {
         if (reg && reg.quantidade > 0) {
-          somaProduzida += reg.quantidade * tempo
-          somaTempo += reg.tempoProduzido || 60
+          producaoPonderada += reg.quantidade * sam
+          tempoTrabalhado += reg.tempoProduzido || 60
         }
       }
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
     /**
-     * Eficiência (Tempo de Referência) de uma linha isolada — equivalente
-     * ao método acima, mas usando o tempo efetivo de referência.
+     * Eficiência (Tempo de Referência) de uma linha isolada — mesma
+     * fórmula oficial acima, usando o SAM efetivo de referência.
      */
     calcularEficienciaLinhaReferencia(funcionario, linha) {
-      const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
-      let somaProduzida = 0
-      let somaTempo = 0
+      const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
+      let producaoPonderada = 0
+      let tempoTrabalhado = 0
       for (const reg of Object.values(linha?.registros || {})) {
         if (reg && reg.quantidade > 0) {
-          somaProduzida += reg.quantidade * tempo
-          somaTempo += reg.tempoProduzido || 60
+          producaoPonderada += reg.quantidade * sam
+          tempoTrabalhado += reg.tempoProduzido || 60
         }
       }
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
     calcularTotalFuncionario(funcionario) {
@@ -1031,28 +1051,43 @@ export default {
       return emails.size
     },
 
+    /**
+     * Eficiência da OP (Ficha Técnica) — fórmula oficial aplicada sobre os
+     * totais agregados de todas as linhas/funcionários da OP.
+     * Funcionários = 1 aqui porque `tempoTrabalhado` já é a SOMA dos
+     * minutos de TODOS os funcionários envolvidos (Σ pessoa-minutos) —
+     * multiplicar por funcionários de novo contaria a mesma coisa duas
+     * vezes.
+     */
     calcularEficienciaOpPadrao(opId) {
       if (!opId) return 0
-      let somaProduzida = 0
-      let somaTempo = 0
+      let producaoPonderada = 0
+      let tempoTrabalhado = 0
 
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const tempo = this.resolverTempoPadrao(linha)
+          const sam = this.resolverTempoPadrao(linha)
           for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
-              somaProduzida += reg.quantidade * tempo
-              somaTempo += reg.tempoProduzido || 60
+              producaoPonderada += reg.quantidade * sam
+              tempoTrabalhado += reg.tempoProduzido || 60
             }
           }
         }
       }
 
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
+    /**
+     * Capacidade da OP pela Ficha Técnica:
+     *   Capacidade = (Funcionários × Tempo Trabalhado) / SAM
+     * Com produção já lançada, soma a capacidade real linha a linha
+     * (funcionário=1, tempo=minutos registrados, sam=tempo padrão). Sem
+     * nenhum registro ainda, estima usando o tempo disponível do DIA
+     * INTEIRO (não apenas do turno selecionado na tela).
+     */
     calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
       let capacidade = 0
@@ -1061,12 +1096,12 @@ export default {
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const t = this.resolverTempoPadrao(linha)
-          if (!t) continue
+          const sam = this.resolverTempoPadrao(linha)
+          if (!sam) continue
           for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
               const minutos = reg.tempoProduzido || 60
-              capacidade += Math.floor(minutos / t)
+              capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutos, sam })
               tempoRegistrado += minutos
             }
           }
@@ -1074,12 +1109,12 @@ export default {
       }
 
       if (!tempoRegistrado) {
-        const minutosUteis = (this.horasVisiveis?.length || 1) * 60
+        const minutosDia = this.minutosDisponiveisDia()
         for (const func of this.funcionariosDia) {
           for (const linha of func.linhas || []) {
             if (linha.opId !== opId) continue
-            const t = this.resolverTempoPadrao(linha) || 60
-            if (t > 0) capacidade += Math.floor(minutosUteis / t)
+            const sam = this.resolverTempoPadrao(linha) || 60
+            capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDia, sam })
           }
         }
       }
@@ -1087,54 +1122,68 @@ export default {
       return capacidade
     },
 
+    /**
+     * Eficiência do funcionário (Ficha Técnica), somando todas as linhas
+     * dele — mesma lógica de calcularEficienciaOpPadrao, mas restrita a
+     * um único funcionário.
+     */
     calcularEficienciaFuncionarioPadrao(funcionario) {
       if (!funcionario?.linhas?.length) return 0
-      let somaProduzida = 0
-      let somaTempo = 0
+      let producaoPonderada = 0
+      let tempoTrabalhado = 0
 
       for (const linha of funcionario.linhas) {
         if (!linha?.registros) continue
-        const tempo = this.resolverTempoPadrao(linha)
+        const sam = this.resolverTempoPadrao(linha)
         for (const reg of Object.values(linha.registros)) {
           if (reg && reg.quantidade > 0) {
-            somaProduzida += reg.quantidade * tempo
-            somaTempo += reg.tempoProduzido || 60
+            producaoPonderada += reg.quantidade * sam
+            tempoTrabalhado += reg.tempoProduzido || 60
           }
         }
       }
 
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
+    /** Eficiência (Ficha) de um único registro/hora isolado. */
     calcularEficienciaRegistroPadrao(quantidade, tempoProduzido, linha) {
-      const tempo = this.resolverTempoPadrao(linha)
-      if (!quantidade || !tempoProduzido || !tempo) return 0
-      return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
+      const sam = this.resolverTempoPadrao(linha)
+      if (!quantidade || !tempoProduzido || !sam) return 0
+      return calcularEficiencia({
+        producaoPonderada: quantidade * sam,
+        funcionarios: 1,
+        tempoTrabalhado: tempoProduzido,
+      })
     },
 
+    /** Eficiência da OP pelo Tempo de Referência — mesma fórmula oficial. */
     calcularEficienciaOpReferencia(opId) {
       if (!opId) return 0
-      let somaProduzida = 0
-      let somaTempo = 0
+      let producaoPonderada = 0
+      let tempoTrabalhado = 0
 
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const tempo = this.resolverTempoEfetivoReferencia(func, linha)
+          const sam = this.resolverTempoEfetivoReferencia(func, linha)
           for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
-              somaProduzida += reg.quantidade * tempo
-              somaTempo += reg.tempoProduzido || 60
+              producaoPonderada += reg.quantidade * sam
+              tempoTrabalhado += reg.tempoProduzido || 60
             }
           }
         }
       }
 
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
+    /**
+     * Capacidade da OP pelo Tempo de Referência — mesma lógica de
+     * calcularCapacidadeOpPadrao, usando o SAM efetivo de referência e o
+     * tempo disponível do dia inteiro na estimativa sem registros.
+     */
     calcularCapacidadeOpReferencia(opId) {
       if (!opId) return 0
       let capacidade = 0
@@ -1143,12 +1192,12 @@ export default {
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           if (linha.opId !== opId) continue
-          const t = this.resolverTempoEfetivoReferencia(func, linha)
-          if (!t) continue
+          const sam = this.resolverTempoEfetivoReferencia(func, linha)
+          if (!sam) continue
           for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
               const minutos = reg.tempoProduzido || 60
-              capacidade += Math.floor(minutos / t)
+              capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutos, sam })
               tempoRegistrado += minutos
             }
           }
@@ -1156,12 +1205,12 @@ export default {
       }
 
       if (!tempoRegistrado) {
-        const minutosUteis = (this.horasVisiveis?.length || 1) * 60
+        const minutosDia = this.minutosDisponiveisDia()
         for (const func of this.funcionariosDia) {
           for (const linha of func.linhas || []) {
             if (linha.opId !== opId) continue
-            const t = this.resolverTempoEfetivoReferencia(func, linha) || 60
-            if (t > 0) capacidade += Math.floor(minutosUteis / t)
+            const sam = this.resolverTempoEfetivoReferencia(func, linha) || 60
+            capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDia, sam })
           }
         }
       }
@@ -1169,30 +1218,35 @@ export default {
       return capacidade
     },
 
+    /** Eficiência do funcionário pelo Tempo de Referência — fórmula oficial. */
     calcularEficienciaFuncionarioReferencia(funcionario) {
       if (!funcionario?.linhas?.length) return 0
-      let somaProduzida = 0
-      let somaTempo = 0
+      let producaoPonderada = 0
+      let tempoTrabalhado = 0
 
       for (const linha of funcionario.linhas) {
         if (!linha?.registros) continue
-        const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
+        const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
         for (const reg of Object.values(linha.registros)) {
           if (reg && reg.quantidade > 0) {
-            somaProduzida += reg.quantidade * tempo
-            somaTempo += reg.tempoProduzido || 60
+            producaoPonderada += reg.quantidade * sam
+            tempoTrabalhado += reg.tempoProduzido || 60
           }
         }
       }
 
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
+    /** Eficiência (Referência) de um único registro/hora isolado. */
     calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
-      const tempo = this.resolverTempoEfetivoReferencia(funcionario, linha)
-      if (!quantidade || !tempoProduzido || !tempo) return 0
-      return Math.round(((quantidade * tempo) / tempoProduzido) * 100)
+      const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
+      if (!quantidade || !tempoProduzido || !sam) return 0
+      return calcularEficiencia({
+        producaoPonderada: quantidade * sam,
+        funcionarios: 1,
+        tempoTrabalhado: tempoProduzido,
+      })
     },
 
     // ── UTILITÁRIOS ───────────────────────────────────────
@@ -1393,7 +1447,11 @@ export default {
 
     montarDadosDaOpParaPdf(op) {
       const peca = this.pecas.find(p => p.id_da_op === op.pecaId)
-      const horasDisponiveisMin = (this.horasVisiveis?.length || 0) * 60
+      // Minutos de UM funcionário no DIA INTEIRO (manhã + tarde), não
+      // apenas do turno selecionado na tela — era essa a causa do "Tempo
+      // Disponível" nunca passar de ~9h independentemente da quantidade
+      // de funcionários: horasVisiveis reflete só o turno ativo.
+      const minutosPorFuncionarioNoDia = this.minutosDisponiveisDia()
 
       const funcionariosDaOp = []
       const etapasMapa = new Map()
@@ -1435,7 +1493,10 @@ export default {
       }
 
       const funcionariosAlocados = this.calcularFuncionariosOp(op.pecaId)
-      const tempoDisponivel = funcionariosAlocados * horasDisponiveisMin
+      const tempoDisponivel = calcularTempoDisponivelTotal({
+        funcionarios: funcionariosAlocados,
+        minutosPorFuncionario: minutosPorFuncionarioNoDia,
+      })
       const tempoUtilizadoTotal = funcionariosDaOp.reduce((soma, f) => soma + f.tempoUtilizado, 0)
 
       const dadosOp = {

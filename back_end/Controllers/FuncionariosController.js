@@ -46,7 +46,7 @@ async function putEquipe(req, res, next) {
 }
 async function postFuncionarioEmpresa(req, res, next) {
     try {
-        console.log('Dados recebidos para cadastro de funcionário:', req.body);
+        // console.log('Dados recebidos para cadastro de funcionário:', req.body);
         const funcionario = await Funcionarios.postFuncionario(req.body, req.body.cnpj);
         res.status(201).send({
             message: `Funcionário cadastrado: ${funcionario}`,

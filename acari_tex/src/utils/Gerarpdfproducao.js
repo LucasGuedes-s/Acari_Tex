@@ -24,32 +24,47 @@
  *       funcionariosAlocados: number,
  *       eficienciaFicha: number,        // %
  *       eficienciaReferencia: number,   // %
- *       capacidadeFicha: number,
- *       capacidadeReferencia: number,
- *       tempoDisponivel: number,        // minutos
- *       tempoUtilizado: number,         // minutos
- *       ocupacao: number,               // %
+ *       tempoUtilizado: number,         // minutos — usado só para montar a
+ *                                       // explicação do cálculo, não vira
+ *                                       // mais um "indicador" no PDF
  *       observacoes: string,            // opcional
+ *
+ *       // Opcional: produção separada por turno. Quando presentes, cada
+ *       // um tem o MESMO formato do resumo da OP (producaoRealizada,
+ *       // funcionariosAlocados, eficienciaFicha, eficienciaReferencia,
+ *       // tempoUtilizado). Se nenhum dos dois vier preenchido, a seção
+ *       // "Produção por Turno" simplesmente não é desenhada.
+ *       manha: { producaoRealizada, funcionariosAlocados, eficienciaFicha, eficienciaReferencia, tempoUtilizado },
+ *       tarde: { producaoRealizada, funcionariosAlocados, eficienciaFicha, eficienciaReferencia, tempoUtilizado },
+ *
  *       funcionarios: [
  *         {
  *           nome, etapa,
  *           tempoUtilizado,              // minutos
- *           tempoReferencia,             // minutos (ref. individual ou padrão)
+ *           tempoReferencia,             // minutos (ref. individual ou padrão) — SAM, exibido com casas decimais
  *           producaoRealizada,
  *           eficienciaFicha, eficienciaReferencia, // %
  *         }
  *       ],
  *       etapas: [
  *         { descricao, tempoPadrao, tempoUtilizado, funcionariosAlocados, producao, eficiencia }
+ *         // tempoPadrao é o SAM da etapa e é exibido com casas decimais
+ *         // (ex.: "0,85 min"), nunca arredondado para minuto inteiro.
  *       ],
  *     }
  *   ]
  * }
+ *
+ * Observação: os campos capacidadeFicha/capacidadeReferencia/tempoDisponivel/
+ * ocupacao ainda são aceitos no objeto `dados` (por compatibilidade), mas
+ * não são mais exibidos no relatório — o relatório foi simplificado para
+ * focar em produção e eficiência.
  */
 
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import logoUrl from '@/assets/Logo.png'
+import { FORMULA_EFICIENCIA_TEXTO, FORMULA_EFICIENCIA_EXPLICACAO } from '@/utils/calculosProducao'
 
 /* ============================================================
  * CONSTANTES DE LAYOUT E ESTILO
@@ -86,6 +101,8 @@ export async function gerarPdfProducao(dados) {
 
   desenharFundoDePagina(doc, contexto)
   let y = ALTURA_CABECALHO + 10
+
+  y = desenharFormulaUtilizada(doc, contexto, y)
 
   const ops = Array.isArray(dados.ops) ? dados.ops : []
 
@@ -144,7 +161,7 @@ function desenharCabecalho(doc, { dados, logo }) {
   const linhasSubtitulo = []
   if (dados.estabelecimento) linhasSubtitulo.push(`Estabelecimento: ${dados.estabelecimento}`)
   if (dados.dataProducao) linhasSubtitulo.push(`Data da produção: ${formatarData(dados.dataProducao)}`)
-  if (dados.turno) linhasSubtitulo.push(`Turno: ${dados.turno}`)
+  if (dados.turno) linhasSubtitulo.push(`Turno: manhã/tarde`)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
@@ -261,6 +278,41 @@ function desenharTituloSecao(doc, texto, y) {
   doc.setTextColor(...COR.texto)
   doc.text(texto, MARGEM + 5, y + 5)
   return y + 11
+}
+
+/**
+ * Seção "Fórmula utilizada" — exibida uma única vez, logo abaixo do
+ * cabeçalho, antes de qualquer OP. Deixa explícito para quem lê o
+ * relatório exatamente como a eficiência foi calculada, evitando
+ * qualquer dúvida sobre a origem dos percentuais mostrados adiante.
+ */
+function desenharFormulaUtilizada(doc, contexto, yInicial) {
+  let y = verificarQuebraDePagina(doc, contexto, yInicial, 30)
+  y = desenharTituloSecao(doc, 'Fórmula utilizada', y)
+
+  doc.setFillColor(...COR.fundoCard)
+  doc.setDrawColor(...COR.linha)
+  const alturaCaixa = 12
+  doc.roundedRect(MARGEM, y, LARGURA_UTIL, alturaCaixa, 2, 2, 'FD')
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(...COR.primariaEscura)
+  doc.text(FORMULA_EFICIENCIA_TEXTO, MARGEM + 4, y + 7.5, { maxWidth: LARGURA_UTIL - 8 })
+
+  y += alturaCaixa + 5
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...COR.textoSuave)
+  FORMULA_EFICIENCIA_EXPLICACAO.forEach(linha => {
+    y = verificarQuebraDePagina(doc, contexto, y, 6)
+    const linhasQuebradas = doc.splitTextToSize(`•  ${linha}`, LARGURA_UTIL)
+    doc.text(linhasQuebradas, MARGEM, y)
+    y += linhasQuebradas.length * 4.2
+  })
+
+  return y + 4
 }
 
 /* ── Informações da OP (grade de 2 colunas) ────────────────── */
