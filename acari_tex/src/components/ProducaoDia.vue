@@ -507,6 +507,7 @@ export default {
         'finalizacao',
         'revisão final',
         'revisao final',
+        'revisar peça pronta',
         'revisão',
         'revisao',
         'qualidade',
