@@ -825,10 +825,12 @@ export default {
         await api.put(`/etapas/${this.etapaEdicao.id_da_funcao}`, this.etapaEdicao, {
           headers: { Authorization: this.store.pegar_token },
         })
+        console.log("Etapa atualizada:", this.etapaEdicao)
         Swal.fire({ icon: "success", title: "Etapa atualizada!", timer: 1500, showConfirmButton: false })
         this.showModalEditar = false
         this.buscarEtapas()
       } catch {
+        console.error("Erro ao atualizar etapa:", this.etapaEdicao)
         Swal.fire("Erro", "Não foi possível salvar a etapa.", "error")
       }
     },

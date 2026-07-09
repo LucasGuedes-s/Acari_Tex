@@ -45,26 +45,52 @@ async function salvarProducao(payload) {
   const dataDia = new Date(data)
   dataDia.setHours(0, 0, 0, 0)
 
-  return prisma.producao.upsert({
-    where: {
-      id_funcionario_id_da_funcao_id_da_op_dataReferencia_hora_registro_tipoRegistro: {
+  const where = {
+    id_funcionario_id_da_funcao_id_da_op_dataReferencia_hora_registro_tipoRegistro: {
+      id_funcionario: funcionarioId,
+      id_da_funcao: etapaId,
+      id_da_op: opId,
+      dataReferencia: dataDia,
+      hora_registro: hora,
+      tipoRegistro,
+    },
+  }
+
+  // Se a quantidade for zero, remove o registro
+  if (Number(quantidade) === 0) {
+    const producao = await prisma.producao.findFirst({
+      where: {
         id_funcionario: funcionarioId,
         id_da_funcao: etapaId,
         id_da_op: opId,
-        dataReferencia: dataDia,
         hora_registro: hora,
         tipoRegistro,
       },
-    },
+    })
+
+    if (producao) {
+      const remover =await prisma.producao.delete({
+        where: {
+          id_da_producao: producao.id_da_producao,
+        },
+      })
+    }
+
+    return remover
+  }
+
+  // Caso contrário cria ou atualiza
+  return prisma.producao.upsert({
+    where,
 
     update: {
-      quantidade_pecas: quantidade,
+      quantidade_pecas: Number(quantidade),
       tempo_produzido: tempoProduzido,
       horaNumero: Number(hora),
     },
 
     create: {
-      quantidade_pecas: quantidade,
+      quantidade_pecas: Number(quantidade),
       id_Estabelecimento: estabelecimento,
       id_da_op: opId,
       id_funcionario: funcionarioId,
@@ -78,7 +104,6 @@ async function salvarProducao(payload) {
     },
   })
 }
-
 module.exports = {
   salvarProducao,
 }
