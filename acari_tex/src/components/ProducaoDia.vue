@@ -246,7 +246,6 @@
 </template>
 
 <script>
-
 import { io } from 'socket.io-client'
 import { useAuthStore } from '@/store/store'
 import api from '@/Axios'
@@ -319,26 +318,18 @@ export default {
     // Só considera registros com tempoProduzido > 0 — sem fallback fictício.
     eficienciaMediaTurma() {
       
-      // SAM vem diretamente da meta do dia
+      // SAM e tempo do turno vêm da OP ativa
+      const op = this.pecas.find(p => p.id_da_op === this.opsAtivas[0]?.pecaId)
+      console.log(op?.tempo_padrao)
       const sam = this.opsAtivas[0]?.tempoPadrao || 0
-
-      // Considera somente funcionários que realmente tiveram produção
-      const funcionariosAtivos = this.funcionariosOrdenados.filter(func =>
-        func.linhas?.some(linha =>
-          Object.values(linha.registros || {}).some(reg =>
-            reg.quantidade > 0 && reg.tempoProduzido > 0
-          )
-        )
-      )
-
-      const nFuncionarios = funcionariosAtivos.length
-      const tempoTurno = this.calcularTempoTurno()
-
+      // const tempoTurno = op?.Estabelecimento?.tempo_de_producao || 540 // minutos
+      const tempoTurno = 540 // minutos
+      const nFuncionarios = this.funcionariosOrdenados.length
       if (!nFuncionarios || !sam || !tempoTurno) return 0
 
-      // Soma peças finalizadas somente de funcionários ativos
+      // Soma peças finalizadas de todos os funcionários no dia
       let totalPecas = 0
-      for (const func of funcionariosAtivos) {
+      for (const func of this.funcionariosOrdenados) {
         totalPecas += this.calcularTotalFinalizadoFuncionario(func)
       }
       console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
@@ -554,32 +545,6 @@ export default {
     },
 
     // ── EFICIÊNCIA ────────────────────────────────────────
-
-    calcularTempoTurno() {
-      const horas = new Set()
-
-      for (const func of this.funcionariosDia) {
-        for (const linha of func.linhas || []) {
-          for (const [hora, reg] of Object.entries(linha.registros || {})) {
-            if (reg?.quantidade > 0 && reg?.tempoProduzido > 0) {
-              horas.add(hora)
-            }
-          }
-        }
-      }
-
-      const lista = [...horas].sort((a, b) =>
-        this.horaParaMinutos(a) - this.horaParaMinutos(b)
-      )
-
-      if (lista.length < 2) return 0
-
-      const inicio = this.horaParaMinutos(lista[0])
-      const fim = this.horaParaMinutos(lista[lista.length - 1])
-
-      return (fim - inicio) + 60
-    },
-
     // Só considera registros com tempoProduzido > 0 — sem || 60 fictício.
 
 
@@ -699,7 +664,6 @@ export default {
     },
   },
 }
-
 </script>
 
 <style scoped>

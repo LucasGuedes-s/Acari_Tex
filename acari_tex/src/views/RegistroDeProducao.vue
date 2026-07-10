@@ -106,6 +106,63 @@
                   </div>
                 </div>
               </div>
+
+              <!--
+                OPs descobertas a partir dos REGISTROS DE PRODUÇÃO (mesma
+                lista consolidada usada para montar a tabela inferior),
+                que não estão mais entre as OPs configuradas no topo —
+                finalizada, em coleta, ou removida do setup depois de já
+                ter produção lançada. A identificação/dedup é sempre pelo
+                pecaId (ver sincronizarOpsExtras): se a OP já aparece
+                entre as ativas, ela NUNCA entra aqui de novo.
+                Sem <select> de troca de OP aqui, pois as opções listadas
+                em pecasDisponiveis vêm só das OPs em_progresso — exibir
+                esta OP num <select> sem a opção correspondente deixaria
+                o campo em branco (mesma classe de bug já corrigida na
+                etapa da tabela).
+              -->
+              <div v-for="op in opsExtras" :key="op._uid" class="op-card op-card--historico">
+                <div class="op-card-header">
+                  <span class="op-badge op-badge--historico">🗄️ Fora da lista ativa</span>
+                </div>
+
+                <div class="op-fields">
+                  <div class="field field-op">
+                    <label>Ordem de Produção</label>
+                    <div class="op-fixa" :title="op.pecaId">{{ nomeDaOp(op.pecaId) }}</div>
+                  </div>
+
+                  <div class="field field-meta">
+                    <label>Meta do Dia</label>
+                    <div class="meta-input-wrap">
+                      <input v-model.number="op.metaDia" type="number" min="0" placeholder="0" class="meta-input"
+                        @input="salvarMetaDia" />
+                      <span class="meta-suffix">peças</span>
+                    </div>
+                  </div>
+
+                  <div class="field field-total">
+                    <label>Produção Atual</label>
+                    <div class="total-box">{{ calcularTotalOp(op.pecaId) }}</div>
+                  </div>
+                </div>
+
+                <!-- BARRA DE PROGRESSO -->
+                <div v-if="op.metaDia > 0" class="meta-progress">
+                  <div class="meta-progress-top">
+                    <span>Progresso</span>
+                    <strong>{{ calcularTotalOp(op.pecaId) }} / {{ op.metaDia }}</strong>
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill"
+                      :style="{ width: Math.min((calcularTotalOp(op.pecaId) / op.metaDia) * 100, 100) + '%' }"></div>
+                  </div>
+                  <div class="progress-footer">
+                    <span>{{ Math.round((calcularTotalOp(op.pecaId) / op.metaDia) * 100) || 0 }}% concluído</span>
+                    <span>Faltam {{ Math.max(op.metaDia - calcularTotalOp(op.pecaId), 0) }} peças</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <button class="btn-add-op" @click="adicionarOp">
@@ -113,8 +170,8 @@
             </button>
           </div>
 
-          <!-- TOTAL GERAL (quando há mais de 1 OP) -->
-          <div v-if="opsAtivas.length > 1" class="total-geral-row">
+          <!-- TOTAL GERAL (quando há mais de 1 OP no total, ativas + descobertas pelos registros) -->
+          <div v-if="(opsAtivas.length + opsExtras.length) > 1" class="total-geral-row">
             <span>Total geral de todas as OPs:</span>
             <div class="total-box-sm">{{ calcularTotalGeral() }}</div>
           </div>
@@ -129,11 +186,15 @@
             <div :class="[
               'op-module-header',
               !grupo.opId ? 'op-module-header--empty' : '',
-              opsAtivasComPeca.length === 1 ? 'op-module-header--single' : ''
+              opsAtivasComPeca.length === 1 && grupo.ativa ? 'op-module-header--single' : '',
+              !grupo.ativa ? 'op-module-header--historico' : ''
             ]">
 
               <span class="op-module-badge">
                 <span v-if="!grupo.opId">⚠ {{ grupo.label }}</span>
+                <span v-else-if="!grupo.ativa">🗄️ {{ grupo.label }}
+                  <small class="op-module-badge-tag">fora da lista de OPs ativas</small>
+                </span>
                 <span v-else>📦 {{ grupo.label }}</span>
               </span>
 
@@ -165,13 +226,23 @@
                     <template v-for="funcionario in grupo.funcionarios"
                       :key="funcionario.email + '_' + (grupo.opId || 'sem')">
                       <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
-                        :class="{ 'linha-extra': linha.tipo === 'extra' }">
+                        :class="{ 'linha-extra': linha.tipo === 'extra', 'linha-ausente': funcionarioAusenteDiaInteiro(funcionario) }">
 
                         <!-- FUNCIONÁRIO -->
                         <td class="func-col">
                           <div v-if="idxLinha === 0" class="func-info">
                             <img :src="funcionario.foto || '/default-avatar.png'" />
-                            <span>{{ funcionario.nome }}</span>
+                            <div class="func-info-text">
+                              <span class="func-nome">{{ funcionario.nome }}</span>
+                              <button class="btn-ausencia-toggle" @click="abrirModalAusencia(funcionario)">
+                                {{ funcionario.ausencia ? '✏️ Ausência' : '🚫 Ausência' }}
+                              </button>
+                              <span v-if="funcionario.ausencia" class="ausencia-tag"
+                                :class="'ausencia-tag--' + funcionario.ausencia.tipo">
+                                <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia todo)</template>
+                                <template v-else>🌗 Ausente: {{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</template>
+                              </span>
+                            </div>
                           </div>
                           <div v-else class="extra-tag">↳ Extra</div>
                         </td>
@@ -179,35 +250,57 @@
                         <!-- ETAPA + indicadores de tempo (somente leitura) -->
                         <td class="etapa-col">
                           <div class="etapa-wrap">
-                            <select :value="indiceOpcaoEtapa(linha)" class="etapa-select"
-                              @change="onAlterarEtapaPorIndice(funcionario, linha, $event.target.value)">
-                              <option value="">Etapa</option>
-                              <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
-                                <option v-for="opcao in opcoesParaOp(op.pecaId)" :key="opcao.idx" :value="opcao.idx">
-                                  {{ opcao.label }}
-                                </option>
-                              </optgroup>
-                            </select>
-                            <!-- × em todas as linhas extras -->
-                            <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
-                              @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
+                            <template v-if="grupo.ativa">
+                              <select :value="indiceOpcaoEtapa(linha)" class="etapa-select"
+                                :disabled="funcionarioAusenteDiaInteiro(funcionario)"
+                                @change="onAlterarEtapaPorIndice(funcionario, linha, $event.target.value)">
+                                <option value="">Etapa</option>
+                                <optgroup v-for="op in opsAtivasComPeca" :key="op.pecaId" :label="nomeDaOp(op.pecaId)">
+                                  <option v-for="opcao in opcoesParaOp(op.pecaId)" :key="opcao.idx" :value="opcao.idx">
+                                    {{ opcao.label }}
+                                  </option>
+                                </optgroup>
+                              </select>
+                              <!-- × em todas as linhas extras -->
+                              <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
+                                @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
+                              <!--
+                                + sempre na última linha DESTE MÓDULO (desta OP).
+                                IMPORTANTE: usa funcionario.linhas.length (a lista já
+                                filtrada por OP pelo agrupamento), NÃO o total geral de
+                                linhas do funcionário. Antes, ao usar o total geral, o
+                                botão "+" desaparecia sempre que o funcionário já tinha
+                                uma linha em OUTRA OP — impedindo lançar uma segunda
+                                etapa extra para ele dentro desta mesma OP.
+                              -->
+                              <button v-if="idxLinha === funcionario.linhas.length - 1 && !funcionarioAusenteDiaInteiro(funcionario)"
+                                class="btn-add-linha" @click="adicionarLinhaExtra(funcionario)" title="Adicionar etapa">+</button>
+                            </template>
                             <!--
-                              + sempre na última linha DESTE MÓDULO (desta OP).
-                              IMPORTANTE: usa funcionario.linhas.length (a lista já
-                              filtrada por OP pelo agrupamento), NÃO o total geral de
-                              linhas do funcionário. Antes, ao usar o total geral, o
-                              botão "+" desaparecia sempre que o funcionário já tinha
-                              uma linha em OUTRA OP — impedindo lançar uma segunda
-                              etapa extra para ele dentro desta mesma OP.
+                              Módulo "histórico": a OP não está mais na lista de OPs
+                              ativas (finalizada, em coleta, ou removida do setup do
+                              topo da tela), então não existem opções para popular o
+                              <select> desta etapa. Mostramos a descrição já
+                              registrada como somente leitura — assim o gestor
+                              continua vendo o que foi lançado, sem o risco de a
+                              etapa aparecer em branco por falta de opção
+                              correspondente no <select>.
                             -->
-                            <button v-if="idxLinha === funcionario.linhas.length - 1" class="btn-add-linha"
-                              @click="adicionarLinhaExtra(funcionario)" title="Adicionar etapa">+</button>
+                            <template v-else>
+                              <div class="etapa-fixa">
+                                <span class="etapa-fixa-label">{{ linha.descricao || 'Etapa' }}</span>
+                                <span class="etapa-fixa-tag" title="OP fora da lista de OPs ativas">🔒 somente consulta</span>
+                              </div>
+                              <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
+                                @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta linha">×</button>
+                            </template>
                           </div>
 
                           <!-- SELETOR DE TEMPO: padrão ou uma das referências da etapa -->
-                          <div v-if="linha.etapaId" class="tempo-toggle-wrap">
+                          <div v-if="linha.etapaId && grupo.ativa" class="tempo-toggle-wrap">
                             <select class="tempo-select"
                               :value="linha.modoTempo === 'referencia' ? linha.referenciaSelecionadaId : '__padrao__'"
+                              :disabled="funcionarioAusenteDiaInteiro(funcionario)"
                               @change="onSelecionarTempo(linha, $event.target.value)">
                               <option value="__padrao__">⏱ Ficha: {{ linha.tempoPadrao }}min</option>
                               <option v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId, linha.opId))"
@@ -221,33 +314,39 @@
                         <!-- HORAS -->
                         <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
                           <div class="hora-box-outer">
-                            <!-- Esquerda: campo de quantidade + minutos -->
-                            <div class="hora-box-inputs">
-                              <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
-                                placeholder="0"
-                                :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                                @blur="onInputQuantidade(funcionario, linha, hora)" />
-                              <div class="tempo-wrap">
-                                <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-                                  max="60" class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
-                                <span class="min-label">min</span>
+                            <!-- Ausência (total ou parcial) bloqueia o lançamento nesta hora -->
+                            <div v-if="horaBloqueadaPorAusencia(funcionario, hora)" class="hora-ausente-marker">
+                              🚫 Ausente
+                            </div>
+                            <template v-else>
+                              <!-- Esquerda: campo de quantidade + minutos -->
+                              <div class="hora-box-inputs">
+                                <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
+                                  placeholder="0"
+                                  :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                                  @blur="onInputQuantidade(funcionario, linha, hora)" />
+                                <div class="tempo-wrap">
+                                  <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
+                                    max="60" class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
+                                  <span class="min-label">min</span>
+                                </div>
                               </div>
-                            </div>
-                            <!-- Direita: FT e TR, só visíveis quando há produção -->
-                            <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
-                              <span
-                                :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
-                                <span class="efic-inline-label">FT</span>
-                                {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade,
-                                  linha.registros[hora].tempoProduzido, linha) }}%
-                              </span>
-                              <span
-                                :class="['efic-inline efic-inline--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
-                                <span class="efic-inline-label">TR</span>
-                                {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade,
-                                  linha.registros[hora].tempoProduzido, linha, funcionario) }}%
-                              </span>
-                            </div>
+                              <!-- Direita: FT e TR, só visíveis quando há produção -->
+                              <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
+                                <span
+                                  :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
+                                  <span class="efic-inline-label">FT</span>
+                                  {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade,
+                                    linha.registros[hora].tempoProduzido, linha) }}%
+                                </span>
+                                <span
+                                  :class="['efic-inline efic-inline--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
+                                  <span class="efic-inline-label">TR</span>
+                                  {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade,
+                                    linha.registros[hora].tempoProduzido, linha, funcionario) }}%
+                                </span>
+                              </div>
+                            </template>
                           </div>
                         </td>
 
@@ -284,6 +383,53 @@
         </div>
 
       </div>
+
+      <!-- MODAL DE AUSÊNCIA -->
+      <div v-if="modalAusencia.aberto" class="ausencia-overlay" @click.self="fecharModalAusencia">
+        <div class="ausencia-modal">
+          <div class="ausencia-modal-header">
+            <h3>Ausência — {{ modalAusencia.funcionario?.nome }}</h3>
+            <button class="ausencia-modal-close" @click="fecharModalAusencia">×</button>
+          </div>
+
+          <div class="ausencia-modal-body">
+            <div class="ausencia-tipo-switch">
+              <button :class="['ausencia-tipo-btn', modalAusencia.form.tipo === 'dia_inteiro' ? 'active' : '']"
+                @click="modalAusencia.form.tipo = 'dia_inteiro'">☀️🌙 Dia inteiro</button>
+              <button :class="['ausencia-tipo-btn', modalAusencia.form.tipo === 'parcial' ? 'active' : '']"
+                @click="modalAusencia.form.tipo = 'parcial'">🕒 Ausência parcial</button>
+            </div>
+
+            <div v-if="modalAusencia.form.tipo === 'parcial'" class="ausencia-periodos">
+              <div v-for="(periodo, idx) in modalAusencia.form.periodos" :key="periodo._uid" class="ausencia-periodo-row">
+                <select v-model="periodo.inicio" class="ausencia-hora-select">
+                  <option v-for="h in opcoesHoraAusencia" :key="'ini-' + h" :value="h">{{ h }}</option>
+                </select>
+                <span class="ausencia-periodo-ate">às</span>
+                <select v-model="periodo.fim" class="ausencia-hora-select">
+                  <option v-for="h in opcoesHoraAusencia" :key="'fim-' + h" :value="h">{{ h }}</option>
+                </select>
+                <button v-if="modalAusencia.form.periodos.length > 1" class="btn-remove-periodo"
+                  @click="removerPeriodoAusencia(idx)" title="Remover período">×</button>
+              </div>
+              <button class="btn-add-periodo" @click="adicionarPeriodoAusencia">+ adicionar período</button>
+            </div>
+            <p v-else class="ausencia-dia-inteiro-aviso">
+              O funcionário ficará indisponível durante todo o expediente e nenhum lançamento de produção
+              poderá ser feito para ele neste dia.
+            </p>
+          </div>
+
+          <div class="ausencia-modal-footer">
+            <button v-if="modalAusencia.funcionario?.ausencia" class="btn-ausencia-remover"
+              @click="removerAusencia">Remover ausência</button>
+            <div class="ausencia-modal-footer-right">
+              <button class="btn-ausencia-cancelar" @click="fecharModalAusencia">Cancelar</button>
+              <button class="btn-ausencia-salvar" @click="salvarAusencia">Salvar</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -298,7 +444,7 @@ import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
 import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
-import { calcularEficiencia, calcularCapacidade, calcularTempoDisponivelTotal, resolverSam } from '@/utils/calculosProducao'
+import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
@@ -323,15 +469,22 @@ export default {
       dataSelecionada: this.formatarDataLocal(),
       turnoAtivo: 'manha',
       opsAtivas: [this.novaOpSetup()],
+      opsExtras: [],
       funcionarios: [],
       funcionariosDia: [],
       pecas: [],
+      pecasTodas: [],
       etapas: [],
       etapasMap: {},
       configHorarios: this.carregarConfigHorarios(),
       ultimaBuscaId: 0,
       carregandoMeta: false,
       gerandoPdf: false,
+      modalAusencia: {
+        aberto: false,
+        funcionario: null,
+        form: { tipo: 'dia_inteiro', periodos: [] },
+      },
     }
   },
 
@@ -341,6 +494,10 @@ export default {
     },
 
     opcoesHoraInicio() {
+      return this.gerarOpcoesHorario(6, 22)
+    },
+
+    opcoesHoraAusencia() {
       return this.gerarOpcoesHorario(6, 22)
     },
 
@@ -390,10 +547,12 @@ export default {
 
     funcionariosAgrupadosPorOp() {
       const gruposMap = new Map()
+      const idsAtivos = new Set(this.opsAtivasComPeca.map(op => op.pecaId))
 
       gruposMap.set(null, {
         opId: null,
         label: 'Funcionários sem OP',
+        ativa: true,
         funcionarios: [],
       })
 
@@ -401,8 +560,35 @@ export default {
         gruposMap.set(op.pecaId, {
           opId: op.pecaId,
           label: this.nomeDaOp(op.pecaId),
+          ativa: true,
           funcionarios: [],
         })
+      }
+
+      /**
+       * IMPORTANTE: antes desta correção, qualquer linha com um opId que
+       * não estivesse entre as OPs ativas (por exemplo, uma OP que já foi
+       * finalizada, foi para coleta, ou foi removida do setup do topo da
+       * tela) caía silenciosamente no grupo "Funcionários sem OP" via
+       * `gruposMap.get(opId) || gruposMap.get(null)` — o gestor perdia a
+       * identificação de QUAL OP gerou aquele lançamento. Aqui varremos
+       * antecipadamente todas as linhas de todos os funcionários e
+       * criamos um grupo "histórico" (ativa: false) para cada opId
+       * encontrado que não esteja mais na lista ativa, preservando a
+       * OP correta mesmo depois que ela sai do topo da tela.
+       */
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          const opId = linha.opId || null
+          if (opId && !gruposMap.has(opId)) {
+            gruposMap.set(opId, {
+              opId,
+              label: this.nomeDaOp(opId),
+              ativa: false,
+              funcionarios: [],
+            })
+          }
+        }
       }
 
       for (const func of this.funcionariosDia) {
@@ -419,13 +605,16 @@ export default {
           grupo.funcionarios.push({
             ...func,
             linhas: [...linhas],
-            _grupoOpId: opId,
+            _grupoOpId: grupo.opId,
             _funcRef: func,
           })
         }
       }
 
-      const ordem = [...this.opsAtivasComPeca.map(op => op.pecaId), null]
+      const ordemAtivas = this.opsAtivasComPeca.map(op => op.pecaId)
+      const ordemHistoricas = [...gruposMap.keys()].filter(id => id !== null && !idsAtivos.has(id))
+      const ordem = [...ordemAtivas, ...ordemHistoricas, null]
+
       return ordem
         .map(id => gruposMap.get(id))
         .filter(g => g && g.funcionarios.length)
@@ -616,8 +805,27 @@ export default {
         ])
 
         this.funcionarios = resFuncs.data.funcionarios || []
-        this.pecas = resPecas.data.peca.em_progresso || []
-        this.etapas = this.pecas.map(p => p.etapas || [])
+
+        // A API retorna as OPs agrupadas por status (em_progresso,
+        // finalizado, coleta, não_iniciado, etc — as chaves exatas podem
+        // variar, então pegamos TODAS dinamicamente em vez de fixar uma
+        // lista de nomes). `this.pecas` continua restrito a em_progresso
+        // porque é o que alimenta o setup do topo da tela (só faz
+        // sentido escolher uma OP em andamento para lançar produção
+        // nova). `this.pecasTodas` reúne todas as OPs, independente do
+        // status, e passa a alimentar `nomeDaOp` e `this.etapas` — é o
+        // que garante que uma OP finalizada/em coleta, mesmo fora da
+        // lista ativa, continue mostrando o nome real e os dados de
+        // etapa (tempo padrão, tempo de referência) para quem já tem
+        // produção lançada nela.
+        const pecasPorStatus = resPecas.data.peca || {}
+        const todasAsPecas = Array.isArray(pecasPorStatus)
+          ? pecasPorStatus
+          : Object.values(pecasPorStatus).flat()
+
+        this.pecas = pecasPorStatus.em_progresso || []
+        this.pecasTodas = todasAsPecas
+        this.etapas = this.pecasTodas.map(p => p.etapas || [])
 
         this.etapasMap = {}
         for (const listaEtapas of this.etapas) {
@@ -649,7 +857,45 @@ export default {
 
     removerOp(idx) {
       this.opsAtivas.splice(idx, 1)
+      this.sincronizarOpsExtras()
       this.salvarMetaDia()
+    },
+
+    /**
+     * Deriva `opsExtras` a partir da MESMA fonte usada para montar a
+     * tabela inferior (opId presente nas linhas de produção dos
+     * funcionários) — garante que a seção "Configuração do Dia" fique
+     * consistente com a tabela, sem depender só das OPs configuradas
+     * manualmente no topo.
+     *
+     * Dedup: qualquer pecaId já presente em `opsAtivas` (mesmo sem
+     * "peca válida" selecionada) nunca é adicionado aqui, evitando
+     * cards duplicados para a mesma OP.
+     */
+    sincronizarOpsExtras() {
+      const idsAtivos = new Set(this.opsAtivas.map(op => op.pecaId).filter(Boolean))
+
+      const idsComRegistro = new Set()
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId) idsComRegistro.add(linha.opId)
+        }
+      }
+
+      // remove extras que deixaram de ter registro OU que passaram a
+      // estar configuradas normalmente no topo (evita duplicidade)
+      this.opsExtras = this.opsExtras.filter(op => idsComRegistro.has(op.pecaId) && !idsAtivos.has(op.pecaId))
+
+      const jaExtras = new Set(this.opsExtras.map(op => op.pecaId))
+      for (const pecaId of idsComRegistro) {
+        if (idsAtivos.has(pecaId) || jaExtras.has(pecaId)) continue
+        this.opsExtras.push({
+          _uid: `hist-${pecaId}-${Date.now()}-${Math.random()}`,
+          pecaId,
+          metaDia: 0,
+          historica: true,
+        })
+      }
     },
 
     pecasDisponiveis(pecaIdAtual) {
@@ -658,7 +904,11 @@ export default {
     },
 
     nomeDaOp(pecaId) {
-      const peca = this.pecas.find(p => p.id_da_op === pecaId)
+      // Busca em TODAS as OPs (qualquer status), não só nas em
+      // andamento — é o que permite exibir o nome real de uma OP
+      // finalizada/em coleta que já tenha produção lançada, em vez de
+      // cair no fallback de mostrar o id bruto.
+      const peca = this.pecasTodas.find(p => p.id_da_op === pecaId)
       return peca?.descricao || pecaId
     },
 
@@ -729,6 +979,7 @@ export default {
         .map(func => ({
           ...func,
           linhas: [this.novaLinha('principal')],
+          ausencia: null,
         }))
     },
 
@@ -903,6 +1154,163 @@ export default {
       const horasManha = this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim)
       const horasTarde = this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim)
       return (horasManha.length + horasTarde.length) * 60
+    },
+
+    // ── AUSÊNCIA ──────────────────────────────────────────
+    /**
+     * Minutos de ausência de UM funcionário que efetivamente caem dentro
+     * da jornada configurada (manhã + tarde). Ausência de dia inteiro
+     * consome a jornada completa. Ausência parcial soma apenas a
+     * intersecção real (em minutos) entre cada período informado e as
+     * janelas de trabalho configuradas, evitando contar tempo fora do
+     * expediente ou duplicar minutos que caiam simultaneamente nas duas
+     * janelas.
+     */
+    calcularMinutosAusenciaFuncionario(funcionario) {
+      const ausencia = funcionario?.ausencia
+      if (!ausencia) return 0
+      if (ausencia.tipo === 'dia_inteiro') return this.minutosDisponiveisDia()
+
+      if (ausencia.tipo === 'parcial' && Array.isArray(ausencia.periodos)) {
+        const janelas = [
+          [this.horaParaMinutos(this.configHorarios.manha.inicio), this.horaParaMinutos(this.configHorarios.manha.fim)],
+          [this.horaParaMinutos(this.configHorarios.tarde.inicio), this.horaParaMinutos(this.configHorarios.tarde.fim)],
+        ]
+
+        let total = 0
+        for (const periodo of ausencia.periodos) {
+          if (!periodo?.inicio || !periodo?.fim) continue
+          const pIni = this.horaParaMinutos(periodo.inicio)
+          const pFim = this.horaParaMinutos(periodo.fim)
+
+          for (const [jIni, jFim] of janelas) {
+            const ini = Math.max(pIni, jIni)
+            const fim = Math.min(pFim, jFim)
+            if (fim > ini) total += (fim - ini)
+          }
+        }
+        return total
+      }
+
+      return 0
+    },
+
+    /**
+     * Minutos REALMENTE disponíveis de UM funcionário no dia, já
+     * descontando qualquer ausência (total ou parcial). Deve substituir
+     * `minutosDisponiveisDia()` em todo cálculo de capacidade/tempo
+     * disponível que precise ser individualizado por funcionário — caso
+     * contrário um funcionário ausente seguiria sendo contado como se
+     * tivesse a jornada inteira livre.
+     */
+    calcularMinutosDisponiveisFuncionario(funcionario) {
+      const totalPadrao = this.minutosDisponiveisDia()
+      const ausente = this.calcularMinutosAusenciaFuncionario(funcionario)
+      return Math.max(totalPadrao - ausente, 0)
+    },
+
+    /** Um funcionário ausente o dia inteiro não pode ter nenhum lançamento. */
+    funcionarioAusenteDiaInteiro(funcionario) {
+      const real = funcionario?._funcRef || funcionario
+      return real?.ausencia?.tipo === 'dia_inteiro'
+    },
+
+    /**
+     * Indica se determinada coluna de hora está coberta por uma ausência
+     * (total ou parcial) do funcionário — usado para bloquear o
+     * lançamento de produção naquele horário específico. Cada coluna
+     * representa um bloco de ~60min a partir do horário exibido (mesmo
+     * padrão usado na montagem de horasVisiveis via gerarSequenciaHoras);
+     * basta checar sobreposição desse bloco com os períodos de ausência.
+     */
+    horaBloqueadaPorAusencia(funcionario, hora) {
+      const real = funcionario?._funcRef || funcionario
+      const ausencia = real?.ausencia
+      if (!ausencia) return false
+      if (ausencia.tipo === 'dia_inteiro') return true
+      if (ausencia.tipo !== 'parcial' || !Array.isArray(ausencia.periodos)) return false
+
+      const slotIni = this.horaParaMinutos(hora)
+      const slotFim = slotIni + 60
+
+      return ausencia.periodos.some(p => {
+        if (!p?.inicio || !p?.fim) return false
+        const pIni = this.horaParaMinutos(p.inicio)
+        const pFim = this.horaParaMinutos(p.fim)
+        return pIni < slotFim && pFim > slotIni
+      })
+    },
+
+    formatarPeriodosAusencia(periodos) {
+      if (!Array.isArray(periodos) || !periodos.length) return ''
+      return periodos.map(p => `${p.inicio}–${p.fim}`).join(', ')
+    },
+
+    // ── MODAL DE AUSÊNCIA ─────────────────────────────────
+    novoPeriodoAusencia() {
+      return { _uid: Date.now() + Math.random(), inicio: '08:00', fim: '09:00' }
+    },
+
+    abrirModalAusencia(funcionario) {
+      const real = funcionario._funcRef || funcionario
+      const existente = real.ausencia
+
+      this.modalAusencia.funcionario = real
+      this.modalAusencia.form = existente
+        ? {
+            tipo: existente.tipo,
+            periodos: existente.tipo === 'parcial' && existente.periodos?.length
+              ? existente.periodos.map(p => ({ _uid: Date.now() + Math.random(), inicio: p.inicio, fim: p.fim }))
+              : [this.novoPeriodoAusencia()],
+          }
+        : { tipo: 'dia_inteiro', periodos: [this.novoPeriodoAusencia()] }
+
+      this.modalAusencia.aberto = true
+    },
+
+    fecharModalAusencia() {
+      this.modalAusencia.aberto = false
+      this.modalAusencia.funcionario = null
+    },
+
+    adicionarPeriodoAusencia() {
+      this.modalAusencia.form.periodos.push(this.novoPeriodoAusencia())
+    },
+
+    removerPeriodoAusencia(idx) {
+      this.modalAusencia.form.periodos.splice(idx, 1)
+    },
+
+    salvarAusencia() {
+      const funcionario = this.modalAusencia.funcionario
+      if (!funcionario) return
+
+      const form = this.modalAusencia.form
+
+      if (form.tipo === 'parcial') {
+        const periodosValidos = form.periodos
+          .filter(p => p.inicio && p.fim && this.horaParaMinutos(p.fim) > this.horaParaMinutos(p.inicio))
+          .map(p => ({ inicio: p.inicio, fim: p.fim }))
+
+        if (!periodosValidos.length) {
+          Swal.fire('Atenção', 'Informe ao menos um período válido de ausência (fim depois do início).', 'warning')
+          return
+        }
+
+        funcionario.ausencia = { tipo: 'parcial', periodos: periodosValidos }
+      } else {
+        funcionario.ausencia = { tipo: 'dia_inteiro', periodos: [] }
+      }
+
+      this.fecharModalAusencia()
+      this.salvarMetaDia()
+    },
+
+    removerAusencia() {
+      const funcionario = this.modalAusencia.funcionario
+      if (funcionario) funcionario.ausencia = null
+      this.fecharModalAusencia()
+      this.salvarMetaDia()
     },
 
     aplicarDadosDaEtapa(funcionarioReal, linha) {
@@ -1109,12 +1517,16 @@ export default {
       }
 
       if (!tempoRegistrado) {
-        const minutosDia = this.minutosDisponiveisDia()
         for (const func of this.funcionariosDia) {
           for (const linha of func.linhas || []) {
             if (linha.opId !== opId) continue
             const sam = this.resolverTempoPadrao(linha) || 60
-            capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDia, sam })
+            // Usa o tempo disponível já descontado de eventuais ausências
+            // (total ou parcial) deste funcionário específico, em vez do
+            // dia cheio — evita superestimar a capacidade de quem está
+            // ausente.
+            const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(func)
+            capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDisponiveis, sam })
           }
         }
       }
@@ -1205,12 +1617,15 @@ export default {
       }
 
       if (!tempoRegistrado) {
-        const minutosDia = this.minutosDisponiveisDia()
         for (const func of this.funcionariosDia) {
           for (const linha of func.linhas || []) {
             if (linha.opId !== opId) continue
             const sam = this.resolverTempoEfetivoReferencia(func, linha) || 60
-            capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDia, sam })
+            // Mesmo raciocínio da capacidade "Ficha": desconta ausência
+            // individual antes de estimar a capacidade sem produção ainda
+            // lançada.
+            const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(func)
+            capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDisponiveis, sam })
           }
         }
       }
@@ -1277,18 +1692,25 @@ export default {
     // ── META ──────────────────────────────────────────────
     salvarMetaDia: debounce(function () {
       const pecasAtivas = this.opsAtivasComPeca
-      if (!pecasAtivas.length) return
+      const pecasExtras = this.opsExtras.filter(op => op.pecaId)
+      // Ausência é uma informação do funcionário, independente de haver
+      // OP configurada no topo da tela — sem esta condição extra, marcar
+      // ausência antes de configurar qualquer OP no dia seria descartado
+      // silenciosamente.
+      const temAusenciaRegistrada = this.funcionariosDia.some(f => f.ausencia)
+      if (!pecasAtivas.length && !pecasExtras.length && !temAusenciaRegistrada) return
 
       socket.emit('salvar-meta-dia', {
         estabelecimento: this.store.pegar_usuario.cnpj,
         usuario: this.store.pegar_usuario.email,
         data: this.dataSelecionada,
-        pecas: pecasAtivas.map(op => ({
-          id_da_op: op.pecaId,
-          meta: op.metaDia,
-        })),
+        pecas: [
+          ...pecasAtivas.map(op => ({ id_da_op: op.pecaId, meta: op.metaDia })),
+          ...pecasExtras.map(op => ({ id_da_op: op.pecaId, meta: op.metaDia })),
+        ],
         funcionarios: this.funcionariosDia.map(func => ({
           funcionarioId: func.email,
+          ausencia: func.ausencia || null,
           linhas: (func.linhas || []).map(linha => ({
             tipo: linha.tipo,
             etapaId: linha.etapaId,
@@ -1335,17 +1757,39 @@ export default {
 
           if (!meta) {
             this.opsAtivas = [this.novaOpSetup()]
+            this.opsExtras = []
             this.inicializarFuncionarios()
             this.reaplicarAlocacoesPendentes(alocacoesPendentes)
+            this.sincronizarOpsExtras()
             return
           }
 
           if (meta.pecas?.length) {
-            this.opsAtivas = meta.pecas.map(p => ({
-              _uid: Date.now() + Math.random(),
-              pecaId: p.id_da_op,
-              metaDia: p.meta || 0,
-            }))
+            // Uma OP salva anteriormente pode ter mudado de status desde
+            // então (ex.: era em_progresso e virou finalizado/coleta).
+            // Só reconstruímos o <select> editável do topo para OPs que
+            // CONTINUAM em_progresso (this.pecas); as demais viram cards
+            // "históricos" (opsExtras), com a OP fixa em texto — do
+            // contrário o <select> ficaria em branco por não ter a opção
+            // correspondente disponível.
+            const idsEmAndamento = new Set(this.pecas.map(p => p.id_da_op))
+            const ativas = []
+            const historicas = []
+
+            for (const p of meta.pecas) {
+              const item = {
+                _uid: Date.now() + Math.random(),
+                pecaId: p.id_da_op,
+                metaDia: p.meta || 0,
+              }
+              if (idsEmAndamento.has(p.id_da_op)) ativas.push(item)
+              else historicas.push({ ...item, historica: true })
+            }
+
+            this.opsAtivas = ativas.length ? ativas : [this.novaOpSetup()]
+            this.opsExtras = historicas
+          } else {
+            this.opsExtras = []
           }
 
           this.inicializarFuncionarios()
@@ -1353,6 +1797,8 @@ export default {
           for (const metaFunc of meta.funcionarios || []) {
             const funcionario = this.funcionariosDia.find(f => f.email === metaFunc.funcionarioId)
             if (!funcionario) continue
+
+            funcionario.ausencia = metaFunc.ausencia || null
 
             const linhas = []
 
@@ -1397,6 +1843,12 @@ export default {
           }
 
           this.reaplicarAlocacoesPendentes(alocacoesPendentes)
+
+          // Complementa opsExtras com qualquer OP que tenha registro de
+          // produção mas não tenha vindo em meta.pecas (ex.: linha extra
+          // lançada para uma OP que nunca foi configurada no topo) —
+          // mesma lista consolidada usada para montar a tabela.
+          this.sincronizarOpsExtras()
         }
       )
     },
@@ -1436,22 +1888,40 @@ export default {
      * funcionários e de etapas.
      */
     montarDadosParaPdf() {
+      const idsAtivos = new Set(this.opsAtivasComPeca.map(op => op.pecaId))
+      const idsHistoricos = new Set()
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId && !idsAtivos.has(linha.opId)) idsHistoricos.add(linha.opId)
+        }
+      }
+      // OPs que já saíram da lista ativa (finalizadas, em coleta, ou
+      // removidas do setup) mas têm produção lançada no dia — sintetiza
+      // um objeto de OP mínimo (sem meta, pois não sabemos mais a meta
+      // configurada) para reaproveitar montarDadosDaOpParaPdf.
+      const opsHistoricas = [...idsHistoricos].map(id => ({ pecaId: id, metaDia: 0 }))
+
       return {
         emitidoEm: new Date(),
         estabelecimento: this.store.pegar_usuario?.cnpj || '',
         dataProducao: this.dataSelecionada,
         turno: this.turnoAtivo === 'manha' ? 'Manhã' : 'Tarde',
-        ops: this.opsAtivasComPeca.map(op => this.montarDadosDaOpParaPdf(op)),
+        ausencias: this.funcionariosDia
+          .filter(f => f.ausencia)
+          .map(f => ({
+            nome: f.nome || f.email,
+            tipo: f.ausencia.tipo,
+            periodos: f.ausencia.periodos || [],
+          })),
+        ops: [
+          ...this.opsAtivasComPeca.map(op => this.montarDadosDaOpParaPdf(op)),
+          ...opsHistoricas.map(op => this.montarDadosDaOpParaPdf(op)),
+        ],
       }
     },
 
     montarDadosDaOpParaPdf(op) {
-      const peca = this.pecas.find(p => p.id_da_op === op.pecaId)
-      // Minutos de UM funcionário no DIA INTEIRO (manhã + tarde), não
-      // apenas do turno selecionado na tela — era essa a causa do "Tempo
-      // Disponível" nunca passar de ~9h independentemente da quantidade
-      // de funcionários: horasVisiveis reflete só o turno ativo.
-      const minutosPorFuncionarioNoDia = this.minutosDisponiveisDia()
+      const peca = this.pecasTodas.find(p => p.id_da_op === op.pecaId)
 
       const funcionariosDaOp = []
       const etapasMapa = new Map()
@@ -1473,6 +1943,7 @@ export default {
             producaoRealizada: producaoLinha,
             eficienciaFicha: this.calcularEficienciaLinhaPadrao(linha),
             eficienciaReferencia: this.calcularEficienciaLinhaReferencia(func, linha),
+            ausencia: func.ausencia ? { tipo: func.ausencia.tipo, periodos: func.ausencia.periodos || [] } : null,
           })
 
           if (!etapasMapa.has(linha.etapaId)) {
@@ -1493,10 +1964,25 @@ export default {
       }
 
       const funcionariosAlocados = this.calcularFuncionariosOp(op.pecaId)
-      const tempoDisponivel = calcularTempoDisponivelTotal({
-        funcionarios: funcionariosAlocados,
-        minutosPorFuncionario: minutosPorFuncionarioNoDia,
-      })
+
+      // Tempo disponível somado individualmente por funcionário alocado
+      // nesta OP, já descontando ausências (total ou parcial) de cada
+      // um. Antes usávamos um valor médio fixo (funcionários × minutos
+      // padrão do dia inteiro), o que ignorava por completo quem estava
+      // ausente parte (ou todo) o expediente.
+      const emailsAlocados = new Set()
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (linha.opId === op.pecaId) { emailsAlocados.add(func.email); break }
+        }
+      }
+      let tempoDisponivel = 0
+      for (const func of this.funcionariosDia) {
+        if (emailsAlocados.has(func.email)) {
+          tempoDisponivel += this.calcularMinutosDisponiveisFuncionario(func)
+        }
+      }
+
       const tempoUtilizadoTotal = funcionariosDaOp.reduce((soma, f) => soma + f.tempoUtilizado, 0)
 
       const dadosOp = {
@@ -1743,6 +2229,32 @@ export default {
   box-shadow: 0 2px 10px rgba(0,0,0,.03);
 }
 
+.op-card--historico {
+  background: linear-gradient(135deg, #fefcf6, #faf8f2);
+  border-color: #e6ddc0;
+}
+
+.op-badge--historico {
+  color: #7a6a2e;
+  background: #f0ead2;
+}
+
+.op-fixa {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  border-radius: 13px;
+  border: 1px dashed #dceee3;
+  background: #f7faf8;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #4c6656;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .op-card-header { display: flex; align-items: center; justify-content: space-between; }
 
 .op-badge {
@@ -1898,7 +2410,7 @@ export default {
 .table-scroll { overflow-x: auto; }
 
 .apontamento-table {
-  width: 100%; border-collapse: collapse; min-width: 1500px;
+  width: 100%; border-collapse: collapse; min-width: 1556px;
   table-layout: fixed;
 }
 
@@ -1906,8 +2418,8 @@ export default {
 .col-etapa    { width: 230px; }
 .col-hora     { width: 170px; }
 .col-total    { width: 80px; }
-.col-efic     { width: 100px; }
-.col-efic-ref { width: 100px; }
+.col-efic     { width: 128px; }
+.col-efic-ref { width: 128px; }
 
 .apontamento-table thead {
   background: linear-gradient(90deg, #0d6632, #084d24);
@@ -2063,8 +2575,8 @@ export default {
 
 .efic-badge {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 56px; height: 28px; border-radius: 20px;
-  font-size: 12px; font-weight: 700; padding: 0 10px;
+  min-width: 64px; height: 28px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; padding: 0 12px;
 }
 
 .efic-badge--ref {
@@ -2077,9 +2589,15 @@ export default {
 .efic-baixa { background: #ffe8e8; color: #b12626; }
 
 .total-col { width: 80px; min-width: 80px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; box-sizing: border-box; }
-.efic-col  { width: 100px; min-width: 100px; text-align: center; box-sizing: border-box; }
+.efic-col  { width: 128px; min-width: 128px; text-align: center; box-sizing: border-box; padding-left: 10px; padding-right: 10px; }
 
-.efic-col--ref { background: rgba(109, 72, 201, 0.05); }
+/* Mais respiro entre "Efic. Ficha" e "Efic. Ref.": coluna mais larga,
+   borda separadora sutil e fundo diferenciado para reforçar que são
+   dois indicadores distintos, sem alterar o restante do padrão visual. */
+.efic-col--ref {
+  background: rgba(109, 72, 201, 0.05);
+  border-left: 1px solid #e3f0e7;
+}
 
 .ops-modulos-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
 
@@ -2110,6 +2628,205 @@ export default {
 
 .op-module-stats .stat { display: inline-flex; align-items: center; gap: 4px; }
 .op-module-stats .stat strong { color: #052e14; font-weight: 800; font-size: 13px; }
+
+/* ── OP HISTÓRICA (fora da lista de OPs ativas) ────── */
+.op-module-header--historico {
+  background: linear-gradient(90deg, #f4f1e8, #faf8f2);
+  border-color: #e6ddc0;
+}
+
+.op-module-header--historico .op-module-badge { color: #7a6a2e; }
+
+.op-module-badge-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9a8a4a;
+  background: #f0ead2;
+  border-radius: 6px;
+  padding: 2px 8px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.etapa-fixa {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 34px;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px dashed #dceee3;
+  background: #f7faf8;
+  padding: 2px 8px;
+  min-width: 0;
+}
+
+.etapa-fixa-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4c6656;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.etapa-fixa-tag { font-size: 9px; font-weight: 700; color: #93a89c; }
+
+.hora-ausente-marker {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f4f4f4;
+  border: 1px dashed #d5d5d5;
+  color: #9a9a9a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ── FUNCIONÁRIO AUSENTE ────────────────────────────── */
+.linha-ausente { opacity: .55; }
+
+.func-info-text { display: flex; flex-direction: column; gap: 4px; }
+.func-nome { font-size: 13px; font-weight: 700; color: #052e14; }
+
+.btn-ausencia-toggle {
+  align-self: flex-start;
+  border: none;
+  background: #f2f8f4;
+  color: #5d8470;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 7px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: .2s;
+}
+
+.btn-ausencia-toggle:hover { background: #e7f0ea; }
+
+.ausencia-tag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 7px;
+  padding: 3px 8px;
+}
+
+.ausencia-tag--dia_inteiro { background: #f3e6e6; color: #9a4b4b; }
+.ausencia-tag--parcial { background: #fff4d6; color: #8a6a00; }
+
+/* ── MODAL DE AUSÊNCIA ──────────────────────────────── */
+.ausencia-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5, 46, 20, .35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.ausencia-modal {
+  background: white;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.2);
+  overflow: hidden;
+}
+
+.ausencia-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.1rem 1.3rem;
+  background: linear-gradient(135deg, #0d6632, #118a43);
+  color: white;
+}
+
+.ausencia-modal-header h3 { margin: 0; font-size: 16px; }
+
+.ausencia-modal-close {
+  width: 28px; height: 28px; border: none; border-radius: 8px;
+  background: rgba(255,255,255,.15); color: white;
+  font-size: 16px; cursor: pointer; line-height: 1;
+}
+
+.ausencia-modal-body { padding: 1.2rem 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
+
+.ausencia-tipo-switch { display: flex; gap: 6px; background: #edf7f1; padding: 5px; border-radius: 13px; }
+
+.ausencia-tipo-btn {
+  flex: 1; height: 40px; border: none; border-radius: 10px;
+  background: transparent; color: #6d8c79; font-weight: 700; font-size: 13px;
+  cursor: pointer; transition: .2s; font-family: inherit;
+}
+
+.ausencia-tipo-btn.active {
+  background: linear-gradient(135deg, #0d6632, #118a43);
+  color: white; box-shadow: 0 4px 12px rgba(13,102,50,.2);
+}
+
+.ausencia-periodos { display: flex; flex-direction: column; gap: 8px; }
+
+.ausencia-periodo-row { display: flex; align-items: center; gap: 8px; }
+
+.ausencia-hora-select {
+  flex: 1; height: 40px; border-radius: 10px;
+  border: 1px solid #dceee3; padding: 0 10px;
+  font-family: inherit; font-size: 13px; font-weight: 700; color: #052e14;
+}
+
+.ausencia-periodo-ate { font-size: 12px; font-weight: 700; color: #648673; }
+
+.btn-remove-periodo {
+  width: 30px; height: 30px; border: none; border-radius: 8px;
+  background: #ffecec; color: #d93b3b; font-size: 16px; font-weight: 700; cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-add-periodo {
+  align-self: flex-start;
+  border: 2px dashed #b2d9c0; border-radius: 10px;
+  background: transparent; color: #0d6632;
+  height: 36px; padding: 0 14px; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+
+.ausencia-dia-inteiro-aviso {
+  margin: 0; font-size: 13px; color: #648673; line-height: 1.5;
+  background: #f7fcf9; border: 1px solid #dceee3; border-radius: 12px; padding: .8rem 1rem;
+}
+
+.ausencia-modal-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 1rem 1.3rem; border-top: 1px solid #edf6f1;
+}
+
+.ausencia-modal-footer-right { display: flex; gap: 8px; }
+
+.btn-ausencia-remover {
+  border: none; background: transparent; color: #d93b3b;
+  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+.btn-ausencia-cancelar {
+  height: 40px; padding: 0 16px; border-radius: 10px;
+  border: 1px solid #dceee3; background: white; color: #537664;
+  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+.btn-ausencia-salvar {
+  height: 40px; padding: 0 18px; border-radius: 10px;
+  border: none; background: linear-gradient(135deg, #0d6632, #118a43);
+  color: white; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  box-shadow: 0 4px 12px rgba(13,102,50,.2);
+}
 
 /* ── RESPONSIVO ─────────────────────────────────────── */
 @media (max-width: 1024px) {
