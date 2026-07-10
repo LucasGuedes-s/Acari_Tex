@@ -246,6 +246,7 @@
 </template>
 
 <script>
+
 import { io } from 'socket.io-client'
 import { useAuthStore } from '@/store/store'
 import api from '@/Axios'
@@ -317,21 +318,30 @@ export default {
     // Eficiência da turma ponderada pelas peças FINALIZADAS (etapa final).
     // Só considera registros com tempoProduzido > 0 — sem fallback fictício.
     eficienciaMediaTurma() {
-      // SAM e tempo do turno vêm da OP ativa
-      const op = this.pecas.find(p => p.id_da_op === this.opsAtivas[0]?.pecaId)
-      const sam = op?.tempo_padrao || 0
-      // const tempoTurno = op?.Estabelecimento?.tempo_de_producao || 540 // minutos
-      const tempoTurno = 540 // minutos
+      
+      // SAM vem diretamente da meta do dia
+      const sam = this.opsAtivas[0]?.tempoPadrao || 0
 
-      const nFuncionarios = this.funcionariosOrdenados.length
+      // Considera somente funcionários que realmente tiveram produção
+      const funcionariosAtivos = this.funcionariosOrdenados.filter(func =>
+        func.linhas?.some(linha =>
+          Object.values(linha.registros || {}).some(reg =>
+            reg.quantidade > 0 && reg.tempoProduzido > 0
+          )
+        )
+      )
+
+      const nFuncionarios = funcionariosAtivos.length
+      const tempoTurno = this.calcularTempoTurno()
+
       if (!nFuncionarios || !sam || !tempoTurno) return 0
 
-      // Soma peças finalizadas de todos os funcionários no dia
+      // Soma peças finalizadas somente de funcionários ativos
       let totalPecas = 0
-      for (const func of this.funcionariosOrdenados) {
+      for (const func of funcionariosAtivos) {
         totalPecas += this.calcularTotalFinalizadoFuncionario(func)
       }
-
+      console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
       // (Qtd × SAM) / (Nº Operadores × Tempo do Turno) × 100
       const tempoDisponivel = nFuncionarios * tempoTurno
       // console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
@@ -417,6 +427,7 @@ export default {
         })
 
         const meta = res.data.metaDia
+        console.log('Meta do dia recebida:', meta)
         if (!meta) {
           this.opsAtivas = []
           this.funcionariosDia = []
@@ -424,9 +435,11 @@ export default {
         }
 
         this.opsAtivas = (meta.pecas || []).map(p => ({
-          _uid: Date.now() + Math.random(),
           pecaId: p.id_da_op,
           metaDia: p.meta || 0,
+          tempoPadrao: p.peca?.tempo_padrao || 0,
+          status: p.peca?.status,
+          descricao: p.peca?.descricao
         }))
 
         this.funcionariosDia = []
@@ -541,9 +554,37 @@ export default {
     },
 
     // ── EFICIÊNCIA ────────────────────────────────────────
+
+    calcularTempoTurno() {
+      const horas = new Set()
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (reg?.quantidade > 0 && reg?.tempoProduzido > 0) {
+              horas.add(hora)
+            }
+          }
+        }
+      }
+
+      const lista = [...horas].sort((a, b) =>
+        this.horaParaMinutos(a) - this.horaParaMinutos(b)
+      )
+
+      if (lista.length < 2) return 0
+
+      const inicio = this.horaParaMinutos(lista[0])
+      const fim = this.horaParaMinutos(lista[lista.length - 1])
+
+      return (fim - inicio) + 60
+    },
+
     // Só considera registros com tempoProduzido > 0 — sem || 60 fictício.
 
+
     calcularEficienciaRegistro(quantidade, tempoProduzido, tempoPadrao) {
+      console.log('quantidade:', quantidade, 'tempoProduzido:', tempoProduzido, 'tempoPadrao:', tempoPadrao)
       if (!quantidade || !tempoProduzido || !tempoPadrao) return 0
       return Math.round(((quantidade * tempoPadrao) / tempoProduzido) * 100)
     },
@@ -658,6 +699,7 @@ export default {
     },
   },
 }
+
 </script>
 
 <style scoped>

@@ -1,7 +1,6 @@
 async function FormatarData(data){
 
     const dataUTC = new Date(data);
-    console.log("Chegando aqui")
 
     // Formatando a data para o padrão brasileiro
     const options = { 

@@ -5,7 +5,7 @@ async function firstRunProducao(producoes, id_da_op, id_Estabelecimento) {
 
   for (const func of producoes) {
     const { id_funcionario, id_da_funcao, horarios } = func;
-    console.log(`Registrando produção para o funcionário ${id_funcionario}, função ${id_da_funcao}`);
+    // console.log(`Registrando produção para o funcionário ${id_funcionario}, função ${id_da_funcao}`);
     const etapaRelacionada = await prisma.pecasEtapas.findUnique({
       where: {
         id_da_op_id_da_funcao: {
@@ -17,7 +17,6 @@ async function firstRunProducao(producoes, id_da_op, id_Estabelecimento) {
     
 
     if (!etapaRelacionada) {
-      console.log(`Etapa não encontrada para função ${id_da_funcao} e OP ${id_da_op}`);
       continue;
     }
 
@@ -41,7 +40,7 @@ async function firstRunProducao(producoes, id_da_op, id_Estabelecimento) {
         }
       });
     }
-    console.log(`Produção registrada para o funcionário ${id_funcionario}`);
+    // console.log(`Produção registrada para o funcionário ${id_funcionario}`);
     }
 }
 
