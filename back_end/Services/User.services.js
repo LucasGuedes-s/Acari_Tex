@@ -109,9 +109,53 @@ async function alterarSenha(email, novaSenha) {
   return usuario_atualizado;
 }
 
+async function enviarNotificacaoParaTodos({
+  titulo,
+  mensagem,
+  etapa = "Coletiva",
+}) {
+  try {
+    // Busca todos os estabelecimentos
+    const estabelecimentos = await prisma.Estabelecimento.findMany({
+      select: {
+        cnpj: true,
+      },
+    });
+
+    if (estabelecimentos.length === 0) {
+      return {
+        sucesso: false,
+        mensagem: "Nenhum estabelecimento cadastrado.",
+      };
+    }
+
+    // Monta os registros
+    const notificacoes = estabelecimentos.map((estabelecimento) => ({
+      estabelecimentoCnpj: estabelecimento.cnpj,
+      titulo,
+      mensagem,
+      etapa,
+    }));
+
+    // Cria todas de uma vez
+    await prisma.notificacoes.createMany({
+      data: notificacoes,
+    });
+
+    return {
+      sucesso: true,
+      mensagem: `${notificacoes.length} notificações enviadas com sucesso.`,
+    };
+  } catch (error) {
+    console.error("Erro ao enviar notificações:", error);
+    throw error;
+  }
+}
+
 module.exports = {
     loginUser,
     criarTempoReferencia,
     SolicitacaoalterarSenha,
-    alterarSenha
+    alterarSenha,
+    enviarNotificacaoParaTodos
 }

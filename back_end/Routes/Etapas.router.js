@@ -160,11 +160,16 @@ router.post(
         const descricao = linha[0];
         const quantidade = Number(linha[1]);
         const valor = Number(linha[2]);
+        const tempoPadrao = linha[3];
 
         if (descricao && !isNaN(quantidade) && !isNaN(valor)) {
-          linhaPeca = [descricao, quantidade, valor];
+          linhaPeca = [descricao, quantidade, valor, tempoPadrao];
           break;
         }
+        // console.log(json[0]);
+        // console.log(json[1]);
+        // console.log(json[2]);
+        // console.log(json[3]);
       }
 
       if (!linhaPeca) {
@@ -174,6 +179,15 @@ router.post(
       const descricao_peca = linhaPeca[0];
       const quantidade_pecas = Number(linhaPeca[1]);
       const valor_peca = Number(linhaPeca[2]);
+
+      let tempoPadraoPeca = linhaPeca[3] ?? null;
+      if (tempoPadraoPeca !== null) {
+        tempoPadraoPeca = Number(String(tempoPadraoPeca).replace(",", "."));
+      }
+
+      if (Number.isNaN(tempoPadraoPeca)) {
+        tempoPadraoPeca = null;
+      }
 
       // =========================
       // 🔎 HEADER ETAPAS
@@ -323,7 +337,7 @@ router.post(
               data_do_pedido: new Date().toISOString().split("T")[0],
               valor_peca,
               status: "nao_iniciado",
-              tempo_padrao: tempoTotal,
+              tempo_padrao: tempoPadraoPeca,
               id_Estabelecimento: cnpj,
             },
           });
@@ -431,7 +445,7 @@ router.post(
             peca,
             etapasCriadas: etapasParaCriarNoBanco.length,
             etapasReutilizadas: etapasParaVincular.length,
-            tempoTotal,
+            tempoPadraoPeca,
             temposReferenciaCriados: temposReferencia.length,
           };
         },
@@ -443,7 +457,8 @@ router.post(
         pecaCriada: resultado.peca.descricao,
         etapasCriadas: resultado.etapasCriadas,
         etapasReutilizadas: resultado.etapasReutilizadas,
-        tempoTotal: resultado.tempoTotal,
+        tempoTotal: tempoTotal,
+        tempoPadraoPeca: resultado.tempoPadraoPeca,
         temposReferenciaCriados: resultado.temposReferenciaCriados,
         ...(nomesNaoEncontrados.length > 0 && {
           avisos: nomesNaoEncontrados.map(

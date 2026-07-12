@@ -179,7 +179,7 @@
         </div>
 
         <!-- TABELA AGRUPADA POR OP (MÓDULOS) -->
-        <div v-if="opsAtivasComPeca.length > 0 && funcionariosAgrupadosPorOp.length > 0" class="ops-modulos-wrapper">
+        <div v-if="temConteudoParaTabela" class="ops-modulos-wrapper">
           <template v-for="grupo in funcionariosAgrupadosPorOp" :key="grupo.opId || 'sem-op'">
 
             <!-- HEADER DO MÓDULO -->
@@ -467,6 +467,7 @@ export default {
       loading: true,
       socketConectado: false,
       dataSelecionada: this.formatarDataLocal(),
+      dataCarregada: null,
       turnoAtivo: 'manha',
       opsAtivas: [this.novaOpSetup()],
       opsExtras: [],
@@ -618,6 +619,53 @@ export default {
       return ordem
         .map(id => gruposMap.get(id))
         .filter(g => g && g.funcionarios.length)
+    },
+
+    /**
+     * ÚNICA fonte de verdade para "quais funcionários/linhas pertencem a
+     * esta OP" — um Map(opId → grupo) construído a partir do MESMO
+     * agrupamento (`funcionariosAgrupadosPorOp`) que monta a tabela.
+     *
+     * Antes desta correção, os cards do topo (Produção Atual, e por
+     * tabela os cálculos de eficiência/capacidade) recalculavam varrendo
+     * `funcionariosDia` de forma TOTALMENTE INDEPENDENTE da tabela. Como
+     * eram dois caminhos de cálculo separados sobre a mesma base, uma
+     * pequena divergência na resolução do opId de algum registro (ex.:
+     * quando `id_da_op` não vinha preenchido e o sistema tentava inferir
+     * a OP pela etapa) podia fazer um dos dois caminhos "perder" a
+     * associação enquanto o outro continuava enxergando os dados — daí o
+     * card mostrar produção e a tabela aparecer zerada.
+     *
+     * Ao fazer TODOS os cálculos por OP (card e tabela) lerem deste
+     * mesmo mapa, essa divergência deixa de ser possível por construção:
+     * não existe mais "um jeito de calcular para o card" e "outro jeito
+     * para a tabela" — existe um único agrupamento, usado por tudo.
+     */
+    mapaProducaoPorOp() {
+      const mapa = new Map()
+      for (const grupo of this.funcionariosAgrupadosPorOp) {
+        if (grupo.opId) mapa.set(grupo.opId, grupo)
+      }
+      return mapa
+    },
+
+    /**
+     * Decide se a tabela de módulos deve aparecer. Não pode depender só
+     * de `opsAtivasComPeca.length > 0` (bug anterior): num dia em que
+     * TODAS as OPs já mudaram de status (finalizado/coleta) e nenhuma
+     * ficou em_progresso, isso escondia a tabela inteira mesmo havendo
+     * produção histórica real para mostrar. Por outro lado, não basta
+     * checar só `funcionariosAgrupadosPorOp.length`, pois o grupo "sem
+     * OP" sempre existe (todo funcionário nasce com uma linha vazia) —
+     * sem essa distinção, um dia genuinamente sem nenhuma produção
+     * mostraria uma tabela cheia de linhas em branco.
+     * Mostra a tabela quando: existe OP ativa configurada no topo, OU
+     * existe pelo menos um grupo com opId (produção real, ativa ou
+     * histórica).
+     */
+    temConteudoParaTabela() {
+      return this.opsAtivasComPeca.length > 0
+        || this.funcionariosAgrupadosPorOp.some(g => g.opId !== null)
     }
   },
 
@@ -738,7 +786,7 @@ export default {
 
           for (const hora of horasAtuais) {
             if (!linha.registros[hora]) {
-              linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
+              linha.registros[hora] = { quantidade: 0, tempoProduzido: 60 }
             }
           }
         }
@@ -1004,7 +1052,7 @@ export default {
         ...this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim),
       ]
       for (const hora of horas) {
-        registros[hora] = { quantidade: null, tempoProduzido: 60 }
+        registros[hora] = { quantidade: 0, tempoProduzido: 60 }
       }
       return registros
     },
@@ -1438,10 +1486,12 @@ export default {
 
     calcularTotalOp(pecaId) {
       if (!pecaId) return 0
+      const grupo = this.mapaProducaoPorOp.get(pecaId)
+      if (!grupo) return 0
       let total = 0
-      for (const func of this.funcionariosDia) {
+      for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
-          if (!this.isEtapaFinal(linha) || linha.opId !== pecaId) continue
+          if (!this.isEtapaFinal(linha)) continue
           total += this.calcularTotalLinha(linha)
         }
       }
@@ -1450,13 +1500,8 @@ export default {
 
     calcularFuncionariosOp(opId) {
       if (!opId) return 0
-      const emails = new Set()
-      for (const func of this.funcionariosDia) {
-        for (const linha of func.linhas || []) {
-          if (linha.opId === opId) { emails.add(func.email); break }
-        }
-      }
-      return emails.size
+      const grupo = this.mapaProducaoPorOp.get(opId)
+      return grupo ? grupo.funcionarios.length : 0
     },
 
     /**
@@ -1469,12 +1514,13 @@ export default {
      */
     calcularEficienciaOpPadrao(opId) {
       if (!opId) return 0
+      const grupo = this.mapaProducaoPorOp.get(opId)
+      if (!grupo) return 0
       let producaoPonderada = 0
       let tempoTrabalhado = 0
 
-      for (const func of this.funcionariosDia) {
+      for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
-          if (linha.opId !== opId) continue
           const sam = this.resolverTempoPadrao(linha)
           for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
@@ -1498,12 +1544,13 @@ export default {
      */
     calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
+      const grupo = this.mapaProducaoPorOp.get(opId)
+      if (!grupo) return 0
       let capacidade = 0
       let tempoRegistrado = 0
 
-      for (const func of this.funcionariosDia) {
+      for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
-          if (linha.opId !== opId) continue
           const sam = this.resolverTempoPadrao(linha)
           if (!sam) continue
           for (const reg of Object.values(linha.registros || {})) {
@@ -1517,15 +1564,15 @@ export default {
       }
 
       if (!tempoRegistrado) {
-        for (const func of this.funcionariosDia) {
+        for (const func of grupo.funcionarios) {
+          const real = func._funcRef || func
           for (const linha of func.linhas || []) {
-            if (linha.opId !== opId) continue
             const sam = this.resolverTempoPadrao(linha) || 60
             // Usa o tempo disponível já descontado de eventuais ausências
             // (total ou parcial) deste funcionário específico, em vez do
             // dia cheio — evita superestimar a capacidade de quem está
             // ausente.
-            const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(func)
+            const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(real)
             capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDisponiveis, sam })
           }
         }
@@ -1572,12 +1619,13 @@ export default {
     /** Eficiência da OP pelo Tempo de Referência — mesma fórmula oficial. */
     calcularEficienciaOpReferencia(opId) {
       if (!opId) return 0
+      const grupo = this.mapaProducaoPorOp.get(opId)
+      if (!grupo) return 0
       let producaoPonderada = 0
       let tempoTrabalhado = 0
 
-      for (const func of this.funcionariosDia) {
+      for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
-          if (linha.opId !== opId) continue
           const sam = this.resolverTempoEfetivoReferencia(func, linha)
           for (const reg of Object.values(linha.registros || {})) {
             if (reg && reg.quantidade > 0) {
@@ -1598,12 +1646,13 @@ export default {
      */
     calcularCapacidadeOpReferencia(opId) {
       if (!opId) return 0
+      const grupo = this.mapaProducaoPorOp.get(opId)
+      if (!grupo) return 0
       let capacidade = 0
       let tempoRegistrado = 0
 
-      for (const func of this.funcionariosDia) {
+      for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
-          if (linha.opId !== opId) continue
           const sam = this.resolverTempoEfetivoReferencia(func, linha)
           if (!sam) continue
           for (const reg of Object.values(linha.registros || {})) {
@@ -1617,14 +1666,14 @@ export default {
       }
 
       if (!tempoRegistrado) {
-        for (const func of this.funcionariosDia) {
+        for (const func of grupo.funcionarios) {
+          const real = func._funcRef || func
           for (const linha of func.linhas || []) {
-            if (linha.opId !== opId) continue
             const sam = this.resolverTempoEfetivoReferencia(func, linha) || 60
             // Mesmo raciocínio da capacidade "Ficha": desconta ausência
             // individual antes de estimar a capacidade sem produção ainda
             // lançada.
-            const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(func)
+            const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(real)
             capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDisponiveis, sam })
           }
         }
@@ -1729,6 +1778,23 @@ export default {
       const buscaId = this.ultimaBuscaId
       this.carregandoMeta = true
 
+      /**
+       * Se a data mudou desde o último carregamento bem-sucedido, o
+       * estado em memória (opsAtivas, opsExtras, funcionariosDia)
+       * pertence a OUTRO dia e não pode ser reaproveitado de jeito
+       * nenhum — nem exibido, nem usado como base para "realocações
+       * pendentes" mais abaixo. Limpamos tudo AQUI, de forma síncrona,
+       * antes mesmo da resposta do servidor chegar: a tela nunca deve
+       * mostrar (nem por um instante) OPs de um dia diferente do
+       * selecionado.
+       */
+      const trocouDeData = this.dataCarregada !== null && this.dataCarregada !== dataDaRequisicao
+      if (trocouDeData) {
+        this.opsAtivas = [this.novaOpSetup()]
+        this.opsExtras = []
+        this.inicializarFuncionarios()
+      }
+
       setTimeout(() => {
         if (buscaId === this.ultimaBuscaId) this.carregandoMeta = false
       }, 8000)
@@ -1744,14 +1810,29 @@ export default {
 
           const meta = response.metaDia
 
+          /**
+           * "Realocações pendentes" existem para não perder uma seleção
+           * de etapa que o usuário acabou de fazer na tela e que ainda
+           * não voltou confirmada pelo servidor — só faz sentido quando
+           * estamos atualizando os dados da MESMA data já exibida (ex.:
+           * uma atualização em tempo real via socket). Antes, isso era
+           * capturado incondicionalmente a partir do estado atual, o que
+           * fazia as seleções — e por consequência as OPs — do dia
+           * ANTERIOR serem "reaplicadas" por cima dos dados do dia novo,
+           * recriando linhas fantasmas zeradas para OPs sem nenhuma
+           * relação com a data selecionada agora. Ao trocar de data,
+           * este mapa fica vazio de propósito.
+           */
           const alocacoesPendentes = new Map()
-          for (const func of this.funcionariosDia) {
-            const pendentes = (func.linhas || []).filter(l => l.etapaId)
-            if (pendentes.length) {
-              alocacoesPendentes.set(func.email, pendentes.map(l => ({
-                etapaId: l.etapaId,
-                opId: l.opId || null,
-              })))
+          if (this.dataCarregada === dataDaRequisicao) {
+            for (const func of this.funcionariosDia) {
+              const pendentes = (func.linhas || []).filter(l => l.etapaId)
+              if (pendentes.length) {
+                alocacoesPendentes.set(func.email, pendentes.map(l => ({
+                  etapaId: l.etapaId,
+                  opId: l.opId || null,
+                })))
+              }
             }
           }
 
@@ -1761,6 +1842,7 @@ export default {
             this.inicializarFuncionarios()
             this.reaplicarAlocacoesPendentes(alocacoesPendentes)
             this.sincronizarOpsExtras()
+            this.dataCarregada = dataDaRequisicao
             return
           }
 
@@ -1789,6 +1871,7 @@ export default {
             this.opsAtivas = ativas.length ? ativas : [this.novaOpSetup()]
             this.opsExtras = historicas
           } else {
+            this.opsAtivas = [this.novaOpSetup()]
             this.opsExtras = []
           }
 
@@ -1825,10 +1908,6 @@ export default {
               const hora = producao.hora_registro
               if (!hora) continue
 
-              if (!linha.registros[hora]) {
-                linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
-              }
-
               linha.registros[hora] = {
                 quantidade: producao.quantidade_pecas || 0,
                 tempoProduzido: producao.tempo_produzido || 60,
@@ -1849,6 +1928,7 @@ export default {
           // lançada para uma OP que nunca foi configurada no topo) —
           // mesma lista consolidada usada para montar a tabela.
           this.sincronizarOpsExtras()
+          this.dataCarregada = dataDaRequisicao
         }
       )
     },
@@ -1922,13 +2002,14 @@ export default {
 
     montarDadosDaOpParaPdf(op) {
       const peca = this.pecasTodas.find(p => p.id_da_op === op.pecaId)
+      const grupo = this.mapaProducaoPorOp.get(op.pecaId)
 
       const funcionariosDaOp = []
       const etapasMapa = new Map()
 
-      for (const func of this.funcionariosDia) {
+      for (const func of (grupo?.funcionarios || [])) {
         for (const linha of func.linhas || []) {
-          if (linha.opId !== op.pecaId || !linha.etapaId) continue
+          if (!linha.etapaId) continue
 
           const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
           const descricaoEtapa = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || '—'
@@ -1963,24 +2044,18 @@ export default {
         }
       }
 
-      const funcionariosAlocados = this.calcularFuncionariosOp(op.pecaId)
+      const funcionariosAlocados = grupo ? grupo.funcionarios.length : 0
 
       // Tempo disponível somado individualmente por funcionário alocado
-      // nesta OP, já descontando ausências (total ou parcial) de cada
-      // um. Antes usávamos um valor médio fixo (funcionários × minutos
-      // padrão do dia inteiro), o que ignorava por completo quem estava
-      // ausente parte (ou todo) o expediente.
-      const emailsAlocados = new Set()
-      for (const func of this.funcionariosDia) {
-        for (const linha of func.linhas || []) {
-          if (linha.opId === op.pecaId) { emailsAlocados.add(func.email); break }
-        }
-      }
+      // nesta OP (mesmo grupo usado pela tabela), já descontando
+      // ausências (total ou parcial) de cada um. Antes usávamos um valor
+      // médio fixo (funcionários × minutos padrão do dia inteiro), o que
+      // ignorava por completo quem estava ausente parte (ou todo) o
+      // expediente.
       let tempoDisponivel = 0
-      for (const func of this.funcionariosDia) {
-        if (emailsAlocados.has(func.email)) {
-          tempoDisponivel += this.calcularMinutosDisponiveisFuncionario(func)
-        }
+      for (const func of (grupo?.funcionarios || [])) {
+        const real = func._funcRef || func
+        tempoDisponivel += this.calcularMinutosDisponiveisFuncionario(real)
       }
 
       const tempoUtilizadoTotal = funcionariosDaOp.reduce((soma, f) => soma + f.tempoUtilizado, 0)

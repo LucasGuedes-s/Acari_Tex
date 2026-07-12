@@ -58,9 +58,22 @@ async function alterarSenha(req, res, next) {
         next(err);
     }
 }
+async function enviarNotificacaoParaTodos(req, res) {
+    try {
+        const titulo = 'Atualização do Sistema';
+        const mensagem = 'O LinhaTex será atualizado hoje dia 11/07 e amanhã dia 12/07. Durante esse período, o sistema poderá ficar indisponível. Agradecemos a compreensão.';
+        await Login.enviarNotificacaoParaTodos({ titulo, mensagem });
+        res.status(200).json({ message: "Notificação enviada para todos os usuários." });
+    } catch (err) {
+        console.error("Erro ao enviar notificação:", err.message);
+        err.statusCode = 500;
+    }
+}
 module.exports = { 
     login,
     criarTempoReferencia,
     SolicitacaoalterarSenha,
-    alterarSenha
+    alterarSenha,
+    enviarNotificacaoParaTodos
 };
+// enviarNotificacaoParaTodos();   
