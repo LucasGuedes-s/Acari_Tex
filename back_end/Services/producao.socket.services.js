@@ -58,26 +58,26 @@ async function salvarProducao(payload) {
 
   // Se a quantidade for zero, remove o registro
   if (Number(quantidade) === 0) {
-    const producao = await prisma.producao.findFirst({
+  const producao = await prisma.producao.findFirst({
+    where: {
+      id_funcionario: funcionarioId,
+      id_da_funcao: etapaId,
+      id_da_op: opId,
+      hora_registro: hora,
+      tipoRegistro,
+    },
+  })
+
+  if (producao) {
+    return await prisma.producao.delete({
       where: {
-        id_funcionario: funcionarioId,
-        id_da_funcao: etapaId,
-        id_da_op: opId,
-        hora_registro: hora,
-        tipoRegistro,
+        id_da_producao: producao.id_da_producao,
       },
     })
-
-    if (producao) {
-      const remover =await prisma.producao.delete({
-        where: {
-          id_da_producao: producao.id_da_producao,
-        },
-      })
-    }
-
-    return remover
   }
+
+  return null
+}
 
   // Caso contrário cria ou atualiza
   return prisma.producao.upsert({

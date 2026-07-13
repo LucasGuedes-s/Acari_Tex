@@ -6,7 +6,6 @@
     <main v-else class="content-wrapper">
       <div class="page-section">
 
-        <!-- HEADER -->
         <div class="header">
           <div class="header-actions">
             <div class="socket-status" :class="{ online: socketConectado }">
@@ -238,7 +237,8 @@
                                 {{ funcionario.ausencia ? '✏️ Ausência' : '🚫 Ausência' }}
                               </button>
                               <span v-if="funcionario.ausencia" class="ausencia-tag"
-                                :class="'ausencia-tag--' + funcionario.ausencia.tipo">
+                                :class="'ausencia-tag--' + funcionario.ausencia.tipo"
+                                :title="funcionario.ausencia.observacao || ''">
                                 <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia todo)</template>
                                 <template v-else>🌗 Ausente: {{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</template>
                               </span>
@@ -351,7 +351,7 @@
                         </td>
 
                         <!-- TOTAL -->
-                        <td class="total-col">{{ calcularTotalLinha(linha) }}</td>
+                        <td class="total-col">{{ calcularTotalLinha(linha, funcionario) }}</td>
 
                         <!-- EFICIÊNCIA FICHA (por funcionário) -->
                         <td class="efic-col">
@@ -418,6 +418,12 @@
               O funcionário ficará indisponível durante todo o expediente e nenhum lançamento de produção
               poderá ser feito para ele neste dia.
             </p>
+
+            <div class="ausencia-campo-observacao">
+              <label>Observação / motivo (opcional)</label>
+              <textarea v-model="modalAusencia.form.observacao" class="ausencia-observacao-input" rows="2"
+                placeholder="Ex.: consulta médica, licença, atestado…"></textarea>
+            </div>
           </div>
 
           <div class="ausencia-modal-footer">
@@ -484,7 +490,7 @@ export default {
       modalAusencia: {
         aberto: false,
         funcionario: null,
-        form: { tipo: 'dia_inteiro', periodos: [] },
+        form: { tipo: 'dia_inteiro', periodos: [], observacao: '' },
       },
     }
   },
@@ -681,6 +687,7 @@ export default {
     await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
+    await this.getFaltas()
   },
 
   beforeUnmount() {
@@ -786,7 +793,7 @@ export default {
 
           for (const hora of horasAtuais) {
             if (!linha.registros[hora]) {
-              linha.registros[hora] = { quantidade: 0, tempoProduzido: 60 }
+              linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
             }
           }
         }
@@ -1052,7 +1059,7 @@ export default {
         ...this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim),
       ]
       for (const hora of horas) {
-        registros[hora] = { quantidade: 0, tempoProduzido: 60 }
+        registros[hora] = { quantidade: null, tempoProduzido: 60 }
       }
       return registros
     },
@@ -1310,8 +1317,9 @@ export default {
             periodos: existente.tipo === 'parcial' && existente.periodos?.length
               ? existente.periodos.map(p => ({ _uid: Date.now() + Math.random(), inicio: p.inicio, fim: p.fim }))
               : [this.novoPeriodoAusencia()],
+            observacao: existente.observacao || '',
           }
-        : { tipo: 'dia_inteiro', periodos: [this.novoPeriodoAusencia()] }
+        : { tipo: 'dia_inteiro', periodos: [this.novoPeriodoAusencia()], observacao: '' }
 
       this.modalAusencia.aberto = true
     },
@@ -1334,6 +1342,7 @@ export default {
       if (!funcionario) return
 
       const form = this.modalAusencia.form
+      const observacao = (form.observacao || '').trim()
 
       if (form.tipo === 'parcial') {
         const periodosValidos = form.periodos
@@ -1345,20 +1354,104 @@ export default {
           return
         }
 
-        funcionario.ausencia = { tipo: 'parcial', periodos: periodosValidos }
+        funcionario.ausencia = { tipo: 'parcial', periodos: periodosValidos, observacao }
       } else {
-        funcionario.ausencia = { tipo: 'dia_inteiro', periodos: [] }
+        funcionario.ausencia = { tipo: 'dia_inteiro', periodos: [], observacao }
       }
 
+      this.registrarFaltaNoBackend(funcionario)
       this.fecharModalAusencia()
       this.salvarMetaDia()
     },
 
     removerAusencia() {
       const funcionario = this.modalAusencia.funcionario
-      if (funcionario) funcionario.ausencia = null
+      if (funcionario) {
+        funcionario.ausencia = null
+        this.registrarFaltaNoBackend(funcionario)
+      }
       this.fecharModalAusencia()
       this.salvarMetaDia()
+    },
+
+    /**
+     * Persiste a ausência no backend via POST /registrar-faltas — esta é
+     * a fonte de verdade "oficial" da ausência (fica também replicada em
+     * `funcionario.ausencia` dentro do payload de salvar-meta-dia, para
+     * não quebrar o fluxo de carregamento por socket já existente, mas o
+     * registro formal em banco passa a acontecer por aqui).
+     *
+     * Ausência parcial com múltiplos períodos gera UM POST por período
+     * (o endpoint documentado trabalha com um horário inicial/final por
+     * registro). Remoção é sinalizada explicitamente com `removida: true`
+     * e `tipo: null`, já que não há um verbo DELETE especificado.
+     *
+     * Falha de rede aqui NÃO desfaz a alteração já aplicada na tela —
+     * apenas avisa o gestor que a confirmação do servidor não chegou,
+     * para evitar perder o trabalho de quem já configurou a ausência.
+     */
+    async getFaltas(){
+      const data = this.dataSelecionada
+      const token = this.store.pegar_token
+      const response = await api.get('/buscar-faltas', {
+        params: { data },
+        headers: { Authorization: token }
+      })
+      console.log(response.data)
+
+    },
+    async registrarFaltaNoBackend(funcionario) {
+      const ausencia = funcionario.ausencia
+      const token = this.store.pegar_token
+      const base = {
+        funcionarioId: funcionario.email,
+        data: this.dataSelecionada,
+        estabelecimento: this.store.pegar_usuario?.cnpj || '',
+        usuarioResponsavel: this.store.pegar_usuario?.email || '',
+      }
+
+      try {
+        if (!ausencia) {
+          await api.post('/registrar-faltas', {
+            ...base,
+            tipo: null,
+            removida: true,
+          }, {
+            headers: { Authorization: token }
+          })
+          return
+        }
+
+        if (ausencia.tipo === 'dia_inteiro') {
+          await api.post('/registrar-faltas', {
+            ...base,
+            tipo: 'dia_inteiro',
+            observacao: ausencia.observacao || '',
+          }, {
+            headers: { Authorization: token }
+          })
+          return
+        }
+
+        if (ausencia.tipo === 'parcial' && Array.isArray(ausencia.periodos) && ausencia.periodos.length) {
+          await Promise.all(ausencia.periodos.map(periodo => api.post('/registrar-faltas', {
+            ...base,
+            tipo: 'parcial',
+            horarioInicial: periodo.inicio,
+            horarioFinal: periodo.fim,
+            observacao: ausencia.observacao || '',
+          }, {
+            headers: { Authorization: token }
+          })))
+        }
+      } catch (err) {
+        console.error('Erro ao registrar falta no backend', err)
+        Swal.fire(
+          'Atenção',
+          'A ausência foi aplicada na tela, mas não foi possível confirmar o registro no servidor. Verifique a conexão e tente novamente.',
+          'warning'
+        )
+      }
     },
 
     aplicarDadosDaEtapa(funcionarioReal, linha) {
@@ -1415,19 +1508,31 @@ export default {
     },
 
     // ── TOTAIS ────────────────────────────────────────────
-    calcularTotalLinha(linha) {
+    /**
+     * Soma a quantidade produzida numa linha. Se `funcionario` for
+     * informado, horas cobertas por uma ausência (total ou parcial) são
+     * descontadas mesmo que já tenham um valor lançado antes da ausência
+     * ser registrada — a ausência precisa "apagar" o efeito nos
+     * indicadores, não só esconder o campo na tela.
+     */
+    calcularTotalLinha(linha, funcionario = null) {
       if (!linha?.registros) return 0
-      return Object.values(linha.registros).reduce((s, r) => s + Number(r?.quantidade || 0), 0)
+      return Object.entries(linha.registros).reduce((s, [hora, r]) => {
+        if (funcionario && this.horaBloqueadaPorAusencia(funcionario, hora)) return s
+        return s + Number(r?.quantidade || 0)
+      }, 0)
     },
 
     /**
      * Soma dos minutos efetivamente utilizados em uma linha (apenas
-     * registros com produção > 0). Extraído como método reutilizável
-     * para não duplicar este padrão de soma nas eficiências e no PDF.
+     * registros com produção > 0, e fora de qualquer período de
+     * ausência). Extraído como método reutilizável para não duplicar
+     * este padrão de soma nas eficiências e no PDF.
      */
-    calcularTempoUtilizadoLinha(linha) {
+    calcularTempoUtilizadoLinha(linha, funcionario = null) {
       if (!linha?.registros) return 0
-      return Object.values(linha.registros).reduce((soma, reg) => {
+      return Object.entries(linha.registros).reduce((soma, [hora, reg]) => {
+        if (funcionario && this.horaBloqueadaPorAusencia(funcionario, hora)) return soma
         if (reg && reg.quantidade > 0) return soma + (reg.tempoProduzido || 60)
         return soma
       }, 0)
@@ -1440,13 +1545,15 @@ export default {
      *   (Peças × SAM × 100) / (Funcionários × Tempo Trabalhado)
      * Aqui Funcionários = 1 (uma linha pertence sempre a um funcionário) e
      * "Peças × SAM" é somado registro a registro pois o SAM (tempo padrão
-     * da etapa) é constante para a linha inteira.
+     * da etapa) é constante para a linha inteira. Horas cobertas por
+     * ausência são excluídas do cálculo.
      */
-    calcularEficienciaLinhaPadrao(linha) {
+    calcularEficienciaLinhaPadrao(linha, funcionario = null) {
       const sam = this.resolverTempoPadrao(linha)
       let producaoPonderada = 0
       let tempoTrabalhado = 0
-      for (const reg of Object.values(linha?.registros || {})) {
+      for (const [hora, reg] of Object.entries(linha?.registros || {})) {
+        if (funcionario && this.horaBloqueadaPorAusencia(funcionario, hora)) continue
         if (reg && reg.quantidade > 0) {
           producaoPonderada += reg.quantidade * sam
           tempoTrabalhado += reg.tempoProduzido || 60
@@ -1457,13 +1564,15 @@ export default {
 
     /**
      * Eficiência (Tempo de Referência) de uma linha isolada — mesma
-     * fórmula oficial acima, usando o SAM efetivo de referência.
+     * fórmula oficial acima, usando o SAM efetivo de referência. Horas
+     * cobertas por ausência são excluídas do cálculo.
      */
     calcularEficienciaLinhaReferencia(funcionario, linha) {
       const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
       let producaoPonderada = 0
       let tempoTrabalhado = 0
-      for (const reg of Object.values(linha?.registros || {})) {
+      for (const [hora, reg] of Object.entries(linha?.registros || {})) {
+        if (this.horaBloqueadaPorAusencia(funcionario, hora)) continue
         if (reg && reg.quantidade > 0) {
           producaoPonderada += reg.quantidade * sam
           tempoTrabalhado += reg.tempoProduzido || 60
@@ -1476,7 +1585,7 @@ export default {
       if (!Array.isArray(funcionario?.linhas)) return 0
       return funcionario.linhas.reduce((soma, linha) => {
         if (!this.isEtapaFinal(linha)) return soma
-        return soma + this.calcularTotalLinha(linha)
+        return soma + this.calcularTotalLinha(linha, funcionario)
       }, 0)
     },
 
@@ -1492,7 +1601,7 @@ export default {
       for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
           if (!this.isEtapaFinal(linha)) continue
-          total += this.calcularTotalLinha(linha)
+          total += this.calcularTotalLinha(linha, func)
         }
       }
       return total
@@ -1522,7 +1631,8 @@ export default {
       for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
           const sam = this.resolverTempoPadrao(linha)
-          for (const reg of Object.values(linha.registros || {})) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (this.horaBloqueadaPorAusencia(func, hora)) continue
             if (reg && reg.quantidade > 0) {
               producaoPonderada += reg.quantidade * sam
               tempoTrabalhado += reg.tempoProduzido || 60
@@ -1538,9 +1648,10 @@ export default {
      * Capacidade da OP pela Ficha Técnica:
      *   Capacidade = (Funcionários × Tempo Trabalhado) / SAM
      * Com produção já lançada, soma a capacidade real linha a linha
-     * (funcionário=1, tempo=minutos registrados, sam=tempo padrão). Sem
-     * nenhum registro ainda, estima usando o tempo disponível do DIA
-     * INTEIRO (não apenas do turno selecionado na tela).
+     * (funcionário=1, tempo=minutos registrados, sam=tempo padrão),
+     * excluindo qualquer hora coberta por ausência. Sem nenhum registro
+     * ainda, estima usando o tempo disponível do funcionário já
+     * descontado de ausência (não o dia cheio).
      */
     calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
@@ -1553,7 +1664,8 @@ export default {
         for (const linha of func.linhas || []) {
           const sam = this.resolverTempoPadrao(linha)
           if (!sam) continue
-          for (const reg of Object.values(linha.registros || {})) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (this.horaBloqueadaPorAusencia(func, hora)) continue
             if (reg && reg.quantidade > 0) {
               const minutos = reg.tempoProduzido || 60
               capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutos, sam })
@@ -1584,7 +1696,11 @@ export default {
     /**
      * Eficiência do funcionário (Ficha Técnica), somando todas as linhas
      * dele — mesma lógica de calcularEficienciaOpPadrao, mas restrita a
-     * um único funcionário.
+     * um único funcionário. Horas cobertas por ausência (total ou
+     * parcial) são excluídas: mesmo que já exista um lançamento antigo
+     * naquele horário, ele deixa de contar assim que a ausência é
+     * registrada — não basta esconder o campo, o indicador precisa
+     * refletir só o período em que o funcionário esteve disponível.
      */
     calcularEficienciaFuncionarioPadrao(funcionario) {
       if (!funcionario?.linhas?.length) return 0
@@ -1594,7 +1710,8 @@ export default {
       for (const linha of funcionario.linhas) {
         if (!linha?.registros) continue
         const sam = this.resolverTempoPadrao(linha)
-        for (const reg of Object.values(linha.registros)) {
+        for (const [hora, reg] of Object.entries(linha.registros)) {
+          if (this.horaBloqueadaPorAusencia(funcionario, hora)) continue
           if (reg && reg.quantidade > 0) {
             producaoPonderada += reg.quantidade * sam
             tempoTrabalhado += reg.tempoProduzido || 60
@@ -1627,7 +1744,8 @@ export default {
       for (const func of grupo.funcionarios) {
         for (const linha of func.linhas || []) {
           const sam = this.resolverTempoEfetivoReferencia(func, linha)
-          for (const reg of Object.values(linha.registros || {})) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (this.horaBloqueadaPorAusencia(func, hora)) continue
             if (reg && reg.quantidade > 0) {
               producaoPonderada += reg.quantidade * sam
               tempoTrabalhado += reg.tempoProduzido || 60
@@ -1642,7 +1760,8 @@ export default {
     /**
      * Capacidade da OP pelo Tempo de Referência — mesma lógica de
      * calcularCapacidadeOpPadrao, usando o SAM efetivo de referência e o
-     * tempo disponível do dia inteiro na estimativa sem registros.
+     * tempo disponível (já descontado de ausência) na estimativa sem
+     * registros.
      */
     calcularCapacidadeOpReferencia(opId) {
       if (!opId) return 0
@@ -1655,7 +1774,8 @@ export default {
         for (const linha of func.linhas || []) {
           const sam = this.resolverTempoEfetivoReferencia(func, linha)
           if (!sam) continue
-          for (const reg of Object.values(linha.registros || {})) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (this.horaBloqueadaPorAusencia(func, hora)) continue
             if (reg && reg.quantidade > 0) {
               const minutos = reg.tempoProduzido || 60
               capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutos, sam })
@@ -1682,7 +1802,10 @@ export default {
       return capacidade
     },
 
-    /** Eficiência do funcionário pelo Tempo de Referência — fórmula oficial. */
+    /**
+     * Eficiência do funcionário pelo Tempo de Referência — fórmula
+     * oficial, excluindo horas cobertas por ausência.
+     */
     calcularEficienciaFuncionarioReferencia(funcionario) {
       if (!funcionario?.linhas?.length) return 0
       let producaoPonderada = 0
@@ -1691,7 +1814,8 @@ export default {
       for (const linha of funcionario.linhas) {
         if (!linha?.registros) continue
         const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
-        for (const reg of Object.values(linha.registros)) {
+        for (const [hora, reg] of Object.entries(linha.registros)) {
+          if (this.horaBloqueadaPorAusencia(funcionario, hora)) continue
           if (reg && reg.quantidade > 0) {
             producaoPonderada += reg.quantidade * sam
             tempoTrabalhado += reg.tempoProduzido || 60
@@ -1992,6 +2116,7 @@ export default {
             nome: f.nome || f.email,
             tipo: f.ausencia.tipo,
             periodos: f.ausencia.periodos || [],
+            observacao: f.ausencia.observacao || '',
           })),
         ops: [
           ...this.opsAtivasComPeca.map(op => this.montarDadosDaOpParaPdf(op)),
@@ -2013,8 +2138,8 @@ export default {
 
           const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
           const descricaoEtapa = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || '—'
-          const tempoUtilizado = this.calcularTempoUtilizadoLinha(linha)
-          const producaoLinha = this.calcularTotalLinha(linha)
+          const tempoUtilizado = this.calcularTempoUtilizadoLinha(linha, func)
+          const producaoLinha = this.calcularTotalLinha(linha, func)
 
           funcionariosDaOp.push({
             nome: func.nome || func.email,
@@ -2022,9 +2147,9 @@ export default {
             tempoUtilizado,
             tempoReferencia: this.resolverTempoEfetivoReferencia(func, linha),
             producaoRealizada: producaoLinha,
-            eficienciaFicha: this.calcularEficienciaLinhaPadrao(linha),
+            eficienciaFicha: this.calcularEficienciaLinhaPadrao(linha, func),
             eficienciaReferencia: this.calcularEficienciaLinhaReferencia(func, linha),
-            ausencia: func.ausencia ? { tipo: func.ausencia.tipo, periodos: func.ausencia.periodos || [] } : null,
+            ausencia: func.ausencia ? { tipo: func.ausencia.tipo, periodos: func.ausencia.periodos || [], observacao: func.ausencia.observacao || '' } : null,
           })
 
           if (!etapasMapa.has(linha.etapaId)) {
@@ -2876,6 +3001,22 @@ export default {
 .ausencia-dia-inteiro-aviso {
   margin: 0; font-size: 13px; color: #648673; line-height: 1.5;
   background: #f7fcf9; border: 1px solid #dceee3; border-radius: 12px; padding: .8rem 1rem;
+}
+
+.ausencia-campo-observacao { display: flex; flex-direction: column; gap: 6px; }
+
+.ausencia-campo-observacao label {
+  font-size: 12px; font-weight: 700; color: #648673; padding-left: 2px;
+}
+
+.ausencia-observacao-input {
+  border-radius: 12px; border: 1px solid #dceee3; background: white;
+  padding: .6rem .8rem; font-family: inherit; font-size: 13px; color: #052e14;
+  resize: vertical; min-height: 44px; transition: .2s;
+}
+
+.ausencia-observacao-input:focus {
+  outline: none; border-color: #118a43; box-shadow: 0 0 0 4px rgba(17,138,67,.08);
 }
 
 .ausencia-modal-footer {
