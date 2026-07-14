@@ -7,28 +7,42 @@ prisma = new PrismaClient()
 module.exports = (io, socket) => {
 
   socket.on(
-    'salvar-producao',
-    async payload => {
+  'salvar-producao',
+  async (payload, callback) => {
+    try {
+      const producao = await producaoService.salvarProducao(payload)
 
-      try {
+      io.emit(
+        `nova_atualizacao_${payload.cnpj}`,
+        producao
+      )
 
-        const producao = await producaoService.salvarProducao(payload)
-        io.emit(
-          `nova_atualizacao_${payload.cnpj}`,
-          producao
-        )
-
-      } catch (err) {
-
-        console.log(err)
-
-        socket.emit(
-          'erro-producao',
-          'Erro ao salvar'
-        )
+      if (typeof callback === 'function') {
+        callback({
+          sucesso: true,
+          producao,
+          mensagem: 'Produção salva com sucesso'
+        })
       }
+
+    } catch (err) {
+      console.log(err)
+
+      if (typeof callback === 'function') {
+        callback({
+          sucesso: false,
+          mensagem: 'Erro ao salvar',
+          erro: err.message
+        })
+      }
+
+      socket.emit(
+        'erro-producao',
+        'Erro ao salvar'
+      )
     }
-  )
+  }
+)
   socket.on(
     'salvar-meta-dia',
     async payload => {

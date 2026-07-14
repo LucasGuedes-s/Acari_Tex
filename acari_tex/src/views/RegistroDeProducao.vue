@@ -321,15 +321,29 @@
                             <template v-else>
                               <!-- Esquerda: campo de quantidade + minutos -->
                               <div class="hora-box-inputs">
-                                <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
-                                  placeholder="0"
-                                  :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                                  @blur="onInputQuantidade(funcionario, linha, hora)" />
-                                <div class="tempo-wrap">
-                                  <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-                                    max="60" class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
-                                  <span class="min-label">min</span>
-                                </div>
+                                <div class="hora-box-inputs">
+  <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
+    placeholder="0"
+    :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+    @blur="onInputQuantidade(funcionario, linha, hora)" />
+  <div class="tempo-wrap">
+    <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
+      max="60" class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
+    <span class="min-label">min</span>
+  </div>
+
+  <!-- NOVO: status de salvamento -->
+  <div v-if="linha.registros[hora].status === 'salvando'" class="registro-status registro-status--salvando">
+    salvando…
+  </div>
+  <div v-else-if="linha.registros[hora].status === 'erro'" class="registro-status registro-status--erro">
+    <span :title="linha.registros[hora].erro">⚠ não salvo</span>
+    <button class="btn-retry-registro" @click="tentarNovamenteRegistro(funcionario, linha, hora)">
+      tentar de novo
+    </button>
+  </div>
+</div>
+                                
                               </div>
                               <!-- Direita: FT e TR, só visíveis quando há produção -->
                               <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
@@ -439,7 +453,6 @@
     </main>
   </div>
 </template>
-
 <script>
 import SidebarNav from '@/components/Sidebar.vue'
 import carregandoTela from '@/components/carregandoTela.vue'
@@ -492,6 +505,11 @@ export default {
         funcionario: null,
         form: { tipo: 'dia_inteiro', periodos: [], observacao: '' },
       },
+
+      // Chaves ("email::linhaId::hora") de registros com salvamento em
+      // voo ou com erro — usado para não deixar um reload (buscarMetaDia)
+      // sobrescrever um valor ainda não confirmado como persistido.
+      registrosPendentes: new Set(),
     }
   },
 
@@ -677,6 +695,10 @@ export default {
 
   watch: {
     dataSelecionada() {
+      // Garante o envio de qualquer edição já digitada na data anterior
+      // antes de trocar de dia e recarregar tudo — sem isso, uma edição
+      // ainda dentro da janela do debounce seria descartada.
+      this.flushSalvamentosPendentes()
       this.buscarMetaDia()
     },
   },
@@ -691,6 +713,8 @@ export default {
   },
 
   beforeUnmount() {
+    // Envia qualquer edição pendente antes de desmontar a tela / desconectar.
+    this.flushSalvamentosPendentes()
     socket.off()
     socket.disconnect()
   },
@@ -793,7 +817,13 @@ export default {
 
           for (const hora of horasAtuais) {
             if (!linha.registros[hora]) {
-              linha.registros[hora] = { quantidade: null, tempoProduzido: 60 }
+              linha.registros[hora] = {
+                quantidade: null,
+                tempoProduzido: 60,
+                status: 'idle',
+                erro: null,
+                _ultimoValorSalvo: null,
+              }
             }
           }
         }
@@ -1059,7 +1089,19 @@ export default {
         ...this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim),
       ]
       for (const hora of horas) {
-        registros[hora] = { quantidade: null, tempoProduzido: 60 }
+        registros[hora] = {
+          quantidade: null,
+          tempoProduzido: 60,
+          // Estado do salvamento desta célula: 'idle' (nada digitado
+          // ainda / sem alteração pendente), 'salvando' (aguardando
+          // confirmação do servidor), 'salvo' (confirmado pelo backend)
+          // ou 'erro' (o backend não confirmou; ver `erro` para detalhe).
+          status: 'idle',
+          erro: null,
+          // Último valor que já teve confirmação de persistência — usado
+          // apenas para os logs de diagnóstico (valor anterior x novo).
+          _ultimoValorSalvo: null,
+        }
       }
       return registros
     },
@@ -1397,8 +1439,7 @@ export default {
         params: { data },
         headers: { Authorization: token }
       })
-      console.log(response.data)
-
+      console.log('Faltas recebidas do backend:', response.data)
     },
     async registrarFaltaNoBackend(funcionario) {
       const ausencia = funcionario.ausencia
@@ -1839,11 +1880,61 @@ export default {
       return ''
     },
 
-    onInputQuantidade: debounce(function (funcionario, linha, hora) {
-      const registro = linha.registros[hora]
-      if (!funcionario?.email || !linha?.etapaId) return
+    // ── SALVAMENTO DE PRODUÇÃO ────────────────────────────
+    /**
+     * Chave única por funcionário + linha + hora. Usar `linha.id` (e não
+     * etapaId/opId, que podem mudar enquanto o usuário ainda está
+     * configurando a linha) garante que a chave de debounce/estado desta
+     * célula não muda por baixo dela mesma.
+     */
+    chaveRegistro(funcionario, linha, hora) {
+      return `${funcionario.email}::${linha.id}::${hora}`
+    },
 
-      socket.emit('salvar-producao', {
+    /**
+     * Handler chamado pelo template (@blur na quantidade, @input nos
+     * minutos). Cria — de forma lazy — UM debounce independente por
+     * célula (funcionário+linha+hora). Isto substitui o debounce único
+     * e compartilhado por toda a tela que existia antes: naquele modelo,
+     * editar duas células diferentes dentro da janela de 1.5s cancelava
+     * o salvamento da primeira, que nunca chegava a ser enviado ao
+     * servidor. Com um debounce por célula, edições em células
+     * diferentes nunca mais se cancelam entre si.
+     */
+    onInputQuantidade(funcionario, linha, hora) {
+      if (!this._debouncersPorCelula) this._debouncersPorCelula = new Map()
+
+      const chave = this.chaveRegistro(funcionario, linha, hora)
+
+      if (!this._debouncersPorCelula.has(chave)) {
+        this._debouncersPorCelula.set(
+          chave,
+          debounce((f, l, h) => this.executarSalvamento(f, l, h), 1500)
+        )
+      }
+
+      this._debouncersPorCelula.get(chave)(funcionario, linha, hora)
+    },
+
+    /**
+     * Envia o registro ao servidor e AGUARDA confirmação (ack) real antes
+     * de considerar o valor salvo. Atualiza `registro.status` para dar
+     * feedback visual (salvando/salvo/erro) e permitir nova tentativa.
+     * Nada aqui é "fire-and-forget": toda falha vira erro visível.
+     *
+     * Desde que o backend passou a confirmar o evento 'salvar-producao'
+     * chamando o callback recebido, o ack é a fonte de verdade real —
+     * não há mais necessidade de tratar timeout como "provavelmente
+     * salvo mesmo sem confirmação".
+     */
+    async executarSalvamento(funcionario, linha, hora) {
+      if (!funcionario?.email || !linha?.etapaId) return
+      const registro = linha.registros[hora]
+      if (!registro) return
+
+      const chave = this.chaveRegistro(funcionario, linha, hora)
+      const valorAnterior = registro._ultimoValorSalvo
+      const payload = {
         funcionarioId: funcionario.email,
         etapaId: linha.etapaId,
         opId: linha.opId || null,
@@ -1853,8 +1944,156 @@ export default {
         estabelecimento: this.store.pegar_usuario.cnpj,
         tipoRegistro: linha.tipo,
         tempoProduzido: registro.tempoProduzido || 60,
+      }
+
+      // LOG TEMPORÁRIO — usado apenas para localizar a causa do problema
+      // de perda intermitente de registros; remover após confirmar a
+      // correção em produção.
+      console.log(`[apontamento] ${new Date().toISOString()} alterando registro`, {
+        chave, valorAnterior, novoValor: payload.quantidade, payload,
       })
-    }, 1500),
+
+      registro.status = 'salvando'
+      registro.erro = null
+      this.registrosPendentes.add(chave)
+
+      try {
+        if (!socket.connected) {
+          throw new Error('Sem conexão com o servidor no momento do envio.')
+        }
+
+        const resposta = await this.emitirComAck('salvar-producao', payload, 8000)
+
+        // LOG TEMPORÁRIO
+        console.log(`[apontamento] ${new Date().toISOString()} resposta da API`, { chave, resposta })
+
+        if (!resposta || resposta.sucesso === false) {
+          throw new Error(resposta?.mensagem || 'Servidor recusou o registro.')
+        }
+
+        registro.status = 'salvo'
+        registro._ultimoValorSalvo = payload.quantidade
+        registro.erro = null
+      } catch (err) {
+        // LOG TEMPORÁRIO
+        console.error(`[apontamento] ${new Date().toISOString()} erro ao salvar registro`, { chave, err })
+
+        registro.status = 'erro'
+        registro.erro = err?.message || 'Falha ao salvar. Verifique a conexão e tente novamente.'
+      } finally {
+        this.registrosPendentes.delete(chave)
+      }
+    },
+
+    /**
+     * Envolve o socket.emit em uma Promise com callback de confirmação
+     * (ack) e timeout. O backend confirma o evento 'salvar-producao'
+     * chamando o callback recebido, ex.:
+     *   socket.on('salvar-producao', async (payload, callback) => {
+     *     try {
+     *       await salvarNoBanco(payload)
+     *       callback({ sucesso: true })
+     *     } catch (err) {
+     *       callback({ sucesso: false, mensagem: err.message })
+     *     }
+     *   })
+     * O timeout aqui é só uma rede de segurança contra travamentos de
+     * rede/servidor (ex.: conexão caiu bem no meio do envio) — em
+     * operação normal, quem resolve a Promise é sempre o callback real.
+     */
+    emitirComAck(evento, payload, timeoutMs = 8000) {
+      return new Promise((resolve, reject) => {
+        let finalizado = false
+
+        const timeout = setTimeout(() => {
+          if (finalizado) return
+          finalizado = true
+          reject(new Error('Tempo esgotado aguardando confirmação do servidor.'))
+        }, timeoutMs)
+
+        socket.emit(evento, payload, (resposta) => {
+          if (finalizado) return
+          finalizado = true
+          clearTimeout(timeout)
+          resolve(resposta)
+        })
+      })
+    },
+
+    /** Chamado pelo botão "tentar novamente" exibido quando status === 'erro'. */
+    async tentarNovamenteRegistro(funcionario, linha, hora) {
+      await this.executarSalvamento(funcionario, linha, hora)
+    },
+
+    /**
+     * Dá flush imediato em todos os debounces de célula pendentes —
+     * chamado antes de trocar de data ou desmontar a tela, para não
+     * perder uma edição recém-digitada que ainda não completou os
+     * 1500ms de espera do debounce.
+     */
+    flushSalvamentosPendentes() {
+      if (!this._debouncersPorCelula) return
+      for (const deb of this._debouncersPorCelula.values()) {
+        if (typeof deb.flush === 'function') deb.flush()
+      }
+    },
+
+    /**
+     * Antes de qualquer reload de dados vindos do servidor
+     * (buscarMetaDia), captura os registros que ainda não têm
+     * confirmação de persistência (status 'salvando' ou 'erro'). Sem
+     * isso, um reload disparado por troca de data ou por um evento de
+     * socket remoto (`nova_atualizacao_*`, que pode vir de QUALQUER
+     * alteração feita por qualquer usuário da conta) reconstruía
+     * `funcionariosDia` inteiro a partir do servidor e apagava da tela
+     * um valor que o usuário tinha acabado de digitar mas que ainda não
+     * havia sido confirmado como salvo.
+     */
+    capturarRegistrosPendentes() {
+      const mapa = new Map()
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (reg && (reg.status === 'salvando' || reg.status === 'erro')) {
+              const chave = `${func.email}::${linha.etapaId}::${linha.opId || ''}::${hora}`
+              mapa.set(chave, {
+                quantidade: reg.quantidade,
+                tempoProduzido: reg.tempoProduzido,
+                status: reg.status,
+                erro: reg.erro,
+              })
+            }
+          }
+        }
+      }
+      return mapa
+    },
+
+    /**
+     * Reaplica por cima da estrutura recém-carregada do servidor os
+     * valores capturados por `capturarRegistrosPendentes`. Deve ser
+     * chamado DEPOIS de `funcionariosDia` já estar populado com os dados
+     * vindos do backend (senão não há onde sobrescrever).
+     */
+    reaplicarRegistrosPendentes(mapa) {
+      if (!mapa || !mapa.size) return
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          for (const hora of Object.keys(linha.registros || {})) {
+            const chave = `${func.email}::${linha.etapaId}::${linha.opId || ''}::${hora}`
+            const pendente = mapa.get(chave)
+            if (pendente) {
+              linha.registros[hora] = { ...linha.registros[hora], ...pendente }
+
+              // LOG TEMPORÁRIO
+              console.log(`[apontamento] ${new Date().toISOString()} reaplicando valor pendente pós-reload`, {
+                funcionario: func.email, hora, pendente,
+              })
+            }
+          }
+        }
+      }
+    },
 
     // ── META ──────────────────────────────────────────────
     salvarMetaDia: debounce(function () {
@@ -1918,7 +2157,17 @@ export default {
 
           const meta = response.metaDia
 
-        
+          // LOG TEMPORÁRIO — marca o momento exato em que um reload
+          // (troca de data, resposta do buscar-meta-dia, ou disparado por
+          // `nova_atualizacao_*`) vai reconstruir funcionariosDia.
+          console.log(`[apontamento] ${new Date().toISOString()} recarregando dados do servidor`, {
+            data: dataDaRequisicao,
+          })
+
+          // Captura ANTES de qualquer alteração em funcionariosDia —
+          // preserva quantidades ainda não confirmadas como salvas.
+          const registrosPendentesAntesDoReload = this.capturarRegistrosPendentes()
+
           const alocacoesPendentes = new Map()
           if (this.dataCarregada === dataDaRequisicao) {
             for (const func of this.funcionariosDia) {
@@ -1937,6 +2186,7 @@ export default {
             this.opsExtras = []
             this.inicializarFuncionarios()
             this.reaplicarAlocacoesPendentes(alocacoesPendentes)
+            this.reaplicarRegistrosPendentes(registrosPendentesAntesDoReload)
             this.sincronizarOpsExtras()
             this.dataCarregada = dataDaRequisicao
             return
@@ -2004,9 +2254,16 @@ export default {
               const hora = producao.hora_registro
               if (!hora) continue
 
+              // Estes valores já vieram persistidos do backend, então o
+              // status inicial é 'salvo' (não 'idle') — evita que a UI
+              // mostre como "não salvo" algo que já está confirmado no
+              // banco.
               linha.registros[hora] = {
                 quantidade: producao.quantidade_pecas || 0,
                 tempoProduzido: producao.tempo_produzido || 60,
+                status: 'salvo',
+                erro: null,
+                _ultimoValorSalvo: producao.quantidade_pecas || 0,
               }
             }
 
@@ -2018,6 +2275,7 @@ export default {
           }
 
           this.reaplicarAlocacoesPendentes(alocacoesPendentes)
+          this.reaplicarRegistrosPendentes(registrosPendentesAntesDoReload)
 
           // Complementa opsExtras com qualquer OP que tenha registro de
           // produção mas não tenha vindo em meta.pecas (ex.: linha extra
@@ -2274,7 +2532,25 @@ export default {
   font-family: inherit;
   background: white;
 }
-
+.registro-status {
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.registro-status--salvando { color: #8a6a00; }
+.registro-status--erro { color: #b12626; }
+.btn-retry-registro {
+  border: none;
+  background: #ffecec;
+  color: #b12626;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  cursor: pointer;
+}
 .data-loading {
   font-size: 13px;
   font-weight: 700;
