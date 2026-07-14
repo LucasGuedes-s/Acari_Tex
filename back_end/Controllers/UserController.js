@@ -9,6 +9,7 @@ async function login(req, res, next){
             token: `Bearer ${login.token}`,
             usuario: {
                 cnpj: login.dados_usuario.cnpj, 
+                tipo_de_producao: login.dados_usuario.tipo_de_producao,
                 funcoes: login.dados_usuario.funcoes,
                 permissoes: login.dados_usuario.permissoes,
                 nome: login.dados_usuario.nome,
@@ -69,11 +70,34 @@ async function enviarNotificacaoParaTodos(req, res) {
         err.statusCode = 500;
     }
 }
+async function registrarFaltas(req, res, next) {
+    try {
+        const resultado = await Login.registrarFaltas(req);
+        res.status(201).json(resultado);
+    }
+    catch (err) {
+        console.error("Erro ao registrar faltas:", err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}
+async function getFaltasByFuncionarios(req, res, next) {
+    try {
+        const faltas = await Login.getFaltasByFuncionarios(req);
+        res.status(200).json(faltas);
+    } catch (err) {
+        console.error("Erro ao buscar faltas:", err.message);
+        err.statusCode = 400;
+        next(err);
+    }
+}   
 module.exports = { 
     login,
     criarTempoReferencia,
     SolicitacaoalterarSenha,
     alterarSenha,
-    enviarNotificacaoParaTodos
+    enviarNotificacaoParaTodos,
+    registrarFaltas,
+    getFaltasByFuncionarios
 };
 // enviarNotificacaoParaTodos();   

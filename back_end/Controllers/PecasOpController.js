@@ -297,6 +297,19 @@ async function cronoanalise(req, res, next) {
         next(err);
     }
 }
+async function updateEtapa(req, res, next) {
+    try {
+        const etapaAtualizada = await pecas.updateEtapa(req);
+        if (!etapaAtualizada) {
+            return res.status(404).json({ mensagem: 'Etapa não encontrada.' });
+        }
+        res.status(200).json({ etapaAtualizada });
+    }
+    catch (err) {
+        console.error(`Erro ao atualizar etapa.`, err.message);
+        next(err);
+    }
+}
 module.exports = { 
     postOP, 
     duplicarOPController,
@@ -322,5 +335,6 @@ module.exports = {
     definirMetaDiaria,
     getMetaDiaria,
     cronoanalise,
-    getMetaProducao
+    getMetaProducao,
+    updateEtapa
 };

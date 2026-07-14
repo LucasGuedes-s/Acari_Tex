@@ -1757,12 +1757,6 @@ export default {
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
-    /**
-     * Capacidade da OP pelo Tempo de Referência — mesma lógica de
-     * calcularCapacidadeOpPadrao, usando o SAM efetivo de referência e o
-     * tempo disponível (já descontado de ausência) na estimativa sem
-     * registros.
-     */
     calcularCapacidadeOpReferencia(opId) {
       if (!opId) return 0
       const grupo = this.mapaProducaoPorOp.get(opId)
@@ -1902,16 +1896,6 @@ export default {
       const buscaId = this.ultimaBuscaId
       this.carregandoMeta = true
 
-      /**
-       * Se a data mudou desde o último carregamento bem-sucedido, o
-       * estado em memória (opsAtivas, opsExtras, funcionariosDia)
-       * pertence a OUTRO dia e não pode ser reaproveitado de jeito
-       * nenhum — nem exibido, nem usado como base para "realocações
-       * pendentes" mais abaixo. Limpamos tudo AQUI, de forma síncrona,
-       * antes mesmo da resposta do servidor chegar: a tela nunca deve
-       * mostrar (nem por um instante) OPs de um dia diferente do
-       * selecionado.
-       */
       const trocouDeData = this.dataCarregada !== null && this.dataCarregada !== dataDaRequisicao
       if (trocouDeData) {
         this.opsAtivas = [this.novaOpSetup()]
@@ -1934,19 +1918,7 @@ export default {
 
           const meta = response.metaDia
 
-          /**
-           * "Realocações pendentes" existem para não perder uma seleção
-           * de etapa que o usuário acabou de fazer na tela e que ainda
-           * não voltou confirmada pelo servidor — só faz sentido quando
-           * estamos atualizando os dados da MESMA data já exibida (ex.:
-           * uma atualização em tempo real via socket). Antes, isso era
-           * capturado incondicionalmente a partir do estado atual, o que
-           * fazia as seleções — e por consequência as OPs — do dia
-           * ANTERIOR serem "reaplicadas" por cima dos dados do dia novo,
-           * recriando linhas fantasmas zeradas para OPs sem nenhuma
-           * relação com a data selecionada agora. Ao trocar de data,
-           * este mapa fica vazio de propósito.
-           */
+        
           const alocacoesPendentes = new Map()
           if (this.dataCarregada === dataDaRequisicao) {
             for (const func of this.funcionariosDia) {
@@ -2083,14 +2055,6 @@ export default {
       }
     },
 
-    // ── PDF ───────────────────────────────────────────────
-    /**
-     * Monta o objeto de dados (formato documentado em
-     * src/utils/gerarPdfProducao.js) usando SOMENTE informações e
-     * cálculos já existentes na tela — nenhum campo é inventado aqui.
-     * Um bloco por OP ativa, cada um com sua própria tabela de
-     * funcionários e de etapas.
-     */
     montarDadosParaPdf() {
       const idsAtivos = new Set(this.opsAtivasComPeca.map(op => op.pecaId))
       const idsHistoricos = new Set()

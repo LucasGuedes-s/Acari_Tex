@@ -2043,6 +2043,25 @@ async function criarTempoReferencia(req) {
     throw new Error(error.message || "Erro ao criar tempo de referência.");
   }
 }
+async function updateEtapa(req) {
+  const cnpj = req.user.cnpj;
+  const { id_da_funcao } = req.params;
+  const { descricao, tempo_padrao } = req.body;
+  const etapa = await prisma.etapa.findUnique({
+    where: { id_da_funcao: Number(id_da_funcao) },
+  });
+
+  if(etapa){
+    const updatedEtapa = await prisma.etapa.update({
+      where: { id_da_funcao: Number(id_da_funcao) },
+      data: {
+        descricao: descricao ?? etapa.descricao,
+        tempo_padrao: tempo_padrao ?? etapa.tempo_padrao,
+      },
+    });
+    return updatedEtapa;
+  }
+}
 module.exports = {
   postPecaOP,
   duplicarOP,
@@ -2068,5 +2087,6 @@ module.exports = {
   criarOuVincularGrupoEtapas,
   definirMetaDiaria,
   getMetaDiaria,
-  criarTempoReferencia
+  criarTempoReferencia,
+  updateEtapa
 };

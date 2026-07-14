@@ -18,6 +18,7 @@ router.post('/adicionar/etapa/grupo', [jwtMiddleware], ControllerOp.postGrupoEta
 router.get('/grupos/etapas', [jwtMiddleware], ControllerOp.getGruposEtapas);
 router.get('/estatisticas/:id', [jwtMiddleware], ControllerOp.getEstatisticasPeca);
 router.get('/etapas', [jwtMiddleware], ControllerOp.getEtapas)
+router.put('/etapa/:id_da_funcao', [jwtMiddleware], ControllerOp.updateEtapa)
 router.delete('/etapa/:id', [jwtMiddleware], ControllerOp.deletarEtapa)
 
 router.get('/etapas/estabelecimento', [jwtMiddleware], ControllerOp.getEtapasEstabelecimento)

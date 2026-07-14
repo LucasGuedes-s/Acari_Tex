@@ -786,7 +786,6 @@ export default {
           headers: { Authorization: this.store.pegar_token },
         })
         this.etapas = data.etapa || []
-        console.log("Etapas carregadas:", this.etapas)
       } catch (error) {
         console.error("Erro ao buscar etapas:", error)
       } finally {
@@ -822,12 +821,23 @@ export default {
 
     async salvarEdicao() {
       try {
-        await api.put(`/etapas/${this.etapaEdicao.id_da_funcao}`, this.etapaEdicao, {
-          headers: { Authorization: this.store.pegar_token },
-        })
-        console.log("Etapa atualizada:", this.etapaEdicao)
-        Swal.fire({ icon: "success", title: "Etapa atualizada!", timer: 1500, showConfirmButton: false })
         this.showModalEditar = false
+        Swal.fire({
+          title: "Salvando...",
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading()
+          },
+        })
+        const token = this.store.pegar_token
+        await api.put(`/etapa/${this.etapaEdicao.id_da_funcao}`, this.etapaEdicao, {
+          headers: { Authorization: token },
+        })
+
+        Swal.close()
+        
+        Swal.fire({ icon: "success", title: "Etapa atualizada!", timer: 1500, showConfirmButton: false })
+       
         this.buscarEtapas()
       } catch {
         console.error("Erro ao atualizar etapa:", this.etapaEdicao)

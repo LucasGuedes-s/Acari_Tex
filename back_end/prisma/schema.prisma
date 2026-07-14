@@ -48,6 +48,7 @@ model Estabelecimento {
   tempo_de_producao Int?              @default(480)
   logo              String?           @db.VarChar(2048)
   peca_final        String?
+  tipo_de_producao  String?          @default("padrao")
   chatIAResultados  ChatIAResultado[]
   eficiencia_turma  EficienciaTurma?
   EquipesGrupos     EquipesGrupos[]
@@ -136,6 +137,20 @@ model PecasEtapas {
 
   @@unique([id_da_op, id_da_funcao])
   @@index([id_da_funcao], map: "PecasEtapas_id_da_funcao_fkey")
+}
+model Faltas {
+  id                  Int      @id @default(autoincrement())
+  funcionarioId       String?
+  data                DateTime?
+  estabelecimento     String?
+  usuarioResponsavel  String?
+  tipo                String?
+  horarioInicial      String?
+  horarioFinal        String?
+  observacao          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Producao {

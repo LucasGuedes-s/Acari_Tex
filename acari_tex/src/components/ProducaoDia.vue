@@ -40,10 +40,14 @@
           </div>
         </div>
 
-        <div class="list-header">
+        <div class="list-header" :class="{ fabrica: isFabrica }">
           <span class="lh-name">Nome</span>
           <span class="lh-col">Peças</span>
-          <span class="lh-col">Eficiência</span>
+          <template v-if="isFabrica">
+            <span class="lh-col">Efic. Ficha</span>
+            <span class="lh-col">Efic. Ref.</span>
+          </template>
+          <span v-else class="lh-col">Eficiência</span>
         </div>
 
         <div class="list-body">
@@ -51,7 +55,7 @@
             v-for="func in funcionariosFiltrados"
             :key="func.email"
             class="list-row"
-            :class="{ selected: selecionado === func._idx }"
+            :class="{ selected: selecionado === func._idx, fabrica: isFabrica, 'sem-producao': !temProducao(func) }"
             @click="selecionar(func._idx)"
           >
             <div class="lr-name">
@@ -69,10 +73,25 @@
 
             <span class="lr-col mono">{{ calcularTotalFuncionario(func) }}</span>
 
-            <span class="lr-col" style="display:flex; gap:4px; align-items:center; justify-content:flex-end;">
-              <span class="badge" :class="clsEfic(calcularEficienciaFuncionario(func))">
+            <template v-if="isFabrica">
+              <span class="lr-col" style="display:flex; align-items:center; justify-content:flex-end;">
+                <span v-if="temProducao(func)" class="badge sm" :class="clsEfic(calcularEficienciaFuncionario(func))">
+                  {{ calcularEficienciaFuncionario(func) }}%
+                </span>
+                <span v-else class="mono small">—</span>
+              </span>
+              <span class="lr-col" style="display:flex; align-items:center; justify-content:flex-end;">
+                <span v-if="temProducao(func)" class="badge sm" :class="clsEfic(calcularEficienciaReferenciaFuncionario(func))">
+                  {{ calcularEficienciaReferenciaFuncionario(func) }}%
+                </span>
+                <span v-else class="mono small">—</span>
+              </span>
+            </template>
+            <span v-else class="lr-col" style="display:flex; gap:4px; align-items:center; justify-content:flex-end;">
+              <span v-if="temProducao(func)" class="badge" :class="clsEfic(calcularEficienciaFuncionario(func))">
                 {{ calcularEficienciaFuncionario(func) }}%
               </span>
+              <span v-else class="mono small">—</span>
             </span>
           </div>
 
@@ -105,7 +124,15 @@
               <h3 class="dp-nome">{{ funcSelecionado.nome }}</h3>
               <p class="dp-email">{{ funcSelecionado.email }}</p>
             </div>
-            <span class="badge xlg" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+            <div v-if="isFabrica" class="dp-badges-duplas">
+              <span class="badge lg" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+                Ficha {{ calcularEficienciaFuncionario(funcSelecionado) }}%
+              </span>
+              <span class="badge lg" :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
+                Ref. {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
+              </span>
+            </div>
+            <span v-else class="badge xlg" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
               {{ calcularEficienciaFuncionario(funcSelecionado) }}%
             </span>
           </div>
@@ -117,13 +144,29 @@
               <span class="dp-stat-val">{{ calcularTotalFinalizadoFuncionario(funcSelecionado) }}</span>
             </div>
             <div class="dp-stat-div"></div>
-            <div class="dp-stat">
+            <template v-if="isFabrica">
+              <div class="dp-stat">
+                <span class="dp-stat-label">Efic. Ficha</span>
+                <span class="dp-stat-val" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+                  {{ calcularEficienciaFuncionario(funcSelecionado) }}%
+                </span>
+              </div>
+              <div class="dp-stat-div"></div>
+              <div class="dp-stat">
+                <span class="dp-stat-label">Efic. Ref.</span>
+                <span class="dp-stat-val" :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
+                  {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
+                </span>
+              </div>
+              <div class="dp-stat-div"></div>
+            </template>
+            <div v-else class="dp-stat">
               <span class="dp-stat-label">Eficiência</span>
               <span class="dp-stat-val" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
                 {{ calcularEficienciaFuncionario(funcSelecionado) }}%
               </span>
             </div>
-            <div class="dp-stat-div"></div>
+            <div v-if="!isFabrica" class="dp-stat-div"></div>
             <div class="dp-stat">
               <span class="dp-stat-label">Linhas</span>
               <span class="dp-stat-val">{{ (funcSelecionado.linhas || []).length }}</span>
@@ -133,7 +176,7 @@
           <!-- Barra de eficiência -->
           <div class="dp-eff-bar-wrap">
             <div class="dp-eff-bar-labels">
-              <span>Eficiência geral</span>
+              <span>{{ isFabrica ? 'Eficiência da ficha' : 'Eficiência geral' }}</span>
               <span :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
                 {{ calcularEficienciaFuncionario(funcSelecionado) }}%
               </span>
@@ -143,6 +186,23 @@
                 class="dp-eff-bar-fill"
                 :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))"
                 :style="{ width: Math.min(calcularEficienciaFuncionario(funcSelecionado), 100) + '%' }"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Barra de eficiência de referência (apenas fábricas) -->
+          <div v-if="isFabrica" class="dp-eff-bar-wrap">
+            <div class="dp-eff-bar-labels">
+              <span>Eficiência de referência</span>
+              <span :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
+                {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
+              </span>
+            </div>
+            <div class="dp-eff-bar-track">
+              <div
+                class="dp-eff-bar-fill"
+                :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))"
+                :style="{ width: Math.min(calcularEficienciaReferenciaFuncionario(funcSelecionado), 100) + '%' }"
               ></div>
             </div>
           </div>
@@ -166,8 +226,16 @@
                   {{ linha.descricao || linha.etapaId || '—' }}
                   <span v-if="isEtapaFinal(linha)" class="tag-final">final</span>
                 </span>
-                <span class="badge sm" :class="clsEfic(calcularEficienciaLinha(linha))">
+                <span v-if="!isFabrica" class="badge sm" :class="clsEfic(calcularEficienciaLinha(linha))">
                   {{ calcularEficienciaLinha(linha) }}%
+                </span>
+                <span v-else style="display:flex; gap:4px;">
+                  <span class="badge sm" :class="clsEfic(calcularEficienciaLinha(linha))" title="Eficiência da ficha">
+                    F {{ calcularEficienciaLinha(linha) }}%
+                  </span>
+                  <span class="badge sm" :class="clsEfic(calcularEficienciaReferenciaLinha(linha))" title="Eficiência de referência">
+                    R {{ calcularEficienciaReferenciaLinha(linha) }}%
+                  </span>
                 </span>
               </div>
               <div class="dp-etapa-bar-track">
@@ -177,9 +245,19 @@
                   :style="{ width: Math.min(calcularEficienciaLinha(linha), 100) + '%' }"
                 ></div>
               </div>
+              <div v-if="isFabrica" class="dp-etapa-bar-track">
+                <div
+                  class="dp-etapa-bar-fill"
+                  :class="clsEfic(calcularEficienciaReferenciaLinha(linha))"
+                  :style="{ width: Math.min(calcularEficienciaReferenciaLinha(linha), 100) + '%' }"
+                ></div>
+              </div>
               <div class="dp-etapa-bottom">
                 <span class="mono small">{{ calcularTotalLinha(linha) }} peças</span>
-                <span class="mono small">tempo padrão: {{ linha.tempoPadrao }} min/pç</span>
+                <span class="mono small" v-if="!isFabrica">tempo padrão: {{ linha.tempoPadrao }} min/pç</span>
+                <span class="mono small" v-else>
+                  padrão: {{ linha.tempoPadrao }} min/pç · referência: {{ tempoEfetivoLinha(linha) }} min/pç
+                </span>
               </div>
             </div>
 
@@ -196,7 +274,10 @@
                   <span class="dp-hora-clock">🕐</span>
                   <span class="dp-hora-label">{{ hg.hora }}</span>
                 </div>
-                <span class="dp-hora-total">{{ hg.totalPecas }} peças · {{ hg.eficiencia }}%</span>
+                <span v-if="!isFabrica" class="dp-hora-total">{{ hg.totalPecas }} peças · {{ hg.eficiencia }}%</span>
+                <span v-else class="dp-hora-total">
+                  {{ hg.totalPecas }} peças · F {{ hg.eficiencia }}% · R {{ hg.eficienciaReferencia }}%
+                </span>
               </div>
 
               <div class="dp-hora-eff-row">
@@ -207,6 +288,13 @@
                     :style="{ width: Math.min(hg.eficiencia, 100) + '%' }"
                   ></div>
                 </div>
+                <div v-if="isFabrica" class="dp-hora-eff-bar-track">
+                  <div
+                    class="dp-hora-eff-bar-fill"
+                    :class="clsEfic(hg.eficienciaReferencia)"
+                    :style="{ width: Math.min(hg.eficienciaReferencia, 100) + '%' }"
+                  ></div>
+                </div>
               </div>
 
               <table class="dp-hora-tbl">
@@ -215,7 +303,11 @@
                     <th>Etapa</th>
                     <th class="ta-r">Qtd.</th>
                     <th class="ta-r">Tempo prod.</th>
-                    <th class="ta-r">Eficiência</th>
+                    <th class="ta-r" v-if="!isFabrica">Eficiência</th>
+                    <template v-else>
+                      <th class="ta-r">Efic. Ficha</th>
+                      <th class="ta-r">Efic. Ref.</th>
+                    </template>
                   </tr>
                 </thead>
                 <tbody>
@@ -226,9 +318,17 @@
                     </td>
                     <td class="ta-r mono">{{ et.quantidade }} pç</td>
                     <td class="ta-r mono">{{ et.tempoProduzido }} min</td>
-                    <td class="ta-r">
+                    <td class="ta-r" v-if="!isFabrica">
                       <span class="badge sm" :class="clsEfic(et.eficiencia)">{{ et.eficiencia }}%</span>
                     </td>
+                    <template v-else>
+                      <td class="ta-r">
+                        <span class="badge sm" :class="clsEfic(et.eficiencia)">{{ et.eficiencia }}%</span>
+                      </td>
+                      <td class="ta-r">
+                        <span class="badge sm" :class="clsEfic(et.eficienciaReferencia)">{{ et.eficienciaReferencia }}%</span>
+                      </td>
+                    </template>
                   </tr>
                 </tbody>
               </table>
@@ -275,6 +375,7 @@ export default {
       opsAtivas: [],
       funcionariosDia: [],
       pecas: [],
+      tipoProducao: null,
     }
   },
 
@@ -314,6 +415,18 @@ export default {
         : null
     },
 
+    // Estabelecimento tipo "fabrica" habilita a eficiência dupla (Ficha / Referência)
+    isFabrica() {
+      return this.tipoProducao === 'fabrica'
+    },
+
+    // Apenas funcionários que produziram ao menos 1 peça no período.
+    // Usado em todos os indicadores consolidados — quem não produziu
+    // continua aparecendo na lista, mas não entra nas médias/totais do dia.
+    funcionariosComProducao() {
+      return this.funcionariosOrdenados.filter(f => this.temProducao(f))
+    },
+
     // Eficiência da turma ponderada pelas peças FINALIZADAS (etapa final).
     // Só considera registros com tempoProduzido > 0 — sem fallback fictício.
     eficienciaMediaTurma() {
@@ -324,24 +437,29 @@ export default {
       const sam = this.opsAtivas[0]?.tempoPadrao || 0
       // const tempoTurno = op?.Estabelecimento?.tempo_de_producao || 540 // minutos
       const tempoTurno = 540 // minutos
-      const nFuncionarios = this.funcionariosOrdenados.length
+
+      // Só entram no denominador quem realmente produziu no período;
+      // funcionários com 0 peças não aumentam nem diluem a eficiência da turma.
+      const funcionariosProdutivos = this.funcionariosComProducao
+      const nFuncionarios = funcionariosProdutivos.length
       if (!nFuncionarios || !sam || !tempoTurno) return 0
 
-      // Soma peças finalizadas de todos os funcionários no dia
+      // Soma peças finalizadas apenas dos funcionários que produziram
       let totalPecas = 0
-      for (const func of this.funcionariosOrdenados) {
+      for (const func of funcionariosProdutivos) {
         totalPecas += this.calcularTotalFinalizadoFuncionario(func)
       }
       console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
       // (Qtd × SAM) / (Nº Operadores × Tempo do Turno) × 100
       const tempoDisponivel = nFuncionarios * tempoTurno
-      // console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
-      // console.log(Math.round((totalPecas * sam) / tempoDisponivel * 100))
       return Math.round((totalPecas * sam) / tempoDisponivel * 100)
     },
 
     totalPecasGeral() {
-      return this.funcionariosOrdenados.reduce(
+      // Funcionários sem produção contribuem 0, então o total não muda ao
+      // restringir a soma ao grupo que efetivamente produziu — mantido
+      // explícito aqui por clareza e consistência com eficienciaMediaTurma.
+      return this.funcionariosComProducao.reduce(
         (soma, f) => soma + this.calcularTotalFinalizadoFuncionario(f),
         0
       )
@@ -419,11 +537,21 @@ export default {
 
         const meta = res.data.metaDia
         console.log('Meta do dia recebida:', meta)
+        //console.log('Meta do dia recebida:', meta)
         if (!meta) {
           this.opsAtivas = []
           this.funcionariosDia = []
           return
         }
+
+        // Tipo de produção do estabelecimento — habilita a eficiência dupla
+        // (Ficha / Referência) somente quando for "fabrica".]
+        const usuario = this.store.pegar_usuario
+        this.tipoProducao =
+          usuario.tipo_de_producao ||
+          meta.Estabelecimento?.tipo_de_producao ||
+          meta.tipo_de_producao ||
+          null
 
         this.opsAtivas = (meta.pecas || []).map(p => ({
           pecaId: p.id_da_op,
@@ -454,10 +582,19 @@ export default {
                 etapaId,
                 descricao: producao.producao_etapa?.descricao || '',
                 tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
+                // Tempo de referência específico deste funcionário nesta etapa.
+                // Se ausente, calcularEficienciaReferencia* usa o tempo padrão.
+                tempoReferencia: producao.tempo_referencia ?? null,
                 opId,
                 registros: {},
               }
               linhas.push(linha)
+            }
+
+            // Preenche o tempo de referência assim que ele aparecer em algum
+            // registro da mesma linha (etapa + funcionário + OP).
+            if (linha.tempoReferencia == null && producao.tempo_referencia != null) {
+              linha.tempoReferencia = producao.tempo_referencia
             }
 
             const hora = producao.hora_registro
@@ -544,6 +681,13 @@ export default {
       }, 0)
     },
 
+    // Funcionário "produziu" se tem ao menos 1 peça registrada em qualquer
+    // etapa/hora do período. Usado para excluir quem ficou zerado (sem OP,
+    // em treinamento, aguardando atividade etc.) dos indicadores consolidados.
+    temProducao(func) {
+      return this.calcularTotalFuncionario(func) > 0
+    },
+
     // ── EFICIÊNCIA ────────────────────────────────────────
     // Só considera registros com tempoProduzido > 0 — sem || 60 fictício.
 
@@ -554,6 +698,14 @@ export default {
       return Math.round(((quantidade * tempoPadrao) / tempoProduzido) * 100)
     },
 
+    // Tempo efetivo de uma linha para a Eficiência de Referência: usa o
+    // tempo_referencia daquele funcionário/etapa quando existir; na
+    // ausência dele, cai automaticamente para o tempo padrão da ficha.
+    tempoEfetivoLinha(linha) {
+      return linha?.tempoReferencia ?? linha?.tempoPadrao ?? 0
+    },
+
+    // Eficiência da Ficha: sempre usa o tempo_padrao (SAM) da etapa.
     calcularEficienciaLinha(linha) {
       if (!linha?.registros) return 0
       let produzido = 0
@@ -570,6 +722,28 @@ export default {
       return Math.round((produzido / tempoProduzido) * 100)
     },
 
+    // Eficiência de Referência: usa o tempo_referencia do funcionário na
+    // etapa quando existir; caso contrário, usa o tempo padrão (mesmo
+    // comportamento de calcularEficienciaLinha).
+    calcularEficienciaReferenciaLinha(linha) {
+      if (!linha?.registros) return 0
+      const tempoEfetivo = this.tempoEfetivoLinha(linha)
+      let produzido = 0
+      let tempoProduzido = 0
+
+      for (const reg of Object.values(linha.registros)) {
+        if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
+          produzido += reg.quantidade * tempoEfetivo
+          tempoProduzido += reg.tempoProduzido
+        }
+      }
+
+      if (!tempoProduzido) return 0
+      return Math.round((produzido / tempoProduzido) * 100)
+    },
+
+    // Eficiência da Ficha do funcionário — média ponderada de todas as
+    // linhas usando sempre o tempo padrão da etapa.
     calcularEficienciaFuncionario(func) {
       if (!func?.linhas?.length) return 0
       let somaProduzida = 0
@@ -589,6 +763,28 @@ export default {
       return Math.round((somaProduzida / somaTempo) * 100)
     },
 
+    // Eficiência de Referência do funcionário — mesma lógica acima, mas
+    // usando o tempo_referencia de cada linha quando disponível.
+    calcularEficienciaReferenciaFuncionario(func) {
+      if (!func?.linhas?.length) return 0
+      let somaProduzida = 0
+      let somaTempo = 0
+
+      for (const linha of func.linhas) {
+        if (!linha?.registros) continue
+        const tempoEfetivo = this.tempoEfetivoLinha(linha)
+        for (const reg of Object.values(linha.registros)) {
+          if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
+            somaProduzida += reg.quantidade * tempoEfetivo
+            somaTempo += reg.tempoProduzido
+          }
+        }
+      }
+
+      if (!somaTempo) return 0
+      return Math.round((somaProduzida / somaTempo) * 100)
+    },
+
     // ── POR HORA ──────────────────────────────────────────
     horasPorFuncionario(func) {
       if (!func?.linhas?.length) return []
@@ -599,16 +795,24 @@ export default {
         const etapas = []
         let totalPecas = 0
         let somaProduzida = 0
+        let somaProduzidaReferencia = 0
         let somaTempoProduzido = 0
 
         for (const linha of func.linhas) {
           const reg = linha.registros?.[hora]
           if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
+          const tempoEfetivo = this.tempoEfetivoLinha(linha)
+
           const eficiencia = this.calcularEficienciaRegistro(
             reg.quantidade,
             reg.tempoProduzido,
             linha.tempoPadrao
+          )
+          const eficienciaReferencia = this.calcularEficienciaRegistro(
+            reg.quantidade,
+            reg.tempoProduzido,
+            tempoEfetivo
           )
 
           etapas.push({
@@ -617,10 +821,12 @@ export default {
             quantidade: reg.quantidade,
             tempoProduzido: reg.tempoProduzido,
             eficiencia,
+            eficienciaReferencia,
           })
 
           totalPecas += reg.quantidade
           somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
+          somaProduzidaReferencia += reg.quantidade * tempoEfetivo
           somaTempoProduzido += reg.tempoProduzido
         }
 
@@ -632,6 +838,9 @@ export default {
           totalPecas,
           eficiencia: somaTempoProduzido
             ? Math.round((somaProduzida / somaTempoProduzido) * 100)
+            : 0,
+          eficienciaReferencia: somaTempoProduzido
+            ? Math.round((somaProduzidaReferencia / somaTempoProduzido) * 100)
             : 0,
         })
       }
@@ -858,6 +1067,10 @@ export default {
   z-index: 1;
 }
 
+.list-header.fabrica {
+  grid-template-columns: 1fr 64px 92px 92px;
+}
+
 .lh-name {
   font-size: 11px;
   font-weight: 600;
@@ -891,11 +1104,19 @@ export default {
   transition: background .1s;
 }
 
+.list-row.fabrica {
+  grid-template-columns: 1fr 64px 92px 92px;
+}
+
 .list-row:hover { background: var(--surf); }
 
 .list-row.selected {
   background: var(--g50);
   border-right: 2px solid var(--g600);
+}
+
+.list-row.sem-producao {
+  opacity: .6;
 }
 
 .lr-name {
@@ -1009,7 +1230,16 @@ export default {
 .badge.amarelo  { background: var(--a100); color: var(--a700); }
 .badge.vermelho { background: var(--r100); color: var(--r700); }
 .badge.sm  { font-size: 12px; padding: 2px 8px; }
+.badge.lg  { font-size: 13px; padding: 4px 12px; }
 .badge.xlg { font-size: 15px; padding: 5px 16px; }
+
+.dp-badges-duplas {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
 
 .tag-final {
   display: inline-block;
@@ -1327,6 +1557,10 @@ export default {
   border-radius: var(--rp);
   overflow: hidden;
   margin-bottom: 7px;
+}
+
+.dp-hora-eff-bar-track + .dp-hora-eff-bar-track {
+  margin-top: -3px;
 }
 
 .dp-hora-eff-bar-fill {

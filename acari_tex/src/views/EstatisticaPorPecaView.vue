@@ -429,13 +429,23 @@ export default {
 
   computed: {
     // Usa totalConcluido (peças que passaram por todas as etapas) para o progresso
-    progressoPct() {
-      if (!this.pecaDetalhes?.quantidade_pecas) return 0;
-      return Math.min(
-        100,
-        Math.round((this.pecaDetalhes.totalConcluido / this.pecaDetalhes.quantidade_pecas) * 100)
-      );
-    },
+progressoPct() {
+  if (!this.pecaDetalhes?.quantidade_pecas) return 0;
+
+  const etapaFinal = this.pecaDetalhes.etapaFinal;
+  if (!etapaFinal) return 0;
+
+  const producoes = this.pecaDetalhes.producaoPorEtapa?.[etapaFinal] || [];
+
+  const totalConcluido = producoes.reduce((total, producao) => {
+    return total + (producao.quantidade || 0);
+  }, 0);
+
+  return Math.min(
+    100,
+    Math.round((totalConcluido / this.pecaDetalhes.quantidade_pecas) * 100)
+  );
+},
   },
 
   methods: {

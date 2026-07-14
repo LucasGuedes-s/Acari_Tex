@@ -15,6 +15,7 @@ async function loginUser(user) {
             Estabelecimento: {
                 select: {
                     cnpj: true, // Seleciona apenas o CNPJ do estabelecimento
+                    tipo_de_producao: true, // Seleciona apenas o tipo de produção do estabelecimento
                 },
             },
         }
@@ -26,6 +27,7 @@ async function loginUser(user) {
     const senhavalida = bcrypt.compareSync(user.usuario.senha, usuario.senha); //A senha digitada pelo usuário é criptografada e testada pelo API de criptografia bcrypt.
     let dados_usuario = {
         cnpj: usuario.Estabelecimento.cnpj, 
+        tipo_de_producao: usuario.Estabelecimento.tipo_de_producao,
         funcoes: usuario.funcoes,
         email: usuario.email, 
         nome: usuario.nome,
@@ -151,11 +153,58 @@ async function enviarNotificacaoParaTodos({
     throw error;
   }
 }
+async function registrarFaltas(req) {
+    try {
+        const { funcionarioId, data, observacao, tipo } = req.body;
+        const cnpj = req.user.cnpj;
+        const registradoPor = req.user.email;
+        const faltas = await prisma.Faltas.create({
+            data: {
+                funcionarioId: funcionarioId,
+                data: new Date(data),
+                estabelecimento: cnpj,
+                usuarioResponsavel: registradoPor,
+                tipo: tipo,
+                observacao: observacao || null,
+            }
+        });
+        return faltas;
+    } catch (error) {
+        console.error("Erro ao registrar faltas:", error);
+        throw new Error("Erro ao registrar faltas.");
+    }
+}
+
+async function getFaltasByFuncionarios(req) {
+    try {
+        const { data } = req.query;
+        console.log("Data recebida:", data); // Adicione este log para verificar o valor de 'data'
+        const cnpj = req.user.cnpj;
+
+        const faltas = await prisma.Faltas.findMany({
+            where: {
+                estabelecimento: cnpj,
+                data: data ? new Date(data) : undefined,
+            },
+            orderBy: {
+                data: 'asc',
+            },
+        }); 
+        return faltas;
+    }
+    catch (error) {
+
+        console.error("Erro ao buscar faltas:", error);
+        throw new Error("Erro ao buscar faltas.");
+    }
+}
 
 module.exports = {
     loginUser,
     criarTempoReferencia,
     SolicitacaoalterarSenha,
     alterarSenha,
-    enviarNotificacaoParaTodos
+    enviarNotificacaoParaTodos,
+    registrarFaltas,
+    getFaltasByFuncionarios
 }
