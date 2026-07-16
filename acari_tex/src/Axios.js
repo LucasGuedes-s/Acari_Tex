@@ -6,6 +6,7 @@ import router from './router';
  * Lista de backends (ordem de prioridade)
  */
 const BASE_URLS = [
+  //
   'https://acari-tex.onrender.com',
   //'http://localhost:3333'
 ];

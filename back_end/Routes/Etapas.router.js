@@ -166,10 +166,6 @@ router.post(
           linhaPeca = [descricao, quantidade, valor, tempoPadrao];
           break;
         }
-        // console.log(json[0]);
-        // console.log(json[1]);
-        // console.log(json[2]);
-        // console.log(json[3]);
       }
 
       if (!linhaPeca) {
@@ -213,10 +209,37 @@ router.post(
 
       const linhas = XLSX.utils.sheet_to_json(sheet, { range: headerIndex });
 
+      // Remove acentos (ex: "pêsponto" -> "pesponto")
+      const removerAcentos = (texto) =>
+        String(texto || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+
+      // Remove tempo já embutido no texto da planilha, ex:
+      // "ombro a ombro (0.45 min)" -> "ombro a ombro"
+      // Evita duplicar o tempo quando o código concatena de novo mais abaixo.
+      const limparTempoEmbutido = (texto) =>
+        String(texto || "").replace(/\(\s*[\d.,]+\s*min\s*\)/gi, "");
+
+      // Colapsa espaços duplos/irregulares em um único espaço
+      const colapsarEspacos = (texto) =>
+        String(texto || "").replace(/\s+/g, " ").trim();
+
       const normalizar = (texto) =>
-        String(texto || "").trim().toLowerCase();
+        colapsarEspacos(removerAcentos(limparTempoEmbutido(texto))).toLowerCase();
 
       const primeiroNome = (texto) => normalizar(texto).split(" ")[0];
+
+      // Compara tempo_padrao de forma segura, independente do tipo
+      // vindo do banco (Decimal do Prisma, string, number ou null/undefined)
+      const tempoIgual = (a, b) => {
+        const na = a === null || a === undefined ? null : Number(a);
+        const nb = b === null || b === undefined ? null : Number(b);
+        if (na === null && nb === null) return true;
+        if (na === null || nb === null) return false;
+        if (Number.isNaN(na) || Number.isNaN(nb)) return false;
+        return Math.abs(na - nb) < 0.001; // tolerância para arredondamento
+      };
 
       const etapasValidas = linhas.filter(
         (l) => l.descricao_etapa && String(l.descricao_etapa).trim() !== ""
@@ -342,48 +365,42 @@ router.post(
             },
           });
 
-          // 🔎 Busca etapas já existentes
+          // 🔎 Busca etapas já existentes no estabelecimento (uma vez só)
           const etapasExistentes = await tx.etapa.findMany({
             where: { id_Estabelecimento: cnpj },
           });
 
-          const etapasParaVincular = [];
-          const etapasParaCriarNoBanco = [];
+          // =========================
+          // ✅ RESOLVE CADA ETAPA (find-or-create)
+          // Substitui o antigo fluxo de createMany + refetch,
+          // que dependia de uma comparação de tempo_padrao que
+          // falhava silenciosamente (Decimal vs number) e por
+          // isso duplicava etapas já cadastradas.
+          // =========================
+
+          const todasEtapas = [];
+          let etapasCriadasCount = 0;
+          let etapasReutilizadasCount = 0;
 
           for (const etapa of etapasParaCriar) {
             const jaExiste = etapasExistentes.find(
               (e) =>
                 normalizar(e.descricao) === normalizar(etapa.descricao) &&
-                e.tempo_padrao === etapa.tempo_padrao
+                tempoIgual(e.tempo_padrao, etapa.tempo_padrao)
             );
 
             if (jaExiste) {
-              etapasParaVincular.push(jaExiste);
+              todasEtapas.push(jaExiste);
+              etapasReutilizadasCount++;
             } else {
-              etapasParaCriarNoBanco.push(etapa);
+              const criada = await tx.etapa.create({ data: etapa });
+              // adiciona à lista de existentes também, para evitar
+              // criar a mesma etapa duas vezes dentro do mesmo upload
+              etapasExistentes.push(criada);
+              todasEtapas.push(criada);
+              etapasCriadasCount++;
             }
           }
-
-          if (etapasParaCriarNoBanco.length > 0) {
-            await tx.etapa.createMany({
-              data: etapasParaCriarNoBanco,
-              skipDuplicates: true,
-            });
-          }
-
-          const etapasRecemCriadas =
-            etapasParaCriarNoBanco.length > 0
-              ? await tx.etapa.findMany({
-                  where: {
-                    id_Estabelecimento: cnpj,
-                    descricao: {
-                      in: etapasParaCriarNoBanco.map((e) => e.descricao),
-                    },
-                  },
-                })
-              : [];
-
-          const todasEtapas = [...etapasParaVincular, ...etapasRecemCriadas];
 
           // Monta mapa descricaoFinal → id_da_funcao para lookup rápido
           const etapasPorDescricao = new Map(
@@ -443,8 +460,8 @@ router.post(
 
           return {
             peca,
-            etapasCriadas: etapasParaCriarNoBanco.length,
-            etapasReutilizadas: etapasParaVincular.length,
+            etapasCriadas: etapasCriadasCount,
+            etapasReutilizadas: etapasReutilizadasCount,
             tempoPadraoPeca,
             temposReferenciaCriados: temposReferencia.length,
           };
