@@ -90,7 +90,7 @@
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <button class="card-btn card-btn--delete" title="Excluir"
+                <!-- <button class="card-btn card-btn--delete" title="Excluir"
                   @click="confirmarExclusao(etapa.id_da_funcao)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6" />
@@ -98,7 +98,7 @@
                     <line x1="10" y1="11" x2="10" y2="17" />
                     <line x1="14" y1="11" x2="14" y2="17" />
                   </svg>
-                </button>
+                </button> -->
               </div>
             </div>
 
@@ -997,39 +997,39 @@ export default {
 
   if (!isConfirmed) return
 
-  try {
-    await api.post(
-      "/tempo-referencia",
-      {
-        id_funcionario: value.id_funcionario,
-        id_da_funcao: etapa.id_da_funcao,
-        tempo_minutos: value.tempo_minutos,
-      },
-      {
-        headers: {
-          Authorization: this.store.pegar_token,
-        },
+      try {
+        await api.post(
+          "/tempo-referencia",
+          {
+            id_funcionario: value.id_funcionario,
+            id_da_funcao: etapa.id_da_funcao,
+            tempo_minutos: value.tempo_minutos,
+          },
+          {
+            headers: {
+              Authorization: this.store.pegar_token,
+            },
+          }
+        )
+
+        Swal.fire({
+          icon: "success",
+          title: "Tempo salvo com sucesso!",
+          timer: 1500,
+          showConfirmButton: false,
+        })
+      } catch (error) {
+        console.error(error)
+
+        Swal.fire({
+          icon: "error",
+          title: "Erro",
+          text:
+            error.response?.data?.erro ||
+            "Erro ao salvar tempo de referência.",
+        })
       }
-    )
-
-    Swal.fire({
-      icon: "success",
-      title: "Tempo salvo com sucesso!",
-      timer: 1500,
-      showConfirmButton: false,
-    })
-  } catch (error) {
-    console.error(error)
-
-    Swal.fire({
-      icon: "error",
-      title: "Erro",
-      text:
-        error.response?.data?.erro ||
-        "Erro ao salvar tempo de referência.",
-    })
-  }
-},
+    },
 
     abrirModalCronoanalise(etapa) {
       this.etapaCronoanalise = { ...etapa }
