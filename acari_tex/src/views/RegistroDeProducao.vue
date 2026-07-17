@@ -240,7 +240,10 @@
                                 :class="'ausencia-tag--' + funcionario.ausencia.tipo"
                                 :title="funcionario.ausencia.observacao || ''">
                                 <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia inteiro)</template>
-                                <template v-else>🌗 Ausente: {{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</template>
+                                <template v-else>
+                                  🕒 Ausente: <strong>{{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</strong>
+                                  <span class="ausencia-tag-minutos">({{ calcularMinutosAusenciaFuncionario(funcionario) }}min)</span>
+                                </template>
                               </span>
                             </div>
                           </div>
@@ -492,6 +495,137 @@ const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
 const CONFIG_PADRAO = {
   manha: { inicio: '08:00', fim: '12:30' },
   tarde: { inicio: '13:30', fim: '18:00' },
+}
+
+// ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ──────────────────────────
+// Garante que a seleção de etapa nunca dependa de haver produção
+// lançada: é salva localmente no INSTANTE da seleção (IndexedDB, com
+// fallback automático para localStorage caso o navegador não suporte ou
+// bloqueie IndexedDB — ex.: alguns modos privados) e sobrevive a reload
+// de página, fechamento do navegador e queda de conexão. A sincronização
+// com o backend continua acontecendo pelo mecanismo já existente
+// (salvarMetaDia via socket, que o próprio socket.io já enfileira
+// automaticamente enquanto a conexão está caída); este helper resolve
+// especificamente o caso que o socket.io NÃO cobre: página recarregada
+// ou navegador fechado antes da reconexão.
+const OFFLINE_DB_NAME = 'apontamento-offline'
+const OFFLINE_DB_VERSION = 1
+const OFFLINE_STORE_NAME = 'etapasSelecionadas'
+const OFFLINE_FALLBACK_KEY = 'apontamento-etapas-offline-fallback'
+
+let _offlineDbPromise = null
+
+function abrirOfflineDB() {
+  if (typeof window === 'undefined' || !window.indexedDB) return Promise.resolve(null)
+  if (_offlineDbPromise) return _offlineDbPromise
+
+  _offlineDbPromise = new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION)
+
+      req.onupgradeneeded = () => {
+        const db = req.result
+        if (!db.objectStoreNames.contains(OFFLINE_STORE_NAME)) {
+          db.createObjectStore(OFFLINE_STORE_NAME, { keyPath: 'chave' })
+        }
+      }
+
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => {
+        console.warn('IndexedDB indisponível, usando localStorage como fallback para etapas offline.')
+        resolve(null)
+      }
+    } catch (err) {
+      console.warn('Erro ao abrir IndexedDB, usando localStorage como fallback.', err)
+      resolve(null)
+    }
+  })
+
+  return _offlineDbPromise
+}
+
+function lerFallbackLocalStorage() {
+  try {
+    const bruto = localStorage.getItem(OFFLINE_FALLBACK_KEY)
+    return bruto ? JSON.parse(bruto) : {}
+  } catch {
+    return {}
+  }
+}
+
+function escreverFallbackLocalStorage(mapa) {
+  try {
+    localStorage.setItem(OFFLINE_FALLBACK_KEY, JSON.stringify(mapa))
+  } catch (err) {
+    console.warn('Não foi possível gravar fallback de etapa offline no localStorage.', err)
+  }
+}
+
+/**
+ * API de armazenamento offline de etapas selecionadas. Cada registro
+ * contém no mínimo: funcionarioId, opId, etapaId, data, tipoLinha e
+ * horarioSelecao (timestamp de quando a seleção foi feita). Usa
+ * IndexedDB quando disponível; cai para localStorage automaticamente
+ * caso contrário — a troca é transparente para quem consome este objeto.
+ */
+const etapaOfflineStore = {
+  async salvar(registro) {
+    const db = await abrirOfflineDB()
+    if (db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(OFFLINE_STORE_NAME, 'readwrite')
+          tx.objectStore(OFFLINE_STORE_NAME).put(registro)
+          tx.oncomplete = () => resolve(true)
+          tx.onerror = () => resolve(false)
+        } catch {
+          resolve(false)
+        }
+      })
+    }
+    const mapa = lerFallbackLocalStorage()
+    mapa[registro.chave] = registro
+    escreverFallbackLocalStorage(mapa)
+    return true
+  },
+
+  async remover(chave) {
+    const db = await abrirOfflineDB()
+    if (db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(OFFLINE_STORE_NAME, 'readwrite')
+          tx.objectStore(OFFLINE_STORE_NAME).delete(chave)
+          tx.oncomplete = () => resolve(true)
+          tx.onerror = () => resolve(false)
+        } catch {
+          resolve(false)
+        }
+      })
+    }
+    const mapa = lerFallbackLocalStorage()
+    delete mapa[chave]
+    escreverFallbackLocalStorage(mapa)
+    return true
+  },
+
+  async listarPorData(data) {
+    const db = await abrirOfflineDB()
+    if (db) {
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction(OFFLINE_STORE_NAME, 'readonly')
+          const req = tx.objectStore(OFFLINE_STORE_NAME).getAll()
+          req.onsuccess = () => resolve((req.result || []).filter(r => r.data === data))
+          req.onerror = () => resolve([])
+        } catch {
+          resolve([])
+        }
+      })
+    }
+    const mapa = lerFallbackLocalStorage()
+    return Object.values(mapa).filter(r => r.data === data)
+  },
 }
 
 export default {
@@ -863,7 +997,19 @@ export default {
       const cnpj = this.store.pegar_usuario?.cnpj
       if (cnpj) socket.off(`nova_atualizacao_${cnpj}`)
 
-      socket.on('connect', () => { this.socketConectado = true })
+      socket.on('connect', () => {
+        this.socketConectado = true
+        // NOVO: numa RECONEXÃO (não na primeira conexão — essa já é
+        // tratada pelo fluxo normal de mounted()), refaz o carregamento
+        // da meta do dia. Isso já dispara restaurarEtapasOffline() e
+        // getFaltas() internamente, então qualquer seleção de etapa
+        // feita enquanto a tela esteve offline é reavaliada e uma nova
+        // tentativa de sincronização é feita automaticamente.
+        if (this._jaConectouUmaVez) {
+          this.buscarMetaDia()
+        }
+        this._jaConectouUmaVez = true
+      })
       socket.on('disconnect', () => { this.socketConectado = false })
       socket.on('erro-producao', err => { console.log(err) })
 
@@ -1062,6 +1208,12 @@ export default {
      */
     onAlterarEtapaPorIndice(funcionario, linha, valorIndice) {
       if (valorIndice === '' || valorIndice === null || valorIndice === undefined) {
+        // Limpando a seleção: remove o registro offline da etapa antiga
+        // (se havia uma), já que este slot deixa de representar aquela
+        // escolha.
+        if (linha.etapaId) {
+          this.removerEtapaOfflineSeExistir(funcionario, linha.opId, linha.etapaId, linha.tipo)
+        }
         linha.etapaId = ''
         linha.opId = null
         linha.descricao = ''
@@ -1075,10 +1227,22 @@ export default {
       const opcao = this.opcoesEtapaTodas[Number(valorIndice)]
       if (!opcao) return
 
+      // Trocando de uma etapa para outra na mesma linha: descarta o
+      // registro offline antigo antes de gravar o novo, para não deixar
+      // um registro órfão de uma etapa que não está mais selecionada.
+      if (linha.etapaId && (linha.etapaId !== opcao.etapaId || linha.opId !== opcao.opId)) {
+        this.removerEtapaOfflineSeExistir(funcionario, linha.opId, linha.etapaId, linha.tipo)
+      }
+
       linha.etapaId = opcao.etapaId
       linha.opId = opcao.opId
 
       this.onAlterarEtapa(funcionario, linha)
+
+      // NOVO: persiste a seleção IMEDIATAMENTE, independente de haver
+      // produção lançada — sobrevive a reload, fechamento do navegador
+      // e queda de conexão.
+      this.persistirEtapaOffline(funcionario, linha)
     },
 
     // ── FUNCIONÁRIOS ──────────────────────────────────────
@@ -1149,6 +1313,13 @@ export default {
 
       const linhaAlvo = funcionario.linhas?.[idxLinha]
       if (!linhaAlvo) return
+
+      // NOVO: remove também o registro offline correspondente, se
+      // existir — a linha deixa de existir, então a seleção offline
+      // dela também deve deixar de existir.
+      if (linhaAlvo.etapaId) {
+        this.removerEtapaOfflineSeExistir(funcionario, linhaAlvo.opId, linhaAlvo.etapaId, linhaAlvo.tipo)
+      }
 
       const indiceReal = real.linhas.findIndex(l => l.id === linhaAlvo.id)
       if (indiceReal === -1) return
@@ -1595,7 +1766,7 @@ export default {
           fim: this.normalizarHora(r.horarioFinal),
         }))
         .filter(p => p.inicio && p.fim)
-
+      console
       if (!parciais.length) return null
 
       return {
@@ -1685,6 +1856,103 @@ export default {
       }
 
       return candidatas[0] || null
+    },
+
+    // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ────────
+    /**
+     * Chave determinística que identifica um "slot" de seleção de etapa
+     * (funcionário + OP + etapa + data + tipo de linha). Não usa
+     * `linha.id` porque esse id é regenerado a cada reload da tela
+     * (Date.now() + Math.random()) e por isso não sobreviveria a um
+     * refresh de página — a chave composta abaixo é estável e permite
+     * localizar/atualizar/remover o mesmo registro em qualquer sessão.
+     */
+    chaveEtapaOffline(funcionarioId, opId, etapaId, data, tipo) {
+      return `${funcionarioId}::${data}::${opId || 'sem-op'}::${etapaId}::${tipo}`
+    },
+
+    /**
+     * Persiste IMEDIATAMENTE a seleção de etapa desta linha no
+     * armazenamento offline, independentemente de já existir produção
+     * lançada. Chamado a cada seleção/troca de etapa (ver
+     * onAlterarEtapaPorIndice) — nenhuma etapa escolhida fica só em
+     * memória.
+     */
+    async persistirEtapaOffline(funcionario, linha) {
+      if (!linha?.etapaId) return
+      const real = funcionario?._funcRef || funcionario
+      const chave = this.chaveEtapaOffline(real.email, linha.opId, linha.etapaId, this.dataSelecionada, linha.tipo)
+      await etapaOfflineStore.salvar({
+        chave,
+        funcionarioId: real.email,
+        opId: linha.opId || null,
+        etapaId: linha.etapaId,
+        data: this.dataSelecionada,
+        tipoLinha: linha.tipo,
+        horarioSelecao: new Date().toISOString(),
+      })
+    },
+
+    /** Remove um registro offline específico, se existir (ex.: etapa trocada ou linha removida). */
+    async removerEtapaOfflineSeExistir(funcionario, opId, etapaId, tipo) {
+      if (!etapaId) return
+      const real = funcionario?._funcRef || funcionario
+      const chave = this.chaveEtapaOffline(real.email, opId, etapaId, this.dataSelecionada, tipo)
+      await etapaOfflineStore.remover(chave)
+    },
+
+    /**
+     * Lê os registros offline do dia selecionado e os reaplica em
+     * funcionariosDia. Deve ser chamado DEPOIS que a tela já reconstruiu
+     * o estado a partir do servidor (buscarMetaDia) — assim é possível
+     * distinguir entre:
+     *   (a) uma etapa que o servidor JÁ confirmou (o registro offline
+     *       correspondente é descartado, pois não é mais necessário);
+     *   (b) uma etapa que o operador selecionou mas que nunca chegou a
+     *       ser confirmada pelo servidor (é restaurada na tela e uma
+     *       nova tentativa de sincronização é disparada).
+     */
+    async restaurarEtapasOffline() {
+      const registros = await etapaOfflineStore.listarPorData(this.dataSelecionada)
+      if (!registros.length) return
+
+      let algumaRestauracao = false
+
+      for (const registro of registros) {
+        const funcionario = this.funcionariosDia.find(f => f.email === registro.funcionarioId)
+        if (!funcionario) continue
+
+        const jaConfirmadoPeloServidor = (funcionario.linhas || []).some(
+          l => l.etapaId === registro.etapaId && (l.opId || null) === (registro.opId || null)
+        )
+        if (jaConfirmadoPeloServidor) {
+          await etapaOfflineStore.remover(registro.chave)
+          continue
+        }
+
+        let linha = null
+        if (registro.tipoLinha === 'principal') {
+          linha = (funcionario.linhas || []).find(l => l.tipo === 'principal' && !l.etapaId)
+        }
+        if (!linha) {
+          linha = this.novaLinha('extra')
+          if (!Array.isArray(funcionario.linhas)) funcionario.linhas = []
+          funcionario.linhas.push(linha)
+        }
+
+        linha.etapaId = registro.etapaId
+        linha.opId = registro.opId
+        this.aplicarDadosDaEtapa(funcionario, linha)
+        algumaRestauracao = true
+      }
+
+      // Se alguma etapa ainda não confirmada foi restaurada, tenta
+      // sincronizar de novo agora. Se a conexão estiver de volta, o
+      // socket.io envia normalmente; se ainda estiver offline, o próprio
+      // socket.io enfileira o evento e o envia assim que reconectar.
+      if (algumaRestauracao) {
+        this.salvarMetaDia()
+      }
     },
 
     // ── ETAPA FINAL ──────────────────────────────────────
@@ -2187,6 +2455,16 @@ export default {
       for (const deb of this._debouncersPorCelula.values()) {
         if (typeof deb.flush === 'function') deb.flush()
       }
+      // NOVO: também força o envio imediato de salvarMetaDia (que inclui
+      // a seleção de etapa de cada linha) — sem isso, uma seleção feita
+      // nos últimos 500ms antes de trocar de data ou fechar a tela
+      // poderia ficar presa na janela do debounce e nunca ser emitida
+      // nesta sessão (a cópia em IndexedDB/localStorage garante que ela
+      // não se perde de qualquer forma, mas emitir agora evita depender
+      // só da restauração no próximo carregamento).
+      if (typeof this.salvarMetaDia.flush === 'function') {
+        this.salvarMetaDia.flush()
+      }
     },
 
     /**
@@ -2340,6 +2618,12 @@ export default {
             this.reaplicarRegistrosPendentes(registrosPendentesAntesDoReload)
             this.sincronizarOpsExtras()
             this.dataCarregada = dataDaRequisicao
+            // NOVO: restaura qualquer etapa selecionada offline antes de
+            // haver meta salva para o dia (ex.: operador escolheu etapa,
+            // ficou sem internet, e a meta nunca chegou a ser criada no
+            // servidor) — precisa rodar ANTES de getFaltas só por
+            // organização; a ordem entre os dois não afeta o resultado.
+            this.restaurarEtapasOffline()
             // NOVO: aplica a ausência automática também quando não há
             // nenhuma meta salva ainda para o dia — sem isso, um dia
             // "em branco" nunca consultaria as faltas.
@@ -2438,6 +2722,12 @@ export default {
           // mesma lista consolidada usada para montar a tabela.
           this.sincronizarOpsExtras()
           this.dataCarregada = dataDaRequisicao
+
+          // NOVO: restaura qualquer etapa selecionada offline que ainda
+          // não foi confirmada pelo servidor — precisa rodar DEPOIS que
+          // funcionariosDia já reflete o que veio da meta (para poder
+          // comparar e descartar registros offline já confirmados).
+          this.restaurarEtapasOffline()
 
           // NOVO: consulta e aplica automaticamente os registros de
           // ausência do dia — SEMPRE por último, depois que
@@ -2621,7 +2911,6 @@ export default {
   },
 }
 </script>
-
 <style scoped>
 * { box-sizing: border-box; }
 

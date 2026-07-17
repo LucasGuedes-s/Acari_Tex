@@ -178,7 +178,7 @@ async function registrarFaltas(req) {
 async function getFaltasByFuncionarios(req) {
     try {
         const { data } = req.query;
-        console.log("Data recebida:", data); // Adicione este log para verificar o valor de 'data'
+        // console.log("Data recebida:", data); // Adicione este log para verificar o valor de 'data'
         const cnpj = req.user.cnpj;
 
         const faltas = await prisma.Faltas.findMany({
