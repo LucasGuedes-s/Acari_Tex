@@ -239,7 +239,7 @@
                               <span v-if="funcionario.ausencia" class="ausencia-tag"
                                 :class="'ausencia-tag--' + funcionario.ausencia.tipo"
                                 :title="funcionario.ausencia.observacao || ''">
-                                <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia todo)</template>
+                                <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia inteiro)</template>
                                 <template v-else>🌗 Ausente: {{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</template>
                               </span>
                             </div>
@@ -261,8 +261,15 @@
                                   </option>
                                 </optgroup>
                               </select>
-                              <!-- × em todas as linhas extras -->
-                              <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
+                              <!--
+                                × e + ficam completamente indisponíveis quando o
+                                funcionário está ausente o dia inteiro — ele não
+                                pode ter etapas adicionadas nem removidas naquele
+                                dia, só visualizar o que já foi lançado antes da
+                                ausência ser registrada.
+                              -->
+                              <button v-if="linha.tipo === 'extra' && !funcionarioAusenteDiaInteiro(funcionario)"
+                                class="btn-remove-linha"
                                 @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
                               <!--
                                 + sempre na última linha DESTE MÓDULO (desta OP).
@@ -291,7 +298,8 @@
                                 <span class="etapa-fixa-label">{{ linha.descricao || 'Etapa' }}</span>
                                 <span class="etapa-fixa-tag" title="OP fora da lista de OPs ativas">🔒 somente consulta</span>
                               </div>
-                              <button v-if="linha.tipo === 'extra'" class="btn-remove-linha"
+                              <button v-if="linha.tipo === 'extra' && !funcionarioAusenteDiaInteiro(funcionario)"
+                                class="btn-remove-linha"
                                 @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta linha">×</button>
                             </template>
                           </div>
@@ -369,21 +377,33 @@
 
                         <!-- EFICIÊNCIA FICHA (por funcionário) -->
                         <td class="efic-col">
-                          <div v-if="idxLinha === 0"
-                            :class="['efic-badge', getEficClass(calcularEficienciaFuncionarioPadrao(funcionario))]">
-                            {{ calcularEficienciaFuncionarioPadrao(funcionario)
-                              ? calcularEficienciaFuncionarioPadrao(funcionario) + '%'
-                              : '—' }}
+                          <div v-if="idxLinha === 0">
+                            <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
+                              class="efic-badge ausencia-tag--dia_inteiro">
+                              Ausente
+                            </span>
+                            <span v-else
+                              :class="['efic-badge', getEficClass(calcularEficienciaFuncionarioPadrao(funcionario))]">
+                              {{ calcularEficienciaFuncionarioPadrao(funcionario)
+                                ? calcularEficienciaFuncionarioPadrao(funcionario) + '%'
+                                : '—' }}
+                            </span>
                           </div>
                         </td>
 
                         <!-- EFICIÊNCIA REFERÊNCIA (por funcionário) -->
                         <td class="efic-col efic-col--ref">
-                          <div v-if="idxLinha === 0"
-                            :class="['efic-badge efic-badge--ref', getEficClass(calcularEficienciaFuncionarioReferencia(funcionario))]">
-                            {{ calcularEficienciaFuncionarioReferencia(funcionario)
-                              ? calcularEficienciaFuncionarioReferencia(funcionario) + '%'
-                              : '—' }}
+                          <div v-if="idxLinha === 0">
+                            <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
+                              class="efic-badge ausencia-tag--dia_inteiro">
+                              Ausente
+                            </span>
+                            <span v-else
+                              :class="['efic-badge efic-badge--ref', getEficClass(calcularEficienciaFuncionarioReferencia(funcionario))]">
+                              {{ calcularEficienciaFuncionarioReferencia(funcionario)
+                                ? calcularEficienciaFuncionarioReferencia(funcionario) + '%'
+                                : '—' }}
+                            </span>
                           </div>
                         </td>
 
@@ -709,7 +729,11 @@ export default {
     await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
-    await this.getFaltas()
+    // getFaltas NÃO é mais chamado aqui separadamente: buscarMetaDia() já
+    // dispara getFaltas() internamente, sempre no momento certo (depois
+    // que funcionariosDia já foi reconstruído a partir da meta do dia),
+    // e isso se repete automaticamente toda vez que a data é trocada
+    // (ver watch: dataSelecionada).
   },
 
   beforeUnmount() {
@@ -1299,6 +1323,8 @@ export default {
      * disponível que precise ser individualizado por funcionário — caso
      * contrário um funcionário ausente seguiria sendo contado como se
      * tivesse a jornada inteira livre.
+     *
+     * Tempo disponível = Tempo total do turno/dia − Tempo de ausência
      */
     calcularMinutosDisponiveisFuncionario(funcionario) {
       const totalPadrao = this.minutosDisponiveisDia()
@@ -1403,6 +1429,7 @@ export default {
 
       this.registrarFaltaNoBackend(funcionario)
       this.fecharModalAusencia()
+      this.ordenarFuncionariosPorAusencia()
       this.salvarMetaDia()
     },
 
@@ -1413,6 +1440,7 @@ export default {
         this.registrarFaltaNoBackend(funcionario)
       }
       this.fecharModalAusencia()
+      this.ordenarFuncionariosPorAusencia()
       this.salvarMetaDia()
     },
 
@@ -1432,15 +1460,6 @@ export default {
      * apenas avisa o gestor que a confirmação do servidor não chegou,
      * para evitar perder o trabalho de quem já configurou a ausência.
      */
-    async getFaltas(){
-      const data = this.dataSelecionada
-      const token = this.store.pegar_token
-      const response = await api.get('/buscar-faltas', {
-        params: { data },
-        headers: { Authorization: token }
-      })
-      console.log('Faltas recebidas do backend:', response.data)
-    },
     async registrarFaltaNoBackend(funcionario) {
       const ausencia = funcionario.ausencia
       const token = this.store.pegar_token
@@ -1493,6 +1512,138 @@ export default {
           'warning'
         )
       }
+    },
+
+    /**
+     * Busca os registros de ausência do dia selecionado e os aplica
+     * automaticamente em `funcionariosDia` — é a integração automática
+     * entre o módulo de Registro de Faltas e esta tela: nenhuma ação
+     * manual do gestor é necessária, o `watch: dataSelecionada` já
+     * garante que isso roda de novo sempre que a data muda (via
+     * buscarMetaDia, que chama este método no momento certo).
+     *
+     * Formato esperado de cada registro (retornado por GET
+     * /buscar-faltas):
+     *   { id, funcionarioId, data, tipo, horarioInicial, horarioFinal, observacao }
+     */
+    async getFaltas() {
+      const dataRequisitada = this.dataSelecionada
+      try {
+        const token = this.store.pegar_token
+        const response = await api.get('/buscar-faltas', {
+          params: { data: dataRequisitada },
+          headers: { Authorization: token }
+        })
+
+        // Se a data selecionada já mudou enquanto esta requisição estava
+        // em voo, descarta a resposta — evita aplicar ausências de um
+        // dia que não é mais o exibido na tela.
+        if (dataRequisitada !== this.dataSelecionada) return
+
+        const faltas = Array.isArray(response.data)
+          ? response.data
+          : (response.data?.faltas || [])
+
+        this.aplicarFaltasAosFuncionarios(faltas)
+      } catch (err) {
+        console.error('Erro ao buscar faltas do backend', err)
+      }
+    },
+
+    /**
+     * Normaliza um horário vindo do backend para o formato "HH:MM" já
+     * usado internamente por toda a tela. Aceita tanto "HH:MM" direto
+     * quanto uma data/hora ISO completa (ex.: "2026-07-16T09:00:00.000Z"),
+     * extraindo hora e minuto em UTC neste segundo caso.
+     */
+    normalizarHora(valor) {
+      if (!valor) return null
+      if (/^\d{2}:\d{2}$/.test(valor)) return valor
+      const d = new Date(valor)
+      if (isNaN(d.getTime())) return null
+      const h = String(d.getUTCHours()).padStart(2, '0')
+      const m = String(d.getUTCMinutes()).padStart(2, '0')
+      return `${h}:${m}`
+    },
+
+    /**
+     * Converte os registros de falta de UM funcionário (podem ser vários,
+     * no caso de múltiplos períodos parciais no mesmo dia) para o formato
+     * interno já usado por toda a tela: { tipo, periodos, observacao }.
+     *
+     * Se existir QUALQUER registro "dia_inteiro" para o funcionário, ele
+     * sempre prevalece sobre eventuais registros parciais do mesmo dia —
+     * ausência total é mais restritiva e não faz sentido conviver com
+     * bloqueios parciais simultâneos.
+     */
+    mapearFaltasParaAusencia(registros) {
+      if (!registros || !registros.length) return null
+
+      const diaInteiro = registros.find(r => r.tipo === 'dia_inteiro')
+      if (diaInteiro) {
+        return {
+          tipo: 'dia_inteiro',
+          periodos: [],
+          observacao: diaInteiro.observacao || '',
+        }
+      }
+
+      const parciais = registros
+        .filter(r => r.tipo === 'parcial' && r.horarioInicial && r.horarioFinal)
+        .map(r => ({
+          inicio: this.normalizarHora(r.horarioInicial),
+          fim: this.normalizarHora(r.horarioFinal),
+        }))
+        .filter(p => p.inicio && p.fim)
+
+      if (!parciais.length) return null
+
+      return {
+        tipo: 'parcial',
+        periodos: parciais,
+        observacao: registros.map(r => r.observacao).filter(Boolean).join(' | '),
+      }
+    },
+
+    /**
+     * Aplica os registros de /buscar-faltas a `funcionariosDia`,
+     * agrupando por funcionarioId, e reordena a lista para que quem está
+     * ausente o dia inteiro vá para o final. É chamado automaticamente
+     * (via getFaltas) toda vez que a data muda ou que a meta do dia é
+     * recarregada — nenhuma configuração manual é necessária.
+     */
+    aplicarFaltasAosFuncionarios(faltas) {
+      const porFuncionario = new Map()
+      for (const registro of faltas || []) {
+        if (!registro?.funcionarioId) continue
+        if (!porFuncionario.has(registro.funcionarioId)) {
+          porFuncionario.set(registro.funcionarioId, [])
+        }
+        porFuncionario.get(registro.funcionarioId).push(registro)
+      }
+
+      for (const funcionario of this.funcionariosDia) {
+        const registros = porFuncionario.get(funcionario.email)
+        funcionario.ausencia = this.mapearFaltasParaAusencia(registros)
+      }
+
+      this.ordenarFuncionariosPorAusencia()
+    },
+
+    /**
+     * Move funcionários ausentes o dia inteiro para o final da lista,
+     * preservando a ordem relativa original entre os demais (sort
+     * estável). Como `funcionariosAgrupadosPorOp` itera sobre
+     * `this.funcionariosDia` nesta mesma ordem, a tabela reflete a
+     * ordenação automaticamente — nenhuma mudança extra é necessária
+     * no template para isso.
+     */
+    ordenarFuncionariosPorAusencia() {
+      this.funcionariosDia = [...this.funcionariosDia].sort((a, b) => {
+        const ausenteA = a.ausencia?.tipo === 'dia_inteiro' ? 1 : 0
+        const ausenteB = b.ausencia?.tipo === 'dia_inteiro' ? 1 : 0
+        return ausenteA - ausenteB
+      })
     },
 
     aplicarDadosDaEtapa(funcionarioReal, linha) {
@@ -2189,6 +2340,10 @@ export default {
             this.reaplicarRegistrosPendentes(registrosPendentesAntesDoReload)
             this.sincronizarOpsExtras()
             this.dataCarregada = dataDaRequisicao
+            // NOVO: aplica a ausência automática também quando não há
+            // nenhuma meta salva ainda para o dia — sem isso, um dia
+            // "em branco" nunca consultaria as faltas.
+            this.getFaltas()
             return
           }
 
@@ -2283,6 +2438,16 @@ export default {
           // mesma lista consolidada usada para montar a tabela.
           this.sincronizarOpsExtras()
           this.dataCarregada = dataDaRequisicao
+
+          // NOVO: consulta e aplica automaticamente os registros de
+          // ausência do dia — SEMPRE por último, depois que
+          // funcionariosDia já está totalmente reconstruído a partir da
+          // meta. Se rodasse antes, a reconstrução acima sobrescreveria
+          // (com `funcionario.ausencia = metaFunc.ausencia || null`) a
+          // ausência recém aplicada. Como getFaltas() é assíncrono e não
+          // é aguardado aqui, ele roda logo em seguida sem bloquear o
+          // restante do carregamento da tela.
+          this.getFaltas()
         }
       )
     },

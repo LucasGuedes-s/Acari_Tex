@@ -1067,18 +1067,17 @@ async function getProducaoPorPeca(req) {
     return { error: error.message };
   }
 }
+const { isEtapaFinal } = require("../utils/etapaFinal");
 
 async function getEstatisticasPeca(id) {
   try {
     const id_da_op = parseInt(id, 10);
 
-    // ================= BUSCA PRINCIPAL =================
     const peca = await prisma.PecasOP.findUnique({
       where: { id_da_op },
       include: {
         Estabelecimento: {
           select: {
-            peca_final: true,
             tempo_de_producao: true,
           },
         },
@@ -1094,36 +1093,43 @@ async function getEstatisticasPeca(id) {
 
     if (!peca) throw new Error("Peça não encontrada.");
 
-    const etapaFinal = peca.Estabelecimento?.peca_final;
-    const minutosDisponiveis = peca.Estabelecimento?.tempo_de_producao || 480;
+    const minutosDisponiveisPorDia = peca.Estabelecimento?.tempo_de_producao || 480;
     const tempoPadraoTotalPeca = Number(peca.tempo_padrao) || 0;
 
-    // ================= AGREGAÇÕES =================
     const producaoPorEtapa = {};
     const somaPorEtapa = {};
 
     let totalLiquido = 0;
     let totalPositivo = 0;
     let totalNegativo = 0;
-    let totalConcluido = 0; // apenas peças que chegaram à etapa final
+    let totalConcluido = 0;
 
-    // Eficiência: acumula tempo padrão produzido por funcionário
     const eficienciaPorFuncionario = {};
+    // Dias distintos (YYYY-MM-DD) em que a PEÇA teve produção lançada,
+    // usado para a eficiência da peça como um todo.
+    const diasTrabalhadosPeca = new Set();
+
+    // Normaliza data_inicio (Date ou string) para uma chave de dia estável.
+    function chaveDia(data) {
+      if (!data) return null;
+      const d = new Date(data);
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    }
 
     for (const p of peca.producao_peca) {
       const qtd = Number(p.quantidade_pecas) || 0;
       const etapaNome = p.producao_etapa?.descricao || "Etapa não definida";
       const funcionario = p.producao_funcionario?.nome || p.id_funcionario || "Desconhecido";
       const email = p.producao_funcionario?.email || p.id_funcionario;
+      const dia = chaveDia(p.data_inicio);
 
-      // Fallback: tempo_padrao da Etapa → PecasEtapas → 0
       const tempoPadraoEtapa =
         p.producao_etapa?.tempo_padrao ??
         peca.etapas.find((e) => e.id_da_funcao === p.id_da_funcao)
           ?.etapa?.tempo_padrao ??
         0;
 
-      // ---- PRODUÇÃO POR ETAPA ----
       if (!producaoPorEtapa[etapaNome]) {
         producaoPorEtapa[etapaNome] = [];
         somaPorEtapa[etapaNome] = { liquido: 0, positivos: 0, estornos: 0 };
@@ -1143,40 +1149,47 @@ async function getEstatisticasPeca(id) {
       if (qtd >= 0) somaPorEtapa[etapaNome].positivos += qtd;
       else somaPorEtapa[etapaNome].estornos += Math.abs(qtd);
 
-      // ---- TOTAIS GERAIS ----
       totalLiquido += qtd;
       if (qtd >= 0) totalPositivo += qtd;
       else totalNegativo += Math.abs(qtd);
 
-      // ---- CONCLUÍDAS (somente etapa final, somente positivas) ----
-      if (etapaNome === etapaFinal && qtd > 0) {
+      if (isEtapaFinal(etapaNome) && qtd > 0) {
         totalConcluido += qtd;
       }
 
-      // ---- EFICIÊNCIA POR FUNCIONÁRIO ----
+      if (dia) diasTrabalhadosPeca.add(dia);
+
       if (tempoPadraoEtapa > 0 && qtd > 0) {
         if (!eficienciaPorFuncionario[email]) {
           eficienciaPorFuncionario[email] = {
             nome: funcionario,
             tempoPadraoProduzido: 0,
+            // Dias distintos em que ESTE funcionário produziu nesta peça
+            diasTrabalhados: new Set(),
           };
         }
-        eficienciaPorFuncionario[email].tempoPadraoProduzido +=
-          qtd * tempoPadraoEtapa;
+        eficienciaPorFuncionario[email].tempoPadraoProduzido += qtd * tempoPadraoEtapa;
+        if (dia) eficienciaPorFuncionario[email].diasTrabalhados.add(dia);
       }
     }
 
-    // ================= EFICIÊNCIA MÉDIA DA PEÇA =================
+    // ================= EFICIÊNCIA POR FUNCIONÁRIO =================
+    // Capacidade do funcionário = minutos de um dia × quantos dias distintos
+    // ele efetivamente lançou produção nesta peça (não o total de dias da
+    // OP inteira, pois um funcionário pode ter trabalhado só parte deles).
     const funcionariosComEficiencia = Object.entries(eficienciaPorFuncionario).map(
       ([email, dados]) => {
+        const diasFunc = dados.diasTrabalhados.size || 1;
+        const minutosDisponiveisFunc = minutosDisponiveisPorDia * diasFunc;
         const eficiencia =
-          minutosDisponiveis > 0
-            ? (dados.tempoPadraoProduzido / minutosDisponiveis) * 100
+          minutosDisponiveisFunc > 0
+            ? (dados.tempoPadraoProduzido / minutosDisponiveisFunc) * 100
             : 0;
         return {
           email,
           nome: dados.nome,
           tempo_padrao_produzido: Number(dados.tempoPadraoProduzido.toFixed(2)),
+          dias_trabalhados: diasFunc,
           eficiencia_individual: eficiencia.toFixed(2) + "%",
         };
       }
@@ -1185,57 +1198,57 @@ async function getEstatisticasPeca(id) {
     const mediaEficiencia =
       funcionariosComEficiencia.length > 0
         ? funcionariosComEficiencia.reduce(
-          (acc, f) => acc + parseFloat(f.eficiencia_individual),
-          0
-        ) / funcionariosComEficiencia.length
+            (acc, f) => acc + parseFloat(f.eficiencia_individual),
+            0
+          ) / funcionariosComEficiencia.length
         : 0;
 
-    // Eficiência da peça: quanto do tempo padrão total foi aproveitado
-    // considerando apenas as peças concluídas (etapa final)
+    // ================= EFICIÊNCIA DA PEÇA =================
+    // Mesma correção: capacidade total = minutos/dia × funcionários ×
+    // quantos dias distintos a PEÇA teve produção (não um dia fixo).
+    const diasPeca = diasTrabalhadosPeca.size || 1;
     const eficienciaPeca =
-      tempoPadraoTotalPeca > 0 && minutosDisponiveis > 0
+      tempoPadraoTotalPeca > 0 && minutosDisponiveisPorDia > 0 && funcionariosComEficiencia.length > 0
         ? (
-          (totalConcluido * tempoPadraoTotalPeca) /
-          (funcionariosComEficiencia.length * minutosDisponiveis)
-        ) * 100
+            (totalConcluido * tempoPadraoTotalPeca) /
+            (funcionariosComEficiencia.length * minutosDisponiveisPorDia * diasPeca)
+          ) * 100
         : 0;
 
-    // ================= RETORNO =================
     const metaTotal = Number(peca.quantidade_pecas) || 0;
+
+    const etapasFinais = peca.etapas
+      .map((e) => e.etapa?.descricao)
+      .filter((descricao) => isEtapaFinal(descricao));
 
     return {
       id_da_op: peca.id_da_op,
       descricao: peca.descricao,
       status: peca.status,
       quantidade_pecas: metaTotal,
+      tempo_padrao_total: peca.tempo_padrao,
 
-      // Produção
       totalProduzido: totalLiquido,
       totalPositivo,
       totalNegativo,
       saldo: metaTotal - totalLiquido,
 
-      // Concluídas = chegaram à etapa final
       totalConcluido,
-      etapaFinal: etapaFinal || null,
+      etapasFinais,
       percentualConcluido:
-        metaTotal > 0
-          ? ((totalConcluido / metaTotal) * 100).toFixed(2) + "%"
-          : "0.00%",
+        metaTotal > 0 ? ((totalConcluido / metaTotal) * 100).toFixed(2) + "%" : "0.00%",
 
-      // Eficiência
       eficienciaPeca: eficienciaPeca.toFixed(2) + "%",
       mediaEficiencia: mediaEficiencia.toFixed(2) + "%",
+      diasTrabalhados: diasPeca,
       eficienciaPorFuncionario: funcionariosComEficiencia,
 
-      // Dados da OP
       pedido_por: peca.pedido_por,
       valor_peca: peca.valor_peca,
       data_do_pedido: peca.data_do_pedido,
       data_de_entrega: peca.data_de_entrega,
       notas: peca.notas,
 
-      // Detalhamento
       producaoPorEtapa,
       somaPorEtapa,
       pecasEtapas: peca.etapas.map((e) => ({

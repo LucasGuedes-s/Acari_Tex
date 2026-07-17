@@ -74,8 +74,8 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div>
-              <p class="kpi-label">Restante</p>
-              <p class="kpi-value">{{ Math.max(0, pecaDetalhes.quantidade_pecas - pecaDetalhes.totalConcluido) }}</p>
+              <p class="kpi-label">Tempo padrão</p>
+              <p class="kpi-value">{{ Number(pecaDetalhes.tempo_padrao_total || 0).toFixed(2) }} min</p>
             </div>
           </div>
 
@@ -98,7 +98,7 @@
               <span class="progress-label">Progresso geral da produção</span>
               <span class="progress-sub">{{ pecaDetalhes.totalConcluido }} de {{ pecaDetalhes.quantidade_pecas }} peças concluídas</span>
             </div>
-            <span class="progress-pct">{{ progressoPct }}%</span>
+            <span class="progress-pct">{{ (progressoPct).toFixed(2) }}%</span>
           </div>
           <div class="progress-bar-track">
             <div class="progress-bar-fill" :style="{ width: progressoPct + '%' }"></div>
@@ -429,24 +429,15 @@ export default {
 
   computed: {
     // Usa totalConcluido (peças que passaram por todas as etapas) para o progresso
-progressoPct() {
-  if (!this.pecaDetalhes?.quantidade_pecas) return 0;
-
-  const etapaFinal = this.pecaDetalhes.etapaFinal;
-  if (!etapaFinal) return 0;
-
-  const producoes = this.pecaDetalhes.producaoPorEtapa?.[etapaFinal] || [];
-
-  const totalConcluido = producoes.reduce((total, producao) => {
-    return total + (producao.quantidade || 0);
-  }, 0);
-
-  return Math.min(
-    100,
-    Math.round((totalConcluido / this.pecaDetalhes.quantidade_pecas) * 100)
-  );
-},
-  },
+    progressoPct() {
+      return Math.min(
+        100,
+        (this.pecaDetalhes.totalConcluido /
+          this.pecaDetalhes.quantidade_pecas) *
+          100
+      );
+    }
+      },
 
   methods: {
     async buscarEstatisticas() {
@@ -457,6 +448,7 @@ progressoPct() {
           headers: { Authorization: token },
         });
         this.pecaDetalhes = data.estatisticas;
+        console.log("Estatísticas carregadas:", this.pecaDetalhes);
         this.montarGraficos();
       } catch (err) {
         Swal.fire({ icon: "error", title: "Erro", text: "Não foi possível carregar as estatísticas.", confirmButtonColor: "#0e6632" });
