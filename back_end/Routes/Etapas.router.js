@@ -125,6 +125,36 @@ router.post(
     }
   }
 );
+const removerAcentos = (texto) =>
+  String(texto || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const limparTempoEmbutido = (texto) =>
+  String(texto || "").replace(/\(\s*[\d.,]+\s*min\s*\)/gi, "");
+
+const colapsarEspacos = (texto) =>
+  String(texto || "").replace(/\s+/g, " ").trim();
+
+const normalizarChave = (texto) =>
+  colapsarEspacos(removerAcentos(limparTempoEmbutido(texto))).toLowerCase();
+
+const limparParaExibicao = (texto) =>
+  colapsarEspacos(limparTempoEmbutido(texto));
+
+const primeiroNome = (texto) => normalizarChave(texto).split(" ")[0];
+
+const numeroSeguro = (valor) => {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const num = Number(String(valor).replace(",", "."));
+  return Number.isNaN(num) ? null : num;
+};
+
+const valoresProximos = (a, b, tolerancia = 0.001) => {
+  if (a === null || b === null) return a === b;
+  return Math.abs(Number(a) - Number(b)) < tolerancia;
+};
+
 router.post(
   "/pecas/upload",
   jwtMiddleware,
@@ -150,10 +180,6 @@ router.post(
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // =========================
-      // 🔎 BUSCAR PEÇA
-      // =========================
-
       let linhaPeca = null;
 
       for (const linha of json) {
@@ -175,19 +201,7 @@ router.post(
       const descricao_peca = linhaPeca[0];
       const quantidade_pecas = Number(linhaPeca[1]);
       const valor_peca = Number(linhaPeca[2]);
-
-      let tempoPadraoPeca = linhaPeca[3] ?? null;
-      if (tempoPadraoPeca !== null) {
-        tempoPadraoPeca = Number(String(tempoPadraoPeca).replace(",", "."));
-      }
-
-      if (Number.isNaN(tempoPadraoPeca)) {
-        tempoPadraoPeca = null;
-      }
-
-      // =========================
-      // 🔎 HEADER ETAPAS
-      // =========================
+      const tempoPadraoPeca = numeroSeguro(linhaPeca[3]);
 
       let headerIndex = -1;
 
@@ -209,38 +223,6 @@ router.post(
 
       const linhas = XLSX.utils.sheet_to_json(sheet, { range: headerIndex });
 
-      // Remove acentos (ex: "pêsponto" -> "pesponto")
-      const removerAcentos = (texto) =>
-        String(texto || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "");
-
-      // Remove tempo já embutido no texto da planilha, ex:
-      // "ombro a ombro (0.45 min)" -> "ombro a ombro"
-      // Evita duplicar o tempo quando o código concatena de novo mais abaixo.
-      const limparTempoEmbutido = (texto) =>
-        String(texto || "").replace(/\(\s*[\d.,]+\s*min\s*\)/gi, "");
-
-      // Colapsa espaços duplos/irregulares em um único espaço
-      const colapsarEspacos = (texto) =>
-        String(texto || "").replace(/\s+/g, " ").trim();
-
-      const normalizar = (texto) =>
-        colapsarEspacos(removerAcentos(limparTempoEmbutido(texto))).toLowerCase();
-
-      const primeiroNome = (texto) => normalizar(texto).split(" ")[0];
-
-      // Compara tempo_padrao de forma segura, independente do tipo
-      // vindo do banco (Decimal do Prisma, string, number ou null/undefined)
-      const tempoIgual = (a, b) => {
-        const na = a === null || a === undefined ? null : Number(a);
-        const nb = b === null || b === undefined ? null : Number(b);
-        if (na === null && nb === null) return true;
-        if (na === null || nb === null) return false;
-        if (Number.isNaN(na) || Number.isNaN(nb)) return false;
-        return Math.abs(na - nb) < 0.001; // tolerância para arredondamento
-      };
-
       const etapasValidas = linhas.filter(
         (l) => l.descricao_etapa && String(l.descricao_etapa).trim() !== ""
       );
@@ -251,59 +233,38 @@ router.post(
         });
       }
 
-      // =========================
-      // 🔥 PRÉ-PROCESSAMENTO
-      //
-      // etapasMap  → deduplicado por (descricao + tempo_padrao)
-      //              usado para criar/reutilizar a Etapa no banco
-      //
-      // vincsFuncionario → lista com TODOS os vínculos de funcionário,
-      //              inclusive duplicatas de etapa (ex: dois funcionários
-      //              na mesma etapa). Indexado por descricaoFinal para
-      //              depois associar ao id_da_funcao correto.
-      // =========================
+      const chaveEtapaCompleta = (textoNormalizado, tempo) =>
+        `${textoNormalizado}::${tempo === null ? "null" : tempo}`;
 
       let tempoTotal = 0;
-      const etapasMap = new Map();       // chave: descricaoFinal → dados da etapa (único)
-      const vincsFuncionario = [];       // lista plana, aceita repetição de etapa
+      const etapasMap = new Map();
+      const vincsFuncionario = [];
 
       for (const linha of etapasValidas) {
-        const desc = normalizar(linha.descricao_etapa);
+        const chaveTexto = normalizarChave(linha.descricao_etapa);
+        const tempo = numeroSeguro(linha.tempo_padrao);
+        const chave = chaveEtapaCompleta(chaveTexto, tempo);
 
-        // ---- tempo_padrao (da etapa) ----
-        let tempo = linha.tempo_padrao ?? null;
-        if (tempo !== null) tempo = Number(String(tempo).replace(",", "."));
-        if (Number.isNaN(tempo)) tempo = null;
+        if (!etapasMap.has(chave)) {
+          if (tempo !== null) tempoTotal += tempo;
 
-        const descricaoFinal = tempo ? `${desc} (${tempo} min)` : desc;
-
-        // Só adiciona a etapa ao Map se ainda não existir
-        // (evita duplicar UNIR OMBROS no banco, mas não perde nenhuma linha)
-        if (!etapasMap.has(descricaoFinal)) {
-          if (tempo) tempoTotal += tempo;
-
-          etapasMap.set(descricaoFinal, {
-            descricao: descricaoFinal,
+          etapasMap.set(chave, {
+            chave,
+            chaveTexto,
+            descricao: limparParaExibicao(linha.descricao_etapa),
             tempo_padrao: tempo,
             id_Estabelecimento: cnpj,
           });
         }
 
-        // ---- funcionario / tempo_funcionario ----
-        // Sempre empilha na lista, mesmo que a etapa seja repetida
         const nomeFuncionario = linha.funcionario
           ? String(linha.funcionario).trim()
           : null;
-
-        let tempoFuncionario = linha.tempo_funcionario ?? null;
-        if (tempoFuncionario !== null) {
-          tempoFuncionario = Number(String(tempoFuncionario).replace(",", "."));
-        }
-        if (Number.isNaN(tempoFuncionario)) tempoFuncionario = null;
+        const tempoFuncionario = numeroSeguro(linha.tempo_funcionario);
 
         if (nomeFuncionario && tempoFuncionario) {
           vincsFuncionario.push({
-            descricaoFinal,   // usada depois para achar o id_da_funcao
+            chaveEtapa: chave,
             nomeFuncionario,
             tempoFuncionario,
           });
@@ -312,18 +273,13 @@ router.post(
 
       const etapasParaCriar = Array.from(etapasMap.values());
 
-      // =========================
-      // 🔥 PRÉ-BUSCA DE FUNCIONÁRIOS
-      // Compara pelo PRIMEIRO NOME. Compatível com qualquer banco.
-      // =========================
-
       const nomesFuncionarios = [
         ...new Set(vincsFuncionario.map((v) => v.nomeFuncionario).filter(Boolean)),
       ];
 
-      let funcionarioMap = new Map();
-      let nomesNaoEncontrados = [];
-      let nomesAmbiguos = [];
+      const funcionarioMap = new Map();
+      const nomesNaoEncontrados = [];
+      const nomesAmbiguos = [];
 
       if (nomesFuncionarios.length > 0) {
         const funcionariosDoEstabelecimento = await prisma.Usuarios.findMany({
@@ -336,7 +292,7 @@ router.post(
           );
 
           if (candidatos.length === 1) {
-            funcionarioMap.set(normalizar(nome), candidatos[0].email);
+            funcionarioMap.set(normalizarChave(nome), candidatos[0].email);
           } else if (candidatos.length > 1) {
             nomesAmbiguos.push(nome);
           } else {
@@ -345,14 +301,8 @@ router.post(
         }
       }
 
-      // =========================
-      // 🔥 TRANSACTION
-      // =========================
-
       const resultado = await prisma.$transaction(
         async (tx) => {
-
-          // Cria peça
           const peca = await tx.pecasOP.create({
             data: {
               descricao: descricao_peca,
@@ -365,49 +315,54 @@ router.post(
             },
           });
 
-          // 🔎 Busca etapas já existentes no estabelecimento (uma vez só)
           const etapasExistentes = await tx.etapa.findMany({
             where: { id_Estabelecimento: cnpj },
           });
 
-          // =========================
-          // ✅ RESOLVE CADA ETAPA (find-or-create)
-          // Substitui o antigo fluxo de createMany + refetch,
-          // que dependia de uma comparação de tempo_padrao que
-          // falhava silenciosamente (Decimal vs number) e por
-          // isso duplicava etapas já cadastradas.
-          // =========================
+          const etapasPorTexto = new Map();
+          for (const e of etapasExistentes) {
+            const chaveTexto = normalizarChave(e.descricao);
+            const lista = etapasPorTexto.get(chaveTexto) || [];
+            lista.push(e);
+            etapasPorTexto.set(chaveTexto, lista);
+          }
 
+          const etapasPorChave = new Map();
           const todasEtapas = [];
           let etapasCriadasCount = 0;
           let etapasReutilizadasCount = 0;
 
           for (const etapa of etapasParaCriar) {
-            const jaExiste = etapasExistentes.find(
-              (e) =>
-                normalizar(e.descricao) === normalizar(etapa.descricao) &&
-                tempoIgual(e.tempo_padrao, etapa.tempo_padrao)
+            const candidatos = etapasPorTexto.get(etapa.chaveTexto) || [];
+            const existente = candidatos.find((e) =>
+              valoresProximos(
+                e.tempo_padrao === null || e.tempo_padrao === undefined
+                  ? null
+                  : Number(e.tempo_padrao),
+                etapa.tempo_padrao
+              )
             );
 
-            if (jaExiste) {
-              todasEtapas.push(jaExiste);
+            if (existente) {
+              todasEtapas.push(existente);
+              etapasPorChave.set(etapa.chave, existente);
               etapasReutilizadasCount++;
             } else {
-              const criada = await tx.etapa.create({ data: etapa });
-              // adiciona à lista de existentes também, para evitar
-              // criar a mesma etapa duas vezes dentro do mesmo upload
-              etapasExistentes.push(criada);
+              const criada = await tx.etapa.create({
+                data: {
+                  descricao: etapa.descricao,
+                  tempo_padrao: etapa.tempo_padrao,
+                  id_Estabelecimento: etapa.id_Estabelecimento,
+                },
+              });
+              candidatos.push(criada);
+              etapasPorTexto.set(etapa.chaveTexto, candidatos);
+              etapasPorChave.set(etapa.chave, criada);
               todasEtapas.push(criada);
               etapasCriadasCount++;
             }
           }
 
-          // Monta mapa descricaoFinal → id_da_funcao para lookup rápido
-          const etapasPorDescricao = new Map(
-            todasEtapas.map((e) => [normalizar(e.descricao), e.id_da_funcao])
-          );
-
-          // Vínculos peça ↔ etapa (deduplicado — cada etapa aparece uma vez)
           const vinculos = todasEtapas.map((etapa) => ({
             id_da_op: peca.id_da_op,
             id_da_funcao: etapa.id_da_funcao,
@@ -421,49 +376,84 @@ router.post(
             });
           }
 
-          // =========================
-          // ✅ CRIA TempoReferencia
-          // Percorre a lista completa (com repetições de etapa),
-          // garantindo um registro por funcionário por etapa.
-          // =========================
+          const idsFuncionarios = [
+            ...new Set(Array.from(funcionarioMap.values())),
+          ];
 
-          const temposReferencia = [];
+          const temposExistentes =
+            idsFuncionarios.length > 0
+              ? await tx.TempoReferencia.findMany({
+                  where: {
+                    estabelecimentoCnpj: cnpj,
+                    id_funcionario: { in: idsFuncionarios },
+                  },
+                })
+              : [];
+
+          const temposPorChave = new Map(
+            temposExistentes.map((t) => [
+              `${t.id_funcionario}|${t.id_da_funcao}`,
+              t,
+            ])
+          );
+
+          let temposCriadosCount = 0;
+          let temposReutilizadosCount = 0;
+          let temposAtualizadosCount = 0;
 
           for (const vinc of vincsFuncionario) {
             const idFuncionario = funcionarioMap.get(
-              normalizar(vinc.nomeFuncionario)
+              normalizarChave(vinc.nomeFuncionario)
             );
-            if (!idFuncionario) continue; // não encontrado ou ambíguo
+            if (!idFuncionario) continue;
 
-            const idFuncao = etapasPorDescricao.get(
-              normalizar(vinc.descricaoFinal)
-            );
-            if (!idFuncao) continue;
+            const etapaResolvida = etapasPorChave.get(vinc.chaveEtapa);
+            if (!etapaResolvida) continue;
 
-            temposReferencia.push({
-              estabelecimentoCnpj: cnpj,
-              id_funcionario: idFuncionario,
-              id_da_funcao: idFuncao,
-              tempo_minutos: vinc.tempoFuncionario,
-              tipo_medicao: "planilha",
-              data_medicao: new Date(),
-              opId: peca.id_da_op,
-            });
-          }
+            const idFuncao = etapaResolvida.id_da_funcao;
+            const chaveTempo = `${idFuncionario}|${idFuncao}`;
+            const existente = temposPorChave.get(chaveTempo);
 
-          if (temposReferencia.length > 0) {
-            await tx.TempoReferencia.createMany({
-              data: temposReferencia,
-              skipDuplicates: true,
-            });
+            if (existente) {
+              temposReutilizadosCount++;
+
+              if (!valoresProximos(existente.tempo_minutos, vinc.tempoFuncionario)) {
+                const atualizado = await tx.TempoReferencia.update({
+                  where: { id: existente.id },
+                  data: {
+                    tempo_minutos: vinc.tempoFuncionario,
+                    tipo_medicao: "planilha",
+                    data_medicao: new Date(),
+                    opId: peca.id_da_op,
+                  },
+                });
+                temposPorChave.set(chaveTempo, atualizado);
+                temposAtualizadosCount++;
+              }
+            } else {
+              const criado = await tx.TempoReferencia.create({
+                data: {
+                  estabelecimentoCnpj: cnpj,
+                  id_funcionario: idFuncionario,
+                  id_da_funcao: idFuncao,
+                  tempo_minutos: vinc.tempoFuncionario,
+                  tipo_medicao: "planilha",
+                  data_medicao: new Date(),
+                  opId: peca.id_da_op,
+                },
+              });
+              temposPorChave.set(chaveTempo, criado);
+              temposCriadosCount++;
+            }
           }
 
           return {
             peca,
             etapasCriadas: etapasCriadasCount,
             etapasReutilizadas: etapasReutilizadasCount,
-            tempoPadraoPeca,
-            temposReferenciaCriados: temposReferencia.length,
+            temposReferenciaCriados: temposCriadosCount,
+            temposReferenciaReutilizados: temposReutilizadosCount,
+            temposReferenciaAtualizados: temposAtualizadosCount,
           };
         },
         { timeout: 20000 }
@@ -474,9 +464,11 @@ router.post(
         pecaCriada: resultado.peca.descricao,
         etapasCriadas: resultado.etapasCriadas,
         etapasReutilizadas: resultado.etapasReutilizadas,
-        tempoTotal: tempoTotal,
-        tempoPadraoPeca: resultado.tempoPadraoPeca,
+        tempoTotal,
+        tempoPadraoPeca,
         temposReferenciaCriados: resultado.temposReferenciaCriados,
+        temposReferenciaReutilizados: resultado.temposReferenciaReutilizados,
+        temposReferenciaAtualizados: resultado.temposReferenciaAtualizados,
         ...(nomesNaoEncontrados.length > 0 && {
           avisos: nomesNaoEncontrados.map(
             (n) => `Funcionário "${n}" não encontrado no estabelecimento — tempo de referência não criado`
@@ -488,7 +480,6 @@ router.post(
           ),
         }),
       });
-
     } catch (error) {
       console.error(error);
 
