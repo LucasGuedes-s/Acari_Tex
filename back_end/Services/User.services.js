@@ -155,25 +155,42 @@ async function enviarNotificacaoParaTodos({
 }
 async function registrarFaltas(req) {
     try {
-        const { funcionarioId, data, observacao, tipo } = req.body;
+        const { funcionarioId, data, observacao, tipo, horarioInicial, horarioFinal } = req.body;
         const cnpj = req.user.cnpj;
         const registradoPor = req.user.email;
-        const faltas = await prisma.Faltas.create({
+        if(tipo === 'parcial' && horarioInicial != null && horarioFinal != null){
+          const faltas = await prisma.Faltas.create({
             data: {
                 funcionarioId: funcionarioId,
                 data: new Date(data),
                 estabelecimento: cnpj,
                 usuarioResponsavel: registradoPor,
+                horarioInicial: horarioInicial,
+                horarioFinal: horarioFinal,
                 tipo: tipo,
                 observacao: observacao || null,
             }
-        });
-        return faltas;
+          });
+        }
+        else {
+          const faltas = await prisma.Faltas.create({
+              data: {
+                  funcionarioId: funcionarioId,
+                  data: new Date(data),
+                  estabelecimento: cnpj,
+                  usuarioResponsavel: registradoPor,
+                  tipo: tipo,
+                  observacao: observacao || null,
+              }
+          });
+        } 
+        return { message: "Falta registrada com sucesso." };
     } catch (error) {
         console.error("Erro ao registrar faltas:", error);
         throw new Error("Erro ao registrar faltas.");
     }
 }
+
 
 async function getFaltasByFuncionarios(req) {
     try {

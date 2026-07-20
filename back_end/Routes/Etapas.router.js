@@ -125,6 +125,7 @@ router.post(
     }
   }
 );
+
 const removerAcentos = (texto) =>
   String(texto || "")
     .normalize("NFD")
@@ -489,6 +490,7 @@ router.post(
     }
   }
 );
+
 router.post(
   "/tempo-referencia",
   jwtMiddleware,
