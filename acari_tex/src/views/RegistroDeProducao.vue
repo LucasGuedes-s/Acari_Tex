@@ -12,6 +12,11 @@
               <span class="status-dot"></span>
               {{ socketConectado ? 'Online' : 'Offline' }}
             </div>
+            <!-- NOVO: contador global de pendências de sincronização -->
+            <div v-if="totalPendentesSincronizacao > 0" class="fila-pendentes-badge"
+              :title="`${totalPendentesSincronizacao} registro(s) aguardando envio ao servidor`">
+              🟡 {{ totalPendentesSincronizacao }} pendente(s)
+            </div>
             <input v-model="dataSelecionada" type="date" class="date-input" />
             <span v-if="carregandoMeta" class="data-loading">Atualizando…</span>
             <button class="btn-gerar-pdf" :disabled="gerandoPdf" @click="onClicarGerarPdf">
@@ -224,7 +229,16 @@
                   <tbody>
                     <template v-for="funcionario in grupo.funcionarios"
                       :key="funcionario.email + '_' + (grupo.opId || 'sem')">
+                      <!--
+                        NOVO: v-memo evita que o Vue re-diffe esta linha inteira
+                        a cada tecla digitada em QUALQUER OUTRA linha da tabela.
+                        Só reprocessa quando os registros/etapa/ausência DESTA
+                        linha realmente mudam. Isso é o que reduz o custo de
+                        digitação de O(total de linhas da tela) para O(1) por
+                        tecla.
+                      -->
                       <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
+                        
                         :class="{ 'linha-extra': linha.tipo === 'extra', 'linha-ausente': funcionarioAusenteDiaInteiro(funcionario) }">
 
                         <!-- FUNCIONÁRIO -->
@@ -236,7 +250,7 @@
                               <button class="btn-ausencia-toggle" @click="abrirModalAusencia(funcionario)">
                                 {{ funcionario.ausencia ? '✏️ Ausência' : '🚫 Ausência' }}
                               </button>
-                              <!-- <span v-if="funcionario.ausencia" class="ausencia-tag"
+                              <span v-if="funcionario.ausencia" class="ausencia-tag"
                                 :class="'ausencia-tag--' + funcionario.ausencia.tipo"
                                 :title="funcionario.ausencia.observacao || ''">
                                 <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia inteiro)</template>
@@ -244,7 +258,7 @@
                                   🕒 Ausente: <strong>{{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</strong>
                                   <span class="ausencia-tag-minutos">({{ calcularMinutosAusenciaFuncionario(funcionario) }}min)</span>
                                 </template>
-                              </span> -->
+                              </span>
                             </div>
                           </div>
                           <div v-else class="extra-tag">↳ Extra</div>
@@ -340,7 +354,8 @@
                         </td>
 
                         <!-- HORAS -->
-                        <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
+                        <td v-for="hora in horasVisiveis" :key="hora" class="hora-td"
+                          >
                           <div class="hora-box-outer">
                             <!-- Ausência (total ou parcial) bloqueia o lançamento nesta hora -->
                             <div v-if="horaBloqueadaPorAusencia(funcionario, hora)" class="hora-ausente-marker">
@@ -353,25 +368,38 @@
   <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
     placeholder="0"
     :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+    @input="onInputQuantidadeDigitando(funcionario, linha, hora)"
     @blur="onInputQuantidade(funcionario, linha, hora)" />
   <div class="tempo-wrap">
     <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-      max="60" class="min-input" @input="onInputQuantidade(funcionario, linha, hora)" />
+      max="60" class="min-input"
+      @input="onInputQuantidadeDigitando(funcionario, linha, hora)"
+      @blur="onInputQuantidade(funcionario, linha, hora)" />
     <span class="min-label">min</span>
   </div>
 
-  <!-- NOVO: status de salvamento -->
-  <div v-if="linha.registros[hora].status === 'salvando'" class="registro-status registro-status--salvando">
-    salvando…
-  </div>
-  <div v-else-if="linha.registros[hora].status === 'erro'" class="registro-status registro-status--erro">
-    <span :title="linha.registros[hora].erro">⚠ não salvo</span>
-    <button class="btn-retry-registro" @click="tentarNovamenteRegistro(funcionario, linha, hora)">
-      tentar de novo
-    </button>
+  <!--
+    Indicador de sincronização por célula — cobre os 4 estados pedidos:
+    🟡 pendente | 🔄 sincronizando/salvando | 🟢 sincronizado | 🔴 erro.
+    O valor já foi salvo no IndexedDB antes mesmo deste indicador aparecer
+    (ver onInputQuantidadeDigitando / onInputQuantidade), então ele só
+    informa o estado do ENVIO ao backend, nunca condiciona a gravação local.
+  -->
+  <div v-if="linha.registros[hora].quantidade > 0" class="registro-status"
+       :class="'registro-status--' + linha.registros[hora].status"
+       :title="tituloStatusSincronizacao(linha.registros[hora])">
+    <template v-if="linha.registros[hora].status === 'pendente'">🟡</template>
+    <template v-else-if="linha.registros[hora].status === 'salvando' || linha.registros[hora].status === 'sincronizando'">🔄</template>
+    <template v-else-if="linha.registros[hora].status === 'sincronizado'">🟢</template>
+    <template v-else-if="linha.registros[hora].status === 'erro'">
+      🔴
+      <button class="btn-retry-registro" @click="tentarNovamenteRegistro(funcionario, linha, hora)">
+        tentar de novo
+      </button>
+    </template>
   </div>
 </div>
-                                
+
                               </div>
                               <!-- Direita: FT e TR, só visíveis quando há produção -->
                               <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
@@ -526,7 +554,7 @@ const CONFIG_PADRAO = {
 // especificamente o caso que o socket.io NÃO cobre: página recarregada
 // ou navegador fechado antes da reconexão.
 const OFFLINE_DB_NAME = 'apontamento-offline'
-// NOVO: versão 2 — adiciona a store 'producoes' (ver abaixo). Bump de
+// versão 2 — adiciona a store 'producoes' (ver abaixo). Bump de
 // versão dispara onupgradeneeded no navegador do usuário, que cria
 // somente o que ainda não existe (a store de etapas, criada na v1,
 // simplesmente é ignorada por já existir).
@@ -851,6 +879,10 @@ export default {
       pecasTodas: [],
       etapas: [],
       etapasMap: {},
+      // NOVO: índices O(1) para não repetir flat()+filter() em cada
+      // célula da tabela a cada re-render (ver buscarEtapa/etapasDaOp).
+      etapasPorId: new Map(),
+      etapasPorOp: new Map(),
       configHorarios: this.carregarConfigHorarios(),
       ultimaBuscaId: 0,
       carregandoMeta: false,
@@ -1007,21 +1039,6 @@ export default {
      * ÚNICA fonte de verdade para "quais funcionários/linhas pertencem a
      * esta OP" — um Map(opId → grupo) construído a partir do MESMO
      * agrupamento (`funcionariosAgrupadosPorOp`) que monta a tabela.
-     *
-     * Antes desta correção, os cards do topo (Produção Atual, e por
-     * tabela os cálculos de eficiência/capacidade) recalculavam varrendo
-     * `funcionariosDia` de forma TOTALMENTE INDEPENDENTE da tabela. Como
-     * eram dois caminhos de cálculo separados sobre a mesma base, uma
-     * pequena divergência na resolução do opId de algum registro (ex.:
-     * quando `id_da_op` não vinha preenchido e o sistema tentava inferir
-     * a OP pela etapa) podia fazer um dos dois caminhos "perder" a
-     * associação enquanto o outro continuava enxergando os dados — daí o
-     * card mostrar produção e a tabela aparecer zerada.
-     *
-     * Ao fazer TODOS os cálculos por OP (card e tabela) lerem deste
-     * mesmo mapa, essa divergência deixa de ser possível por construção:
-     * não existe mais "um jeito de calcular para o card" e "outro jeito
-     * para a tabela" — existe um único agrupamento, usado por tudo.
      */
     mapaProducaoPorOp() {
       const mapa = new Map()
@@ -1032,23 +1049,35 @@ export default {
     },
 
     /**
-     * Decide se a tabela de módulos deve aparecer. Não pode depender só
-     * de `opsAtivasComPeca.length > 0` (bug anterior): num dia em que
-     * TODAS as OPs já mudaram de status (finalizado/coleta) e nenhuma
-     * ficou em_progresso, isso escondia a tabela inteira mesmo havendo
-     * produção histórica real para mostrar. Por outro lado, não basta
-     * checar só `funcionariosAgrupadosPorOp.length`, pois o grupo "sem
-     * OP" sempre existe (todo funcionário nasce com uma linha vazia) —
-     * sem essa distinção, um dia genuinamente sem nenhuma produção
-     * mostraria uma tabela cheia de linhas em branco.
-     * Mostra a tabela quando: existe OP ativa configurada no topo, OU
-     * existe pelo menos um grupo com opId (produção real, ativa ou
-     * histórica).
+     * Decide se a tabela de módulos deve aparecer. Mostra a tabela
+     * quando: existe OP ativa configurada no topo, OU existe pelo menos
+     * um grupo com opId (produção real, ativa ou histórica).
      */
     temConteudoParaTabela() {
       return this.opsAtivasComPeca.length > 0
         || this.funcionariosAgrupadosPorOp.some(g => g.opId !== null)
-    }
+    },
+
+    /**
+     * NOVO: contador global de registros de produção ainda não
+     * confirmados pelo backend (pendentes, em retry de erro, ou em voo
+     * no momento). Alimenta o badge do header — dá ao gestor uma visão
+     * imediata de "existe algo que ainda não chegou no servidor?" sem
+     * precisar rolar a tabela inteira procurando ícones amarelos/vermelhos.
+     */
+    totalPendentesSincronizacao() {
+      let total = 0
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          for (const reg of Object.values(linha.registros || {})) {
+            if (reg.status === 'pendente' || reg.status === 'erro' || reg.status === 'sincronizando') {
+              total++
+            }
+          }
+        }
+      }
+      return total
+    },
   },
 
   watch: {
@@ -1072,11 +1101,50 @@ export default {
     // que funcionariosDia já foi reconstruído a partir da meta do dia),
     // e isso se repete automaticamente toda vez que a data é trocada
     // (ver watch: dataSelecionada).
+
+    // NOVO: garante que qualquer pendência deixada de sessões anteriores
+    // (fechou o navegador/app com produção ainda não enviada) seja
+    // tentada assim que a tela abre — "sincronizar ao abrir a tela".
+    this.processarFilaSincronizacaoProducao()
+
+    // NOVO: sincronização periódica — dispara mesmo sem nenhuma digitação
+    // nova, cobrindo o caso de a conexão voltar sem que o evento 'online'
+    // do navegador dispare de forma confiável (comum em redes móveis).
+    this._intervaloSincronizacao = setInterval(() => {
+      this.processarFilaSincronizacaoProducao()
+    }, 20000)
+
+    // NOVO: assim que o navegador informa que a conexão voltou.
+    this._onOnlineHandler = () => this.processarFilaSincronizacaoProducao()
+    window.addEventListener('online', this._onOnlineHandler)
+
+    // NOVO: no celular, trocar de app ou bloquear a tela dispara
+    // visibilitychange antes (e de forma mais confiável) que
+    // beforeunload — usamos esse gancho para dar flush no que está
+    // pendente, e para tentar sincronizar de novo ao voltar.
+    this._onVisibilityHandler = () => {
+      if (document.visibilityState === 'hidden') {
+        this.flushSalvamentosPendentes()
+      } else {
+        this.processarFilaSincronizacaoProducao()
+      }
+    }
+    document.addEventListener('visibilitychange', this._onVisibilityHandler)
+
+    // NOVO: rede de segurança final antes de fechar/recarregar a aba.
+    this._onBeforeUnloadHandler = () => this.flushSalvamentosPendentes()
+    window.addEventListener('beforeunload', this._onBeforeUnloadHandler)
   },
 
   beforeUnmount() {
     // Envia qualquer edição pendente antes de desmontar a tela / desconectar.
     this.flushSalvamentosPendentes()
+
+    clearInterval(this._intervaloSincronizacao)
+    if (this._onOnlineHandler) window.removeEventListener('online', this._onOnlineHandler)
+    if (this._onVisibilityHandler) document.removeEventListener('visibilitychange', this._onVisibilityHandler)
+    if (this._onBeforeUnloadHandler) window.removeEventListener('beforeunload', this._onBeforeUnloadHandler)
+
     socket.off()
     socket.disconnect()
   },
@@ -1213,6 +1281,9 @@ export default {
           this.buscarMetaDia()
         }
         this._jaConectouUmaVez = true
+        // NOVO: reconexão do socket também é um bom gatilho para drenar
+        // a fila de produção pendente, sem esperar o intervalo periódico.
+        this.processarFilaSincronizacaoProducao()
       })
       socket.on('disconnect', () => { this.socketConectado = false })
       socket.on('erro-producao', err => { console.log(err) })
@@ -1287,11 +1358,27 @@ export default {
         this.etapas = this.pecasTodas.map(p => p.etapas || [])
 
         this.etapasMap = {}
+        // NOVO: índices O(1), construídos uma única vez por carregamento
+        // (e não a cada célula da tabela renderizada). Substituem os
+        // antigos `this.etapas.flat().filter(...)` espalhados pelo
+        // componente — ver buscarEtapa / etapasDaOp / listarReferenciasOp.
+        this.etapasPorId = new Map()
+        this.etapasPorOp = new Map()
+
         for (const listaEtapas of this.etapas) {
           for (const e of listaEtapas) {
             const idFuncao = e.id_da_funcao || e.etapa?.id_da_funcao
             const idOp = e.id_da_op
-            if (idFuncao) this.etapasMap[`${idOp}::${idFuncao}`] = e
+            if (idFuncao) {
+              this.etapasMap[`${idOp}::${idFuncao}`] = e
+
+              if (!this.etapasPorId.has(idFuncao)) this.etapasPorId.set(idFuncao, [])
+              this.etapasPorId.get(idFuncao).push(e)
+            }
+            if (idOp) {
+              if (!this.etapasPorOp.has(idOp)) this.etapasPorOp.set(idOp, [])
+              this.etapasPorOp.get(idOp).push(e)
+            }
           }
         }
 
@@ -1371,8 +1458,15 @@ export default {
       return peca?.descricao || pecaId
     },
 
+    /**
+     * Subconjunto de etapas de uma OP específica. Antes fazia
+     * `this.etapas.flat().filter(...)` a CADA chamada — isto é, a cada
+     * render de qualquer célula que dependesse disso. Agora é uma
+     * simples leitura de índice, montado uma única vez em
+     * carregarDados().
+     */
     etapasDaOp(pecaId) {
-      return this.etapas.flat().filter(e => e.id_da_op === pecaId)
+      return this.etapasPorOp.get(pecaId) || []
     },
 
     /**
@@ -1443,7 +1537,7 @@ export default {
 
       this.onAlterarEtapa(funcionario, linha)
 
-      // NOVO: persiste a seleção IMEDIATAMENTE, independente de haver
+      // Persiste a seleção IMEDIATAMENTE, independente de haver
       // produção lançada — sobrevive a reload, fechamento do navegador
       // e queda de conexão.
       this.persistirEtapaOffline(funcionario, linha)
@@ -1501,21 +1595,6 @@ export default {
 
     /**
      * Cria uma nova linha "extra" em branco para o funcionário.
-     *
-     * @param {object} funcionario
-     * @param {boolean} herdarOpDoModulo - Quando true (padrão implícito
-     *   nas chamadas vindas de um módulo de OP ATIVA), a nova linha nasce
-     *   já vinculada à OP do módulo atual (`funcionario._grupoOpId`) —
-     *   comportamento original, mantido para o botão "+" de dentro de
-     *   uma OP ativa.
-     *   Quando false (chamadas vindas do botão "+" ao lado de "🔒
-     *   Somente consulta", em um módulo de OP HISTÓRICA/finalizada), a
-     *   nova linha NASCE SEM OP definida — herdar a OP finalizada aqui
-     *   seria inútil (ela é somente leitura). A linha aparece
-     *   temporariamente no grupo "Funcionários sem OP" e migra
-     *   automaticamente para o módulo correto assim que uma OP ativa é
-     *   escolhida no <select>, que já lista todas as OPs ativas
-     *   independentemente de onde o botão foi clicado.
      */
     adicionarLinhaExtra(funcionario, herdarOpDoModulo = true) {
       const real = funcionario._funcRef || funcionario
@@ -1537,9 +1616,9 @@ export default {
       const linhaAlvo = funcionario.linhas?.[idxLinha]
       if (!linhaAlvo) return
 
-      // NOVO: remove também o registro offline correspondente, se
-      // existir — a linha deixa de existir, então a seleção offline
-      // dela também deve deixar de existir.
+      // Remove também o registro offline correspondente, se existir — a
+      // linha deixa de existir, então a seleção offline dela também deve
+      // deixar de existir.
       if (linhaAlvo.etapaId) {
         this.removerEtapaOfflineSeExistir(funcionario, linhaAlvo.opId, linhaAlvo.etapaId, linhaAlvo.tipo)
       }
@@ -1584,7 +1663,7 @@ export default {
     listarReferenciasOp(opId) {
       if (!opId) return []
       const resultado = []
-      const etapasOp = this.etapas.flat().filter(e => e.id_da_op === opId)
+      const etapasOp = this.etapasPorOp.get(opId) || []
 
       for (const func of this.funcionariosDia) {
         const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
@@ -1615,14 +1694,19 @@ export default {
       return resultado
     },
 
+    /**
+     * Tempo padrão (SAM da ficha técnica) da etapa desta linha. ANTES
+     * ignorava o cache já existente em `linha.tempoPadrao` e chamava
+     * `buscarEtapa` de novo em toda invocação (e este método é chamado
+     * em praticamente todo cálculo de eficiência exibido na tabela).
+     * Agora usa o valor já resolvido/cacheado quando disponível — só cai
+     * para `buscarEtapa` se, por algum motivo, o cache ainda não tiver
+     * sido preenchido.
+     */
     resolverTempoPadrao(linha) {
+      if (linha?.tempoPadrao) return Number(linha.tempoPadrao)
       const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
-      return Number(
-        etapa?.tempo_padrao
-        ?? etapa?.etapa?.tempo_padrao
-        ?? linha?.tempoPadrao
-        ?? 0
-      )
+      return Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
     },
 
     resolverTempoReferencia(funcionario, linha) {
@@ -1661,9 +1745,7 @@ export default {
     /**
      * Minutos disponíveis de UM funcionário no DIA COMPLETO (manhã + tarde
      * configuradas), independentemente de qual turno está selecionado na
-     * tela no momento. Usado para "Tempo Disponível" e para a estimativa
-     * de capacidade quando ainda não há produção lançada — usar apenas o
-     * turno ativo (horasVisiveis) subestimava o dia inteiro.
+     * tela no momento.
      */
     minutosDisponiveisDia() {
       const horasManha = this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim)
@@ -1672,15 +1754,6 @@ export default {
     },
 
     // ── AUSÊNCIA ──────────────────────────────────────────
-    /**
-     * Minutos de ausência de UM funcionário que efetivamente caem dentro
-     * da jornada configurada (manhã + tarde). Ausência de dia inteiro
-     * consome a jornada completa. Ausência parcial soma apenas a
-     * intersecção real (em minutos) entre cada período informado e as
-     * janelas de trabalho configuradas, evitando contar tempo fora do
-     * expediente ou duplicar minutos que caiam simultaneamente nas duas
-     * janelas.
-     */
     calcularMinutosAusenciaFuncionario(funcionario) {
       const ausencia = funcionario?.ausencia
       if (!ausencia) return 0
@@ -1710,16 +1783,6 @@ export default {
       return 0
     },
 
-    /**
-     * Minutos REALMENTE disponíveis de UM funcionário no dia, já
-     * descontando qualquer ausência (total ou parcial). Deve substituir
-     * `minutosDisponiveisDia()` em todo cálculo de capacidade/tempo
-     * disponível que precise ser individualizado por funcionário — caso
-     * contrário um funcionário ausente seguiria sendo contado como se
-     * tivesse a jornada inteira livre.
-     *
-     * Tempo disponível = Tempo total do turno/dia − Tempo de ausência
-     */
     calcularMinutosDisponiveisFuncionario(funcionario) {
       const totalPadrao = this.minutosDisponiveisDia()
       const ausente = this.calcularMinutosAusenciaFuncionario(funcionario)
@@ -1732,14 +1795,6 @@ export default {
       return real?.ausencia?.tipo === 'dia_inteiro'
     },
 
-    /**
-     * Indica se determinada coluna de hora está coberta por uma ausência
-     * (total ou parcial) do funcionário — usado para bloquear o
-     * lançamento de produção naquele horário específico. Cada coluna
-     * representa um bloco de ~60min a partir do horário exibido (mesmo
-     * padrão usado na montagem de horasVisiveis via gerarSequenciaHoras);
-     * basta checar sobreposição desse bloco com os períodos de ausência.
-     */
     horaBloqueadaPorAusencia(funcionario, hora) {
       const real = funcionario?._funcRef || funcionario
       const ausencia = real?.ausencia
@@ -1838,22 +1893,6 @@ export default {
       this.salvarMetaDia()
     },
 
-    /**
-     * Persiste a ausência no backend via POST /registrar-faltas — esta é
-     * a fonte de verdade "oficial" da ausência (fica também replicada em
-     * `funcionario.ausencia` dentro do payload de salvar-meta-dia, para
-     * não quebrar o fluxo de carregamento por socket já existente, mas o
-     * registro formal em banco passa a acontecer por aqui).
-     *
-     * Ausência parcial com múltiplos períodos gera UM POST por período
-     * (o endpoint documentado trabalha com um horário inicial/final por
-     * registro). Remoção é sinalizada explicitamente com `removida: true`
-     * e `tipo: null`, já que não há um verbo DELETE especificado.
-     *
-     * Falha de rede aqui NÃO desfaz a alteração já aplicada na tela —
-     * apenas avisa o gestor que a confirmação do servidor não chegou,
-     * para evitar perder o trabalho de quem já configurou a ausência.
-     */
     async registrarFaltaNoBackend(funcionario) {
       const ausencia = funcionario.ausencia
       const token = this.store.pegar_token
@@ -1908,18 +1947,6 @@ export default {
       }
     },
 
-    /**
-     * Busca os registros de ausência do dia selecionado e os aplica
-     * automaticamente em `funcionariosDia` — é a integração automática
-     * entre o módulo de Registro de Faltas e esta tela: nenhuma ação
-     * manual do gestor é necessária, o `watch: dataSelecionada` já
-     * garante que isso roda de novo sempre que a data muda (via
-     * buscarMetaDia, que chama este método no momento certo).
-     *
-     * Formato esperado de cada registro (retornado por GET
-     * /buscar-faltas):
-     *   { id, funcionarioId, data, tipo, horarioInicial, horarioFinal, observacao }
-     */
     async getFaltas() {
       const dataRequisitada = this.dataSelecionada
       try {
@@ -1929,9 +1956,6 @@ export default {
           headers: { Authorization: token }
         })
 
-        // Se a data selecionada já mudou enquanto esta requisição estava
-        // em voo, descarta a resposta — evita aplicar ausências de um
-        // dia que não é mais o exibido na tela.
         if (dataRequisitada !== this.dataSelecionada) return
 
         const faltas = Array.isArray(response.data)
@@ -1944,12 +1968,6 @@ export default {
       }
     },
 
-    /**
-     * Normaliza um horário vindo do backend para o formato "HH:MM" já
-     * usado internamente por toda a tela. Aceita tanto "HH:MM" direto
-     * quanto uma data/hora ISO completa (ex.: "2026-07-16T09:00:00.000Z"),
-     * extraindo hora e minuto em UTC neste segundo caso.
-     */
     normalizarHora(valor) {
       if (!valor) return null
       if (/^\d{2}:\d{2}$/.test(valor)) return valor
@@ -1960,16 +1978,6 @@ export default {
       return `${h}:${m}`
     },
 
-    /**
-     * Converte os registros de falta de UM funcionário (podem ser vários,
-     * no caso de múltiplos períodos parciais no mesmo dia) para o formato
-     * interno já usado por toda a tela: { tipo, periodos, observacao }.
-     *
-     * Se existir QUALQUER registro "dia_inteiro" para o funcionário, ele
-     * sempre prevalece sobre eventuais registros parciais do mesmo dia —
-     * ausência total é mais restritiva e não faz sentido conviver com
-     * bloqueios parciais simultâneos.
-     */
     mapearFaltasParaAusencia(registros) {
       if (!registros || !registros.length) return null
 
@@ -1999,13 +2007,6 @@ export default {
       }
     },
 
-    /**
-     * Aplica os registros de /buscar-faltas a `funcionariosDia`,
-     * agrupando por funcionarioId, e reordena a lista para que quem está
-     * ausente o dia inteiro vá para o final. É chamado automaticamente
-     * (via getFaltas) toda vez que a data muda ou que a meta do dia é
-     * recarregada — nenhuma configuração manual é necessária.
-     */
     aplicarFaltasAosFuncionarios(faltas) {
       const porFuncionario = new Map()
       for (const registro of faltas || []) {
@@ -2024,14 +2025,6 @@ export default {
       this.ordenarFuncionariosPorAusencia()
     },
 
-    /**
-     * Move funcionários ausentes o dia inteiro para o final da lista,
-     * preservando a ordem relativa original entre os demais (sort
-     * estável). Como `funcionariosAgrupadosPorOp` itera sobre
-     * `this.funcionariosDia` nesta mesma ordem, a tabela reflete a
-     * ordenação automaticamente — nenhuma mudança extra é necessária
-     * no template para isso.
-     */
     ordenarFuncionariosPorAusencia() {
       this.funcionariosDia = [...this.funcionariosDia].sort((a, b) => {
         const ausenteA = a.ausencia?.tipo === 'dia_inteiro' ? 1 : 0
@@ -2065,13 +2058,18 @@ export default {
       this.salvarMetaDia()
     },
 
+    /**
+     * Busca uma etapa por id (e opcionalmente por OP). ANTES fazia
+     * `this.etapas.flat().filter(...)` a cada chamada — e este método é
+     * invocado repetidamente por praticamente todo cálculo de tempo e
+     * eficiência exibido na tabela (um por célula). Agora é O(1): apenas
+     * lê o índice `etapasPorId`, montado uma única vez em
+     * `carregarDados()`.
+     */
     buscarEtapa(etapaId, opId = null) {
       if (!etapaId) return null
 
-      const candidatas = this.etapas.flat().filter(e => {
-        const id = e.id_da_funcao || e.etapa?.id_da_funcao
-        return id === etapaId
-      })
+      const candidatas = this.etapasPorId.get(etapaId) || []
 
       if (opId != null && opId !== '') {
         const match = candidatas.find(e => e.id_da_op === opId)
@@ -2082,25 +2080,10 @@ export default {
     },
 
     // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ────────
-    /**
-     * Chave determinística que identifica um "slot" de seleção de etapa
-     * (funcionário + OP + etapa + data + tipo de linha). Não usa
-     * `linha.id` porque esse id é regenerado a cada reload da tela
-     * (Date.now() + Math.random()) e por isso não sobreviveria a um
-     * refresh de página — a chave composta abaixo é estável e permite
-     * localizar/atualizar/remover o mesmo registro em qualquer sessão.
-     */
     chaveEtapaOffline(funcionarioId, opId, etapaId, data, tipo) {
       return `${funcionarioId}::${data}::${opId || 'sem-op'}::${etapaId}::${tipo}`
     },
 
-    /**
-     * Persiste IMEDIATAMENTE a seleção de etapa desta linha no
-     * armazenamento offline, independentemente de já existir produção
-     * lançada. Chamado a cada seleção/troca de etapa (ver
-     * onAlterarEtapaPorIndice) — nenhuma etapa escolhida fica só em
-     * memória.
-     */
     async persistirEtapaOffline(funcionario, linha) {
       if (!linha?.etapaId) return
       const real = funcionario?._funcRef || funcionario
@@ -2116,7 +2099,6 @@ export default {
       })
     },
 
-    /** Remove um registro offline específico, se existir (ex.: etapa trocada ou linha removida). */
     async removerEtapaOfflineSeExistir(funcionario, opId, etapaId, tipo) {
       if (!etapaId) return
       const real = funcionario?._funcRef || funcionario
@@ -2124,17 +2106,6 @@ export default {
       await etapaOfflineStore.remover(chave)
     },
 
-    /**
-     * Lê os registros offline do dia selecionado e os reaplica em
-     * funcionariosDia. Deve ser chamado DEPOIS que a tela já reconstruiu
-     * o estado a partir do servidor (buscarMetaDia) — assim é possível
-     * distinguir entre:
-     *   (a) uma etapa que o servidor JÁ confirmou (o registro offline
-     *       correspondente é descartado, pois não é mais necessário);
-     *   (b) uma etapa que o operador selecionou mas que nunca chegou a
-     *       ser confirmada pelo servidor (é restaurada na tela e uma
-     *       nova tentativa de sincronização é disparada).
-     */
     async restaurarEtapasOffline() {
       const registros = await etapaOfflineStore.listarPorData(this.dataSelecionada)
       if (!registros.length) return
@@ -2169,10 +2140,6 @@ export default {
         algumaRestauracao = true
       }
 
-      // Se alguma etapa ainda não confirmada foi restaurada, tenta
-      // sincronizar de novo agora. Se a conexão estiver de volta, o
-      // socket.io envia normalmente; se ainda estiver offline, o próprio
-      // socket.io enfileira o evento e o envia assim que reconectar.
       if (algumaRestauracao) {
         this.salvarMetaDia()
       }
@@ -2191,13 +2158,6 @@ export default {
     },
 
     // ── TOTAIS ────────────────────────────────────────────
-    /**
-     * Soma a quantidade produzida numa linha. Se `funcionario` for
-     * informado, horas cobertas por uma ausência (total ou parcial) são
-     * descontadas mesmo que já tenham um valor lançado antes da ausência
-     * ser registrada — a ausência precisa "apagar" o efeito nos
-     * indicadores, não só esconder o campo na tela.
-     */
     calcularTotalLinha(linha, funcionario = null) {
       if (!linha?.registros) return 0
       return Object.entries(linha.registros).reduce((s, [hora, r]) => {
@@ -2206,12 +2166,6 @@ export default {
       }, 0)
     },
 
-    /**
-     * Soma dos minutos efetivamente utilizados em uma linha (apenas
-     * registros com produção > 0, e fora de qualquer período de
-     * ausência). Extraído como método reutilizável para não duplicar
-     * este padrão de soma nas eficiências e no PDF.
-     */
     calcularTempoUtilizadoLinha(linha, funcionario = null) {
       if (!linha?.registros) return 0
       return Object.entries(linha.registros).reduce((soma, [hora, reg]) => {
@@ -2221,16 +2175,6 @@ export default {
       }, 0)
     },
 
-    /**
-     * Eficiência (Ficha Técnica) de UMA linha isolada — usado no PDF para
-     * detalhar por etapa/funcionário sem misturar com as demais linhas do
-     * mesmo funcionário. Aplica a fórmula oficial:
-     *   (Peças × SAM × 100) / (Funcionários × Tempo Trabalhado)
-     * Aqui Funcionários = 1 (uma linha pertence sempre a um funcionário) e
-     * "Peças × SAM" é somado registro a registro pois o SAM (tempo padrão
-     * da etapa) é constante para a linha inteira. Horas cobertas por
-     * ausência são excluídas do cálculo.
-     */
     calcularEficienciaLinhaPadrao(linha, funcionario = null) {
       const sam = this.resolverTempoPadrao(linha)
       let producaoPonderada = 0
@@ -2245,11 +2189,6 @@ export default {
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
 
-    /**
-     * Eficiência (Tempo de Referência) de uma linha isolada — mesma
-     * fórmula oficial acima, usando o SAM efetivo de referência. Horas
-     * cobertas por ausência são excluídas do cálculo.
-     */
     calcularEficienciaLinhaReferencia(funcionario, linha) {
       const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
       let producaoPonderada = 0
@@ -2296,22 +2235,6 @@ export default {
       return grupo ? grupo.funcionarios.length : 0
     },
 
-    /**
-     * Eficiência da OP (Ficha Técnica) — fórmula oficial aplicada sobre os
-     * totais agregados de todas as linhas/funcionários da OP.
-     *
-     * IMPORTANTE (ajuste): o denominador agora é o TEMPO DISPONÍVEL de
-     * cada funcionário (turno − ausência, via
-     * calcularMinutosDisponiveisFuncionario), somado uma vez por
-     * funcionário da OP — e não mais a soma do `tempoProduzido` que foi
-     * digitado por hora. Antes, como horas bloqueadas por ausência não
-     * podem ter lançamento, o denominador "encolhia junto" com a
-     * ausência de forma indireta, mas continuava sendo just a soma do
-     * que foi efetivamente registrado — o que não reflete o tempo
-     * disponível real quando o funcionário ainda não lançou produção em
-     * todas as horas livres. Usar o tempo disponível fixo é o que torna
-     * a ausência parcial redutora de eficiência do jeito esperado.
-     */
     calcularEficienciaOpPadrao(opId) {
       if (!opId) return 0
       const grupo = this.mapaProducaoPorOp.get(opId)
@@ -2338,15 +2261,6 @@ export default {
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivelTotal })
     },
 
-    /**
-     * Capacidade da OP pela Ficha Técnica:
-     *   Capacidade = (Funcionários × Tempo Trabalhado) / SAM
-     * Com produção já lançada, soma a capacidade real linha a linha
-     * (funcionário=1, tempo=minutos registrados, sam=tempo padrão),
-     * excluindo qualquer hora coberta por ausência. Sem nenhum registro
-     * ainda, estima usando o tempo disponível do funcionário já
-     * descontado de ausência (não o dia cheio).
-     */
     calcularCapacidadeOpPadrao(opId) {
       if (!opId) return 0
       const grupo = this.mapaProducaoPorOp.get(opId)
@@ -2374,10 +2288,6 @@ export default {
           const real = func._funcRef || func
           for (const linha of func.linhas || []) {
             const sam = this.resolverTempoPadrao(linha) || 60
-            // Usa o tempo disponível já descontado de eventuais ausências
-            // (total ou parcial) deste funcionário específico, em vez do
-            // dia cheio — evita superestimar a capacidade de quem está
-            // ausente.
             const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(real)
             capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDisponiveis, sam })
           }
@@ -2387,14 +2297,6 @@ export default {
       return capacidade
     },
 
-    /**
-     * Eficiência do funcionário (Ficha Técnica), somando todas as linhas
-     * dele. O denominador agora é o TEMPO DISPONÍVEL do funcionário
-     * (turno − ausência), não mais a soma de `tempoProduzido` lançado —
-     * ver nota em calcularEficienciaOpPadrao para o motivo da mudança.
-     * Horas cobertas por ausência continuam excluídas da produção
-     * ponderada (não podem ter lançamento de qualquer forma).
-     */
     calcularEficienciaFuncionarioPadrao(funcionario) {
       if (!funcionario?.linhas?.length) return 0
       const real = funcionario._funcRef || funcionario
@@ -2416,7 +2318,6 @@ export default {
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivel })
     },
 
-    /** Eficiência (Ficha) de um único registro/hora isolado. */
     calcularEficienciaRegistroPadrao(quantidade, tempoProduzido, linha) {
       const sam = this.resolverTempoPadrao(linha)
       if (!quantidade || !tempoProduzido || !sam) return 0
@@ -2427,11 +2328,6 @@ export default {
       })
     },
 
-    /**
-     * Eficiência da OP pelo Tempo de Referência — mesma fórmula oficial,
-     * mesma troca de denominador que calcularEficienciaOpPadrao (tempo
-     * disponível fixo por funcionário, não soma de tempoProduzido).
-     */
     calcularEficienciaOpReferencia(opId) {
       if (!opId) return 0
       const grupo = this.mapaProducaoPorOp.get(opId)
@@ -2485,9 +2381,6 @@ export default {
           const real = func._funcRef || func
           for (const linha of func.linhas || []) {
             const sam = this.resolverTempoEfetivoReferencia(func, linha) || 60
-            // Mesmo raciocínio da capacidade "Ficha": desconta ausência
-            // individual antes de estimar a capacidade sem produção ainda
-            // lançada.
             const minutosDisponiveis = this.calcularMinutosDisponiveisFuncionario(real)
             capacidade += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: minutosDisponiveis, sam })
           }
@@ -2497,10 +2390,6 @@ export default {
       return capacidade
     },
 
-    /**
-     * Eficiência do funcionário pelo Tempo de Referência — mesma troca de
-     * denominador (tempo disponível fixo, não soma de tempoProduzido).
-     */
     calcularEficienciaFuncionarioReferencia(funcionario) {
       if (!funcionario?.linhas?.length) return 0
       const real = funcionario._funcRef || funcionario
@@ -2522,7 +2411,6 @@ export default {
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivel })
     },
 
-    /** Eficiência (Referência) de um único registro/hora isolado. */
     calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
       const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
       if (!quantidade || !tempoProduzido || !sam) return 0
@@ -2542,19 +2430,6 @@ export default {
     },
 
     // ── PRODUÇÃO OFFLINE-FIRST ────────────────────────────
-    /**
-     * Localiza, dentro de `funcionariosDia`, o registro reativo
-     * correspondente a um registro do IndexedDB — usado tanto para
-     * refletir mudanças de status na tela (atualizarStatusNaTela) quanto
-     * para o merge no carregamento (mesclarProducoesOffline).
-     *
-     * Limitação conhecida: se a etapa de uma linha for trocada DEPOIS que
-     * já existia produção lançada nela, a busca por etapaId+opId+tipo
-     * deixa de encontrar o registro antigo na tela (ele continua
-     * existindo e será sincronizado normalmente, só não é mais
-     * visualmente rastreável até a página recarregar) — cenário raro,
-     * mas documentado.
-     */
     encontrarRegistroReativo({ funcionarioId, opId, etapaId, hora, tipoLinha }) {
       const funcionario = this.funcionariosDia.find(f => f.email === funcionarioId)
       if (!funcionario) return null
@@ -2576,6 +2451,7 @@ export default {
     tituloStatusSincronizacao(registro) {
       switch (registro?.status) {
         case 'pendente': return 'Pendente de sincronização'
+        case 'salvando': return 'Salvando localmente…'
         case 'sincronizando': return 'Sincronizando…'
         case 'sincronizado': return 'Sincronizado'
         case 'erro': return `Erro ao sincronizar: ${registro.erro || 'motivo desconhecido'}`
@@ -2585,11 +2461,11 @@ export default {
 
     /**
      * PASSO 1 do fluxo offline-first: salva IMEDIATAMENTE no IndexedDB.
-     * Chamado a cada alteração de quantidade/tempo (@blur / @input no
-     * template). Não espera nenhuma resposta de rede — a interface já
-     * está atualizada de qualquer forma (v-model já refletiu o valor
-     * digitado antes mesmo desta função rodar); aqui só persistimos essa
-     * mesma informação localmente e marcamos como 'pendente'.
+     * Chamado tanto pelo @blur (onInputQuantidade) quanto — NOVO — por um
+     * debounce curto no @input (onInputQuantidadeDigitando), garantindo
+     * que o valor digitado esteja no IndexedDB mesmo se o usuário nunca
+     * chegar a "sair do campo" (trocar de app, bloquear a tela, cair a
+     * conexão no meio da digitação, etc.).
      *
      * Upsert por chave única (data+funcionário+OP+etapa+hora+tipo):
      * nunca cria um segundo registro para a mesma célula, mesmo que o
@@ -2625,24 +2501,26 @@ export default {
     },
 
     /**
-     * Handler chamado pelo template (@blur na quantidade, @input nos
-     * minutos). Salva local IMEDIATAMENTE (passo 1) e agenda a
-     * sincronização com debounce de 400ms (passo 2) — o debounce evita
-     * disparar uma tentativa de rede a cada tecla digitada, mas nunca
-     * atrasa a gravação local, que já aconteceu.
+     * NOVO: chamado pelo @input (a cada tecla, com debounce de 250ms).
+     * Salva IMEDIATAMENTE no IndexedDB (o valor já digitado não pode
+     * depender do usuário sair do campo). Não agenda envio ao backend
+     * aqui — isso continua acontecendo só no @blur (onInputQuantidade),
+     * para não disparar uma tentativa de rede a cada poucas teclas.
+     */
+    onInputQuantidadeDigitando: debounce(function (funcionario, linha, hora) {
+      this.salvarProducaoLocalImediato(funcionario, linha, hora)
+    }, 250),
+
+    /**
+     * Handler do @blur. Salva local (passo 1, redundante com o @input
+     * acima, mas mantido como rede de segurança) e agenda a
+     * sincronização com debounce de 400ms (passo 2).
      */
     onInputQuantidade(funcionario, linha, hora) {
       this.salvarProducaoLocalImediato(funcionario, linha, hora)
       this.agendarSincronizacaoProducao()
     },
 
-    /**
-     * PASSO 2: dispara o sincronizador em segundo plano. Debounce de
-     * 400ms — dentro da faixa pedida (300–500ms) — e um guard
-     * (_sincronizandoProducao) que impede duas execuções concorrentes:
-     * mesmo que o debounce, o intervalo periódico e uma reconexão
-     * disparem quase juntos, só uma varredura da fila roda por vez.
-     */
     agendarSincronizacaoProducao: debounce(function () {
       this.processarFilaSincronizacaoProducao()
     }, 400),
@@ -2652,7 +2530,10 @@ export default {
      * UM REGISTRO POR VEZ ao backend, em ordem de última alteração. Não
      * usa Promise.all/paralelismo de propósito — enviar em série evita
      * qualquer condição de corrida de dois envios simultâneos para
-     * registros relacionados (ex.: duas horas da mesma linha).
+     * registros relacionados. O guard `_sincronizandoProducao` também
+     * impede que dois gatilhos concorrentes (debounce de digitação,
+     * intervalo periódico, evento 'online', reconexão do socket, abertura
+     * da tela) rodem a varredura ao mesmo tempo.
      */
     async processarFilaSincronizacaoProducao() {
       if (this._sincronizandoProducao) return
@@ -2668,23 +2549,11 @@ export default {
       }
     },
 
-    /**
-     * Sincroniza UM registro. Reaproveita o evento de socket já existente
-     * ('salvar-producao', com ack) — o backend não precisou mudar nada.
-     *
-     * Quantidade 0 é tratada como EXCLUSÃO PENDENTE: o registro só é
-     * removido do IndexedDB depois que o servidor confirma o recebimento
-     * do valor zerado — antes disso ele continua na fila normalmente
-     * (aparece como 'pendente'/'sincronizando' igual a qualquer edição).
-     */
     async sincronizarUmRegistro(registro) {
       await producaoOfflineStore.atualizarStatus(registro.idLocal, 'sincronizando')
       this.atualizarStatusNaTela(registro, 'sincronizando')
 
       if (!socket.connected) {
-        // Sem conexão agora: devolve para 'pendente' (ou mantém 'erro'
-        // se já vinha de uma falha) e sai — a próxima tentativa vem do
-        // agendamento periódico ou da reconexão do socket.
         const statusVolta = registro.statusSincronizacao === 'erro' ? 'erro' : 'pendente'
         await producaoOfflineStore.atualizarStatus(registro.idLocal, statusVolta)
         this.atualizarStatusNaTela(registro, statusVolta, registro.erro || null)
@@ -2710,9 +2579,6 @@ export default {
         }
 
         if ((registro.quantidade || 0) === 0) {
-          // Exclusão confirmada pelo servidor: agora sim remove do
-          // IndexedDB — não faz sentido manter um registro "sincronizado"
-          // com quantidade zero indefinidamente.
           await producaoOfflineStore.remover(registro.idLocal)
           this.atualizarStatusNaTela(registro, 'idle')
         } else {
@@ -2726,22 +2592,6 @@ export default {
       }
     },
 
-    /**
-     * Envolve o socket.emit em uma Promise com callback de confirmação
-     * (ack) e timeout. O backend confirma o evento 'salvar-producao'
-     * chamando o callback recebido, ex.:
-     *   socket.on('salvar-producao', async (payload, callback) => {
-     *     try {
-     *       await salvarNoBanco(payload)
-     *       callback({ sucesso: true })
-     *     } catch (err) {
-     *       callback({ sucesso: false, mensagem: err.message })
-     *     }
-     *   })
-     * O timeout aqui é só uma rede de segurança contra travamentos de
-     * rede/servidor (ex.: conexão caiu bem no meio do envio) — em
-     * operação normal, quem resolve a Promise é sempre o callback real.
-     */
     emitirComAck(evento, payload, timeoutMs = 8000) {
       return new Promise((resolve, reject) => {
         let finalizado = false
@@ -2766,56 +2616,28 @@ export default {
       if (!linha.registros[hora]?.idLocal) {
         await this.salvarProducaoLocalImediato(funcionario, linha, hora)
       }
-      // Retentativa manual: roda imediatamente, sem esperar o debounce.
       this.processarFilaSincronizacaoProducao()
     },
 
-    /**
-     * Dá flush imediato em qualquer sincronização/gravação de meta ainda
-     * na janela do debounce — chamado antes de trocar de data ou
-     * desmontar a tela. A gravação local em si (IndexedDB) já aconteceu
-     * de forma síncrona a cada edição; isto aqui só antecipa a TENTATIVA
-     * de envio ao servidor, sem o que os dados de qualquer forma não se
-     * perderiam (continuam no IndexedDB e seriam sincronizados no
-     * próximo carregamento/reconexão).
-     */
     flushSalvamentosPendentes() {
       if (typeof this.salvarMetaDia.flush === 'function') {
         this.salvarMetaDia.flush()
+      }
+      if (typeof this.onInputQuantidadeDigitando.flush === 'function') {
+        this.onInputQuantidadeDigitando.flush()
       }
       if (typeof this.agendarSincronizacaoProducao.flush === 'function') {
         this.agendarSincronizacaoProducao.flush()
       }
     },
 
-    /**
-     * MERGE: une o que veio do backend (já aplicado em funcionariosDia
-     * pelo carregamento normal de buscarMetaDia) com o que está no
-     * IndexedDB para a data selecionada. Deve rodar DEPOIS que
-     * funcionariosDia já reflete o servidor E depois de
-     * restaurarEtapasOffline() (para que as linhas/etapas já existam).
-     *
-     * Regra de ouro: um registro local com status 'pendente',
-     * 'sincronizando' ou 'erro' NUNCA é sobrescrito pelo valor do
-     * servidor — por definição, se ainda não está 'sincronizado', o
-     * valor local é mais recente que a última confirmação do backend.
-     *
-     * Para registros já 'sincronizado', o backend hoje não expõe um
-     * updatedAt por registro de produção (a comparação fina por
-     * timestamp descrita no pedido não é possível com o formato atual da
-     * API) — nesse caso tratamos o valor recém-carregado do servidor
-     * como mais atual (pode refletir edição de outro
-     * usuário/dispositivo) e realinhamos o IndexedDB para bater com ele.
-     * Se o backend passar a expor updatedAt por registro, esta função é
-     * o único lugar que precisa mudar para comparar de fato por data.
-     */
     async mesclarProducoesOffline() {
       const registrosLocais = await producaoOfflineStore.listarPorData(this.dataSelecionada)
       if (!registrosLocais.length) return
 
       for (const local of registrosLocais) {
         const alvo = this.encontrarRegistroReativo(local)
-        if (!alvo) continue // linha ainda não existe nesta sessão (etapa não restaurada) — fica só no IndexedDB até aparecer
+        if (!alvo) continue
 
         if (local.statusSincronizacao === 'pendente' || local.statusSincronizacao === 'sincronizando' || local.statusSincronizacao === 'erro') {
           alvo.quantidade = local.quantidade
@@ -2841,10 +2663,6 @@ export default {
     salvarMetaDia: debounce(function () {
       const pecasAtivas = this.opsAtivasComPeca
       const pecasExtras = this.opsExtras.filter(op => op.pecaId)
-      // Ausência é uma informação do funcionário, independente de haver
-      // OP configurada no topo da tela — sem esta condição extra, marcar
-      // ausência antes de configurar qualquer OP no dia seria descartado
-      // silenciosamente.
       const temAusenciaRegistrada = this.funcionariosDia.some(f => f.ausencia)
       if (!pecasAtivas.length && !pecasExtras.length && !temAusenciaRegistrada) return
 
@@ -2899,13 +2717,6 @@ export default {
 
           const meta = response.metaDia
 
-          // LOG TEMPORÁRIO — marca o momento exato em que um reload
-          // (troca de data, resposta do buscar-meta-dia, ou disparado por
-          // `nova_atualizacao_*`) vai reconstruir funcionariosDia.
-          console.log(`[apontamento] ${new Date().toISOString()} recarregando dados do servidor`, {
-            data: dataDaRequisicao,
-          })
-
           const alocacoesPendentes = new Map()
           if (this.dataCarregada === dataDaRequisicao) {
             for (const func of this.funcionariosDia) {
@@ -2926,27 +2737,12 @@ export default {
             this.reaplicarAlocacoesPendentes(alocacoesPendentes)
             this.sincronizarOpsExtras()
             this.dataCarregada = dataDaRequisicao
-            // NOVO: restaura qualquer etapa selecionada offline antes de
-            // haver meta salva para o dia (ex.: operador escolheu etapa,
-            // ficou sem internet, e a meta nunca chegou a ser criada no
-            // servidor) — precisa rodar ANTES do merge de produção, pois
-            // este último depende das linhas/etapas já existirem.
             this.restaurarEtapasOffline().then(() => this.mesclarProducoesOffline())
-            // NOVO: aplica a ausência automática também quando não há
-            // nenhuma meta salva ainda para o dia — sem isso, um dia
-            // "em branco" nunca consultaria as faltas.
             this.getFaltas()
             return
           }
 
           if (meta.pecas?.length) {
-            // Uma OP salva anteriormente pode ter mudado de status desde
-            // então (ex.: era em_progresso e virou finalizado/coleta).
-            // Só reconstruímos o <select> editável do topo para OPs que
-            // CONTINUAM em_progresso (this.pecas); as demais viram cards
-            // "históricos" (opsExtras), com a OP fixa em texto — do
-            // contrário o <select> ficaria em branco por não ter a opção
-            // correspondente disponível.
             const idsEmAndamento = new Set(this.pecas.map(p => p.id_da_op))
             const ativas = []
             const historicas = []
@@ -3001,13 +2797,6 @@ export default {
               const hora = producao.hora_registro
               if (!hora) continue
 
-              // Estes valores já vieram persistidos do backend, então o
-              // status inicial é 'sincronizado' (não 'idle') — evita que
-              // a UI mostre como pendente algo que já está confirmado no
-              // banco. O merge com o IndexedDB (mesclarProducoesOffline,
-              // chamado mais abaixo) pode sobrescrever isso se houver uma
-              // edição local ainda não sincronizada para esta mesma
-              // célula.
               linha.registros[hora] = {
                 quantidade: producao.quantidade_pecas || 0,
                 tempoProduzido: producao.tempo_produzido || 60,
@@ -3025,31 +2814,11 @@ export default {
           }
 
           this.reaplicarAlocacoesPendentes(alocacoesPendentes)
-
-          // Complementa opsExtras com qualquer OP que tenha registro de
-          // produção mas não tenha vindo em meta.pecas (ex.: linha extra
-          // lançada para uma OP que nunca foi configurada no topo) —
-          // mesma lista consolidada usada para montar a tabela.
           this.sincronizarOpsExtras()
           this.dataCarregada = dataDaRequisicao
 
-          // NOVO: restaura qualquer etapa selecionada offline que ainda
-          // não foi confirmada pelo servidor — precisa rodar DEPOIS que
-          // funcionariosDia já reflete o que veio da meta (para poder
-          // comparar e descartar registros offline já confirmados) e
-          // ANTES do merge de produção (mesclarProducoesOffline precisa
-          // que as linhas/etapas já existam para encontrar onde aplicar
-          // os valores).
           this.restaurarEtapasOffline().then(() => this.mesclarProducoesOffline())
 
-          // NOVO: consulta e aplica automaticamente os registros de
-          // ausência do dia — SEMPRE por último, depois que
-          // funcionariosDia já está totalmente reconstruído a partir da
-          // meta. Se rodasse antes, a reconstrução acima sobrescreveria
-          // (com `funcionario.ausencia = metaFunc.ausencia || null`) a
-          // ausência recém aplicada. Como getFaltas() é assíncrono e não
-          // é aguardado aqui, ele roda logo em seguida sem bloquear o
-          // restante do carregamento da tela.
           this.getFaltas()
         }
       )
@@ -3089,10 +2858,6 @@ export default {
           if (linha.opId && !idsAtivos.has(linha.opId)) idsHistoricos.add(linha.opId)
         }
       }
-      // OPs que já saíram da lista ativa (finalizadas, em coleta, ou
-      // removidas do setup) mas têm produção lançada no dia — sintetiza
-      // um objeto de OP mínimo (sem meta, pois não sabemos mais a meta
-      // configurada) para reaproveitar montarDadosDaOpParaPdf.
       const opsHistoricas = [...idsHistoricos].map(id => ({ pecaId: id, metaDia: 0 }))
 
       return {
@@ -3161,12 +2926,6 @@ export default {
 
       const funcionariosAlocados = grupo ? grupo.funcionarios.length : 0
 
-      // Tempo disponível somado individualmente por funcionário alocado
-      // nesta OP (mesmo grupo usado pela tabela), já descontando
-      // ausências (total ou parcial) de cada um. Antes usávamos um valor
-      // médio fixo (funcionários × minutos padrão do dia inteiro), o que
-      // ignorava por completo quem estava ausente parte (ou todo) o
-      // expediente.
       let tempoDisponivel = 0
       for (const func of (grupo?.funcionarios || [])) {
         const real = func._funcRef || func
@@ -3201,8 +2960,6 @@ export default {
         })),
       }
 
-      // Só entra no relatório se o campo realmente existir no cadastro da
-      // peça — nunca inventamos "Cliente" ou "Observações" fictícios.
       if (peca?.cliente) dadosOp.cliente = peca.cliente
       if (peca?.observacoes) dadosOp.observacoes = peca.observacoes
 
@@ -3246,7 +3003,7 @@ export default {
   flex-wrap: wrap;
 }
 
-.header-actions { display: flex; align-items: center; gap: 10px; }
+.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .btn-gerar-pdf {
   display: flex;
@@ -3291,6 +3048,21 @@ export default {
   background: currentColor;
 }
 
+/* NOVO: badge de pendências de sincronização */
+.fila-pendentes-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff4cf;
+  color: #8a6a00;
+  white-space: nowrap;
+}
+
 .date-input {
   height: 38px;
   border-radius: 12px;
@@ -3306,7 +3078,10 @@ export default {
   align-items: center;
   gap: 4px;
 }
-.registro-status--salvando { color: #8a6a00; }
+.registro-status--salvando,
+.registro-status--sincronizando { color: #8a6a00; }
+.registro-status--pendente { color: #8a6a00; }
+.registro-status--sincronizado { color: #0d7a3f; }
 .registro-status--erro { color: #b12626; }
 .btn-retry-registro {
   border: none;
@@ -3620,7 +3395,6 @@ export default {
   width: 100%; border-collapse: collapse; min-width: 1556px;
   table-layout: fixed;
 }
-/* NOVO — adicionar junto das outras regras de .apontamento-table */
 .apontamento-table tbody tr {
   min-height: 56px;
 }
@@ -3802,9 +3576,6 @@ export default {
 .total-col { width: 80px; min-width: 80px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; box-sizing: border-box; }
 .efic-col  { width: 128px; min-width: 128px; text-align: center; box-sizing: border-box; padding-left: 10px; padding-right: 10px; }
 
-/* Mais respiro entre "Efic. Ficha" e "Efic. Ref.": coluna mais larga,
-   borda separadora sutil e fundo diferenciado para reforçar que são
-   dois indicadores distintos, sem alterar o restante do padrão visual. */
 .efic-col--ref {
   background: rgba(109, 72, 201, 0.05);
   border-left: 1px solid #e3f0e7;
@@ -3903,7 +3674,6 @@ export default {
 /* ── FUNCIONÁRIO AUSENTE ────────────────────────────── */
 .linha-ausente { opacity: .55; }
 
-/* DEPOIS */
 .func-info-text {
   display: flex;
   flex-direction: column;
@@ -3927,7 +3697,7 @@ export default {
 }
 
 .btn-ausencia-toggle:hover { background: #e7f0ea; }
-/* DEPOIS */
+
 .ausencia-tag {
   display: inline-flex;
   align-items: center;
