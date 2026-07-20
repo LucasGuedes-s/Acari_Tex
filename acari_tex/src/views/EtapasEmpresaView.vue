@@ -72,11 +72,14 @@
 
         <div v-else class="etapas-grid">
           <div v-for="etapa in etapasFiltradasPorGrupo" :key="etapa.id_da_funcao" class="etapa-card">
+            <!-- OPs vinculadas à etapa -->
+
             <div class="card-header">
               <div class="card-title-wrap">
                 <h3 class="card-title">{{ etapa.descricao }}</h3>
                 <span v-if="etapa.grupoEtapa" class="card-badge">{{ etapa.grupoEtapa.nome }}</span>
               </div>
+              
               <div class="card-actions">
                 <button class="card-btn card-btn--time" title="Cronoanálise" @click="abrirModalCronoanalise(etapa)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -103,7 +106,44 @@
             </div>
 
             <div class="card-body">
+              <div v-if="etapa.pecas && etapa.pecas.length" class="ops-box">
+  <button
+    class="ops-toggle"
+    @click="etapa.expandedOps = !etapa.expandedOps"
+  >
+    <div class="ops-toggle-info">
+      <span class="ops-label">OPs vinculadas</span>
+      <span class="ops-count">{{ etapa.pecas.length }}</span>
+    </div>
 
+    <svg
+      class="ops-arrow"
+      :class="{ 'ops-arrow--open': etapa.expandedOps }"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  </button>
+
+  <transition name="expand">
+    <ul v-if="etapa.expandedOps" class="ops-list">
+      <li
+        v-for="pecaEtapa in etapa.pecas"
+        :key="pecaEtapa.id"
+        class="op-item"
+      >
+        <span class="op-codigo">
+          {{ pecaEtapa.peca_op.descricao }}
+        </span>
+      </li>
+    </ul>
+  </transition>
+</div>
               <!-- TEMPO PADRÃO -->
               <div class="tempo-principal">
                 <div class="tempo-header">
@@ -786,6 +826,7 @@ export default {
           headers: { Authorization: this.store.pegar_token },
         })
         this.etapas = data.etapa || []
+        console.log("Etapas carregadas:", this.etapas)
       } catch (error) {
         console.error("Erro ao buscar etapas:", error)
       } finally {
@@ -1193,7 +1234,73 @@ export default {
 .page-body {
   padding: 2.5rem 2rem 3rem;
 }
+.ops-box {
+  margin-top: 12px;
+  border-top: 1px solid rgba(10, 80, 40, 0.12);
+  padding-top: 12px;
+}
 
+.ops-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.ops-toggle-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ops-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0a3d20;
+}
+
+.ops-count {
+  background: #d0edda;
+  color: #0a3d20;
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ops-arrow {
+  color: #6b7c72;
+  transition: transform 0.2s ease;
+}
+
+.ops-arrow--open {
+  transform: rotate(180deg);
+}
+
+.ops-list {
+  list-style: none;
+  padding: 8px 0 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.op-item {
+  padding: 8px 10px;
+  background: #f8fbf9;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.op-codigo {
+  color: #052e14;
+  font-weight: 500;
+}
 /* ── Top Section ── */
 .top-section {
   display: flex;

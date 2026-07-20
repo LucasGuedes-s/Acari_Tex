@@ -1526,32 +1526,43 @@ async function getEtapasEstabelecimento(req) {
   }
 
   const etapas = await prisma.etapa.findMany({
-    where: {
-      id_Estabelecimento: cnpj,
-    },
-    include: {
-      grupoEtapa: true,
+  where: {
+    id_Estabelecimento: cnpj,
+  },
+  include: {
+    grupoEtapa: true,
 
-      tempo_referencia: {
-        take: 1,
-        orderBy: {
-          criadoEm: "desc",
-        },
-        include: {
-          usuario: {
-            select: {
-              nome: true,
-              email: true,
-              foto: true,
-            },
+    tempo_referencia: {
+      take: 1,
+      orderBy: {
+        criadoEm: "desc",
+      },
+      include: {
+        usuario: {
+          select: {
+            nome: true,
+            email: true,
+            foto: true,
           },
         },
       },
     },
-    orderBy: {
-      descricao: "asc",
+
+    pecas: {
+      include: {
+        peca_op: {
+          select: {
+            id_da_op: true,
+            descricao: true,
+          },
+        },
+      },
     },
-  });
+  },
+  orderBy: {
+    descricao: "asc",
+  },
+});
 
   return etapas;
 }
