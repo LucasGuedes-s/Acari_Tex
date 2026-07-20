@@ -79,7 +79,7 @@
                 <h3 class="card-title">{{ etapa.descricao }}</h3>
                 <span v-if="etapa.grupoEtapa" class="card-badge">{{ etapa.grupoEtapa.nome }}</span>
               </div>
-              
+
               <div class="card-actions">
                 <button class="card-btn card-btn--time" title="Cronoanálise" @click="abrirModalCronoanalise(etapa)">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -107,53 +107,36 @@
 
             <div class="card-body">
               <div v-if="etapa.pecas && etapa.pecas.length" class="ops-box">
-  <button
-    class="ops-toggle"
-    @click="etapa.expandedOps = !etapa.expandedOps"
-  >
-    <div class="ops-toggle-info">
-      <span class="ops-label">OPs vinculadas</span>
-      <span class="ops-count">{{ etapa.pecas.length }}</span>
-    </div>
+                <button class="ops-toggle" @click="etapa.expandedOps = !etapa.expandedOps">
+                  <div class="ops-toggle-info">
+                    <span class="ops-label">OPs vinculadas</span>
+                    <span class="ops-count">{{ etapa.pecas.length }}</span>
+                  </div>
 
-    <svg
-      class="ops-arrow"
-      :class="{ 'ops-arrow--open': etapa.expandedOps }"
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  </button>
+                  <svg class="ops-arrow" :class="{ 'ops-arrow--open': etapa.expandedOps }" width="14" height="14"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
 
-  <transition name="expand">
-    <ul v-if="etapa.expandedOps" class="ops-list">
-      <li
-        v-for="pecaEtapa in etapa.pecas"
-        :key="pecaEtapa.id"
-        class="op-item"
-      >
-        <span class="op-codigo">
-          {{ pecaEtapa.peca_op.descricao }}
-        </span>
-      </li>
-    </ul>
-  </transition>
-</div>
+                <transition name="expand">
+                  <ul v-if="etapa.expandedOps" class="ops-list">
+                    <li v-for="pecaEtapa in etapa.pecas" :key="pecaEtapa.id" class="op-item">
+                      <span class="op-codigo">
+                        {{ pecaEtapa.peca_op.descricao }}
+                      </span>
+                    </li>
+                  </ul>
+                </transition>
+              </div>
               <!-- TEMPO PADRÃO -->
               <div class="tempo-principal">
                 <div class="tempo-header">
                   <div class="tempo-label">Tempo Padrão</div>
-                  <button
-                    class="btn-add-tempo"
-                    title="Adicionar tempo de referência"
-                    @click="adicionarTempoReferencia(etapa)"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <button class="btn-add-tempo" title="Adicionar tempo de referência"
+                    @click="adicionarTempoReferencia(etapa)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
@@ -180,21 +163,14 @@
                 </div>
 
                 <ul class="ref-list">
-                  <li
-                    v-for="ref in etapa.tempo_referencia"
-                    :key="ref.id ?? ref.id_funcionario"
-                    class="ref-item"
-                  >
+                  <li v-for="ref in etapa.tempo_referencia" :key="ref.id ?? ref.id_funcionario" class="ref-item">
                     <span class="ref-nome">
                       {{ ref.nome_funcionario || ref.usuario?.nome || ref.id_funcionario }}
                     </span>
-                    <span
-                      class="ref-tempo"
-                      :class="{
-                        melhor: etapa.tempo_padrao && ref.tempo_minutos < etapa.tempo_padrao,
-                        pior: etapa.tempo_padrao && ref.tempo_minutos > etapa.tempo_padrao
-                      }"
-                    >
+                    <span class="ref-tempo" :class="{
+                      melhor: etapa.tempo_padrao && ref.tempo_minutos < etapa.tempo_padrao,
+                      pior: etapa.tempo_padrao && ref.tempo_minutos > etapa.tempo_padrao
+                    }">
                       {{ formatarMinutos(ref.tempo_minutos) }} min
                     </span>
                   </li>
@@ -876,9 +852,9 @@ export default {
         })
 
         Swal.close()
-        
+
         Swal.fire({ icon: "success", title: "Etapa atualizada!", timer: 1500, showConfirmButton: false })
-       
+
         this.buscarEtapas()
       } catch {
         console.error("Erro ao atualizar etapa:", this.etapaEdicao)
@@ -964,23 +940,23 @@ export default {
       }
     },
     async adicionarTempoReferencia(etapa) {
-  if (!this.funcionarios.length) {
-    await this.buscarFuncionarios()
-  }
+      if (!this.funcionarios.length) {
+        await this.buscarFuncionarios()
+      }
 
-  const options = this.funcionarios
-    .map(
-      (f) => `
+      const options = this.funcionarios
+        .map(
+          (f) => `
         <option value="${f.email}">
           ${f.nome}
         </option>
       `
-    )
-    .join("")
+        )
+        .join("")
 
-  const { value, isConfirmed } = await Swal.fire({
-    title: "Adicionar tempo de referência",
-    html: `
+      const { value, isConfirmed } = await Swal.fire({
+        title: "Adicionar tempo de referência",
+        html: `
       <div style="text-align:left">
 
         <p style="
@@ -1007,36 +983,36 @@ export default {
         >
       </div>
     `,
-    showCancelButton: true,
-    confirmButtonText: "Salvar",
-    cancelButtonText: "Cancelar",
+        showCancelButton: true,
+        confirmButtonText: "Salvar",
+        cancelButtonText: "Cancelar",
 
-    preConfirm: () => {
-      const id_funcionario =
-        document.getElementById("funcionario").value
+        preConfirm: () => {
+          const id_funcionario =
+            document.getElementById("funcionario").value
 
-      const tempo_minutos = Number(
-        document.getElementById("tempo").value
-      )
+          const tempo_minutos = Number(
+            document.getElementById("tempo").value
+          )
 
-      if (!id_funcionario) {
-        Swal.showValidationMessage("Selecione um funcionário.")
-        return false
-      }
+          if (!id_funcionario) {
+            Swal.showValidationMessage("Selecione um funcionário.")
+            return false
+          }
 
-      if (!tempo_minutos || tempo_minutos <= 0) {
-        Swal.showValidationMessage("Informe um tempo válido.")
-        return false
-      }
+          if (!tempo_minutos || tempo_minutos <= 0) {
+            Swal.showValidationMessage("Informe um tempo válido.")
+            return false
+          }
 
-      return {
-        id_funcionario,
-        tempo_minutos,
-      }
-    },
-  })
+          return {
+            id_funcionario,
+            tempo_minutos,
+          }
+        },
+      })
 
-  if (!isConfirmed) return
+      if (!isConfirmed) return
 
       try {
         await api.post(
@@ -1234,6 +1210,7 @@ export default {
 .page-body {
   padding: 2.5rem 2rem 3rem;
 }
+
 .ops-box {
   margin-top: 12px;
   border-top: 1px solid rgba(10, 80, 40, 0.12);
@@ -1301,6 +1278,7 @@ export default {
   color: #052e14;
   font-weight: 500;
 }
+
 /* ── Top Section ── */
 .top-section {
   display: flex;
