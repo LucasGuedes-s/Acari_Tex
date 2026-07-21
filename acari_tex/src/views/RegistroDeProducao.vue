@@ -12,10 +12,10 @@
               <span class="status-dot"></span>
               {{ socketConectado ? 'Online' : 'Offline' }}
             </div>
-            <!-- NOVO: contador global de pendências de sincronização -->
-            <div v-if="totalPendentesSincronizacao > 0" class="fila-pendentes-badge"
-              :title="`${totalPendentesSincronizacao} registro(s) aguardando envio ao servidor`">
-              🟡 {{ totalPendentesSincronizacao }} pendente(s)
+            <!-- Contador global de células ainda não confirmadas pelo servidor -->
+            <div v-if="totalCelulasPendentes > 0" class="fila-pendentes-badge"
+              :title="`${totalCelulasPendentes} campo(s) aguardando salvamento`">
+              ● {{ totalCelulasPendentes }} pendente(s)
             </div>
             <input v-model="dataSelecionada" type="date" class="date-input" />
             <span v-if="carregandoMeta" class="data-loading">Atualizando…</span>
@@ -119,11 +119,6 @@
                 ter produção lançada. A identificação/dedup é sempre pelo
                 pecaId (ver sincronizarOpsExtras): se a OP já aparece
                 entre as ativas, ela NUNCA entra aqui de novo.
-                Sem <select> de troca de OP aqui, pois as opções listadas
-                em pecasDisponiveis vêm só das OPs em_progresso — exibir
-                esta OP num <select> sem a opção correspondente deixaria
-                o campo em branco (mesma classe de bug já corrigida na
-                etapa da tabela).
               -->
               <div v-for="op in opsExtras" :key="op._uid" class="op-card op-card--historico">
                 <div class="op-card-header">
@@ -151,7 +146,6 @@
                   </div>
                 </div>
 
-                <!-- BARRA DE PROGRESSO -->
                 <div v-if="op.metaDia > 0" class="meta-progress">
                   <div class="meta-progress-top">
                     <span>Progresso</span>
@@ -174,7 +168,6 @@
             </button>
           </div>
 
-          <!-- TOTAL GERAL (quando há mais de 1 OP no total, ativas + descobertas pelos registros) -->
           <div v-if="(opsAtivas.length + opsExtras.length) > 1" class="total-geral-row">
             <span>Total geral de todas as OPs:</span>
             <div class="total-box-sm">{{ calcularTotalGeral() }}</div>
@@ -229,16 +222,7 @@
                   <tbody>
                     <template v-for="funcionario in grupo.funcionarios"
                       :key="funcionario.email + '_' + (grupo.opId || 'sem')">
-                      <!--
-                        NOVO: v-memo evita que o Vue re-diffe esta linha inteira
-                        a cada tecla digitada em QUALQUER OUTRA linha da tabela.
-                        Só reprocessa quando os registros/etapa/ausência DESTA
-                        linha realmente mudam. Isso é o que reduz o custo de
-                        digitação de O(total de linhas da tela) para O(1) por
-                        tecla.
-                      -->
                       <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
-                        
                         :class="{ 'linha-extra': linha.tipo === 'extra', 'linha-ausente': funcionarioAusenteDiaInteiro(funcionario) }">
 
                         <!-- FUNCIONÁRIO -->
@@ -278,52 +262,12 @@
                                   </option>
                                 </optgroup>
                               </select>
-                              <!--
-                                × e + ficam completamente indisponíveis quando o
-                                funcionário está ausente o dia inteiro — ele não
-                                pode ter etapas adicionadas nem removidas naquele
-                                dia, só visualizar o que já foi lançado antes da
-                                ausência ser registrada.
-                              -->
                               <button v-if="linha.tipo === 'extra' && !funcionarioAusenteDiaInteiro(funcionario)"
                                 class="btn-remove-linha"
                                 @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
-                              <!--
-                                + sempre na última linha DESTE MÓDULO (desta OP).
-                                IMPORTANTE: usa funcionario.linhas.length (a lista já
-                                filtrada por OP pelo agrupamento), NÃO o total geral de
-                                linhas do funcionário. Antes, ao usar o total geral, o
-                                botão "+" desaparecia sempre que o funcionário já tinha
-                                uma linha em OUTRA OP — impedindo lançar uma segunda
-                                etapa extra para ele dentro desta mesma OP.
-                              -->
                               <button v-if="idxLinha === funcionario.linhas.length - 1 && !funcionarioAusenteDiaInteiro(funcionario)"
                                 class="btn-add-linha" @click="adicionarLinhaExtra(funcionario, true)" title="Adicionar etapa">+</button>
                             </template>
-                            <!--
-                              Módulo "histórico": a OP não está mais na lista de OPs
-                              ativas (finalizada, em coleta, ou removida do setup do
-                              topo da tela), então não existem opções para popular o
-                              <select> desta etapa. Mostramos a descrição já
-                              registrada como somente leitura — assim o gestor
-                              continua vendo o que foi lançado, sem o risco de a
-                              etapa aparecer em branco por falta de opção
-                              correspondente no <select>.
-
-                              IMPORTANTE: mesmo aqui, o funcionário precisa
-                              continuar disponível para receber etapas de OPs
-                              ATIVAS — a etapa histórica não pode "prender" o
-                              funcionário. O botão "+" abaixo cria uma linha
-                              nova e em branco (sem herdar o opId desta OP
-                              finalizada — por isso adicionarLinhaExtra recebe
-                              `false`), que aparece temporariamente em
-                              "Funcionários sem OP" até uma OP ativa ser
-                              escolhida no <select>, migrando automaticamente
-                              para o módulo correto assim que isso acontece. A
-                              etapa histórica em si permanece intocável: sem
-                              edição de etapa, sem edição de produção, sem
-                              exclusão.
-                            -->
                             <template v-else>
                               <div class="etapa-fixa">
                                 <span class="etapa-fixa-label">{{ linha.descricao || 'Etapa' }}</span>
@@ -354,54 +298,48 @@
                         </td>
 
                         <!-- HORAS -->
-                        <td v-for="hora in horasVisiveis" :key="hora" class="hora-td"
-                          >
+                        <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
                           <div class="hora-box-outer">
                             <!-- Ausência (total ou parcial) bloqueia o lançamento nesta hora -->
                             <div v-if="horaBloqueadaPorAusencia(funcionario, hora)" class="hora-ausente-marker">
                               🚫 Ausente
                             </div>
                             <template v-else>
-                              <!-- Esquerda: campo de quantidade + minutos -->
                               <div class="hora-box-inputs">
-                                <div class="hora-box-inputs">
-  <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
-    placeholder="0"
-    :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-    @input="onInputQuantidadeDigitando(funcionario, linha, hora)"
-    @blur="onInputQuantidade(funcionario, linha, hora)" />
-  <div class="tempo-wrap">
-    <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-      max="60" class="min-input"
-      @input="onInputQuantidadeDigitando(funcionario, linha, hora)"
-      @blur="onInputQuantidade(funcionario, linha, hora)" />
-    <span class="min-label">min</span>
-  </div>
+                                <!--
+                                  Container position:relative — a bolinha de status
+                                  fica sobreposta (position:absolute) no canto
+                                  superior direito, apenas sobre o input de
+                                  QUANTIDADE, conforme pedido.
+                                -->
+                                <div class="qtd-input-wrap">
+                                  <span
+                                    v-if="statusCelula(funcionario, linha, hora) !== 'idle'"
+                                    class="save-dot"
+                                    :class="'save-dot--' + statusCelula(funcionario, linha, hora)"
+                                    :title="tituloStatusCelula(funcionario, linha, hora)">
+                                  </span>
+                                  <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
+                                    placeholder="0"
+                                    :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                                    @input="onDigitarCelula(funcionario, linha, hora)" />
+                                </div>
 
-  <!--
-    Indicador de sincronização por célula — cobre os 4 estados pedidos:
-    🟡 pendente | 🔄 sincronizando/salvando | 🟢 sincronizado | 🔴 erro.
-    O valor já foi salvo no IndexedDB antes mesmo deste indicador aparecer
-    (ver onInputQuantidadeDigitando / onInputQuantidade), então ele só
-    informa o estado do ENVIO ao backend, nunca condiciona a gravação local.
-  -->
-  <div v-if="linha.registros[hora].quantidade > 0" class="registro-status"
-       :class="'registro-status--' + linha.registros[hora].status"
-       :title="tituloStatusSincronizacao(linha.registros[hora])">
-    <template v-if="linha.registros[hora].status === 'pendente'">🟡</template>
-    <template v-else-if="linha.registros[hora].status === 'salvando' || linha.registros[hora].status === 'sincronizando'">🔄</template>
-    <template v-else-if="linha.registros[hora].status === 'sincronizado'">🟢</template>
-    <template v-else-if="linha.registros[hora].status === 'erro'">
-      🔴
-      <button class="btn-retry-registro" @click="tentarNovamenteRegistro(funcionario, linha, hora)">
-        tentar de novo
-      </button>
-    </template>
-  </div>
-</div>
+                                <div class="tempo-wrap">
+                                  <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
+                                    max="60" class="min-input"
+                                    @input="onDigitarCelula(funcionario, linha, hora)" />
+                                  <span class="min-label">min</span>
+                                </div>
 
+                                <!-- Botão de salvamento manual da célula -->
+                                <button type="button" class="btn-salvar-celula"
+                                  :disabled="!celulaTemAlteracaoPendente(funcionario, linha, hora)"
+                                  :title="celulaTemAlteracaoPendente(funcionario, linha, hora) ? 'Salvar agora' : 'Nada pendente para salvar'"
+                                  @click="salvarCelulaManual(funcionario, linha, hora)">
+                                  💾
+                                </button>
                               </div>
-                              <!-- Direita: FT e TR, só visíveis quando há produção -->
                               <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
                                 <span
                                   :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
@@ -547,30 +485,11 @@ const CONFIG_PADRAO = {
 // lançada: é salva localmente no INSTANTE da seleção (IndexedDB, com
 // fallback automático para localStorage caso o navegador não suporte ou
 // bloqueie IndexedDB — ex.: alguns modos privados) e sobrevive a reload
-// de página, fechamento do navegador e queda de conexão. A sincronização
-// com o backend continua acontecendo pelo mecanismo já existente
-// (salvarMetaDia via socket, que o próprio socket.io já enfileira
-// automaticamente enquanto a conexão está caída); este helper resolve
-// especificamente o caso que o socket.io NÃO cobre: página recarregada
-// ou navegador fechado antes da reconexão.
+// de página, fechamento do navegador e queda de conexão.
 const OFFLINE_DB_NAME = 'apontamento-offline'
-// versão 2 — adiciona a store 'producoes' (ver abaixo). Bump de
-// versão dispara onupgradeneeded no navegador do usuário, que cria
-// somente o que ainda não existe (a store de etapas, criada na v1,
-// simplesmente é ignorada por já existir).
-const OFFLINE_DB_VERSION = 2
+const OFFLINE_DB_VERSION = 1
 const OFFLINE_STORE_NAME = 'etapasSelecionadas'
 const OFFLINE_FALLBACK_KEY = 'apontamento-etapas-offline-fallback'
-
-// ── PERSISTÊNCIA OFFLINE-FIRST DE PRODUÇÃO ─────────────────────────────
-// Store dedicada para registros de produção. Cada registro tem um
-// idLocal (UUID) próprio — a CHAVE ÚNICA DE NEGÓCIO (data + funcionário +
-// OP + etapa + hora + tipo de linha) fica num índice separado
-// (`porChaveUnica`, único), usado para decidir "atualizar o mesmo
-// registro" em vez de "criar um novo" sempre que o usuário edita a
-// mesma célula — é isso que impede duplicidade após reload/sincronização.
-const PRODUCAO_STORE_NAME = 'producoes'
-const PRODUCAO_FALLBACK_KEY = 'apontamento-producoes-offline-fallback'
 
 let _offlineDbPromise = null
 
@@ -586,14 +505,6 @@ function abrirOfflineDB() {
         const db = req.result
         if (!db.objectStoreNames.contains(OFFLINE_STORE_NAME)) {
           db.createObjectStore(OFFLINE_STORE_NAME, { keyPath: 'chave' })
-        }
-        if (!db.objectStoreNames.contains(PRODUCAO_STORE_NAME)) {
-          const store = db.createObjectStore(PRODUCAO_STORE_NAME, { keyPath: 'idLocal' })
-          // Índice ÚNICO pela chave de negócio — é o que garante, no
-          // nível do próprio banco, que nunca existam dois registros
-          // para a mesma combinação (data+funcionário+OP+etapa+hora+tipo).
-          store.createIndex('porChaveUnica', 'chaveUnica', { unique: true })
-          store.createIndex('porData', 'data', { unique: false })
         }
       }
 
@@ -611,7 +522,6 @@ function abrirOfflineDB() {
   return _offlineDbPromise
 }
 
-/** Fallback genérico (qualquer store) para navegadores sem IndexedDB — parametrizado pela chave do localStorage. */
 function lerFallbackLocalStorage(chaveLS) {
   try {
     const bruto = localStorage.getItem(chaveLS)
@@ -629,34 +539,6 @@ function escreverFallbackLocalStorage(chaveLS, mapa) {
   }
 }
 
-function gerarUUID() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
-  // Fallback simples para navegadores sem crypto.randomUUID (raros hoje,
-  // mas alguns webviews antigos ainda existem em campo).
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
-}
-
-/**
- * Chave única de negócio de um registro de produção. Representa "esta
- * célula específica da tabela" — nunca pode existir mais de um registro
- * de produção com a mesma chave; editar sempre significa atualizar o
- * registro existente com essa chave, nunca criar outro.
- */
-function chaveUnicaProducao(data, funcionarioId, opId, etapaId, hora, tipoLinha) {
-  return `${data}::${funcionarioId}::${opId || 'sem-op'}::${etapaId}::${hora}::${tipoLinha}`
-}
-
-/**
- * API de armazenamento offline de etapas selecionadas. Cada registro
- * contém no mínimo: funcionarioId, opId, etapaId, data, tipoLinha e
- * horarioSelecao (timestamp de quando a seleção foi feita). Usa
- * IndexedDB quando disponível; cai para localStorage automaticamente
- * caso contrário — a troca é transparente para quem consome este objeto.
- */
 const etapaOfflineStore = {
   async salvar(registro) {
     const db = await abrirOfflineDB()
@@ -717,144 +599,54 @@ const etapaOfflineStore = {
   },
 }
 
-/**
- * API de armazenamento offline-first de PRODUÇÃO. Todo valor digitado
- * pela tela passa primeiro por aqui — o backend só entra depois, como
- * destino da sincronização (ver `sincronizarUmRegistro` no componente).
- *
- * Campos de cada registro:
- *   idLocal (UUID, chave primária), chaveUnica (chave de negócio, ver
- *   chaveUnicaProducao), estabelecimento, data, funcionarioId, opId,
- *   etapaId, hora, tipoLinha, quantidade, tempoProduzido,
- *   statusSincronizacao ('pendente' | 'sincronizando' | 'sincronizado' |
- *   'erro'), erro (mensagem, quando status é 'erro'), updatedAt (ISO),
- *   version (inteiro, incrementado a cada gravação local).
- */
-const producaoOfflineStore = {
-  /**
-   * Upsert por chaveUnica: se já existir um registro com essa chave,
-   * ATUALIZA-O (preservando idLocal e incrementando version) — nunca
-   * cria um segundo registro para a mesma célula.
-   */
-  async salvarOuAtualizar(dados) {
-    const db = await abrirOfflineDB()
-    if (db) {
-      return new Promise((resolve) => {
-        try {
-          const tx = db.transaction(PRODUCAO_STORE_NAME, 'readwrite')
-          const store = tx.objectStore(PRODUCAO_STORE_NAME)
-          const getReq = store.index('porChaveUnica').get(dados.chaveUnica)
+// ── PERSISTÊNCIA LOCAL ANTI-PERDA DE PRODUÇÃO (localStorage) ──────────
+// Camada de segurança pedida explicitamente: TODO valor digitado nos
+// campos de quantidade/minutos é gravado IMEDIATAMENTE (a cada tecla,
+// sem debounce) no localStorage, com uma chave única por
+// estabelecimento + data + funcionário + OP + etapa + hora. Isso é
+// independente do salvamento via API (que segue debounce de 500ms) —
+// o objetivo aqui é puramente não perder o valor digitado mesmo que a
+// aba feche, a internet caia, ou o salvamento na API falhe.
+const LS_PRODUCAO_PREFIXO = 'apontamento_producao_pendente'
 
-          getReq.onsuccess = () => {
-            const existente = getReq.result
-            const registro = existente
-              ? { ...existente, ...dados, idLocal: existente.idLocal, version: (existente.version || 0) + 1, updatedAt: new Date().toISOString() }
-              : { ...dados, idLocal: gerarUUID(), version: 1, updatedAt: new Date().toISOString() }
-            const putReq = store.put(registro)
-            putReq.onsuccess = () => resolve(registro)
-            putReq.onerror = () => resolve(null)
-          }
-          getReq.onerror = () => resolve(null)
-        } catch {
-          resolve(null)
-        }
-      })
-    }
-    const mapa = lerFallbackLocalStorage(PRODUCAO_FALLBACK_KEY)
-    const existente = Object.values(mapa).find(r => r.chaveUnica === dados.chaveUnica)
-    const registro = existente
-      ? { ...existente, ...dados, idLocal: existente.idLocal, version: (existente.version || 0) + 1, updatedAt: new Date().toISOString() }
-      : { ...dados, idLocal: gerarUUID(), version: 1, updatedAt: new Date().toISOString() }
-    mapa[registro.idLocal] = registro
-    escreverFallbackLocalStorage(PRODUCAO_FALLBACK_KEY, mapa)
-    return registro
-  },
+function chaveLocalStorageProducao(estabelecimento, data, funcionarioId, opId, etapaId, hora) {
+  return `${LS_PRODUCAO_PREFIXO}::${estabelecimento}::${data}::${funcionarioId}::${opId || 'sem-op'}::${etapaId}::${hora}`
+}
 
-  async atualizarStatus(idLocal, statusSincronizacao, extra = {}) {
-    const db = await abrirOfflineDB()
-    if (db) {
-      return new Promise((resolve) => {
-        try {
-          const tx = db.transaction(PRODUCAO_STORE_NAME, 'readwrite')
-          const store = tx.objectStore(PRODUCAO_STORE_NAME)
-          const getReq = store.get(idLocal)
-          getReq.onsuccess = () => {
-            const existente = getReq.result
-            if (!existente) return resolve(null)
-            const atualizado = { ...existente, ...extra, statusSincronizacao, updatedAt: new Date().toISOString() }
-            const putReq = store.put(atualizado)
-            putReq.onsuccess = () => resolve(atualizado)
-            putReq.onerror = () => resolve(null)
-          }
-          getReq.onerror = () => resolve(null)
-        } catch {
-          resolve(null)
-        }
-      })
-    }
-    const mapa = lerFallbackLocalStorage(PRODUCAO_FALLBACK_KEY)
-    if (!mapa[idLocal]) return null
-    mapa[idLocal] = { ...mapa[idLocal], ...extra, statusSincronizacao, updatedAt: new Date().toISOString() }
-    escreverFallbackLocalStorage(PRODUCAO_FALLBACK_KEY, mapa)
-    return mapa[idLocal]
-  },
+function salvarPendenteLocalStorage(chaveLS, valor) {
+  try {
+    localStorage.setItem(chaveLS, JSON.stringify({ ...valor, timestamp: Date.now() }))
+  } catch (err) {
+    console.warn('Não foi possível gravar no localStorage (camada anti-perda).', err)
+  }
+}
 
-  async remover(idLocal) {
-    const db = await abrirOfflineDB()
-    if (db) {
-      return new Promise((resolve) => {
-        try {
-          const tx = db.transaction(PRODUCAO_STORE_NAME, 'readwrite')
-          tx.objectStore(PRODUCAO_STORE_NAME).delete(idLocal)
-          tx.oncomplete = () => resolve(true)
-          tx.onerror = () => resolve(false)
-        } catch {
-          resolve(false)
-        }
-      })
-    }
-    const mapa = lerFallbackLocalStorage(PRODUCAO_FALLBACK_KEY)
-    delete mapa[idLocal]
-    escreverFallbackLocalStorage(PRODUCAO_FALLBACK_KEY, mapa)
-    return true
-  },
+function lerPendenteLocalStorage(chaveLS) {
+  try {
+    const bruto = localStorage.getItem(chaveLS)
+    return bruto ? JSON.parse(bruto) : null
+  } catch {
+    return null
+  }
+}
 
-  async listarPorData(data) {
-    const db = await abrirOfflineDB()
-    if (db) {
-      return new Promise((resolve) => {
-        try {
-          const tx = db.transaction(PRODUCAO_STORE_NAME, 'readonly')
-          const req = tx.objectStore(PRODUCAO_STORE_NAME).getAll()
-          req.onsuccess = () => resolve((req.result || []).filter(r => r.data === data))
-          req.onerror = () => resolve([])
-        } catch {
-          resolve([])
-        }
-      })
-    }
-    const mapa = lerFallbackLocalStorage(PRODUCAO_FALLBACK_KEY)
-    return Object.values(mapa).filter(r => r.data === data)
-  },
+function removerPendenteLocalStorage(chaveLS) {
+  try {
+    localStorage.removeItem(chaveLS)
+  } catch (err) {
+    console.warn('Não foi possível remover a chave do localStorage.', err)
+  }
+}
 
-  /** Registros aguardando envio (pendente) ou que falharam antes (erro, elegível a nova tentativa). */
-  async listarPendentes() {
-    const db = await abrirOfflineDB()
-    if (db) {
-      return new Promise((resolve) => {
-        try {
-          const tx = db.transaction(PRODUCAO_STORE_NAME, 'readonly')
-          const req = tx.objectStore(PRODUCAO_STORE_NAME).getAll()
-          req.onsuccess = () => resolve((req.result || []).filter(r => r.statusSincronizacao === 'pendente' || r.statusSincronizacao === 'erro'))
-          req.onerror = () => resolve([])
-        } catch {
-          resolve([])
-        }
-      })
-    }
-    const mapa = lerFallbackLocalStorage(PRODUCAO_FALLBACK_KEY)
-    return Object.values(mapa).filter(r => r.statusSincronizacao === 'pendente' || r.statusSincronizacao === 'erro')
-  },
+/** Lista todas as chaves pendentes de um estabelecimento+data específicos. */
+function listarChavesPendentesLocalStorage(estabelecimento, data) {
+  const prefixoAlvo = `${LS_PRODUCAO_PREFIXO}::${estabelecimento}::${data}::`
+  const chaves = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(prefixoAlvo)) chaves.push(k)
+  }
+  return chaves
 }
 
 export default {
@@ -879,8 +671,8 @@ export default {
       pecasTodas: [],
       etapas: [],
       etapasMap: {},
-      // NOVO: índices O(1) para não repetir flat()+filter() em cada
-      // célula da tabela a cada re-render (ver buscarEtapa/etapasDaOp).
+      // Índices O(1) para não repetir flat()+filter() em cada célula da
+      // tabela a cada re-render (ver buscarEtapa/etapasDaOp).
       etapasPorId: new Map(),
       etapasPorOp: new Map(),
       configHorarios: this.carregarConfigHorarios(),
@@ -893,13 +685,18 @@ export default {
         form: { tipo: 'dia_inteiro', periodos: [], observacao: '' },
       },
 
-      // REMOVIDO: `registrosPendentes` (Set em memória) e os métodos
-      // capturarRegistrosPendentes/reaplicarRegistrosPendentes que o
-      // usavam. Esse mecanismo só protegia edições em voo DENTRO da
-      // mesma sessão de navegador — não sobrevivia a reload nem a
-      // fechamento da aba, que era exatamente a causa da perda de dados.
-      // Foi substituído pelo fluxo offline-first via IndexedDB
-      // (producaoOfflineStore) + merge em mesclarProducoesOffline().
+      /**
+       * Estado de salvamento POR CÉLULA (quantidade+minutos de um
+       * funcionário/OP/etapa/hora específicos). Estrutura pedida:
+       *   saveStatus: {
+       *     [chaveCelula]: { status: 'idle'|'pending'|'saving'|'saved'|'error', lastSavedAt: null|number }
+       *   }
+       * A chave é montada por chaveCelula(funcionarioId, opId, etapaId, hora).
+       * Objeto plano (não Map) de propósito: Vue 3 torna reativa a adição
+       * de novas chaves automaticamente, o que permite usar
+       * this.saveStatus[chave] diretamente no template sem passos extras.
+       */
+      saveStatus: {},
     }
   },
 
@@ -931,17 +728,6 @@ export default {
       return this.opsAtivas.filter(op => op.pecaId)
     },
 
-    /**
-     * Lista GLOBAL e ACHATADA de todas as combinações (OP, etapa)
-     * disponíveis nas OPs ativas no momento. Cada <select> de etapa usa o
-     * ÍNDICE desta lista como value — nunca uma string montada por
-     * concatenação. Isso elimina de vez a classe de bug em que o valor
-     * reconstruído (via parsing de "opId::etapaId") deixava de bater
-     * exatamente com o opId usado no agrupamento das tabelas: aqui não há
-     * conversão de tipo nem parsing nenhum, o índice aponta direto para o
-     * objeto com os valores originais (mesma referência de op.pecaId e
-     * etapa.id_da_funcao usados em todo o resto do componente).
-     */
     opcoesEtapaTodas() {
       const opcoes = []
       for (const op of this.opsAtivasComPeca) {
@@ -980,18 +766,6 @@ export default {
         })
       }
 
-      /**
-       * IMPORTANTE: antes desta correção, qualquer linha com um opId que
-       * não estivesse entre as OPs ativas (por exemplo, uma OP que já foi
-       * finalizada, foi para coleta, ou foi removida do setup do topo da
-       * tela) caía silenciosamente no grupo "Funcionários sem OP" via
-       * `gruposMap.get(opId) || gruposMap.get(null)` — o gestor perdia a
-       * identificação de QUAL OP gerou aquele lançamento. Aqui varremos
-       * antecipadamente todas as linhas de todos os funcionários e
-       * criamos um grupo "histórico" (ativa: false) para cada opId
-       * encontrado que não esteja mais na lista ativa, preservando a
-       * OP correta mesmo depois que ela sai do topo da tela.
-       */
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           const opId = linha.opId || null
@@ -1035,11 +809,6 @@ export default {
         .filter(g => g && g.funcionarios.length)
     },
 
-    /**
-     * ÚNICA fonte de verdade para "quais funcionários/linhas pertencem a
-     * esta OP" — um Map(opId → grupo) construído a partir do MESMO
-     * agrupamento (`funcionariosAgrupadosPorOp`) que monta a tabela.
-     */
     mapaProducaoPorOp() {
       const mapa = new Map()
       for (const grupo of this.funcionariosAgrupadosPorOp) {
@@ -1048,46 +817,79 @@ export default {
       return mapa
     },
 
-    /**
-     * Decide se a tabela de módulos deve aparecer. Mostra a tabela
-     * quando: existe OP ativa configurada no topo, OU existe pelo menos
-     * um grupo com opId (produção real, ativa ou histórica).
-     */
     temConteudoParaTabela() {
       return this.opsAtivasComPeca.length > 0
         || this.funcionariosAgrupadosPorOp.some(g => g.opId !== null)
     },
 
     /**
-     * NOVO: contador global de registros de produção ainda não
-     * confirmados pelo backend (pendentes, em retry de erro, ou em voo
-     * no momento). Alimenta o badge do header — dá ao gestor uma visão
-     * imediata de "existe algo que ainda não chegou no servidor?" sem
-     * precisar rolar a tabela inteira procurando ícones amarelos/vermelhos.
+     * Contador global de células com alteração ainda não confirmada pelo
+     * backend (pendente de debounce, em salvamento, ou em erro).
+     * Alimenta o badge do header.
      */
-    totalPendentesSincronizacao() {
-      let total = 0
-      for (const func of this.funcionariosDia) {
-        for (const linha of func.linhas || []) {
-          for (const reg of Object.values(linha.registros || {})) {
-            if (reg.status === 'pendente' || reg.status === 'erro' || reg.status === 'sincronizando') {
-              total++
-            }
-          }
-        }
-      }
-      return total
+    totalCelulasPendentes() {
+      return Object.values(this.saveStatus).filter(
+        s => s.status === 'pending' || s.status === 'saving' || s.status === 'error'
+      ).length
+    },
+
+    /**
+     * Usado para decidir se o listener de beforeunload deve estar ativo
+     * (ver watch abaixo) — "existe algo que, se a aba fechar agora, pode
+     * ser perdido pela API (ainda que o localStorage já tenha uma cópia)?"
+     */
+    existemAlteracoesPendentes() {
+      return this.totalCelulasPendentes > 0
     },
   },
 
   watch: {
     dataSelecionada() {
-      // Garante o envio de qualquer edição já digitada na data anterior
-      // antes de trocar de dia e recarregar tudo — sem isso, uma edição
-      // ainda dentro da janela do debounce seria descartada.
-      this.flushSalvamentosPendentes()
+      // Antes de trocar de dia (o que reconstrói funcionariosDia do
+      // zero), garante que qualquer edição ainda dentro da janela do
+      // debounce seja disparada imediatamente — sem isso, a edição mais
+      // recente poderia ser perdida da tela (ainda ficaria seguro no
+      // localStorage, mas é melhor já tentar salvar antes de trocar).
+      this.flushAntesDeTrocarTela()
       this.buscarMetaDia()
     },
+
+    /**
+     * Liga/desliga o listener de beforeunload dinamicamente, exatamente
+     * como pedido: só fica ativo enquanto houver alguma célula
+     * pendente/salvando/com erro. Assim que tudo é confirmado pelo
+     * backend, o listener é removido e a aba pode ser fechada sem aviso.
+     */
+    existemAlteracoesPendentes(existemAgora) {
+      if (existemAgora) {
+        if (!this._beforeUnloadAtivo) {
+          window.addEventListener('beforeunload', this._onBeforeUnloadHandler)
+          this._beforeUnloadAtivo = true
+        }
+      } else if (this._beforeUnloadAtivo) {
+        window.removeEventListener('beforeunload', this._onBeforeUnloadHandler)
+        this._beforeUnloadAtivo = false
+      }
+    },
+  },
+
+  created() {
+    // Bookkeeping NÃO reativo de propósito (timers e sets de controle de
+    // fluxo não precisam — e não devem — disparar re-render do Vue).
+    this._debounceTimers = new Map()   // chaveCelula -> timeoutId
+    this._emVoo = new Set()            // chaveCelula com requisição em andamento
+    this._reenviarAposSalvar = new Set() // chaveCelula que mudou de novo enquanto salvava
+    this._beforeUnloadAtivo = false
+
+    this._onBeforeUnloadHandler = (e) => {
+      // Aviso padrão do navegador — o texto customizado não é mais
+      // respeitado pelos navegadores modernos por segurança, mas
+      // preventDefault + returnValue é o que aciona o diálogo nativo.
+      this.flushAntesDeTrocarTela()
+      e.preventDefault()
+      e.returnValue = ''
+      return ''
+    }
   },
 
   async mounted() {
@@ -1096,54 +898,50 @@ export default {
     await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
-    // getFaltas NÃO é mais chamado aqui separadamente: buscarMetaDia() já
-    // dispara getFaltas() internamente, sempre no momento certo (depois
-    // que funcionariosDia já foi reconstruído a partir da meta do dia),
-    // e isso se repete automaticamente toda vez que a data é trocada
-    // (ver watch: dataSelecionada).
+    // buscarMetaDia() já dispara restaurarEtapasOffline() e
+    // restaurarPendentesLocalStorage() internamente, no momento certo
+    // (depois que funcionariosDia foi reconstruído), e getFaltas()
+    // também — tudo se repete automaticamente a cada troca de data.
 
-    // NOVO: garante que qualquer pendência deixada de sessões anteriores
-    // (fechou o navegador/app com produção ainda não enviada) seja
-    // tentada assim que a tela abre — "sincronizar ao abrir a tela".
-    this.processarFilaSincronizacaoProducao()
-
-    // NOVO: sincronização periódica — dispara mesmo sem nenhuma digitação
-    // nova, cobrindo o caso de a conexão voltar sem que o evento 'online'
-    // do navegador dispare de forma confiável (comum em redes móveis).
-    this._intervaloSincronizacao = setInterval(() => {
-      this.processarFilaSincronizacaoProducao()
+    // Sincronização periódica: tenta salvar de novo qualquer célula
+    // pendente/erro mesmo sem nova digitação — cobre o caso da conexão
+    // voltar sem o evento 'online' do navegador disparar de forma
+    // confiável (comum em redes móveis).
+    this._intervaloRetentativa = setInterval(() => {
+      this.retentarCelulasPendentes()
     }, 20000)
 
-    // NOVO: assim que o navegador informa que a conexão voltou.
-    this._onOnlineHandler = () => this.processarFilaSincronizacaoProducao()
+    this._onOnlineHandler = () => this.retentarCelulasPendentes()
     window.addEventListener('online', this._onOnlineHandler)
 
-    // NOVO: no celular, trocar de app ou bloquear a tela dispara
-    // visibilitychange antes (e de forma mais confiável) que
-    // beforeunload — usamos esse gancho para dar flush no que está
-    // pendente, e para tentar sincronizar de novo ao voltar.
+    // No celular, trocar de app ou bloquear a tela dispara
+    // visibilitychange de forma bem mais confiável que beforeunload.
     this._onVisibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
-        this.flushSalvamentosPendentes()
+        this.flushAntesDeTrocarTela()
       } else {
-        this.processarFilaSincronizacaoProducao()
+        this.retentarCelulasPendentes()
       }
     }
     document.addEventListener('visibilitychange', this._onVisibilityHandler)
 
-    // NOVO: rede de segurança final antes de fechar/recarregar a aba.
-    this._onBeforeUnloadHandler = () => this.flushSalvamentosPendentes()
-    window.addEventListener('beforeunload', this._onBeforeUnloadHandler)
+    // O listener de beforeunload em si só é registrado quando existem
+    // alterações pendentes — ver watch: existemAlteracoesPendentes.
   },
 
   beforeUnmount() {
-    // Envia qualquer edição pendente antes de desmontar a tela / desconectar.
-    this.flushSalvamentosPendentes()
+    this.flushAntesDeTrocarTela()
 
-    clearInterval(this._intervaloSincronizacao)
+    if (this._beforeUnloadAtivo) {
+      window.removeEventListener('beforeunload', this._onBeforeUnloadHandler)
+      this._beforeUnloadAtivo = false
+    }
+    clearInterval(this._intervaloRetentativa)
     if (this._onOnlineHandler) window.removeEventListener('online', this._onOnlineHandler)
     if (this._onVisibilityHandler) document.removeEventListener('visibilitychange', this._onVisibilityHandler)
-    if (this._onBeforeUnloadHandler) window.removeEventListener('beforeunload', this._onBeforeUnloadHandler)
+
+    for (const timer of this._debounceTimers.values()) clearTimeout(timer)
+    this._debounceTimers.clear()
 
     socket.off()
     socket.disconnect()
@@ -1250,9 +1048,6 @@ export default {
               linha.registros[hora] = {
                 quantidade: null,
                 tempoProduzido: 60,
-                status: 'idle',
-                erro: null,
-                idLocal: null,
               }
             }
           }
@@ -1271,19 +1066,13 @@ export default {
 
       socket.on('connect', () => {
         this.socketConectado = true
-        // NOVO: numa RECONEXÃO (não na primeira conexão — essa já é
-        // tratada pelo fluxo normal de mounted()), refaz o carregamento
-        // da meta do dia. Isso já dispara restaurarEtapasOffline() e
-        // getFaltas() internamente, então qualquer seleção de etapa
-        // feita enquanto a tela esteve offline é reavaliada e uma nova
-        // tentativa de sincronização é feita automaticamente.
         if (this._jaConectouUmaVez) {
           this.buscarMetaDia()
         }
         this._jaConectouUmaVez = true
-        // NOVO: reconexão do socket também é um bom gatilho para drenar
-        // a fila de produção pendente, sem esperar o intervalo periódico.
-        this.processarFilaSincronizacaoProducao()
+        // Reconexão também é um bom gatilho para tentar salvar de novo
+        // qualquer célula pendente, sem esperar o intervalo periódico.
+        this.retentarCelulasPendentes()
       })
       socket.on('disconnect', () => { this.socketConectado = false })
       socket.on('erro-producao', err => { console.log(err) })
@@ -1336,18 +1125,6 @@ export default {
 
         this.funcionarios = resFuncs.data.funcionarios || []
 
-        // A API retorna as OPs agrupadas por status (em_progresso,
-        // finalizado, coleta, não_iniciado, etc — as chaves exatas podem
-        // variar, então pegamos TODAS dinamicamente em vez de fixar uma
-        // lista de nomes). `this.pecas` continua restrito a em_progresso
-        // porque é o que alimenta o setup do topo da tela (só faz
-        // sentido escolher uma OP em andamento para lançar produção
-        // nova). `this.pecasTodas` reúne todas as OPs, independente do
-        // status, e passa a alimentar `nomeDaOp` e `this.etapas` — é o
-        // que garante que uma OP finalizada/em coleta, mesmo fora da
-        // lista ativa, continue mostrando o nome real e os dados de
-        // etapa (tempo padrão, tempo de referência) para quem já tem
-        // produção lançada nela.
         const pecasPorStatus = resPecas.data.peca || {}
         const todasAsPecas = Array.isArray(pecasPorStatus)
           ? pecasPorStatus
@@ -1358,10 +1135,6 @@ export default {
         this.etapas = this.pecasTodas.map(p => p.etapas || [])
 
         this.etapasMap = {}
-        // NOVO: índices O(1), construídos uma única vez por carregamento
-        // (e não a cada célula da tabela renderizada). Substituem os
-        // antigos `this.etapas.flat().filter(...)` espalhados pelo
-        // componente — ver buscarEtapa / etapasDaOp / listarReferenciasOp.
         this.etapasPorId = new Map()
         this.etapasPorOp = new Map()
 
@@ -1371,7 +1144,6 @@ export default {
             const idOp = e.id_da_op
             if (idFuncao) {
               this.etapasMap[`${idOp}::${idFuncao}`] = e
-
               if (!this.etapasPorId.has(idFuncao)) this.etapasPorId.set(idFuncao, [])
               this.etapasPorId.get(idFuncao).push(e)
             }
@@ -1407,17 +1179,6 @@ export default {
       this.salvarMetaDia()
     },
 
-    /**
-     * Deriva `opsExtras` a partir da MESMA fonte usada para montar a
-     * tabela inferior (opId presente nas linhas de produção dos
-     * funcionários) — garante que a seção "Configuração do Dia" fique
-     * consistente com a tabela, sem depender só das OPs configuradas
-     * manualmente no topo.
-     *
-     * Dedup: qualquer pecaId já presente em `opsAtivas` (mesmo sem
-     * "peca válida" selecionada) nunca é adicionado aqui, evitando
-     * cards duplicados para a mesma OP.
-     */
     sincronizarOpsExtras() {
       const idsAtivos = new Set(this.opsAtivas.map(op => op.pecaId).filter(Boolean))
 
@@ -1428,8 +1189,6 @@ export default {
         }
       }
 
-      // remove extras que deixaram de ter registro OU que passaram a
-      // estar configuradas normalmente no topo (evita duplicidade)
       this.opsExtras = this.opsExtras.filter(op => idsComRegistro.has(op.pecaId) && !idsAtivos.has(op.pecaId))
 
       const jaExtras = new Set(this.opsExtras.map(op => op.pecaId))
@@ -1450,30 +1209,14 @@ export default {
     },
 
     nomeDaOp(pecaId) {
-      // Busca em TODAS as OPs (qualquer status), não só nas em
-      // andamento — é o que permite exibir o nome real de uma OP
-      // finalizada/em coleta que já tenha produção lançada, em vez de
-      // cair no fallback de mostrar o id bruto.
       const peca = this.pecasTodas.find(p => p.id_da_op === pecaId)
       return peca?.descricao || pecaId
     },
 
-    /**
-     * Subconjunto de etapas de uma OP específica. Antes fazia
-     * `this.etapas.flat().filter(...)` a CADA chamada — isto é, a cada
-     * render de qualquer célula que dependesse disso. Agora é uma
-     * simples leitura de índice, montado uma única vez em
-     * carregarDados().
-     */
     etapasDaOp(pecaId) {
       return this.etapasPorOp.get(pecaId) || []
     },
 
-    /**
-     * Subconjunto de opcoesEtapaTodas pertencente a uma OP específica,
-     * já com o índice GLOBAL anexado (idx) — é esse índice que vai no
-     * value do <option>, nunca o id da etapa isolado.
-     */
     opcoesParaOp(pecaId) {
       const resultado = []
       this.opcoesEtapaTodas.forEach((opcao, idx) => {
@@ -1482,11 +1225,6 @@ export default {
       return resultado
     },
 
-    /**
-     * Índice (em opcoesEtapaTodas) correspondente à etapa/OP já
-     * selecionados nesta linha — usado para marcar a opção atual do
-     * <select> sem depender de nenhuma string composta.
-     */
     indiceOpcaoEtapa(linha) {
       if (!linha?.etapaId) return ''
       const idx = this.opcoesEtapaTodas.findIndex(
@@ -1495,20 +1233,8 @@ export default {
       return idx === -1 ? '' : idx
     },
 
-    /**
-     * Handler do <select> de etapa. Recebe o ÍNDICE (string, vindo do
-     * DOM) dentro de opcoesEtapaTodas e usa o objeto encontrado para
-     * atribuir etapaId/opId à linha — sem parsing de texto, sem
-     * concatenação, sem qualquer conversão de tipo. Isso resolve
-     * definitivamente o problema de linhas da segunda OP "sumirem" do
-     * agrupamento: opId é atribuído com a MESMA referência de valor usada
-     * para construir os grupos (op.pecaId), garantindo igualdade estrita.
-     */
     onAlterarEtapaPorIndice(funcionario, linha, valorIndice) {
       if (valorIndice === '' || valorIndice === null || valorIndice === undefined) {
-        // Limpando a seleção: remove o registro offline da etapa antiga
-        // (se havia uma), já que este slot deixa de representar aquela
-        // escolha.
         if (linha.etapaId) {
           this.removerEtapaOfflineSeExistir(funcionario, linha.opId, linha.etapaId, linha.tipo)
         }
@@ -1525,9 +1251,6 @@ export default {
       const opcao = this.opcoesEtapaTodas[Number(valorIndice)]
       if (!opcao) return
 
-      // Trocando de uma etapa para outra na mesma linha: descarta o
-      // registro offline antigo antes de gravar o novo, para não deixar
-      // um registro órfão de uma etapa que não está mais selecionada.
       if (linha.etapaId && (linha.etapaId !== opcao.etapaId || linha.opId !== opcao.opId)) {
         this.removerEtapaOfflineSeExistir(funcionario, linha.opId, linha.etapaId, linha.tipo)
       }
@@ -1536,10 +1259,6 @@ export default {
       linha.opId = opcao.opId
 
       this.onAlterarEtapa(funcionario, linha)
-
-      // Persiste a seleção IMEDIATAMENTE, independente de haver
-      // produção lançada — sobrevive a reload, fechamento do navegador
-      // e queda de conexão.
       this.persistirEtapaOffline(funcionario, linha)
     },
 
@@ -1578,24 +1297,11 @@ export default {
         registros[hora] = {
           quantidade: null,
           tempoProduzido: 60,
-          // Estado de sincronização desta célula: 'idle' (nada digitado
-          // ainda), 'pendente' (salvo localmente, aguardando envio),
-          // 'sincronizando' (envio em andamento), 'sincronizado'
-          // (confirmado pelo backend) ou 'erro' (falhou; ver `erro`).
-          status: 'idle',
-          erro: null,
-          // Referência ao registro correspondente no IndexedDB — usado
-          // para localizar/atualizar o mesmo registro em vez de criar
-          // um novo (ver producaoOfflineStore + salvarProducaoLocalImediato).
-          idLocal: null,
         }
       }
       return registros
     },
 
-    /**
-     * Cria uma nova linha "extra" em branco para o funcionário.
-     */
     adicionarLinhaExtra(funcionario, herdarOpDoModulo = true) {
       const real = funcionario._funcRef || funcionario
       if (!Array.isArray(real.linhas)) real.linhas = []
@@ -1616,9 +1322,6 @@ export default {
       const linhaAlvo = funcionario.linhas?.[idxLinha]
       if (!linhaAlvo) return
 
-      // Remove também o registro offline correspondente, se existir — a
-      // linha deixa de existir, então a seleção offline dela também deve
-      // deixar de existir.
       if (linhaAlvo.etapaId) {
         this.removerEtapaOfflineSeExistir(funcionario, linhaAlvo.opId, linhaAlvo.etapaId, linhaAlvo.tipo)
       }
@@ -1694,15 +1397,6 @@ export default {
       return resultado
     },
 
-    /**
-     * Tempo padrão (SAM da ficha técnica) da etapa desta linha. ANTES
-     * ignorava o cache já existente em `linha.tempoPadrao` e chamava
-     * `buscarEtapa` de novo em toda invocação (e este método é chamado
-     * em praticamente todo cálculo de eficiência exibido na tabela).
-     * Agora usa o valor já resolvido/cacheado quando disponível — só cai
-     * para `buscarEtapa` se, por algum motivo, o cache ainda não tiver
-     * sido preenchido.
-     */
     resolverTempoPadrao(linha) {
       if (linha?.tempoPadrao) return Number(linha.tempoPadrao)
       const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
@@ -1722,12 +1416,6 @@ export default {
       return t > 0 ? t : null
     },
 
-    /**
-     * Tempo efetivo (SAM) para o painel "Tempo de Referência": respeita a
-     * escolha do usuário no toggle da linha (referência específica ou
-     * tempo padrão). Delegado a `resolverSam` para não duplicar a regra
-     * "referência quando existir, senão padrão" em mais de um lugar.
-     */
     resolverTempoEfetivoReferencia(funcionario, linha) {
       let tempoReferencia = null
       if (linha?.modoTempo === 'referencia' && linha?.referenciaSelecionadaId) {
@@ -1742,11 +1430,6 @@ export default {
       return resolverSam({ tempoReferencia, tempoPadrao: this.resolverTempoPadrao(linha) })
     },
 
-    /**
-     * Minutos disponíveis de UM funcionário no DIA COMPLETO (manhã + tarde
-     * configuradas), independentemente de qual turno está selecionado na
-     * tela no momento.
-     */
     minutosDisponiveisDia() {
       const horasManha = this.gerarSequenciaHoras(this.configHorarios.manha.inicio, this.configHorarios.manha.fim)
       const horasTarde = this.gerarSequenciaHoras(this.configHorarios.tarde.inicio, this.configHorarios.tarde.fim)
@@ -1789,7 +1472,6 @@ export default {
       return Math.max(totalPadrao - ausente, 0)
     },
 
-    /** Um funcionário ausente o dia inteiro não pode ter nenhum lançamento. */
     funcionarioAusenteDiaInteiro(funcionario) {
       const real = funcionario?._funcRef || funcionario
       return real?.ausencia?.tipo === 'dia_inteiro'
@@ -2058,14 +1740,6 @@ export default {
       this.salvarMetaDia()
     },
 
-    /**
-     * Busca uma etapa por id (e opcionalmente por OP). ANTES fazia
-     * `this.etapas.flat().filter(...)` a cada chamada — e este método é
-     * invocado repetidamente por praticamente todo cálculo de tempo e
-     * eficiência exibido na tabela (um por célula). Agora é O(1): apenas
-     * lê o índice `etapasPorId`, montado uma única vez em
-     * `carregarDados()`.
-     */
     buscarEtapa(etapaId, opId = null) {
       if (!etapaId) return null
 
@@ -2079,7 +1753,7 @@ export default {
       return candidatas[0] || null
     },
 
-    // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ────────
+    // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA (IndexedDB) ────
     chaveEtapaOffline(funcionarioId, opId, etapaId, data, tipo) {
       return `${funcionarioId}::${data}::${opId || 'sem-op'}::${etapaId}::${tipo}`
     },
@@ -2429,166 +2103,267 @@ export default {
       return ''
     },
 
-    // ── PRODUÇÃO OFFLINE-FIRST ────────────────────────────
-    encontrarRegistroReativo({ funcionarioId, opId, etapaId, hora, tipoLinha }) {
-      const funcionario = this.funcionariosDia.find(f => f.email === funcionarioId)
-      if (!funcionario) return null
-      const linha = (funcionario.linhas || []).find(
-        l => l.etapaId === etapaId && (l.opId || null) === (opId || null) && l.tipo === tipoLinha
-      )
-      if (!linha) return null
-      return linha.registros?.[hora] || null
+    // ══════════════════════════════════════════════════════════════
+    // SISTEMA DE SALVAMENTO POR CÉLULA (autosave + botão manual +
+    // localStorage anti-perda + indicador visual)
+    // ══════════════════════════════════════════════════════════════
+
+    /** Chave única por funcionário + OP + etapa + hora — identifica "esta célula". */
+    chaveCelula(funcionarioId, opId, etapaId, hora) {
+      return `${funcionarioId}::${opId || 'sem-op'}::${etapaId}::${hora}`
     },
 
-    atualizarStatusNaTela(registroOffline, status, erro = null) {
-      const alvo = this.encontrarRegistroReativo(registroOffline)
-      if (!alvo) return
-      alvo.status = status
-      alvo.erro = erro
-      alvo.idLocal = registroOffline.idLocal
+    /** Lê o status atual da célula (para o :class da bolinha e o :disabled do botão). */
+    statusCelula(funcionario, linha, hora) {
+      if (!linha?.etapaId) return 'idle'
+      const real = funcionario._funcRef || funcionario
+      const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
+      return this.saveStatus[chave]?.status || 'idle'
     },
 
-    tituloStatusSincronizacao(registro) {
-      switch (registro?.status) {
-        case 'pendente': return 'Pendente de sincronização'
-        case 'salvando': return 'Salvando localmente…'
-        case 'sincronizando': return 'Sincronizando…'
-        case 'sincronizado': return 'Sincronizado'
-        case 'erro': return `Erro ao sincronizar: ${registro.erro || 'motivo desconhecido'}`
+    celulaTemAlteracaoPendente(funcionario, linha, hora) {
+      const status = this.statusCelula(funcionario, linha, hora)
+      return status === 'pending' || status === 'error'
+    },
+
+    tituloStatusCelula(funcionario, linha, hora) {
+      switch (this.statusCelula(funcionario, linha, hora)) {
+        case 'pending': return 'Alterado — ainda não salvo'
+        case 'saving': return 'Salvando…'
+        case 'saved': return 'Salvo com sucesso'
+        case 'error': return 'Erro ao salvar — clique em 💾 para tentar de novo'
         default: return ''
       }
     },
 
+    definirStatusCelula(chave, status, extra = {}) {
+      const atual = this.saveStatus[chave] || { status: 'idle', lastSavedAt: null }
+      // Reatribuição do objeto inteiro (em vez de mutar campo a campo)
+      // garante que o Vue 3 detecte a mudança mesmo em chaves novas.
+      this.saveStatus = { ...this.saveStatus, [chave]: { ...atual, status, ...extra } }
+    },
+
     /**
-     * PASSO 1 do fluxo offline-first: salva IMEDIATAMENTE no IndexedDB.
-     * Chamado tanto pelo @blur (onInputQuantidade) quanto — NOVO — por um
-     * debounce curto no @input (onInputQuantidadeDigitando), garantindo
-     * que o valor digitado esteja no IndexedDB mesmo se o usuário nunca
-     * chegar a "sair do campo" (trocar de app, bloquear a tela, cair a
-     * conexão no meio da digitação, etc.).
-     *
-     * Upsert por chave única (data+funcionário+OP+etapa+hora+tipo):
-     * nunca cria um segundo registro para a mesma célula, mesmo que o
-     * usuário edite o mesmo campo várias vezes.
+     * Handler do @input dos campos de quantidade e minutos. Roda a CADA
+     * tecla digitada:
+     *   1. marca a célula como 'pending' (bolinha cinza) imediatamente;
+     *   2. grava IMEDIATAMENTE no localStorage (sem debounce nenhum —
+     *      esta é a camada anti-perda; mesmo que a aba feche no
+     *      milissegundo seguinte, o valor já está gravado em disco);
+     *   3. agenda o salvamento de verdade na API com debounce de 500ms.
      */
-    async salvarProducaoLocalImediato(funcionario, linha, hora) {
-      if (!funcionario?.email || !linha?.etapaId) return
-      const registroTela = linha.registros[hora]
-      if (!registroTela) return
-
+    onDigitarCelula(funcionario, linha, hora) {
+      if (!linha?.etapaId) return
       const real = funcionario._funcRef || funcionario
-      const chaveUnica = chaveUnicaProducao(this.dataSelecionada, real.email, linha.opId, linha.etapaId, hora, linha.tipo)
+      const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
+      const registro = linha.registros[hora]
+      if (!registro) return
 
-      const salvo = await producaoOfflineStore.salvarOuAtualizar({
-        chaveUnica,
-        estabelecimento: this.store.pegar_usuario?.cnpj || '',
-        data: this.dataSelecionada,
-        funcionarioId: real.email,
-        opId: linha.opId || null,
-        etapaId: linha.etapaId,
-        hora,
+      this.definirStatusCelula(chave, 'pending')
+
+      const chaveLS = chaveLocalStorageProducao(
+        this.store.pegar_usuario?.cnpj || '', this.dataSelecionada,
+        real.email, linha.opId, linha.etapaId, hora
+      )
+      salvarPendenteLocalStorage(chaveLS, {
+        quantidade: registro.quantidade || 0,
+        tempoProduzido: registro.tempoProduzido || 60,
         tipoLinha: linha.tipo,
-        quantidade: registroTela.quantidade || 0,
-        tempoProduzido: registroTela.tempoProduzido || 60,
-        statusSincronizacao: 'pendente',
       })
 
-      if (salvo) {
-        registroTela.idLocal = salvo.idLocal
-        registroTela.status = 'pendente'
-        registroTela.erro = null
+      this.agendarSalvamentoCelula(funcionario, linha, hora)
+    },
+
+    /** Debounce de 500ms POR CÉLULA (um timer independente por chave). */
+    agendarSalvamentoCelula(funcionario, linha, hora) {
+      const real = funcionario._funcRef || funcionario
+      const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
+
+      if (this._debounceTimers.has(chave)) {
+        clearTimeout(this._debounceTimers.get(chave))
       }
+      const timer = setTimeout(() => {
+        this._debounceTimers.delete(chave)
+        this.salvarCelula(funcionario, linha, hora)
+      }, 500)
+      this._debounceTimers.set(chave, timer)
     },
 
     /**
-     * NOVO: chamado pelo @input (a cada tecla, com debounce de 250ms).
-     * Salva IMEDIATAMENTE no IndexedDB (o valor já digitado não pode
-     * depender do usuário sair do campo). Não agenda envio ao backend
-     * aqui — isso continua acontecendo só no @blur (onInputQuantidade),
-     * para não disparar uma tentativa de rede a cada poucas teclas.
+     * Executa o salvamento de verdade na API (via socket, método já
+     * existente 'salvar-producao' com ack). Evita duas requisições
+     * simultâneas para a MESMA célula: se já existe uma em andamento,
+     * apenas marca que deve reenviar assim que a atual terminar (o
+     * reenvio pega os valores mais recentes, então nenhuma digitação
+     * feita durante o envio é perdida).
      */
-    onInputQuantidadeDigitando: debounce(function (funcionario, linha, hora) {
-      this.salvarProducaoLocalImediato(funcionario, linha, hora)
-    }, 250),
+    async salvarCelula(funcionario, linha, hora) {
+      if (!linha?.etapaId) return
+      const real = funcionario._funcRef || funcionario
+      const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
+      const registro = linha.registros[hora]
+      if (!registro) return
 
-    /**
-     * Handler do @blur. Salva local (passo 1, redundante com o @input
-     * acima, mas mantido como rede de segurança) e agenda a
-     * sincronização com debounce de 400ms (passo 2).
-     */
-    onInputQuantidade(funcionario, linha, hora) {
-      this.salvarProducaoLocalImediato(funcionario, linha, hora)
-      this.agendarSincronizacaoProducao()
-    },
-
-    agendarSincronizacaoProducao: debounce(function () {
-      this.processarFilaSincronizacaoProducao()
-    }, 400),
-
-    /**
-     * Varre a fila de pendências (status 'pendente' ou 'erro') e envia
-     * UM REGISTRO POR VEZ ao backend, em ordem de última alteração. Não
-     * usa Promise.all/paralelismo de propósito — enviar em série evita
-     * qualquer condição de corrida de dois envios simultâneos para
-     * registros relacionados. O guard `_sincronizandoProducao` também
-     * impede que dois gatilhos concorrentes (debounce de digitação,
-     * intervalo periódico, evento 'online', reconexão do socket, abertura
-     * da tela) rodem a varredura ao mesmo tempo.
-     */
-    async processarFilaSincronizacaoProducao() {
-      if (this._sincronizandoProducao) return
-      this._sincronizandoProducao = true
-      try {
-        const pendentes = await producaoOfflineStore.listarPendentes()
-        pendentes.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt))
-        for (const registro of pendentes) {
-          await this.sincronizarUmRegistro(registro)
-        }
-      } finally {
-        this._sincronizandoProducao = false
-      }
-    },
-
-    async sincronizarUmRegistro(registro) {
-      await producaoOfflineStore.atualizarStatus(registro.idLocal, 'sincronizando')
-      this.atualizarStatusNaTela(registro, 'sincronizando')
-
-      if (!socket.connected) {
-        const statusVolta = registro.statusSincronizacao === 'erro' ? 'erro' : 'pendente'
-        await producaoOfflineStore.atualizarStatus(registro.idLocal, statusVolta)
-        this.atualizarStatusNaTela(registro, statusVolta, registro.erro || null)
+      if (this._emVoo.has(chave)) {
+        this._reenviarAposSalvar.add(chave)
         return
       }
 
+      this._emVoo.add(chave)
+      this.definirStatusCelula(chave, 'saving')
+
       const payload = {
-        funcionarioId: registro.funcionarioId,
-        etapaId: registro.etapaId,
-        opId: registro.opId || null,
+        funcionarioId: real.email,
+        etapaId: linha.etapaId,
+        opId: linha.opId || null,
         quantidade: registro.quantidade || 0,
-        hora: registro.hora,
-        data: registro.data,
+        hora,
+        data: this.dataSelecionada,
         estabelecimento: this.store.pegar_usuario.cnpj,
-        tipoRegistro: registro.tipoLinha,
+        tipoRegistro: linha.tipo,
         tempoProduzido: registro.tempoProduzido || 60,
       }
 
       try {
+        if (!socket.connected) {
+          throw new Error('Sem conexão com o servidor no momento.')
+        }
+
         const resposta = await this.emitirComAck('salvar-producao', payload, 8000)
         if (!resposta || resposta.sucesso === false) {
           throw new Error(resposta?.mensagem || 'Servidor recusou o registro.')
         }
 
-        if ((registro.quantidade || 0) === 0) {
-          await producaoOfflineStore.remover(registro.idLocal)
-          this.atualizarStatusNaTela(registro, 'idle')
-        } else {
-          await producaoOfflineStore.atualizarStatus(registro.idLocal, 'sincronizado')
-          this.atualizarStatusNaTela(registro, 'sincronizado')
-        }
+        this.definirStatusCelula(chave, 'saved', { lastSavedAt: Date.now() })
+
+        const chaveLS = chaveLocalStorageProducao(
+          this.store.pegar_usuario?.cnpj || '', this.dataSelecionada,
+          real.email, linha.opId, linha.etapaId, hora
+        )
+        removerPendenteLocalStorage(chaveLS)
+
+        // Bolinha verde visível por pelo menos 2s, depois some (volta a 'idle').
+        setTimeout(() => {
+          if (this.saveStatus[chave]?.status === 'saved') {
+            this.definirStatusCelula(chave, 'idle')
+          }
+        }, 2000)
       } catch (err) {
-        const mensagem = err?.message || 'Falha ao sincronizar. Verifique a conexão e tente novamente.'
-        await producaoOfflineStore.atualizarStatus(registro.idLocal, 'erro', { erro: mensagem })
-        this.atualizarStatusNaTela(registro, 'erro', mensagem)
+        this.definirStatusCelula(chave, 'error')
+      } finally {
+        this._emVoo.delete(chave)
+        if (this._reenviarAposSalvar.has(chave)) {
+          this._reenviarAposSalvar.delete(chave)
+          this.salvarCelula(funcionario, linha, hora)
+        }
+      }
+    },
+
+    /** Botão "Salvar" manual: cancela o debounce pendente e salva na hora. */
+    async salvarCelulaManual(funcionario, linha, hora) {
+      const real = funcionario._funcRef || funcionario
+      const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
+      if (this._debounceTimers.has(chave)) {
+        clearTimeout(this._debounceTimers.get(chave))
+        this._debounceTimers.delete(chave)
+      }
+      await this.salvarCelula(funcionario, linha, hora)
+    },
+
+    /**
+     * Restaura, ao carregar a tela (ou trocar de data), qualquer valor
+     * que ficou pendente no localStorage e que o backend não confirmou
+     * — por exemplo, a aba foi fechada com a conexão caída no meio do
+     * debounce. Precisa rodar DEPOIS que funcionariosDia/linhas já
+     * refletem o que veio do servidor (para não sobrescrever a etapa
+     * errada) e depois de restaurarEtapasOffline() (para que a linha já
+     * exista quando a etapa só tinha sido escolhida offline).
+     */
+    restaurarPendentesLocalStorage() {
+      const estabelecimento = this.store.pegar_usuario?.cnpj || ''
+      const chavesLS = listarChavesPendentesLocalStorage(estabelecimento, this.dataSelecionada)
+      if (!chavesLS.length) return
+
+      for (const chaveLS of chavesLS) {
+        const partes = chaveLS.split('::')
+        // formato: prefixo::estabelecimento::data::funcionarioId::opId::etapaId::hora
+        const funcionarioId = partes[3]
+        const opIdBruto = partes[4]
+        const etapaId = partes[5]
+        const hora = partes[6]
+        const opId = opIdBruto === 'sem-op' ? null : opIdBruto
+
+        const valor = lerPendenteLocalStorage(chaveLS)
+        if (!valor) continue
+
+        const funcionario = this.funcionariosDia.find(f => f.email === funcionarioId)
+        if (!funcionario) continue
+
+        const linha = (funcionario.linhas || []).find(
+          l => l.etapaId === etapaId && (l.opId || null) === opId
+        )
+        if (!linha || !linha.registros[hora]) continue
+
+        linha.registros[hora].quantidade = valor.quantidade
+        linha.registros[hora].tempoProduzido = valor.tempoProduzido
+
+        const chave = this.chaveCelula(funcionarioId, opId, etapaId, hora)
+        this.definirStatusCelula(chave, 'pending')
+
+        // Já tenta salvar de novo agora que a tela está aberta.
+        this.agendarSalvamentoCelula(funcionario, linha, hora)
+      }
+    },
+
+    /** Reenvia toda célula ainda pendente/erro — usado por reconexão, evento 'online', intervalo periódico e visibilitychange. */
+    retentarCelulasPendentes() {
+      for (const [chave, info] of Object.entries(this.saveStatus)) {
+        if (info.status !== 'pending' && info.status !== 'error') continue
+
+        const partes = chave.split('::')
+        const funcionarioId = partes[0]
+        const opIdBruto = partes[1]
+        const etapaId = partes[2]
+        const hora = partes[3]
+        const opId = opIdBruto === 'sem-op' ? null : opIdBruto
+
+        const funcionario = this.funcionariosDia.find(f => f.email === funcionarioId)
+        if (!funcionario) continue
+        const linha = (funcionario.linhas || []).find(l => l.etapaId === etapaId && (l.opId || null) === opId)
+        if (!linha) continue
+
+        this.salvarCelula(funcionario, linha, hora)
+      }
+    },
+
+    /**
+     * Dispara IMEDIATAMENTE (sem esperar o debounce de 500ms) o
+     * salvamento de qualquer célula que ainda tenha um timer agendado —
+     * chamado antes de trocar de data, ao ficar em segundo plano
+     * (visibilitychange) e no beforeunload.
+     */
+    flushAntesDeTrocarTela() {
+      if (typeof this.salvarMetaDia.flush === 'function') {
+        this.salvarMetaDia.flush()
+      }
+
+      for (const [chave, timer] of this._debounceTimers.entries()) {
+        clearTimeout(timer)
+        this._debounceTimers.delete(chave)
+
+        const partes = chave.split('::')
+        const funcionarioId = partes[0]
+        const opIdBruto = partes[1]
+        const etapaId = partes[2]
+        const hora = partes[3]
+        const opId = opIdBruto === 'sem-op' ? null : opIdBruto
+
+        const funcionario = this.funcionariosDia.find(f => f.email === funcionarioId)
+        if (!funcionario) continue
+        const linha = (funcionario.linhas || []).find(l => l.etapaId === etapaId && (l.opId || null) === opId)
+        if (!linha) continue
+
+        this.salvarCelula(funcionario, linha, hora)
       }
     },
 
@@ -2609,54 +2384,6 @@ export default {
           resolve(resposta)
         })
       })
-    },
-
-    /** Chamado pelo botão "tentar novamente" exibido quando status === 'erro'. */
-    async tentarNovamenteRegistro(funcionario, linha, hora) {
-      if (!linha.registros[hora]?.idLocal) {
-        await this.salvarProducaoLocalImediato(funcionario, linha, hora)
-      }
-      this.processarFilaSincronizacaoProducao()
-    },
-
-    flushSalvamentosPendentes() {
-      if (typeof this.salvarMetaDia.flush === 'function') {
-        this.salvarMetaDia.flush()
-      }
-      if (typeof this.onInputQuantidadeDigitando.flush === 'function') {
-        this.onInputQuantidadeDigitando.flush()
-      }
-      if (typeof this.agendarSincronizacaoProducao.flush === 'function') {
-        this.agendarSincronizacaoProducao.flush()
-      }
-    },
-
-    async mesclarProducoesOffline() {
-      const registrosLocais = await producaoOfflineStore.listarPorData(this.dataSelecionada)
-      if (!registrosLocais.length) return
-
-      for (const local of registrosLocais) {
-        const alvo = this.encontrarRegistroReativo(local)
-        if (!alvo) continue
-
-        if (local.statusSincronizacao === 'pendente' || local.statusSincronizacao === 'sincronizando' || local.statusSincronizacao === 'erro') {
-          alvo.quantidade = local.quantidade
-          alvo.tempoProduzido = local.tempoProduzido
-          alvo.status = local.statusSincronizacao
-          alvo.erro = local.erro || null
-          alvo.idLocal = local.idLocal
-        } else if (local.statusSincronizacao === 'sincronizado') {
-          const valorServidor = alvo.quantidade || 0
-          if (valorServidor !== local.quantidade) {
-            await producaoOfflineStore.atualizarStatus(local.idLocal, 'sincronizado', {
-              quantidade: valorServidor,
-              tempoProduzido: alvo.tempoProduzido,
-            })
-          }
-          alvo.idLocal = local.idLocal
-          alvo.status = 'sincronizado'
-        }
-      }
     },
 
     // ── META ──────────────────────────────────────────────
@@ -2737,7 +2464,7 @@ export default {
             this.reaplicarAlocacoesPendentes(alocacoesPendentes)
             this.sincronizarOpsExtras()
             this.dataCarregada = dataDaRequisicao
-            this.restaurarEtapasOffline().then(() => this.mesclarProducoesOffline())
+            this.restaurarEtapasOffline().then(() => this.restaurarPendentesLocalStorage())
             this.getFaltas()
             return
           }
@@ -2800,9 +2527,6 @@ export default {
               linha.registros[hora] = {
                 quantidade: producao.quantidade_pecas || 0,
                 tempoProduzido: producao.tempo_produzido || 60,
-                status: 'sincronizado',
-                erro: null,
-                idLocal: null,
               }
             }
 
@@ -2817,7 +2541,7 @@ export default {
           this.sincronizarOpsExtras()
           this.dataCarregada = dataDaRequisicao
 
-          this.restaurarEtapasOffline().then(() => this.mesclarProducoesOffline())
+          this.restaurarEtapasOffline().then(() => this.restaurarPendentesLocalStorage())
 
           this.getFaltas()
         }
@@ -3048,7 +2772,6 @@ export default {
   background: currentColor;
 }
 
-/* NOVO: badge de pendências de sincronização */
 .fila-pendentes-badge {
   display: flex;
   align-items: center;
@@ -3071,28 +2794,7 @@ export default {
   font-family: inherit;
   background: white;
 }
-.registro-status {
-  font-size: 10px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.registro-status--salvando,
-.registro-status--sincronizando { color: #8a6a00; }
-.registro-status--pendente { color: #8a6a00; }
-.registro-status--sincronizado { color: #0d7a3f; }
-.registro-status--erro { color: #b12626; }
-.btn-retry-registro {
-  border: none;
-  background: #ffecec;
-  color: #b12626;
-  border-radius: 6px;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 6px;
-  cursor: pointer;
-}
+
 .data-loading {
   font-size: 13px;
   font-weight: 700;
@@ -3401,7 +3103,7 @@ export default {
 
 .col-func     { width: 180px; }
 .col-etapa    { width: 230px; }
-.col-hora     { width: 170px; }
+.col-hora     { width: 190px; }
 .col-total    { width: 80px; }
 .col-efic     { width: 128px; }
 .col-efic-ref { width: 128px; }
@@ -3477,7 +3179,7 @@ export default {
 
 .sem-referencia { font-size: 10px; color: #b0c5b8; font-style: italic; }
 
-.hora-th { width: 170px; min-width: 170px; text-align: center !important; box-sizing: border-box; }
+.hora-th { width: 190px; min-width: 190px; text-align: center !important; box-sizing: border-box; }
 .hora-td { padding: 6px 6px; vertical-align: middle; box-sizing: border-box; position: relative; }
 
 .hora-box-outer {
@@ -3496,6 +3198,15 @@ export default {
   flex-shrink: 0;
 }
 
+/*
+  Container position:relative da bolinha de status. Fica só ao redor do
+  input de QUANTIDADE (não do de minutos), conforme pedido.
+*/
+.qtd-input-wrap {
+  position: relative;
+  display: inline-block;
+}
+
 .hora-input {
   width: 52px; height: 32px; border-radius: 8px;
   border: 1px solid #dceee3; text-align: center;
@@ -3506,6 +3217,56 @@ export default {
 
 .hora-input.tem-producao {
   background: #e9f2ff; border-color: #2b77d9; color: #1454ad;
+}
+
+/*
+  Bolinha de status de salvamento — pequena, discreta, sobreposta no
+  canto superior direito do input de quantidade.
+    cinza  -> alterado, ainda não salvo (pending)
+    amarela -> salvando
+    verde  -> salvo com sucesso
+    vermelha -> erro ao salvar
+*/
+.save-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid white;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.save-dot--pending { background: #9aa5a1; }
+.save-dot--saving  { background: #f0b400; animation: pulseFade 0.9s ease-in-out infinite; }
+.save-dot--saved   { background: #1fae57; }
+.save-dot--error   { background: #e13b3b; }
+
+.btn-salvar-celula {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: #eef6f1;
+  color: #0d6632;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: .15s;
+}
+
+.btn-salvar-celula:hover:not(:disabled) { background: #dcefe3; }
+
+.btn-salvar-celula:disabled {
+  opacity: .3;
+  cursor: default;
 }
 
 .tempo-wrap { display: flex; align-items: center; gap: 2px; }
@@ -3847,6 +3608,14 @@ export default {
   .content-wrapper { padding-left: 0; }
   .page-section { padding: 1rem; }
   .op-fields { grid-template-columns: 1fr; }
+}
+
+/* Tablets: mantém a tabela com scroll horizontal (já previsto acima),
+   mas dá mais espaço de toque para o botão de salvar e a bolinha de
+   status, que em telas touch precisam de alvo maior. */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .btn-salvar-celula { width: 26px; height: 26px; font-size: 12px; }
+  .save-dot { width: 10px; height: 10px; }
 }
 
 @media (max-width: 768px) {
