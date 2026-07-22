@@ -175,6 +175,10 @@
                   </span>
                   <span>{{ getLiquidoEtapa(etapa.descricao || etapa.etapa) }} concluídos</span>
                 </div>
+                <button class="btn-tempo-ref" @click="abrirModalTempoReferencia(etapa)" title="Definir tempo de referência">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  Tempo Ref.
+                </button>
               </div>
               <div v-if="idx < pecaDetalhes.pecasEtapas.length - 1" class="etapa-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -195,6 +199,10 @@
                   <span>{{ soma.liquido }} concluídos</span>
                   <span v-if="soma.estornos > 0" class="etapa-estorno">{{ soma.estornos }} estornos</span>
                 </div>
+                <button class="btn-tempo-ref" @click="abrirModalTempoReferencia({ descricao: etapaNome, id_da_funcao: soma.id_da_funcao })" title="Definir tempo de referência">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  Tempo Ref.
+                </button>
               </div>
               <div v-if="idx < Object.keys(pecaDetalhes.somaPorEtapa).length - 1" class="etapa-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -377,6 +385,70 @@
         </div>
       </transition>
 
+      <!-- ══════════ MODAL TEMPO DE REFERÊNCIA ══════════ -->
+      <transition name="modal-fade">
+        <div v-if="modalTempoReferencia" class="modal-backdrop" @click.self="fecharModalTempoReferencia">
+          <div class="modal-box">
+            <div class="modal-header">
+              <div class="modal-header-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div>
+                <h4>Tempo de Referência</h4>
+                <p>Etapa: {{ etapaTempoRef?.descricao || etapaTempoRef?.etapa || '—' }}</p>
+              </div>
+              <button class="modal-close" @click="fecharModalTempoReferencia">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div class="modal-body">
+              <div class="modal-field">
+                <label>Funcionário</label>
+                <div class="modal-input-wrap">
+                  <svg class="modal-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                  <select v-model="tempoReferencia.id_funcionario" class="modal-select" :disabled="carregandoFuncionarios">
+                    <option :value="null" disabled>
+                      {{ carregandoFuncionarios ? 'Carregando funcionários...' : 'Selecione um funcionário' }}
+                    </option>
+                    <option v-for="f in funcionarios" :key="f.email" :value="f.email">
+                      {{ f.nome }}
+                    </option>
+                  </select>
+                </div>
+                <p v-if="!carregandoFuncionarios && funcionarios.length === 0" class="modal-field-hint">
+                  Nenhum funcionário encontrado.
+                </p>
+              </div>
+
+              <div class="modal-field">
+                <label>Tempo (minutos)</label>
+                <div class="modal-input-wrap">
+                  <svg class="modal-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <input
+                    v-model.number="tempoReferencia.tempo_minutos"
+                    type="number"
+                    placeholder="Ex: 8.5"
+                    min="0"
+                    step="0.1"
+                    @keyup.enter="salvarTempoReferencia"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn-outline" @click="fecharModalTempoReferencia">Cancelar</button>
+              <button class="btn-primary" @click="salvarTempoReferencia" :disabled="salvandoTempo">
+                <svg v-if="!salvandoTempo" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <div v-else class="btn-spinner"></div>
+                {{ salvandoTempo ? 'Salvando...' : 'Salvar Tempo' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
     </main>
   </div>
 </template>
@@ -403,6 +475,14 @@ export default {
       modalNovaEtapa: false,
       salvandoEtapa: false,
       novaEtapa: { descricao: "", tempo_padrao: null },
+
+      // ── Tempo de Referência ──
+      modalTempoReferencia: false,
+      salvandoTempo: false,
+      carregandoFuncionarios: false,
+      funcionarios: [],
+      etapaTempoRef: null,
+      tempoReferencia: { id_funcionario: null, tempo_minutos: null },
 
       chartOptsFuncionarios: {
         legend: { position: "none" },
@@ -436,8 +516,11 @@ export default {
           this.pecaDetalhes.quantidade_pecas) *
           100
       );
-    }
-      },
+    },
+    store() {
+      return useAuthStore();
+    },
+  },
 
   methods: {
     async buscarEstatisticas() {
@@ -528,7 +611,7 @@ export default {
       try {
         const store = useAuthStore();
         const token = store.pegar_token;
-        
+
         await api.post(
           "/nova/etapa",
           {
@@ -552,6 +635,97 @@ export default {
         Swal.fire({ icon: "error", title: "Erro", text: "Não foi possível adicionar a etapa.", confirmButtonColor: "#0e6632" });
       } finally {
         this.salvandoEtapa = false;
+      }
+    },
+
+    // ── Tempo de Referência ──
+
+    async buscarFuncionarios() {
+      this.carregandoFuncionarios = true;
+      try {
+        const { data } = await api.get("/Funcionarios", {
+          headers: { Authorization: this.store.pegar_token },
+        });
+        this.funcionarios = data.funcionarios || [];
+        console.log("Funcionários carregados:", this.funcionarios);
+      } catch (error) {
+        console.error("Erro ao buscar funcionários:", error);
+        Swal.fire({ icon: "error", title: "Erro", text: "Não foi possível carregar os funcionários.", confirmButtonColor: "#0e6632" });
+      } finally {
+        this.carregandoFuncionarios = false;
+      }
+    },
+
+    abrirModalTempoReferencia(etapa) {
+      this.etapaTempoRef = etapa;
+      this.tempoReferencia = { id_funcionario: null, tempo_minutos: null };
+      this.modalTempoReferencia = true;
+
+      // busca a lista de funcionários somente se ainda não tiver sido carregada
+      if (this.funcionarios.length === 0) {
+        this.buscarFuncionarios();
+      }
+    },
+
+    fecharModalTempoReferencia() {
+      this.modalTempoReferencia = false;
+      this.etapaTempoRef = null;
+    },
+
+    async salvarTempoReferencia() {
+      console.log("Salvando tempo de referência:", this.tempoReferencia, "para etapa:", this.etapaTempoRef);
+      if (!this.tempoReferencia.id_funcionario) {
+        Swal.fire({ icon: "warning", title: "Atenção", text: "Selecione um funcionário.", confirmButtonColor: "#0e6632" });
+        return;
+      }
+      if (!this.tempoReferencia.tempo_minutos || this.tempoReferencia.tempo_minutos <= 0) {
+        Swal.fire({ icon: "warning", title: "Atenção", text: "Informe um tempo válido em minutos.", confirmButtonColor: "#0e6632" });
+        return;
+      }
+
+      console.log("ID da função:", this.etapaTempoRef?.id_da_funcao || this.etapaTempoRef?.id);
+      const idDaFuncao = this.etapaTempoRef?.id_da_funcao || this.etapaTempoRef?.id;
+      if (!idDaFuncao) {
+        Swal.fire({ icon: "error", title: "Erro", text: "Não foi possível identificar a etapa selecionada.", confirmButtonColor: "#0e6632" });
+        return;
+      }
+
+      this.salvandoTempo = true;
+      try {
+        await api.post(
+          "/tempo-referencia",
+          {
+            id_funcionario: this.tempoReferencia.id_funcionario,
+            id_da_funcao: idDaFuncao,
+            tempo_minutos: this.tempoReferencia.tempo_minutos,
+          },
+          {
+            headers: {
+              Authorization: this.store.pegar_token,
+            },
+          }
+        );
+
+        Swal.fire({
+          icon: "success",
+          title: "Tempo salvo com sucesso!",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        this.fecharModalTempoReferencia();
+        await this.buscarEstatisticas();
+      } catch (error) {
+        console.error(error);
+        Swal.fire({
+          icon: "error",
+          title: "Erro",
+          text:
+            error.response?.data?.erro ||
+            "Erro ao salvar tempo de referência.",
+        });
+      } finally {
+        this.salvandoTempo = false;
       }
     },
 
@@ -1010,13 +1184,36 @@ export default {
 .etapa-status-dot.etapa-node--progress { background: #d97706; }
 .etapa-status-dot.etapa-node--pending  { background: #b8dfc8; }
 
-.etapa-node-info { display: flex; gap: 10px; font-size: 11px; color: #4a7a5c; }
+.etapa-node-info { display: flex; gap: 10px; font-size: 11px; color: #4a7a5c; margin-bottom: 8px; }
 .etapa-node--progress .etapa-node-info { color: #92400e; }
 .etapa-node-info svg { vertical-align: middle; }
 .etapa-estorno { color: #dc2626; font-weight: 500; }
 
 .etapa-arrow { color: #90bb9e; flex-shrink: 0; }
 .empty-hint  { font-size: 13px; color: #90bb9e; font-style: italic; margin: 0; }
+
+/* ── Botão Tempo Referência (dentro do etapa-node) ── */
+.btn-tempo-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1.5px solid rgba(14, 102, 50, 0.3);
+  border-radius: 100px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #0a3d20;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  justify-content: center;
+}
+
+.btn-tempo-ref:hover { background: #fff; border-color: #0e6632; }
+.etapa-node--pending .btn-tempo-ref { color: #4a7a5c; }
+.etapa-node--progress .btn-tempo-ref { color: #78350f; border-color: rgba(217, 119, 6, 0.4); }
 
 /* ── Charts grid ── */
 .charts-grid {
@@ -1160,6 +1357,10 @@ export default {
   font-size: 12px; font-weight: 500; color: #2d6644; letter-spacing: 0.02em;
 }
 
+.modal-field-hint {
+  font-size: 11px; color: #b45309; margin: 2px 0 0;
+}
+
 .modal-input-wrap {
   position: relative; display: flex; align-items: center;
 }
@@ -1168,7 +1369,8 @@ export default {
   position: absolute; left: 13px; color: #1a8a46; pointer-events: none;
 }
 
-.modal-input-wrap input {
+.modal-input-wrap input,
+.modal-input-wrap select.modal-select {
   width: 100%; height: 46px;
   background: #eef6f1;
   border: 1.5px solid rgba(10, 80, 40, 0.2);
@@ -1179,10 +1381,22 @@ export default {
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-.modal-input-wrap input:focus {
+.modal-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%234a7a5c' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.modal-select:disabled { cursor: not-allowed; opacity: 0.7; }
+
+.modal-input-wrap input:focus,
+.modal-input-wrap select.modal-select:focus {
   border-color: #1a8a46;
   box-shadow: 0 0 0 3px rgba(26, 138, 70, 0.14);
-  background: #fff;
+  background-color: #fff;
 }
 
 .modal-input-wrap input::placeholder { color: #90bb9e; }
@@ -1220,6 +1434,7 @@ export default {
   .header-actions  { width: 100%; justify-content: flex-start; }
   .kpi-grid        { grid-template-columns: 1fr 1fr; }
   .etapas-pipeline { flex-direction: column; align-items: flex-start; }
+  .etapa-node      { width: 100%; }
   .etapa-arrow     { transform: rotate(90deg); }
   .eficiencia-bottom { flex-direction: column; gap: 2px; }
 }
