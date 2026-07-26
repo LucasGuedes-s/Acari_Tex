@@ -21,12 +21,62 @@
           <span class="mc-val peca-chip">{{ opsAtivas.map(o => nomeDaOp(o.pecaId)).join(', ') }}</span>
         </div>
       </div>
+      <button
+        v-if="temMultiplasOpsComProducao"
+        class="btn-detalhe-ops"
+        @click="mostrarDetalheOps = !mostrarDetalheOps"
+      >
+        {{ mostrarDetalheOps ? 'Ocultar' : 'Ver' }} detalhe por OP ({{ gruposProducaoPorOp.length }})
+      </button>
 
       <div class="top-bar-right">
         <span class="socket-dot" :class="{ conectado: socketConectado }" :title="socketConectado ? 'Conectado' : 'Desconectado'"></span>
       </div>
     </header>
+    <transition name="panel-slide">
+  <section v-if="mostrarDetalheOps && temMultiplasOpsComProducao" class="ops-detalhe">
+    <div class="ops-detalhe-grid">
+      <div v-for="op in gruposProducaoPorOp" :key="op.opId" class="op-detalhe-card">
+        <div class="op-detalhe-top">
+          <span class="op-detalhe-nome">{{ op.nome }}</span>
+          <span
+            v-if="op.multiplasEtapas"
+            class="op-detalhe-tag"
+            title="Esta OP tem etapas com tempos padrão diferentes — o valor abaixo já é a média ponderada pela produção de cada etapa"
+          >várias etapas</span>
+        </div>
+        <div class="op-detalhe-stats">
+          <div class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">Produção</span>
+            <span class="op-detalhe-stat-val">{{ op.producao }}</span>
+          </div>
+          <div class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">Tempo padrão</span>
+            <span class="op-detalhe-stat-val">{{ op.tempoPadraoMedio }} min</span>
+          </div>
+          <div class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">{{ isFabrica ? 'Efic. Ficha' : 'Eficiência' }}</span>
+            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficiencia)">{{ op.eficiencia }}%</span>
+          </div>
+          <div v-if="isFabrica" class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">Efic. Ref.</span>
+            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaReferencia)">{{ op.eficienciaReferencia }}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
+    <div class="ops-detalhe-footer">
+      <span>Média ponderada das OPs{{ isFabrica ? ' (Ficha)' : '' }}:</span>
+      <strong :class="clsEfic(eficienciaMediaPonderadaOps)">{{ eficienciaMediaPonderadaOps }}%</strong>
+      <template v-if="isFabrica">
+        <span class="ops-detalhe-footer-sep">·</span>
+        <span>Referência:</span>
+        <strong :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">{{ eficienciaMediaPonderadaOpsReferencia }}%</strong>
+      </template>
+    </div>
+  </section>
+</transition>
     <!-- MAIN -->
     <div class="main-layout" :class="{ 'panel-open': selecionado !== null }">
 
@@ -344,13 +394,46 @@
     </div>
   </div>
 </template>
-
 <script>
 import { io } from 'socket.io-client'
 import { useAuthStore } from '@/store/store'
 import api from '@/Axios'
+import debounce from 'lodash/debounce'
+import {
+  // gerarSequenciaHoras,
+  horaParaMinutos,
+  isEtapaFinal,
+  // buscarEtapa,
+  resolverTempoPadrao,
+  resolverTempoEfetivoReferencia,
+  calcularTotalLinha,
+  calcularPecasFinalizadasFuncionario,
+  calcularEficienciaLinhaPadrao,
+  calcularEficienciaLinhaReferencia,
+  calcularEficienciaRegistroPadrao,
+  calcularEficienciaRegistroReferencia,
+  calcularEficienciaFuncionarioPadrao,
+  calcularEficienciaFuncionarioReferencia,
+  // funcionarioAusenteDiaInteiro,
+  horaBloqueadaPorAusencia,
+  agruparProducaoPorOp,
+  tempoPadraoMedioOp,
+  calcularEficienciaOpAgrupada,
+  calcularEficienciaOpAgrupadaReferencia,
+  calcularEficienciaMediaPonderadaOps,
+  calcularEficienciaGeralTurma,
+} from '@/utils/producaoCompartilhada'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
+
+// Mesma chave usada pelo Registro de Produção — assim o Painel herda
+// automaticamente a configuração de horário de turno, sem duplicar UI.
+const LOCAL_STORAGE_HORARIOS_KEY = 'apontamento-horarios-turno'
+
+const CONFIG_PADRAO = {
+  manha: { inicio: '08:00', fim: '12:30' },
+  tarde: { inicio: '13:30', fim: '18:00' },
+}
 
 export default {
   name: 'PainelProfissionais',
@@ -365,6 +448,7 @@ export default {
 
   data() {
     return {
+      mostrarDetalheOps: false,
       loading: true,
       socketConectado: false,
       busca: '',
@@ -376,22 +460,27 @@ export default {
       funcionariosDia: [],
       pecas: [],
       tipoProducao: null,
+
+      // Índices O(1) de etapas — igual ao Registro de Produção.
+      etapasPorId: new Map(),
+
+      configHorarios: this.carregarConfigHorarios(),
+
+      dataCarregada: null,
+      ultimaBuscaId: 0,
+      carregandoMeta: false,
     }
   },
 
   computed: {
     todasHoras() {
       const horasSet = new Set()
-
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
-          for (const hora of Object.keys(linha.registros || {})) {
-            horasSet.add(hora)
-          }
+          for (const hora of Object.keys(linha.registros || {})) horasSet.add(hora)
         }
       }
-
-      return [...horasSet].sort((a, b) => this.horaParaMinutos(a) - this.horaParaMinutos(b))
+      return [...horasSet].sort((a, b) => horaParaMinutos(a) - horaParaMinutos(b))
     },
 
     funcionariosOrdenados() {
@@ -410,55 +499,60 @@ export default {
     },
 
     funcSelecionado() {
-      return this.selecionado !== null
-        ? this.funcionariosOrdenados[this.selecionado]
-        : null
+      return this.selecionado !== null ? this.funcionariosOrdenados[this.selecionado] : null
     },
 
-    // Estabelecimento tipo "fabrica" habilita a eficiência dupla (Ficha / Referência)
     isFabrica() {
       return this.tipoProducao === 'fabrica'
     },
 
-    // Apenas funcionários que produziram ao menos 1 peça no período.
-    // Usado em todos os indicadores consolidados — quem não produziu
-    // continua aparecendo na lista, mas não entra nas médias/totais do dia.
+    // Só quem realmente produziu entra nas médias/totais do dia.
     funcionariosComProducao() {
       return this.funcionariosOrdenados.filter(f => this.temProducao(f))
     },
 
-    // Eficiência da turma ponderada pelas peças FINALIZADAS (etapa final).
-    // Só considera registros com tempoProduzido > 0 — sem fallback fictício.
-    eficienciaMediaTurma() {
-      
-      // SAM e tempo do turno vêm da OP ativa
-      const op = this.pecas.find(p => p.id_da_op === this.opsAtivas[0]?.pecaId)
-      console.log(op?.tempo_padrao)
-      const sam = this.opsAtivas[0]?.tempoPadrao || 0
-      // const tempoTurno = op?.Estabelecimento?.tempo_de_producao || 540 // minutos
-      const tempoTurno = 540 // minutos
+    // Eficiência geral da turma — agora ponderada pelo tempo disponível de
+// cada funcionário produtivo (não mais média aritmética simples).
+eficienciaMediaTurma() {
+  return calcularEficienciaGeralTurma(this.funcionariosDia, this.configHorarios, this.etapasPorId, false)
+},
+eficienciaMediaTurmaReferencia() {
+  return calcularEficienciaGeralTurma(this.funcionariosDia, this.configHorarios, this.etapasPorId, true)
+},
 
-      // Só entram no denominador quem realmente produziu no período;
-      // funcionários com 0 peças não aumentam nem diluem a eficiência da turma.
-      const funcionariosProdutivos = this.funcionariosComProducao
-      const nFuncionarios = funcionariosProdutivos.length
-      if (!nFuncionarios || !sam || !tempoTurno) return 0
+// Base bruta agrupada por OP (computed cacheado — reaproveitado pelos
+// três computeds abaixo sem recalcular três vezes).
+gruposOpBrutos() {
+  return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId).filter(g => g.producao > 0)
+},
 
-      // Soma peças finalizadas apenas dos funcionários que produziram
-      let totalPecas = 0
-      for (const func of funcionariosProdutivos) {
-        totalPecas += this.calcularTotalFinalizadoFuncionario(func)
-      }
-      console.log('totalPecas:', totalPecas, 'SAM:', sam, 'nFunc:', nFuncionarios, 'tempoTurno:', tempoTurno)
-      // (Qtd × SAM) / (Nº Operadores × Tempo do Turno) × 100
-      const tempoDisponivel = nFuncionarios * tempoTurno
-      return Math.round((totalPecas * sam) / tempoDisponivel * 100)
-    },
+// Lista pronta para exibição no painel de detalhe por OP.
+gruposProducaoPorOp() {
+  return this.gruposOpBrutos
+    .map(g => ({
+      opId: g.opId,
+      nome: this.nomeDaOp(g.opId),
+      producao: g.producao,
+      tempoPadraoMedio: tempoPadraoMedioOp(g),
+      multiplasEtapas: g.temposPadraoDistintos.size > 1,
+      eficiencia: calcularEficienciaOpAgrupada(g),
+      eficienciaReferencia: calcularEficienciaOpAgrupadaReferencia(g),
+    }))
+    .sort((a, b) => b.producao - a.producao)
+},
+
+eficienciaMediaPonderadaOps() {
+  return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, false)
+},
+eficienciaMediaPonderadaOpsReferencia() {
+  return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
+},
+
+temMultiplasOpsComProducao() {
+  return this.gruposOpBrutos.length > 1
+},
 
     totalPecasGeral() {
-      // Funcionários sem produção contribuem 0, então o total não muda ao
-      // restringir a soma ao grupo que efetivamente produziu — mantido
-      // explícito aqui por clareza e consistência com eficienciaMediaTurma.
       return this.funcionariosComProducao.reduce(
         (soma, f) => soma + this.calcularTotalFinalizadoFuncionario(f),
         0
@@ -477,42 +571,128 @@ export default {
 
   async mounted() {
     this.iniciarSocket()
+    await this.aguardarConexaoSocket()
     await this.carregarPecas()
     await this.buscarMetaDia()
+
+    // Reconexão sem depender só do evento 'online' do navegador —
+    // mesma tática de segurança do Registro de Produção.
+    this._intervaloRetentativa = setInterval(() => {
+      if (socket.connected) this.buscarMetaDia()
+    }, 30000)
   },
 
   beforeUnmount() {
+    clearInterval(this._intervaloRetentativa)
     socket.off()
     socket.disconnect()
   },
 
   methods: {
-    // ── HORA HELPERS ──────────────────────────────────────
-    horaParaMinutos(hora) {
-      if (!hora || typeof hora !== 'string') return 0
-      const [h, m] = hora.split(':').map(Number)
-      return (h || 0) * 60 + (m || 0)
+    // ── CONFIG DE HORÁRIO (mesma chave do Registro de Produção) ──
+    carregarConfigHorarios() {
+      try {
+        const salvo = localStorage.getItem(LOCAL_STORAGE_HORARIOS_KEY)
+        if (!salvo) return JSON.parse(JSON.stringify(CONFIG_PADRAO))
+        const parsed = JSON.parse(salvo)
+        return {
+          manha: {
+            inicio: parsed?.manha?.inicio || CONFIG_PADRAO.manha.inicio,
+            fim: parsed?.manha?.fim || CONFIG_PADRAO.manha.fim,
+          },
+          tarde: {
+            inicio: parsed?.tarde?.inicio || CONFIG_PADRAO.tarde.inicio,
+            fim: parsed?.tarde?.fim || CONFIG_PADRAO.tarde.fim,
+          },
+        }
+      } catch {
+        return JSON.parse(JSON.stringify(CONFIG_PADRAO))
+      }
     },
 
     // ── SOCKET ────────────────────────────────────────────
     iniciarSocket() {
-      socket.on('connect', () => { this.socketConectado = true })
+      socket.off('connect')
+      socket.off('disconnect')
+
+      const cnpj = this.store.pegar_usuario?.cnpj
+      if (cnpj) socket.off(`nova_atualizacao_${cnpj}`)
+
+      socket.on('connect', () => {
+        this.socketConectado = true
+        // Se já havia conectado antes (ou seja, isso é uma reconexão),
+        // busca de novo para não perder nada que aconteceu offline.
+        if (this._jaConectouUmaVez) this.buscarMetaDia()
+        this._jaConectouUmaVez = true
+      })
       socket.on('disconnect', () => { this.socketConectado = false })
 
-      const cnpj = this.store.pegar_usuario.cnpj
-      socket.on(`nova_atualizacao_${cnpj}`, () => {
-        this.buscarMetaDia()
+      if (cnpj) {
+        socket.on(`nova_atualizacao_${cnpj}`, () => this.onAtualizacaoRemota())
+      }
+
+      if (!socket.connected) socket.connect()
+      else this.socketConectado = true
+    },
+
+    // Debounce: várias atualizações próximas viram uma única busca.
+    onAtualizacaoRemota: debounce(function () {
+      this.buscarMetaDia()
+    }, 800),
+
+    aguardarConexaoSocket(timeoutMs = 5000) {
+      if (socket.connected) {
+        this.socketConectado = true
+        return Promise.resolve()
+      }
+      return new Promise(resolve => {
+        const timeout = setTimeout(() => {
+          socket.off('connect', onConnect)
+          resolve()
+        }, timeoutMs)
+        const onConnect = () => { clearTimeout(timeout); resolve() }
+        socket.once('connect', onConnect)
       })
     },
 
-    // ── PEÇAS ─────────────────────────────────────────────
+    emitirComAck(evento, payload, timeoutMs = 8000) {
+      return new Promise((resolve, reject) => {
+        let finalizado = false
+        const timeout = setTimeout(() => {
+          if (finalizado) return
+          finalizado = true
+          reject(new Error('Tempo esgotado aguardando confirmação do servidor.'))
+        }, timeoutMs)
+
+        socket.emit(evento, payload, (resposta) => {
+          if (finalizado) return
+          finalizado = true
+          clearTimeout(timeout)
+          resolve(resposta)
+        })
+      })
+    },
+
+    // ── PEÇAS / ETAPAS ────────────────────────────────────
     async carregarPecas() {
       try {
         const res = await api.get('/pecas', {
           headers: { Authorization: this.store.pegar_token },
         })
         this.pecas = res.data.peca.em_progresso || []
-        console.log('Peças carregadas:', this.pecas)
+
+        // Monta o índice O(1) de etapas (mesma estrutura do Registro
+        // de Produção) para resolver tempo padrão / tempo de referência
+        // com a regra padronizada.
+        this.etapasPorId = new Map()
+        for (const peca of this.pecas) {
+          for (const etapa of (peca.etapas || [])) {
+            const idFuncao = etapa.id_da_funcao || etapa.etapa?.id_da_funcao
+            if (!idFuncao) continue
+            if (!this.etapasPorId.has(idFuncao)) this.etapasPorId.set(idFuncao, [])
+            this.etapasPorId.get(idFuncao).push(etapa)
+          }
+        }
       } catch (err) {
         console.error(err)
       }
@@ -523,29 +703,35 @@ export default {
       return peca?.descricao || pecaId
     },
 
-    // ── BUSCAR META (via rota HTTP) ───────────────────────
+    // ── BUSCAR META (via Socket.IO, com ack) ──────────────
     async buscarMetaDia() {
-      this.loading = true
+      await this.aguardarConexaoSocket()
+
+      const dataDaRequisicao = this.filtro
+      this.ultimaBuscaId = (this.ultimaBuscaId || 0) + 1
+      const buscaId = this.ultimaBuscaId
+      this.carregandoMeta = true
+      this.loading = this.dataCarregada === null
+
       try {
-        const res = await api.get('/producao/meta', {
-          headers: { Authorization: this.store.pegar_token },
-          params: {
-            estabelecimento: this.filtro.estabelecimento ?? this.store.pegar_usuario.cnpj,
-            data: this.filtro,
-          },
+        const response = await this.emitirComAck('buscar-meta-dia', {
+          estabelecimento: this.filtro.estabelecimento ?? this.store.pegar_usuario.cnpj,
+          data: dataDaRequisicao,
         })
 
-        const meta = res.data.metaDia
-        console.log('Meta do dia recebida:', meta)
-        //console.log('Meta do dia recebida:', meta)
+        if (buscaId !== this.ultimaBuscaId) return
+        this.carregandoMeta = false
+        this.loading = false
+        if (!response?.sucesso) return
+
+        const meta = response.metaDia
         if (!meta) {
           this.opsAtivas = []
           this.funcionariosDia = []
+          this.dataCarregada = dataDaRequisicao
           return
         }
 
-        // Tipo de produção do estabelecimento — habilita a eficiência dupla
-        // (Ficha / Referência) somente quando for "fabrica".]
         const usuario = this.store.pegar_usuario
         this.tipoProducao =
           usuario.tipo_de_producao ||
@@ -558,10 +744,10 @@ export default {
           metaDia: p.meta || 0,
           tempoPadrao: p.peca?.tempo_padrao || 0,
           status: p.peca?.status,
-          descricao: p.peca?.descricao
+          descricao: p.peca?.descricao,
         }))
 
-        this.funcionariosDia = []
+        const novosFuncionarios = []
 
         for (const metaFunc of meta.funcionarios || []) {
           const linhas = []
@@ -570,31 +756,18 @@ export default {
             const etapaId = producao.id_da_funcao
             const opId = producao.id_da_op || null
 
-            // Chave composta (etapaId, opId): a mesma etapa executada em
-            // OPs diferentes deve ser tratada como alocação independente,
-            // para não misturar produção, tempo e eficiência entre as OPs.
             let linha = linhas.find(l => l.etapaId === etapaId && l.opId === opId)
-
             if (!linha) {
               linha = {
-                id: Date.now() + Math.random(),
+                id: `${metaFunc.funcionarioId}-${etapaId}-${opId || 'sem-op'}`,
                 tipo: linhas.length === 0 ? 'principal' : 'extra',
                 etapaId,
                 descricao: producao.producao_etapa?.descricao || '',
                 tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
-                // Tempo de referência específico deste funcionário nesta etapa.
-                // Se ausente, calcularEficienciaReferencia* usa o tempo padrão.
-                tempoReferencia: producao.tempo_referencia ?? null,
                 opId,
                 registros: {},
               }
               linhas.push(linha)
-            }
-
-            // Preenche o tempo de referência assim que ele aparecer em algum
-            // registro da mesma linha (etapa + funcionário + OP).
-            if (linha.tempoReferencia == null && producao.tempo_referencia != null) {
-              linha.tempoReferencia = producao.tempo_referencia
             }
 
             const hora = producao.hora_registro
@@ -602,196 +775,84 @@ export default {
 
             linha.registros[hora] = {
               quantidade: producao.quantidade_pecas || 0,
-              tempoProduzido: producao.tempo_produzido || 0,
+              tempoProduzido: producao.tempo_produzido || 60,
             }
           }
 
-          this.funcionariosDia.push({
+          novosFuncionarios.push({
             email: metaFunc.funcionarioId,
             nome: metaFunc.funcionario?.nome || metaFunc.funcionarioId,
             foto: metaFunc.funcionario?.foto || null,
+            ausencia: metaFunc.ausencia || null,
             linhas: linhas.length ? linhas : [],
           })
         }
+
+        this.funcionariosDia = novosFuncionarios
+        this.dataCarregada = dataDaRequisicao
       } catch (err) {
         console.error(err)
-      } finally {
+        this.carregandoMeta = false
         this.loading = false
       }
     },
 
     // ── ETAPA FINAL ───────────────────────────────────────
     isEtapaFinal(linha) {
-      if (!linha?.descricao) return false
-
-      const desc = linha.descricao.toLowerCase()
-
-      const palavrasIgnoradas = [
-        // 'revisão médio',
-        // 'revisao medio',
-        // 'revisão média',
-        // 'revisao media',
-        'revisão intermediaria',
-        'revisão intermediária',
-        'revisao intermediaria',
-        'revisao intermediária'
-      ]
-
-      if (palavrasIgnoradas.some(palavra => desc.includes(palavra))) {
-        return false
-      }
-
-      const palavrasFinal = [
-        'final',
-        'acabamento',
-        'finalização',
-        'finalizacao',
-        'revisão final',
-        'revisao final',
-        'revisar peça pronta',
-        'revisão',
-        'revisao',
-        'qualidade',
-        'expedição',
-        'expedicao'
-      ]
-
-      return palavrasFinal.some(palavra => desc.includes(palavra))
+      return isEtapaFinal(linha)
     },
 
     // ── TOTAIS ────────────────────────────────────────────
     calcularTotalLinha(linha) {
-      if (!linha?.registros) return 0
-      return Object.values(linha.registros).reduce(
-        (soma, reg) => soma + (Number(reg?.quantidade) || 0),
-        0
-      )
+      return calcularTotalLinha(linha, this.funcSelecionado)
     },
 
     calcularTotalFuncionario(func) {
+      // "Peças" na lista = produção total, qualquer etapa (mantém o
+      // comportamento visual original do Painel).
       if (!Array.isArray(func?.linhas)) return 0
-      return func.linhas.reduce((soma, linha) => soma + this.calcularTotalLinha(linha), 0)
+      return func.linhas.reduce((soma, linha) => soma + calcularTotalLinha(linha, func), 0)
     },
 
     calcularTotalFinalizadoFuncionario(func) {
-      if (!Array.isArray(func?.linhas)) return 0
-      return func.linhas.reduce((soma, linha) => {
-        if (!this.isEtapaFinal(linha)) return soma
-        return soma + this.calcularTotalLinha(linha)
-      }, 0)
+      // "Peças (final)" no painel de detalhe — mesma regra do Registro
+      // de Produção (soma só etapas finais, respeitando ausências).
+      return calcularPecasFinalizadasFuncionario(func)
     },
 
-    // Funcionário "produziu" se tem ao menos 1 peça registrada em qualquer
-    // etapa/hora do período. Usado para excluir quem ficou zerado (sem OP,
-    // em treinamento, aguardando atividade etc.) dos indicadores consolidados.
     temProducao(func) {
       return this.calcularTotalFuncionario(func) > 0
     },
 
-    // ── EFICIÊNCIA ────────────────────────────────────────
-    // Só considera registros com tempoProduzido > 0 — sem || 60 fictício.
-
-
-    calcularEficienciaRegistro(quantidade, tempoProduzido, tempoPadrao) {
-      console.log('quantidade:', quantidade, 'tempoProduzido:', tempoProduzido, 'tempoPadrao:', tempoPadrao)
-      if (!quantidade || !tempoProduzido || !tempoPadrao) return 0
-      return Math.round(((quantidade * tempoPadrao) / tempoProduzido) * 100)
-    },
-
-    // Tempo efetivo de uma linha para a Eficiência de Referência: usa o
-    // tempo_referencia daquele funcionário/etapa quando existir; na
-    // ausência dele, cai automaticamente para o tempo padrão da ficha.
-    tempoEfetivoLinha(linha) {
-      return linha?.tempoReferencia ?? linha?.tempoPadrao ?? 0
-    },
-
-    // Eficiência da Ficha: sempre usa o tempo_padrao (SAM) da etapa.
-    calcularEficienciaLinha(linha) {
-      if (!linha?.registros) return 0
-      let produzido = 0
-      let tempoProduzido = 0
-
-      for (const reg of Object.values(linha.registros)) {
-        if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
-          produzido += reg.quantidade * (linha.tempoPadrao || 0)
-          tempoProduzido += reg.tempoProduzido
-        }
-      }
-
-      if (!tempoProduzido) return 0
-      return Math.round((produzido / tempoProduzido) * 100)
-    },
-
-    // Eficiência de Referência: usa o tempo_referencia do funcionário na
-    // etapa quando existir; caso contrário, usa o tempo padrão (mesmo
-    // comportamento de calcularEficienciaLinha).
-    calcularEficienciaReferenciaLinha(linha) {
-      if (!linha?.registros) return 0
-      const tempoEfetivo = this.tempoEfetivoLinha(linha)
-      let produzido = 0
-      let tempoProduzido = 0
-
-      for (const reg of Object.values(linha.registros)) {
-        if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
-          produzido += reg.quantidade * tempoEfetivo
-          tempoProduzido += reg.tempoProduzido
-        }
-      }
-
-      if (!tempoProduzido) return 0
-      return Math.round((produzido / tempoProduzido) * 100)
-    },
-
-    // Eficiência da Ficha do funcionário — média ponderada de todas as
-    // linhas usando sempre o tempo padrão da etapa.
+    // ── EFICIÊNCIA (delega 100% para o módulo compartilhado) ──────
     calcularEficienciaFuncionario(func) {
-      if (!func?.linhas?.length) return 0
-      let somaProduzida = 0
-      let somaTempo = 0
-
-      for (const linha of func.linhas) {
-        if (!linha?.registros) continue
-        for (const reg of Object.values(linha.registros)) {
-          if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
-            somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
-            somaTempo += reg.tempoProduzido
-          }
-        }
-      }
-
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+      return calcularEficienciaFuncionarioPadrao(func, this.configHorarios, this.etapasPorId)
     },
 
-    // Eficiência de Referência do funcionário — mesma lógica acima, mas
-    // usando o tempo_referencia de cada linha quando disponível.
     calcularEficienciaReferenciaFuncionario(func) {
-      if (!func?.linhas?.length) return 0
-      let somaProduzida = 0
-      let somaTempo = 0
+      return calcularEficienciaFuncionarioReferencia(func, this.configHorarios, this.etapasPorId)
+    },
 
-      for (const linha of func.linhas) {
-        if (!linha?.registros) continue
-        const tempoEfetivo = this.tempoEfetivoLinha(linha)
-        for (const reg of Object.values(linha.registros)) {
-          if (reg && reg.quantidade > 0 && reg.tempoProduzido > 0) {
-            somaProduzida += reg.quantidade * tempoEfetivo
-            somaTempo += reg.tempoProduzido
-          }
-        }
-      }
+    calcularEficienciaLinha(linha) {
+      return calcularEficienciaLinhaPadrao(linha, this.funcSelecionado, this.etapasPorId)
+    },
 
-      if (!somaTempo) return 0
-      return Math.round((somaProduzida / somaTempo) * 100)
+    calcularEficienciaReferenciaLinha(linha) {
+      return calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId)
+    },
+
+    tempoEfetivoLinha(linha) {
+      return resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId)
     },
 
     // ── POR HORA ──────────────────────────────────────────
     horasPorFuncionario(func) {
       if (!func?.linhas?.length) return []
-
       const resultado = []
 
       for (const hora of this.todasHoras) {
+        if (horaBloqueadaPorAusencia(func, hora)) continue
+
         const etapas = []
         let totalPecas = 0
         let somaProduzida = 0
@@ -802,22 +863,13 @@ export default {
           const reg = linha.registros?.[hora]
           if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
-          const tempoEfetivo = this.tempoEfetivoLinha(linha)
-
-          const eficiencia = this.calcularEficienciaRegistro(
-            reg.quantidade,
-            reg.tempoProduzido,
-            linha.tempoPadrao
-          )
-          const eficienciaReferencia = this.calcularEficienciaRegistro(
-            reg.quantidade,
-            reg.tempoProduzido,
-            tempoEfetivo
-          )
+          const tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId)
+          const eficiencia = calcularEficienciaRegistroPadrao(reg.quantidade, reg.tempoProduzido, linha, this.etapasPorId)
+          const eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId)
 
           etapas.push({
             descricao: linha.descricao || linha.etapaId || '—',
-            isFinal: this.isEtapaFinal(linha),
+            isFinal: isEtapaFinal(linha),
             quantidade: reg.quantidade,
             tempoProduzido: reg.tempoProduzido,
             eficiencia,
@@ -825,7 +877,7 @@ export default {
           })
 
           totalPecas += reg.quantidade
-          somaProduzida += reg.quantidade * (linha.tempoPadrao || 0)
+          somaProduzida += reg.quantidade * resolverTempoPadrao(linha, this.etapasPorId)
           somaProduzidaReferencia += reg.quantidade * tempoEfetivo
           somaTempoProduzido += reg.tempoProduzido
         }
@@ -836,19 +888,15 @@ export default {
           hora,
           etapas,
           totalPecas,
-          eficiencia: somaTempoProduzido
-            ? Math.round((somaProduzida / somaTempoProduzido) * 100)
-            : 0,
-          eficienciaReferencia: somaTempoProduzido
-            ? Math.round((somaProduzidaReferencia / somaTempoProduzido) * 100)
-            : 0,
+          eficiencia: somaTempoProduzido ? Math.round((somaProduzida / somaTempoProduzido) * 100) : 0,
+          eficienciaReferencia: somaTempoProduzido ? Math.round((somaProduzidaReferencia / somaTempoProduzido) * 100) : 0,
         })
       }
 
       return resultado
     },
 
-    // ── HELPERS ───────────────────────────────────────────
+    // ── HELPERS DE UI (thresholds visuais próprios do Painel) ─────
     clsEfic(pct) {
       const n = parseFloat(pct)
       if (n >= 90) return 'verde'
@@ -874,7 +922,6 @@ export default {
   },
 }
 </script>
-
 <style scoped>
 .painel {
   --g900: #052e16;
@@ -1617,7 +1664,107 @@ export default {
   opacity: 0;
   transform: translateX(16px);
 }
+.btn-detalhe-ops {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--rp);
+  border: 1px solid var(--line);
+  background: var(--surf);
+  color: var(--ink2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .1s;
+  font-family: inherit;
+}
+.btn-detalhe-ops:hover { background: var(--line); }
 
+.ops-detalhe {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surf);
+}
+
+.ops-detalhe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.op-detalhe-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 12px 14px;
+}
+
+.op-detalhe-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.op-detalhe-nome {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.op-detalhe-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--a700);
+  background: var(--a100);
+  border-radius: var(--rp);
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.op-detalhe-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.op-detalhe-stat { display: flex; flex-direction: column; gap: 2px; }
+
+.op-detalhe-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink3);
+}
+
+.op-detalhe-stat-val { font-size: 15px; font-weight: 600; color: var(--ink); }
+.op-detalhe-stat-val.verde    { color: var(--g700); }
+.op-detalhe-stat-val.amarelo  { color: var(--a600); }
+.op-detalhe-stat-val.vermelho { color: var(--r600); }
+
+.ops-detalhe-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+.ops-detalhe-footer strong { font-size: 14px; }
+.ops-detalhe-footer strong.verde    { color: var(--g700); }
+.ops-detalhe-footer strong.amarelo  { color: var(--a600); }
+.ops-detalhe-footer strong.vermelho { color: var(--r600); }
+.ops-detalhe-footer-sep { color: var(--ink3); }
 /* RESPONSIVO */
 @media (max-width: 900px) {
   .main-layout.panel-open { grid-template-columns: 1fr; }

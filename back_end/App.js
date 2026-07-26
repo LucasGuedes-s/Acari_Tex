@@ -5,6 +5,28 @@ require('dotenv').config();
 require('./opStatusCron')
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const multer = require("multer");
+
+const cron = require('node-cron');
+const { concluirOpsAutomaticamente } = require('./Services/OP.services');
+cron.schedule("0 */2 * * 1-5", async () => {
+
+    console.log("🔄 Verificando OPs para conclusão automática...");
+
+    try {
+
+        const quantidade = await concluirOpsAutomaticamente();
+
+        console.log(`✅ ${quantidade} OP(s) concluída(s) automaticamente.`);
+
+    } catch (err) {
+
+        console.error("❌ Erro ao verificar OPs:", err);
+
+    }
+
+}, {
+    timezone: "America/Sao_Paulo"
+});
 // Middleware
 
 app.use(express.json({ limit: '10mb' }));

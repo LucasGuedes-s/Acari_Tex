@@ -2086,6 +2086,93 @@ async function updateEtapa(req) {
     return updatedEtapa;
   }
 }
+
+const ETAPAS_FINAIS = [
+    "revisão",
+    "revisao",
+    "revisão final",
+    "revisao final",
+    "acabamento",
+    "acabamento final",
+    "final",
+    "expedição",
+    "expedicao"
+];
+
+async function concluirOpsAutomaticamente() {
+
+    const ops = await prisma.pecasOP.findMany({
+        where: {
+            status: {
+                notIn: ["Concluída", "Concluida", "concluída", "concluida"]
+            }
+        },
+        include: {
+            etapas: {
+                include: {
+                    etapa: true
+                }
+            }
+        }
+    });
+
+    let quantidadeAtualizada = 0;
+
+    for (const op of ops) {
+
+        const etapaFinal = op.etapas.find(e => {
+
+            const nome = e.etapa.descricao
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+
+            return ETAPAS_FINAIS.some(palavra =>
+                nome.includes(
+                    palavra
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                )
+            );
+
+        });
+
+        if (!etapaFinal) continue;
+
+        const producao = await prisma.producao.aggregate({
+            where: {
+                id_da_op: op.id_da_op,
+                id_da_funcao: etapaFinal.id_da_funcao
+            },
+            _sum: {
+                quantidade_pecas: true
+            }
+        });
+
+        const produzido = producao._sum.quantidade_pecas || 0;
+
+        if (produzido >= op.quantidade_pecas) {
+
+            await prisma.pecasOP.update({
+                where: {
+                    id_da_op: op.id_da_op
+                },
+                data: {
+                    status: "Concluída"
+                }
+            });
+
+            quantidadeAtualizada++;
+
+            console.log(
+                `OP ${op.id_da_op} concluída automaticamente.`
+            );
+        }
+    }
+
+    return quantidadeAtualizada;
+}
+
 module.exports = {
   postPecaOP,
   duplicarOP,
@@ -2112,5 +2199,6 @@ module.exports = {
   definirMetaDiaria,
   getMetaDiaria,
   criarTempoReferencia,
-  updateEtapa
+  updateEtapa,
+  concluirOpsAutomaticamente
 };

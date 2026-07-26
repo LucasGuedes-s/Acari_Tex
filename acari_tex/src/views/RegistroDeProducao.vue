@@ -237,10 +237,13 @@
                               <span v-if="funcionario.ausencia" class="ausencia-tag"
                                 :class="'ausencia-tag--' + funcionario.ausencia.tipo"
                                 :title="funcionario.ausencia.observacao || ''">
-                                <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia inteiro)</template>
+                                <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia
+                                  inteiro)</template>
                                 <template v-else>
-                                  🕒 Ausente: <strong>{{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</strong>
-                                  <span class="ausencia-tag-minutos">({{ calcularMinutosAusenciaFuncionario(funcionario) }}min)</span>
+                                  🕒 Ausente: <strong>{{ formatarPeriodosAusencia(funcionario.ausencia.periodos)
+                                    }}</strong>
+                                  <span class="ausencia-tag-minutos">({{ calcularMinutosAusenciaFuncionario(funcionario)
+                                    }}min)</span>
                                 </template>
                               </span>
                             </div>
@@ -263,22 +266,26 @@
                                 </optgroup>
                               </select>
                               <button v-if="linha.tipo === 'extra' && !funcionarioAusenteDiaInteiro(funcionario)"
-                                class="btn-remove-linha"
-                                @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta etapa">×</button>
-                              <button v-if="idxLinha === funcionario.linhas.length - 1 && !funcionarioAusenteDiaInteiro(funcionario)"
-                                class="btn-add-linha" @click="adicionarLinhaExtra(funcionario, true)" title="Adicionar etapa">+</button>
+                                class="btn-remove-linha" @click="removerLinhaExtra(funcionario, idxLinha)"
+                                title="Remover esta etapa">×</button>
+                              <button
+                                v-if="idxLinha === funcionario.linhas.length - 1 && !funcionarioAusenteDiaInteiro(funcionario)"
+                                class="btn-add-linha" @click="adicionarLinhaExtra(funcionario, true)"
+                                title="Adicionar etapa">+</button>
                             </template>
                             <template v-else>
                               <div class="etapa-fixa">
                                 <span class="etapa-fixa-label">{{ linha.descricao || 'Etapa' }}</span>
-                                <span class="etapa-fixa-tag" title="OP fora da lista de OPs ativas">🔒 somente consulta</span>
+                                <span class="etapa-fixa-tag" title="OP fora da lista de OPs ativas">🔒 somente
+                                  consulta</span>
                               </div>
-                              <button v-if="idxLinha === funcionario.linhas.length - 1 && !funcionarioAusenteDiaInteiro(funcionario)"
+                              <button
+                                v-if="idxLinha === funcionario.linhas.length - 1 && !funcionarioAusenteDiaInteiro(funcionario)"
                                 class="btn-add-linha" @click="adicionarLinhaExtra(funcionario, false)"
                                 title="Adicionar etapa de uma OP ativa">+</button>
                               <button v-if="linha.tipo === 'extra' && !funcionarioAusenteDiaInteiro(funcionario)"
-                                class="btn-remove-linha"
-                                @click="removerLinhaExtra(funcionario, idxLinha)" title="Remover esta linha">×</button>
+                                class="btn-remove-linha" @click="removerLinhaExtra(funcionario, idxLinha)"
+                                title="Remover esta linha">×</button>
                             </template>
                           </div>
 
@@ -313,9 +320,7 @@
                                   QUANTIDADE, conforme pedido.
                                 -->
                                 <div class="qtd-input-wrap">
-                                  <span
-                                    v-if="statusCelula(funcionario, linha, hora) !== 'idle'"
-                                    class="save-dot"
+                                  <span v-if="statusCelula(funcionario, linha, hora) !== 'idle'" class="save-dot"
                                     :class="'save-dot--' + statusCelula(funcionario, linha, hora)"
                                     :title="tituloStatusCelula(funcionario, linha, hora)">
                                   </span>
@@ -327,8 +332,7 @@
 
                                 <div class="tempo-wrap">
                                   <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-                                    max="60" class="min-input"
-                                    @input="onDigitarCelula(funcionario, linha, hora)" />
+                                    max="60" class="min-input" @input="onDigitarCelula(funcionario, linha, hora)" />
                                   <span class="min-label">min</span>
                                 </div>
 
@@ -421,7 +425,8 @@
             </div>
 
             <div v-if="modalAusencia.form.tipo === 'parcial'" class="ausencia-periodos">
-              <div v-for="(periodo, idx) in modalAusencia.form.periodos" :key="periodo._uid" class="ausencia-periodo-row">
+              <div v-for="(periodo, idx) in modalAusencia.form.periodos" :key="periodo._uid"
+                class="ausencia-periodo-row">
                 <select v-model="periodo.inicio" class="ausencia-hora-select">
                   <option v-for="h in opcoesHoraAusencia" :key="'ini-' + h" :value="h">{{ h }}</option>
                 </select>
@@ -448,7 +453,8 @@
 
           <div class="ausencia-modal-footer">
             <button v-if="modalAusencia.funcionario?.ausencia" class="btn-ausencia-remover"
-              @click="removerAusencia">Remover ausência</button>
+              @click="removerAusencia">Remover
+              ausência</button>
             <div class="ausencia-modal-footer-right">
               <button class="btn-ausencia-cancelar" @click="fecharModalAusencia">Cancelar</button>
               <button class="btn-ausencia-salvar" @click="salvarAusencia">Salvar</button>
@@ -469,6 +475,7 @@ import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
 import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
+import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
 import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
@@ -476,8 +483,8 @@ const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] 
 const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
 
 const CONFIG_PADRAO = {
-  manha: { inicio: '08:00', fim: '12:30' },
-  tarde: { inicio: '13:30', fim: '18:00' },
+  manha: { inicio: '08:00', fim: '11:30' },
+  tarde: { inicio: '13:30', fim: '17:00' },
 }
 
 // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ──────────────────────────
@@ -653,7 +660,8 @@ export default {
   name: 'ApontamentoDia',
   components: { SidebarNav, carregandoTela },
   setup() {
-    return { store: useAuthStore() }
+    return { store: useAuthStore(), monitorProdutividade: useMonitorProdutividade({ limiarEficiencia: 80, intervaloMinutos: 30 }), }
+
   },
 
   data() {
@@ -1512,12 +1520,12 @@ export default {
       this.modalAusencia.funcionario = real
       this.modalAusencia.form = existente
         ? {
-            tipo: existente.tipo,
-            periodos: existente.tipo === 'parcial' && existente.periodos?.length
-              ? existente.periodos.map(p => ({ _uid: Date.now() + Math.random(), inicio: p.inicio, fim: p.fim }))
-              : [this.novoPeriodoAusencia()],
-            observacao: existente.observacao || '',
-          }
+          tipo: existente.tipo,
+          periodos: existente.tipo === 'parcial' && existente.periodos?.length
+            ? existente.periodos.map(p => ({ _uid: Date.now() + Math.random(), inicio: p.inicio, fim: p.fim }))
+            : [this.novoPeriodoAusencia()],
+          observacao: existente.observacao || '',
+        }
         : { tipo: 'dia_inteiro', periodos: [this.novoPeriodoAusencia()], observacao: '' }
 
       this.modalAusencia.aberto = true
@@ -1876,7 +1884,43 @@ export default {
       }
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
+    /**
+ * Decide QUAL eficiência usar para fins de alerta, conforme o tipo de
+ * empresa — sem duplicar nenhuma fórmula: delega 100% para os métodos
+ * que já existem (calcularEficienciaLinhaPadrao / calcularEficienciaLinhaReferencia).
+ *   - "fabrica"        -> sempre Ficha (tempo padrão da etapa).
+ *   - qualquer outro tipo -> Referência do funcionário, com fallback
+ *     automático para o padrão já embutido em resolverTempoEfetivoReferencia.
+ */
+    calcularEficienciaLinhaComRegra(linha, funcionario) {
+      const tipoDeProducao = this.store.pegar_usuario?.tipo_de_producao
+      return tipoDeProducao === 'fabrica'
+        ? this.calcularEficienciaLinhaPadrao(linha, funcionario)
+        : this.calcularEficienciaLinhaReferencia(funcionario, linha)
+    },
 
+    /**
+     * Tempo efetivo (SAM ou Referência, conforme a mesma regra acima) —
+     * usado só para exibir "peças/h esperadas" no alerta.
+     */
+    resolverTempoEfetivoComRegra(funcionario, linha) {
+      const tipoDeProducao = this.store.pegar_usuario?.tipo_de_producao
+      return tipoDeProducao === 'fabrica'
+        ? this.resolverTempoPadrao(linha)
+        : this.resolverTempoEfetivoReferencia(funcionario, linha)
+    },
+
+    /** Métricas de peças/hora para o texto do alerta — reaproveita calcularTotalLinha/calcularTempoUtilizadoLinha. */
+    calcularPecasPorHoraLinha(linha, funcionario) {
+      const tempoEfetivo = this.resolverTempoEfetivoComRegra(funcionario, linha)
+      const esperadoPorHora = tempoEfetivo ? Math.round((60 / tempoEfetivo) * 10) / 10 : 0
+
+      const quantidade = this.calcularTotalLinha(linha, funcionario)
+      const tempoTrabalhado = this.calcularTempoUtilizadoLinha(linha, funcionario)
+      const registradoPorHora = tempoTrabalhado ? Math.round((quantidade / tempoTrabalhado) * 60 * 10) / 10 : 0
+
+      return { esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado }
+    },
     calcularTotalFuncionario(funcionario) {
       if (!Array.isArray(funcionario?.linhas)) return 0
       return funcionario.linhas.reduce((soma, linha) => {
@@ -2241,7 +2285,29 @@ export default {
           real.email, linha.opId, linha.etapaId, hora
         )
         removerPendenteLocalStorage(chaveLS)
+        this.definirStatusCelula(chave, 'saved', { lastSavedAt: Date.now() })
 
+        // ── Monitor de produtividade (Ficha na fábrica, Referência+fallback nos demais) ──
+        const eficiencia = this.calcularEficienciaLinhaComRegra(linha, real)
+        const { esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado } =
+          this.calcularPecasPorHoraLinha(linha, real)
+
+        this.monitorProdutividade.verificar({
+          funcionario: real,
+          linha,
+          eficiencia,
+          esperadoPorHora,
+          registradoPorHora,
+          quantidade,
+          tempoTrabalhado,
+          opNome: this.nomeDaOp(linha.opId),
+          empresaId: this.store.pegar_usuario?.cnpj,
+          tempoPadrao: this.resolverTempoPadrao(linha),
+          tempoReferencia: this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
+            ? null
+            : this.resolverTempoEfetivoReferencia(real, linha),
+          token: this.store.pegar_token,
+        })
         // Bolinha verde visível por pelo menos 2s, depois some (volta a 'idle').
         setTimeout(() => {
           if (this.saveStatus[chave]?.status === 'saved') {
@@ -2706,7 +2772,9 @@ export default {
 }
 </script>
 <style scoped>
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 .content-wrapper {
   flex-grow: 1;
@@ -2715,7 +2783,9 @@ export default {
   min-height: 100vh;
 }
 
-.page-section { padding: 1.2rem; }
+.page-section {
+  padding: 1.2rem;
+}
 
 /* ── HEADER ─────────────────────────────────────────── */
 .header {
@@ -2727,7 +2797,12 @@ export default {
   flex-wrap: wrap;
 }
 
-.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 
 .btn-gerar-pdf {
   display: flex;
@@ -2747,8 +2822,14 @@ export default {
   font-family: inherit;
 }
 
-.btn-gerar-pdf:hover:not(:disabled) { filter: brightness(1.05); }
-.btn-gerar-pdf:disabled { opacity: .6; cursor: not-allowed; }
+.btn-gerar-pdf:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-gerar-pdf:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
 
 .socket-status {
   display: flex;
@@ -2763,7 +2844,10 @@ export default {
   color: #d23b3b;
 }
 
-.socket-status.online { background: #e7f8ef; color: #0d7a3f; }
+.socket-status.online {
+  background: #e7f8ef;
+  color: #0d7a3f;
+}
 
 .status-dot {
   width: 8px;
@@ -2803,8 +2887,15 @@ export default {
 }
 
 @keyframes pulseFade {
-  0%, 100% { opacity: .5; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: .5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ── SETUP CARD ─────────────────────────────────────── */
@@ -2814,7 +2905,7 @@ export default {
   border: 1px solid #dceee3;
   padding: 1.4rem;
   margin-bottom: 1rem;
-  box-shadow: 0 4px 18px rgba(0,0,0,.03);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .03);
 }
 
 .setup-topbar {
@@ -2826,7 +2917,11 @@ export default {
   flex-wrap: wrap;
 }
 
-.setup-title { display: flex; align-items: center; gap: 14px; }
+.setup-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 
 .setup-icon {
   width: 52px;
@@ -2838,11 +2933,19 @@ export default {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
   font-size: 22px;
-  box-shadow: 0 8px 20px rgba(13,102,50,.2);
+  box-shadow: 0 8px 20px rgba(13, 102, 50, .2);
 }
 
-.setup-title h3 { margin: 0; font-size: 23px; color: #052e14; }
-.setup-title span { font-size: 14px; color: #72907e; }
+.setup-title h3 {
+  margin: 0;
+  font-size: 23px;
+  color: #052e14;
+}
+
+.setup-title span {
+  font-size: 14px;
+  color: #72907e;
+}
 
 .turno-switch {
   display: flex;
@@ -2865,16 +2968,28 @@ export default {
   font-size: 14px;
 }
 
-.turno-btn:hover { background: rgba(13,102,50,.08); }
+.turno-btn:hover {
+  background: rgba(13, 102, 50, .08);
+}
 
 .turno-btn.active {
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
-  box-shadow: 0 4px 14px rgba(13,102,50,.25);
+  box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
 }
 
-.turno-config-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.horarios-config-inline { display: flex; align-items: center; gap: 6px; }
+.turno-config-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horarios-config-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .horario-select-sm {
   height: 42px;
@@ -2891,15 +3006,28 @@ export default {
 
 .horario-select-sm:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
   outline: none;
 }
 
-.horario-ate { font-size: 13px; font-weight: 700; color: #648673; }
+.horario-ate {
+  font-size: 13px;
+  font-weight: 700;
+  color: #648673;
+}
 
 /* ── OPs SECTION ────────────────────────────────────── */
-.ops-section { display: flex; flex-direction: column; gap: 1rem; }
-.ops-list { display: flex; flex-wrap: wrap; gap: 1rem; }
+.ops-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ops-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
 
 .op-card {
   flex: 1 1 340px;
@@ -2910,7 +3038,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: .75rem;
-  box-shadow: 0 2px 10px rgba(0,0,0,.03);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .03);
 }
 
 .op-card--historico {
@@ -2939,7 +3067,11 @@ export default {
   text-overflow: ellipsis;
 }
 
-.op-card-header { display: flex; align-items: center; justify-content: space-between; }
+.op-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
 .op-badge {
   font-size: 12px;
@@ -2953,10 +3085,16 @@ export default {
 }
 
 .btn-remove-op {
-  width: 26px; height: 26px;
-  border: none; border-radius: 8px;
-  background: #ffecec; color: #d93b3b;
-  font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: #ffecec;
+  color: #d93b3b;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
 }
 
 .op-fields {
@@ -2966,9 +3104,18 @@ export default {
   align-items: end;
 }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-.field label { font-size: 12px; font-weight: 700; color: #648673; padding-left: 2px; }
+.field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #648673;
+  padding-left: 2px;
+}
 
 .field select {
   height: 46px;
@@ -2984,7 +3131,7 @@ export default {
 
 .field select:focus {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
   outline: none;
 }
 
@@ -3001,121 +3148,211 @@ export default {
 
 .meta-input-wrap:focus-within {
   border-color: #118a43;
-  box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
 }
 
 .meta-input {
-  flex: 1; height: 100%; border: none; background: transparent;
-  padding: 0 12px; font-size: 17px; font-weight: 700; color: #052e14;
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #052e14;
 }
 
-.meta-input:focus { outline: none; }
+.meta-input:focus {
+  outline: none;
+}
 
 .meta-suffix {
-  height: 100%; padding: 0 12px;
-  display: flex; align-items: center;
-  background: #f2f8f4; border-left: 1px solid #e2eee7;
-  color: #5d8470; font-size: 12px; font-weight: 700;
+  height: 100%;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  background: #f2f8f4;
+  border-left: 1px solid #e2eee7;
+  color: #5d8470;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .total-box {
-  height: 46px; border-radius: 13px;
+  height: 46px;
+  border-radius: 13px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white; display: flex; align-items: center; justify-content: center;
-  font-size: 23px; font-weight: 800;
-  box-shadow: 0 6px 16px rgba(13,102,50,.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 23px;
+  font-weight: 800;
+  box-shadow: 0 6px 16px rgba(13, 102, 50, .2);
 }
 
 .meta-progress {
-  margin-top: .25rem; padding: .85rem 1rem;
+  margin-top: .25rem;
+  padding: .85rem 1rem;
   border-radius: 14px;
   background: linear-gradient(135deg, #f7fcf9, #edf7f1);
   border: 1px solid #dceee3;
 }
 
 .meta-progress-top {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 8px; font-size: 13px; color: #537664;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #537664;
 }
 
-.meta-progress-top strong { color: #052e14; font-size: 14px; }
+.meta-progress-top strong {
+  color: #052e14;
+  font-size: 14px;
+}
 
 .progress-bar {
-  width: 100%; height: 12px; border-radius: 999px;
-  background: #dceee3; overflow: hidden;
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: #dceee3;
+  overflow: hidden;
 }
 
 .progress-fill {
-  height: 100%; border-radius: inherit;
+  height: 100%;
+  border-radius: inherit;
   background: linear-gradient(90deg, #0d6632, #20b15a);
   transition: width .3s ease;
 }
 
 .progress-footer {
-  margin-top: 8px; display: flex; justify-content: space-between;
-  font-size: 12px; color: #648673;
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #648673;
 }
 
 .btn-add-op {
   align-self: flex-start;
-  display: flex; align-items: center; gap: 6px;
-  height: 40px; padding: 0 18px;
-  border: 2px dashed #b2d9c0; border-radius: 13px;
-  background: transparent; color: #0d6632;
-  font-size: 14px; font-weight: 700; cursor: pointer;
-  transition: .2s; font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  border: 2px dashed #b2d9c0;
+  border-radius: 13px;
+  background: transparent;
+  color: #0d6632;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+  font-family: inherit;
 }
 
-.btn-add-op:hover { background: #edf7f1; border-color: #0d6632; }
-.btn-add-op span { font-size: 18px; line-height: 1; }
+.btn-add-op:hover {
+  background: #edf7f1;
+  border-color: #0d6632;
+}
+
+.btn-add-op span {
+  font-size: 18px;
+  line-height: 1;
+}
 
 .total-geral-row {
-  display: flex; align-items: center; justify-content: flex-end;
-  gap: 12px; margin-top: 1rem; padding-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 1px solid #e6f2ea;
-  font-size: 14px; font-weight: 700; color: #537664;
+  font-size: 14px;
+  font-weight: 700;
+  color: #537664;
 }
 
 .total-box-sm {
-  min-width: 80px; height: 40px; border-radius: 12px;
+  min-width: 80px;
+  height: 40px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white; display: flex; align-items: center; justify-content: center;
-  font-size: 19px; font-weight: 800;
-  box-shadow: 0 4px 12px rgba(13,102,50,.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
   padding: 0 16px;
 }
 
 /* ── TABLE ──────────────────────────────────────────── */
 .table-wrapper {
-  background: white; border-radius: 20px;
-  border: 1px solid #e3f0e7; overflow: hidden;
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #e3f0e7;
+  overflow: hidden;
 }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll {
+  overflow-x: auto;
+}
 
 .apontamento-table {
-  width: 100%; border-collapse: collapse; min-width: 1556px;
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1556px;
   table-layout: fixed;
 }
+
 .apontamento-table tbody tr {
   min-height: 56px;
 }
 
-.col-func     { width: 180px; }
-.col-etapa    { width: 230px; }
-.col-hora     { width: 190px; }
-.col-total    { width: 80px; }
-.col-efic     { width: 128px; }
-.col-efic-ref { width: 128px; }
+.col-func {
+  width: 180px;
+}
+
+.col-etapa {
+  width: 230px;
+}
+
+.col-hora {
+  width: 190px;
+}
+
+.col-total {
+  width: 80px;
+}
+
+.col-efic {
+  width: 128px;
+}
+
+.col-efic-ref {
+  width: 128px;
+}
 
 .apontamento-table thead {
   background: linear-gradient(90deg, #0d6632, #084d24);
 }
 
 .apontamento-table th {
-  height: 48px; color: white; font-size: 13px; font-weight: 700;
+  height: 48px;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
   align-content: center;
-  padding: 0 8px; text-align: left; white-space: nowrap; box-sizing: border-box;
+  padding: 0 8px;
+  text-align: left;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .apontamento-table td {
@@ -3125,62 +3362,144 @@ export default {
   box-sizing: border-box;
 }
 
-.func-col { width: 180px; min-width: 180px; box-sizing: border-box; }
-
-.func-info { display: flex; align-items: center; gap: 10px; }
-
-.func-info img {
-  width: 36px; height: 36px; border-radius: 9px;
-  object-fit: cover; flex-shrink: 0;
+.func-col {
+  width: 180px;
+  min-width: 180px;
+  box-sizing: border-box;
 }
 
-.func-info span { font-size: 13px; font-weight: 700; color: #052e14; }
+.func-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.func-info img {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.func-info span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
+}
 
 .extra-tag {
   padding-left: 8px;
-  font-size: 12px; font-weight: 700; color: #5d8972;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5d8972;
 }
 
-.etapa-col { width: 230px; min-width: 230px; vertical-align: top; padding-top: 10px; box-sizing: border-box; }
+.etapa-col {
+  width: 230px;
+  min-width: 230px;
+  vertical-align: top;
+  padding-top: 10px;
+  box-sizing: border-box;
+}
 
-.etapa-wrap { display: flex; align-items: center; gap: 5px; }
+.etapa-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 
 .etapa-select {
-  flex: 1; height: 34px; border-radius: 9px;
-  border: 1px solid #dceee3; padding: 0 8px;
-  font-size: 12px; font-family: inherit; background: white;
+  flex: 1;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid #dceee3;
+  padding: 0 8px;
+  font-size: 12px;
+  font-family: inherit;
+  background: white;
   min-width: 0;
 }
 
-.etapa-select:focus { outline: none; border-color: #118a43; }
-
-.btn-add-linha, .btn-remove-linha {
-  width: 26px; height: 26px; border: none; border-radius: 7px;
-  font-size: 16px; font-weight: 700; cursor: pointer;
-  flex-shrink: 0; line-height: 1; display: flex;
-  align-items: center; justify-content: center;
+.etapa-select:focus {
+  outline: none;
+  border-color: #118a43;
 }
 
-.btn-add-linha { background: #0d6632; color: white; }
-.btn-remove-linha { background: #ffecec; color: #d93b3b; }
-.linha-extra { background: #f9fcfa; }
+.btn-add-linha,
+.btn-remove-linha {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 7px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-.tempo-toggle-wrap { margin-top: 5px; }
+.btn-add-linha {
+  background: #0d6632;
+  color: white;
+}
+
+.btn-remove-linha {
+  background: #ffecec;
+  color: #d93b3b;
+}
+
+.linha-extra {
+  background: #f9fcfa;
+}
+
+.tempo-toggle-wrap {
+  margin-top: 5px;
+}
 
 .tempo-select {
-  height: 22px; border-radius: 7px;
-  border: 1px solid #d4e8dc; background: #f2faf5;
-  color: #052e14; font-size: 11px; font-weight: 600;
-  font-family: inherit; padding: 0 6px; cursor: pointer;
-  width: 100%; max-width: 240px; transition: border-color .15s;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid #d4e8dc;
+  background: #f2faf5;
+  color: #052e14;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0 6px;
+  cursor: pointer;
+  width: 100%;
+  max-width: 240px;
+  transition: border-color .15s;
 }
 
-.tempo-select:focus { outline: none; border-color: #0d6632; }
+.tempo-select:focus {
+  outline: none;
+  border-color: #0d6632;
+}
 
-.sem-referencia { font-size: 10px; color: #b0c5b8; font-style: italic; }
+.sem-referencia {
+  font-size: 10px;
+  color: #b0c5b8;
+  font-style: italic;
+}
 
-.hora-th { width: 190px; min-width: 190px; text-align: center !important; box-sizing: border-box; }
-.hora-td { padding: 6px 6px; vertical-align: middle; box-sizing: border-box; position: relative; }
+.hora-th {
+  width: 190px;
+  min-width: 190px;
+  text-align: center !important;
+  box-sizing: border-box;
+}
+
+.hora-td {
+  padding: 6px 6px;
+  vertical-align: middle;
+  box-sizing: border-box;
+  position: relative;
+}
 
 .hora-box-outer {
   display: flex;
@@ -3208,15 +3527,26 @@ export default {
 }
 
 .hora-input {
-  width: 52px; height: 32px; border-radius: 8px;
-  border: 1px solid #dceee3; text-align: center;
-  font-size: 14px; font-weight: 700; font-family: inherit; transition: .15s;
+  width: 52px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #dceee3;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: .15s;
 }
 
-.hora-input:focus { outline: none; border-color: #0d6632; }
+.hora-input:focus {
+  outline: none;
+  border-color: #0d6632;
+}
 
 .hora-input.tem-producao {
-  background: #e9f2ff; border-color: #2b77d9; color: #1454ad;
+  background: #e9f2ff;
+  border-color: #2b77d9;
+  color: #1454ad;
 }
 
 /*
@@ -3240,10 +3570,22 @@ export default {
   z-index: 2;
 }
 
-.save-dot--pending { background: #9aa5a1; }
-.save-dot--saving  { background: #f0b400; animation: pulseFade 0.9s ease-in-out infinite; }
-.save-dot--saved   { background: #1fae57; }
-.save-dot--error   { background: #e13b3b; }
+.save-dot--pending {
+  background: #9aa5a1;
+}
+
+.save-dot--saving {
+  background: #f0b400;
+  animation: pulseFade 0.9s ease-in-out infinite;
+}
+
+.save-dot--saved {
+  background: #1fae57;
+}
+
+.save-dot--error {
+  background: #e13b3b;
+}
 
 .btn-salvar-celula {
   width: 22px;
@@ -3262,22 +3604,36 @@ export default {
   transition: .15s;
 }
 
-.btn-salvar-celula:hover:not(:disabled) { background: #dcefe3; }
+.btn-salvar-celula:hover:not(:disabled) {
+  background: #dcefe3;
+}
 
 .btn-salvar-celula:disabled {
   opacity: .3;
   cursor: default;
 }
 
-.tempo-wrap { display: flex; align-items: center; gap: 2px; }
-
-.min-input {
-  width: 36px; height: 20px; border-radius: 6px;
-  border: 1px solid #ddebe3; text-align: center;
-  font-size: 10px; background: #f8fcf9; color: #69907b;
+.tempo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.min-label { font-size: 10px; color: #8ca998; }
+.min-input {
+  width: 36px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #ddebe3;
+  text-align: center;
+  font-size: 10px;
+  background: #f8fcf9;
+  color: #69907b;
+}
+
+.min-label {
+  font-size: 10px;
+  color: #8ca998;
+}
 
 .efic-inline-col {
   position: absolute;
@@ -3293,18 +3649,18 @@ export default {
 }
 
 .efic-inline {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    height: 18px;
-    border-radius: 4px;
-    padding: 0 6px;
-    font-size: 11px;
-    font-weight: 700;
-    white-space: nowrap;
-    line-height: 1;
-    margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 18px;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  margin: 0;
 }
 
 .efic-inline-label {
@@ -3320,9 +3676,15 @@ export default {
 }
 
 .efic-badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 64px; height: 28px; border-radius: 20px;
-  font-size: 12px; font-weight: 700; padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 28px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 12px;
 }
 
 .efic-badge--ref {
@@ -3330,19 +3692,50 @@ export default {
   border: 1.5px dashed currentColor;
 }
 
-.efic-alta { background: #d4f1df; color: #0c6b34; }
-.efic-media { background: #fff4cf; color: #8a6a00; }
-.efic-baixa { background: #ffe8e8; color: #b12626; }
+.efic-alta {
+  background: #d4f1df;
+  color: #0c6b34;
+}
 
-.total-col { width: 80px; min-width: 80px; text-align: center; font-size: 13px; font-weight: 700; color: #052e14; box-sizing: border-box; }
-.efic-col  { width: 128px; min-width: 128px; text-align: center; box-sizing: border-box; padding-left: 10px; padding-right: 10px; }
+.efic-media {
+  background: #fff4cf;
+  color: #8a6a00;
+}
+
+.efic-baixa {
+  background: #ffe8e8;
+  color: #b12626;
+}
+
+.total-col {
+  width: 80px;
+  min-width: 80px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
+  box-sizing: border-box;
+}
+
+.efic-col {
+  width: 128px;
+  min-width: 128px;
+  text-align: center;
+  box-sizing: border-box;
+  padding-left: 10px;
+  padding-right: 10px;
+}
 
 .efic-col--ref {
   background: rgba(109, 72, 201, 0.05);
   border-left: 1px solid #e3f0e7;
 }
 
-.ops-modulos-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
+.ops-modulos-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 
 .op-module-header {
   display: flex;
@@ -3355,22 +3748,52 @@ export default {
   border-radius: 14px;
   padding: 14px 20px;
   margin-top: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .02);
 }
 
-.op-module-header--single { background: #f8fcf9; border-color: #e3f0e7; box-shadow: none; }
-.op-module-header--empty { background: #fff8e1; border-color: #f0d97a; }
+.op-module-header--single {
+  background: #f8fcf9;
+  border-color: #e3f0e7;
+  box-shadow: none;
+}
 
-.op-module-badge { font-size: 14px; font-weight: 800; color: #0d6632; letter-spacing: .02em; }
-.op-module-header--empty .op-module-badge { color: #8a6a00; }
+.op-module-header--empty {
+  background: #fff8e1;
+  border-color: #f0d97a;
+}
+
+.op-module-badge {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0d6632;
+  letter-spacing: .02em;
+}
+
+.op-module-header--empty .op-module-badge {
+  color: #8a6a00;
+}
 
 .op-module-stats {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  font-size: 12px; color: #537664; font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #537664;
+  font-weight: 700;
 }
 
-.op-module-stats .stat { display: inline-flex; align-items: center; gap: 4px; }
-.op-module-stats .stat strong { color: #052e14; font-weight: 800; font-size: 13px; }
+.op-module-stats .stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.op-module-stats .stat strong {
+  color: #052e14;
+  font-weight: 800;
+  font-size: 13px;
+}
 
 /* ── OP HISTÓRICA (fora da lista de OPs ativas) ────── */
 .op-module-header--historico {
@@ -3378,7 +3801,9 @@ export default {
   border-color: #e6ddc0;
 }
 
-.op-module-header--historico .op-module-badge { color: #7a6a2e; }
+.op-module-header--historico .op-module-badge {
+  color: #7a6a2e;
+}
 
 .op-module-badge-tag {
   display: inline-block;
@@ -3416,7 +3841,11 @@ export default {
   text-overflow: ellipsis;
 }
 
-.etapa-fixa-tag { font-size: 9px; font-weight: 700; color: #93a89c; }
+.etapa-fixa-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: #93a89c;
+}
 
 .hora-ausente-marker {
   width: 100%;
@@ -3433,7 +3862,9 @@ export default {
 }
 
 /* ── FUNCIONÁRIO AUSENTE ────────────────────────────── */
-.linha-ausente { opacity: .55; }
+.linha-ausente {
+  opacity: .55;
+}
 
 .func-info-text {
   display: flex;
@@ -3441,7 +3872,12 @@ export default {
   gap: 3px;
   justify-content: center;
 }
-.func-nome { font-size: 13px; font-weight: 700; color: #052e14; }
+
+.func-nome {
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
+}
 
 .btn-ausencia-toggle {
   align-self: flex-start;
@@ -3457,7 +3893,9 @@ export default {
   transition: .2s;
 }
 
-.btn-ausencia-toggle:hover { background: #e7f0ea; }
+.btn-ausencia-toggle:hover {
+  background: #e7f0ea;
+}
 
 .ausencia-tag {
   display: inline-flex;
@@ -3473,8 +3911,15 @@ export default {
   gap: 2px;
 }
 
-.ausencia-tag--dia_inteiro { background: #f3e6e6; color: #9a4b4b; }
-.ausencia-tag--parcial { background: #fff4d6; color: #8a6a00; }
+.ausencia-tag--dia_inteiro {
+  background: #f3e6e6;
+  color: #9a4b4b;
+}
+
+.ausencia-tag--parcial {
+  background: #fff4d6;
+  color: #8a6a00;
+}
 
 .ausencia-tag-minutos {
   font-size: 9px;
@@ -3485,9 +3930,12 @@ export default {
 
 /* ── MODAL DE AUSÊNCIA ──────────────────────────────── */
 .ausencia-overlay {
-  position: fixed; inset: 0;
+  position: fixed;
+  inset: 0;
   background: rgba(5, 46, 20, .35);
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 1000;
   padding: 1rem;
 }
@@ -3497,137 +3945,296 @@ export default {
   border-radius: 20px;
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 20px 50px rgba(0,0,0,.2);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .2);
   overflow: hidden;
 }
 
 .ausencia-modal-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 1.1rem 1.3rem;
   background: linear-gradient(135deg, #0d6632, #118a43);
   color: white;
 }
 
-.ausencia-modal-header h3 { margin: 0; font-size: 16px; }
-
-.ausencia-modal-close {
-  width: 28px; height: 28px; border: none; border-radius: 8px;
-  background: rgba(255,255,255,.15); color: white;
-  font-size: 16px; cursor: pointer; line-height: 1;
+.ausencia-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
 }
 
-.ausencia-modal-body { padding: 1.2rem 1.3rem; display: flex; flex-direction: column; gap: 1rem; }
+.ausencia-modal-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .15);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
 
-.ausencia-tipo-switch { display: flex; gap: 6px; background: #edf7f1; padding: 5px; border-radius: 13px; }
+.ausencia-modal-body {
+  padding: 1.2rem 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ausencia-tipo-switch {
+  display: flex;
+  gap: 6px;
+  background: #edf7f1;
+  padding: 5px;
+  border-radius: 13px;
+}
 
 .ausencia-tipo-btn {
-  flex: 1; height: 40px; border: none; border-radius: 10px;
-  background: transparent; color: #6d8c79; font-weight: 700; font-size: 13px;
-  cursor: pointer; transition: .2s; font-family: inherit;
+  flex: 1;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #6d8c79;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .2s;
+  font-family: inherit;
 }
 
 .ausencia-tipo-btn.active {
   background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white; box-shadow: 0 4px 12px rgba(13,102,50,.2);
+  color: white;
+  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
 }
 
-.ausencia-periodos { display: flex; flex-direction: column; gap: 8px; }
+.ausencia-periodos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-.ausencia-periodo-row { display: flex; align-items: center; gap: 8px; }
+.ausencia-periodo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .ausencia-hora-select {
-  flex: 1; height: 40px; border-radius: 10px;
-  border: 1px solid #dceee3; padding: 0 10px;
-  font-family: inherit; font-size: 13px; font-weight: 700; color: #052e14;
+  flex: 1;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid #dceee3;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #052e14;
 }
 
-.ausencia-periodo-ate { font-size: 12px; font-weight: 700; color: #648673; }
+.ausencia-periodo-ate {
+  font-size: 12px;
+  font-weight: 700;
+  color: #648673;
+}
 
 .btn-remove-periodo {
-  width: 30px; height: 30px; border: none; border-radius: 8px;
-  background: #ffecec; color: #d93b3b; font-size: 16px; font-weight: 700; cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: #ffecec;
+  color: #d93b3b;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
   flex-shrink: 0;
 }
 
 .btn-add-periodo {
   align-self: flex-start;
-  border: 2px dashed #b2d9c0; border-radius: 10px;
-  background: transparent; color: #0d6632;
-  height: 36px; padding: 0 14px; font-size: 12px; font-weight: 700;
-  cursor: pointer; font-family: inherit;
+  border: 2px dashed #b2d9c0;
+  border-radius: 10px;
+  background: transparent;
+  color: #0d6632;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .ausencia-dia-inteiro-aviso {
-  margin: 0; font-size: 13px; color: #648673; line-height: 1.5;
-  background: #f7fcf9; border: 1px solid #dceee3; border-radius: 12px; padding: .8rem 1rem;
+  margin: 0;
+  font-size: 13px;
+  color: #648673;
+  line-height: 1.5;
+  background: #f7fcf9;
+  border: 1px solid #dceee3;
+  border-radius: 12px;
+  padding: .8rem 1rem;
 }
 
-.ausencia-campo-observacao { display: flex; flex-direction: column; gap: 6px; }
+.ausencia-campo-observacao {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .ausencia-campo-observacao label {
-  font-size: 12px; font-weight: 700; color: #648673; padding-left: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #648673;
+  padding-left: 2px;
 }
 
 .ausencia-observacao-input {
-  border-radius: 12px; border: 1px solid #dceee3; background: white;
-  padding: .6rem .8rem; font-family: inherit; font-size: 13px; color: #052e14;
-  resize: vertical; min-height: 44px; transition: .2s;
+  border-radius: 12px;
+  border: 1px solid #dceee3;
+  background: white;
+  padding: .6rem .8rem;
+  font-family: inherit;
+  font-size: 13px;
+  color: #052e14;
+  resize: vertical;
+  min-height: 44px;
+  transition: .2s;
 }
 
 .ausencia-observacao-input:focus {
-  outline: none; border-color: #118a43; box-shadow: 0 0 0 4px rgba(17,138,67,.08);
+  outline: none;
+  border-color: #118a43;
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .08);
 }
 
 .ausencia-modal-footer {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 1rem 1.3rem; border-top: 1px solid #edf6f1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1rem 1.3rem;
+  border-top: 1px solid #edf6f1;
 }
 
-.ausencia-modal-footer-right { display: flex; gap: 8px; }
+.ausencia-modal-footer-right {
+  display: flex;
+  gap: 8px;
+}
 
 .btn-ausencia-remover {
-  border: none; background: transparent; color: #d93b3b;
-  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  border: none;
+  background: transparent;
+  color: #d93b3b;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .btn-ausencia-cancelar {
-  height: 40px; padding: 0 16px; border-radius: 10px;
-  border: 1px solid #dceee3; background: white; color: #537664;
-  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid #dceee3;
+  background: white;
+  color: #537664;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .btn-ausencia-salvar {
-  height: 40px; padding: 0 18px; border-radius: 10px;
-  border: none; background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
-  box-shadow: 0 4px 12px rgba(13,102,50,.2);
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #0d6632, #118a43);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
 }
 
 /* ── RESPONSIVO ─────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .content-wrapper { padding-left: 0; }
-  .page-section { padding: 1rem; }
-  .op-fields { grid-template-columns: 1fr; }
+  .content-wrapper {
+    padding-left: 0;
+  }
+
+  .page-section {
+    padding: 1rem;
+  }
+
+  .op-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Tablets: mantém a tabela com scroll horizontal (já previsto acima),
    mas dá mais espaço de toque para o botão de salvar e a bolinha de
    status, que em telas touch precisam de alvo maior. */
 @media (max-width: 1024px) and (min-width: 769px) {
-  .btn-salvar-celula { width: 26px; height: 26px; font-size: 12px; }
-  .save-dot { width: 10px; height: 10px; }
+  .btn-salvar-celula {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .save-dot {
+    width: 10px;
+    height: 10px;
+  }
 }
 
 @media (max-width: 768px) {
-  .header { align-items: stretch; }
-  .header-actions { width: 100%; flex-wrap: wrap; }
-  .date-input { width: 100%; }
-  .turno-switch { width: 100%; }
-  .turno-btn { flex: 1; }
-  .progress-footer { flex-direction: column; gap: 4px; }
-  .ops-list { flex-direction: column; }
-  .turno-config-group { width: 100%; flex-direction: column; align-items: stretch; }
-  .horarios-config-inline { width: 100%; }
-  .horario-select-sm { flex: 1; }
+  .header {
+    align-items: stretch;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .date-input {
+    width: 100%;
+  }
+
+  .turno-switch {
+    width: 100%;
+  }
+
+  .turno-btn {
+    flex: 1;
+  }
+
+  .progress-footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ops-list {
+    flex-direction: column;
+  }
+
+  .turno-config-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .horarios-config-inline {
+    width: 100%;
+  }
+
+  .horario-select-sm {
+    flex: 1;
+  }
 }
 </style>

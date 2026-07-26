@@ -114,8 +114,45 @@ async function getEmpresa(req) {
     })
     return empresa;
 }
+
+async function registrarAlertaProdutividade(dados) {
+  const {
+    estabelecimentoCnpj,
+    funcionarioId,
+    funcionarioNome,
+    opId,
+    etapaNome,
+    eficiencia,
+    tempoUtilizado,
+    tempoPadrao,
+    tempoReferencia,
+    quantidadeProduzida,
+  } = dados
+
+  // Mensagem estruturada em texto — necessário nesta opção porque o
+  // model Notificacoes não tem colunas próprias para os campos técnicos.
+  const partes = [
+    `${funcionarioNome || funcionarioId} está produzindo abaixo da meta.`,
+    `OP: ${opId || '—'}`,
+    `Eficiência: ${eficiencia}%`,
+    `Tempo padrão: ${tempoPadrao ?? '—'} min`,
+  ]
+  if (tempoReferencia != null) partes.push(`Tempo de referência: ${tempoReferencia} min`)
+  partes.push(`Tempo utilizado: ${tempoUtilizado} min`)
+  partes.push(`Quantidade produzida: ${quantidadeProduzida}`)
+
+  return prisma.notificacoes.create({
+    data: {
+      estabelecimentoCnpj,
+      titulo: 'Baixa produtividade detectada',
+      mensagem: partes.join(' · '),
+      etapa: etapaNome || 'Coletiva',
+    },
+  })
+}
 module.exports = {
     getNotificacoes,
     putNotificacaoLida,
-    getEmpresa
+    getEmpresa,
+    registrarAlertaProdutividade
 }

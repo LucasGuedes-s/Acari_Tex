@@ -9,6 +9,62 @@ async function getNotificacoes(req, res, next){
         next(err);
     }
 }
+async function postAlertaProdutividade(req, res, next){
+ try {
+    const {
+      estabelecimento,
+      funcionarioId,
+      funcionarioNome,
+      opId,
+      etapaId,
+      etapaNome,
+      eficiencia,
+      tempoUtilizado,
+      tempoPadrao,
+      tempoReferencia,
+      quantidadeProduzida,
+      tipo,
+    } = req.body
+
+    // ── Validações ──
+    if (!estabelecimento) {
+      return res.status(400).json({ sucesso: false, mensagem: 'Estabelecimento é obrigatório.' })
+    }
+    if (!funcionarioId) {
+      return res.status(400).json({ sucesso: false, mensagem: 'Funcionário é obrigatório.' })
+    }
+    if (!etapaId) {
+      return res.status(400).json({ sucesso: false, mensagem: 'Etapa é obrigatória.' })
+    }
+    if (eficiencia == null || Number.isNaN(Number(eficiencia))) {
+      return res.status(400).json({ sucesso: false, mensagem: 'Eficiência inválida.' })
+    }
+    if (!tempoUtilizado || Number(tempoUtilizado) <= 0) {
+      return res.status(400).json({ sucesso: false, mensagem: 'Tempo utilizado inválido.' })
+    }
+    if (tipo && tipo !== 'baixa_produtividade') {
+      return res.status(400).json({ sucesso: false, mensagem: 'Tipo de alerta não suportado.' })
+    }
+
+    const notificacao = await Empresa.registrarAlertaProdutividade({
+      estabelecimentoCnpj: estabelecimento,
+      funcionarioId,
+      funcionarioNome,
+      opId,
+      etapaNome,
+      eficiencia: Number(eficiencia),
+      tempoUtilizado: Number(tempoUtilizado),
+      tempoPadrao: tempoPadrao != null ? Number(tempoPadrao) : null,
+      tempoReferencia: tempoReferencia != null ? Number(tempoReferencia) : null,
+      quantidadeProduzida: Number(quantidadeProduzida || 0),
+    })
+
+    return res.status(201).json({ sucesso: true, notificacao })
+  } catch (err) {
+    console.error('Erro ao registrar alerta de produtividade:', err)
+    return res.status(500).json({ sucesso: false, mensagem: 'Erro ao registrar alerta de produtividade.' })
+  }
+}
 async function putNotificacaoLida(req, res, next){
     try {
         const resultado = await Empresa.putNotificacaoLida(req);  
@@ -28,6 +84,7 @@ async function getEmpresa(req, res, next){
     }
 }
 module.exports = { 
+    postAlertaProdutividade,
     getNotificacoes,
     putNotificacaoLida,
     getEmpresa
