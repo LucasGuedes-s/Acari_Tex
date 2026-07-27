@@ -8,7 +8,7 @@ const multer = require("multer");
 
 const cron = require('node-cron');
 const { concluirOpsAutomaticamente } = require('./Services/OP.services');
-cron.schedule("0 */2 * * 1-5", async () => {
+cron.schedule("0 19 * * 1-5", async () => {
 
     console.log("🔄 Verificando OPs para conclusão automática...");
 
