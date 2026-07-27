@@ -79,12 +79,24 @@
 </transition>
     <!-- MAIN -->
     <div class="main-layout" :class="{ 'panel-open': selecionado !== null }">
-
+      
       <!-- LISTA -->
       <div class="grid-area">
         <div class="list-toolbar">
           <span class="list-title">Profissionais</span>
           <div class="list-toolbar-right">
+            <div v-if="isFabrica" class="sort-toggle" role="tablist" aria-label="Ordenar por">
+              <button
+                class="sort-toggle-btn"
+                :class="{ active: modoOrdenacao === 'ficha' }"
+                @click="definirModoOrdenacao('ficha')"
+              >Ficha</button>
+              <button
+                class="sort-toggle-btn"
+                :class="{ active: modoOrdenacao === 'referencia' }"
+                @click="definirModoOrdenacao('referencia')"
+              >Referência</button>
+            </div>
             <input class="search-input" v-model="busca" placeholder="Buscar…" />
             <span class="list-count">{{ funcionariosFiltrados.length }} de {{ funcionariosOrdenados.length }}</span>
           </div>
@@ -414,6 +426,7 @@ import {
   calcularEficienciaRegistroReferencia,
   calcularEficienciaFuncionarioPadrao,
   calcularEficienciaFuncionarioReferencia,
+  calcularEficienciaFuncionarioPorModo,
   // funcionarioAusenteDiaInteiro,
   horaBloqueadaPorAusencia,
   agruparProducaoPorOp,
@@ -448,6 +461,7 @@ export default {
 
   data() {
     return {
+      modoOrdenacao: this.carregarModoOrdenacao(),
       mostrarDetalheOps: false,
       loading: true,
       socketConectado: false,
@@ -485,7 +499,7 @@ export default {
 
     funcionariosOrdenados() {
       return [...this.funcionariosDia]
-        .sort((a, b) => this.calcularEficienciaFuncionario(b) - this.calcularEficienciaFuncionario(a))
+        .sort((a, b) => this.calcularEficienciaOrdenacao(b) - this.calcularEficienciaOrdenacao(a))
         .map((f, i) => ({ ...f, _idx: i }))
     },
 
@@ -609,6 +623,28 @@ temMultiplasOpsComProducao() {
         return JSON.parse(JSON.stringify(CONFIG_PADRAO))
       }
     },
+    // ── ORDENAÇÃO (modo escolhido pelo usuário) ───────────
+calcularEficienciaOrdenacao(func) {
+  // Oficina só tem "Ficha" — ignora o modo se não for Fábrica.
+  const modo = this.isFabrica ? this.modoOrdenacao : 'ficha'
+  return calcularEficienciaFuncionarioPorModo(func, this.configHorarios, this.etapasPorId, modo)
+},
+
+definirModoOrdenacao(modo) {
+  this.modoOrdenacao = modo
+  try {
+    localStorage.setItem('painel-modo-ordenacao', modo)
+  } catch { /* ignora falha de storage */ }
+},
+
+carregarModoOrdenacao() {
+  try {
+    const salvo = localStorage.getItem('painel-modo-ordenacao')
+    return salvo === 'referencia' ? 'referencia' : 'ficha'
+  } catch {
+    return 'ficha'
+  }
+},
 
     // ── SOCKET ────────────────────────────────────────────
     iniciarSocket() {
@@ -959,6 +995,34 @@ temMultiplasOpsComProducao() {
   width: 100%;
   box-sizing: border-box;
   padding: 0;
+}
+.sort-toggle {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: var(--rp);
+  padding: 2px;
+  background: var(--surf);
+  flex-shrink: 0;
+}
+
+.sort-toggle-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--rp);
+  background: transparent;
+  color: var(--ink3);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  font-family: inherit;
+}
+
+.sort-toggle-btn:hover { color: var(--ink); }
+
+.sort-toggle-btn.active {
+  background: var(--g800);
+  color: #fff;
 }
 
 /* TOP BAR */

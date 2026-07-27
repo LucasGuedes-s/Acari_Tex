@@ -265,7 +265,7 @@ export function agruparProducaoPorOp(funcionariosDia, etapasPorId) {
         grupo = {
           opId: linha.opId,
           producao: 0,
-          temposPadraoDistintos: new Set(), // sinaliza OP com etapas/SAMs diferentes
+          temposPadraoDistintos: new Set(),
           tempoProduzidoFicha: 0,
           tempoProduzidoReferencia: 0,
           tempoTrabalhadoRegistrado: 0,
@@ -277,11 +277,19 @@ export function agruparProducaoPorOp(funcionariosDia, etapasPorId) {
       const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
       grupo.temposPadraoDistintos.add(samFicha)
 
+      // Só etapas finais representam peça realmente entregue/concluída.
+      // Etapas intermediárias (costura, bolso, gola, etc.) não devem
+      // inflar a contagem de "Produção" da OP.
+      const ehEtapaFinal = isEtapaFinal(linha)
+
       for (const [hora, reg] of Object.entries(linha.registros || {})) {
         if (horaBloqueadaPorAusencia(funcionario, hora)) continue
         if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
-        grupo.producao += reg.quantidade
+        if (ehEtapaFinal) grupo.producao += reg.quantidade
+
+        // Eficiência da OP continua considerando o esforço em todas as
+        // etapas (regra de negócio já existente, não alterada aqui).
         grupo.tempoProduzidoFicha += reg.quantidade * samFicha
         grupo.tempoProduzidoReferencia += reg.quantidade * samReferencia
         grupo.tempoTrabalhadoRegistrado += reg.tempoProduzido
@@ -419,7 +427,25 @@ export function calcularPecasPorHora(linha, funcionario, etapasPorId, tipoDeProd
       tempoTrabalhado += reg.tempoProduzido
     }
   }
+  
   const registradoPorHora = tempoTrabalhado ? Math.round((quantidade / tempoTrabalhado) * 60 * 10) / 10 : 0
 
   return { tempoEfetivo, esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado }
+}
+// ══════════════════════════════════════════════════════════════
+// REGRA DE ORDENAÇÃO/RANKING — Fábrica usa Referência, demais usam Ficha
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// REGRA DE ORDENAÇÃO/RANKING — modo escolhido pelo usuário
+// ══════════════════════════════════════════════════════════════
+/**
+ * Eficiência usada para ORDENAR/RANQUEAR funcionários no Painel.
+ * O modo ('ficha' | 'referencia') agora é escolhido pelo usuário na UI,
+ * não mais inferido automaticamente do tipo de estabelecimento.
+ * Reaproveita 100% das funções já existentes — só decide qual delas usar.
+ */
+export function calcularEficienciaFuncionarioPorModo(funcionario, configHorarios, etapasPorId, modo) {
+  return modo === 'referencia'
+    ? calcularEficienciaFuncionarioReferencia(funcionario, configHorarios, etapasPorId)
+    : calcularEficienciaFuncionarioPadrao(funcionario, configHorarios, etapasPorId)
 }
