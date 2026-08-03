@@ -8,7 +8,7 @@
       </div>
 
       <div v-else class="container-fluid my-4 mt-md-0 mt-3">
-        <section class="row justify-content-center text-center" @click="irPara()">
+        <!-- <section class="row justify-content-center text-center" @click="irPara()">
           <div class="d-block d-md-none col-6 mb-3">
             <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
           </div>
@@ -31,7 +31,7 @@
             :count="pecasColeta" />
           <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
             :count="pecasConcluidas" />
-        </section>
+        </section> -->
 
         <ConteinersDashboard />
 
@@ -157,7 +157,7 @@
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-import DashboardCard from '@/components/DashboardCard.vue';
+// import DashboardCard from '@/components/DashboardCard.vue';
 //import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 //import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
 //import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
@@ -182,7 +182,7 @@ export default {
   components: {
     SidebarNav,
     ProducaoDia,
-    DashboardCard,
+    // DashboardCard,
     // GraficoProducaoTotal,
     // GraficoProducaoIndividual,
     // ProducaoPorPeca,

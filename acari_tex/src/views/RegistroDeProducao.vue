@@ -478,7 +478,8 @@ import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
 import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
 import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
 
-const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
+//const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
+const socket = io('http://localhost:3333', { transports: ['websocket'] })
 
 const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
 
@@ -2272,8 +2273,9 @@ export default {
         if (!socket.connected) {
           throw new Error('Sem conexão com o servidor no momento.')
         }
-
+        console.log('Enviando para o backend o registro de célula', payload)
         const resposta = await this.emitirComAck('salvar-producao', payload, 8000)
+        console.log('Resposta do backend ao salvar célula', resposta)
         if (!resposta || resposta.sucesso === false) {
           throw new Error(resposta?.mensagem || 'Servidor recusou o registro.')
         }

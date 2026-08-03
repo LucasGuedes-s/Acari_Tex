@@ -5,7 +5,7 @@ require('dotenv').config();
 require('./opStatusCron')
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const multer = require("multer");
-
+const { limparNotificacoesAntigas } = require('./Services/Dashboard.services');
 const cron = require('node-cron');
 const { concluirOpsAutomaticamente } = require('./Services/OP.services');
 cron.schedule("0 19 * * 1-5", async () => {
@@ -15,8 +15,9 @@ cron.schedule("0 19 * * 1-5", async () => {
     try {
 
         const quantidade = await concluirOpsAutomaticamente();
-
+        const notificacoes = await limparNotificacoesAntigas(); // Limpa notificações antigas
         console.log(`✅ ${quantidade} OP(s) concluída(s) automaticamente.`);
+        console.log(`✅ ${notificacoes} notificação(ões) limpa(s).`);
 
     } catch (err) {
 

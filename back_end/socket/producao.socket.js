@@ -11,7 +11,6 @@ module.exports = (io, socket) => {
   async (payload, callback) => {
     try {
       const producao = await producaoService.salvarProducao(payload)
-
       io.emit(
         `nova_atualizacao_${payload.cnpj}`,
         producao

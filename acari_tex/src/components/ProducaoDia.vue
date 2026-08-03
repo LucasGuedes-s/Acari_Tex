@@ -4,8 +4,12 @@
     <!-- TOP BAR -->
     <header class="top-bar">
       <div class="metrics-row">
+        <div v-if="isFabrica" class="metric-chip accent">
+          <span class="mc-label">Eficiência Referência</span>
+          <span class="mc-val">{{ eficienciaMediaTurmaReferencia }}%</span>
+        </div>
         <div class="metric-chip accent">
-          <span class="mc-label">Eficiência da turma</span>
+          <span class="mc-label">{{ isFabrica ? 'Eficiência Ficha' : 'Eficiência da turma' }}</span>
           <span class="mc-val">{{ eficienciaMediaTurma }}%</span>
         </div>
         <div class="metric-chip">
@@ -42,7 +46,7 @@
           <span
             v-if="op.multiplasEtapas"
             class="op-detalhe-tag"
-            title="Esta OP tem etapas com tempos padrão diferentes — o valor abaixo já é a média ponderada pela produção de cada etapa"
+            title="Esta OP teve mais de uma etapa registrada — os totais abaixo já somam todos os lançamentos de todas as etapas"
           >várias etapas</span>
         </div>
         <div class="op-detalhe-stats">
@@ -50,18 +54,33 @@
             <span class="op-detalhe-stat-label">Produção</span>
             <span class="op-detalhe-stat-val">{{ op.producao }}</span>
           </div>
+          <div v-if="op.metaConfigurada !== null" class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">Meta</span>
+            <span class="op-detalhe-stat-val">{{ op.metaConfigurada }}</span>
+          </div>
           <div class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Tempo padrão</span>
-            <span class="op-detalhe-stat-val">{{ op.tempoPadraoMedio }} min</span>
+            <span class="op-detalhe-stat-label">Tempo registrado</span>
+            <span class="op-detalhe-stat-val">{{ op.tempoTrabalhado }} min</span>
+          </div>
+          <div class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">Capacidade (Ficha)</span>
+            <span class="op-detalhe-stat-val">{{ op.tempoPadraoTotal }} min</span>
+          </div>
+          <div v-if="isFabrica" class="op-detalhe-stat">
+            <span class="op-detalhe-stat-label">Capacidade (Referência)</span>
+            <span class="op-detalhe-stat-val">{{ op.tempoReferenciaTotal }} min</span>
           </div>
           <div class="op-detalhe-stat">
             <span class="op-detalhe-stat-label">{{ isFabrica ? 'Efic. Ficha' : 'Eficiência' }}</span>
-            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficiencia)">{{ op.eficiencia }}%</span>
+            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaFicha)">{{ op.eficienciaFicha }}%</span>
           </div>
           <div v-if="isFabrica" class="op-detalhe-stat">
             <span class="op-detalhe-stat-label">Efic. Ref.</span>
             <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaReferencia)">{{ op.eficienciaReferencia }}%</span>
           </div>
+        </div>
+        <div class="op-detalhe-formula">
+          {{ op.tempoPadraoTotal }} ÷ {{ op.tempoTrabalhado }} × 100 = {{ op.eficienciaFicha }}%
         </div>
       </div>
     </div>
@@ -74,6 +93,57 @@
         <span>Referência:</span>
         <strong :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">{{ eficienciaMediaPonderadaOpsReferencia }}%</strong>
       </template>
+    </div>
+
+    <!-- DETALHE POR FUNCIONÁRIO × OP -->
+    <!-- Mostra exatamente como cada percentual foi obtido: apenas os
+         intervalos com produção registrada daquela OP entram na conta,
+         nunca a jornada completa. -->
+    <div class="detalhe-func-op">
+      <button class="btn-detalhe-ops btn-detalhe-ops--secundario" @click="mostrarDetalheFuncOp = !mostrarDetalheFuncOp">
+        {{ mostrarDetalheFuncOp ? 'Ocultar' : 'Ver' }} detalhamento por funcionário e OP ({{ detalhePorFuncionarioEOp.length }})
+      </button>
+
+      <div v-if="mostrarDetalheFuncOp" class="detalhe-func-op-tbl-wrap">
+        <table class="detalhe-func-op-tbl">
+          <thead>
+            <tr>
+              <th>OP</th>
+              <th>Funcionário</th>
+              <th>Etapa(s)</th>
+              <th class="ta-r">Qtd. produzida</th>
+              <th class="ta-r">Tempo registrado</th>
+              <th class="ta-r">Capacidade (Ficha)</th>
+              <th v-if="isFabrica" class="ta-r">Capacidade (Referência)</th>
+              <th class="ta-r">Efic. Ficha</th>
+              <th v-if="isFabrica" class="ta-r">Efic. Referência</th>
+              <th>Fórmula</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(linha, i) in detalhePorFuncionarioEOp" :key="i">
+              <td>{{ linha.opNome }}</td>
+              <td>{{ linha.funcionario }}</td>
+              <td>{{ linha.etapa }}</td>
+              <td class="ta-r mono">{{ linha.quantidadeProduzida }}</td>
+              <td class="ta-r mono">{{ linha.tempoRegistrado }} min</td>
+              <td class="ta-r mono">{{ linha.tempoFicha }} min</td>
+              <td v-if="isFabrica" class="ta-r mono">{{ linha.tempoReferencia }} min</td>
+              <td class="ta-r">
+                <span class="badge sm" :class="clsEfic(linha.eficienciaFicha)">{{ linha.eficienciaFicha }}%</span>
+              </td>
+              <td v-if="isFabrica" class="ta-r">
+                <span class="badge sm" :class="clsEfic(linha.eficienciaReferencia)">{{ linha.eficienciaReferencia }}%</span>
+              </td>
+              <td class="mono small">{{ linha.formula }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="!detalhePorFuncionarioEOp.length" class="dp-empty">
+          Sem produção registrada para detalhar
+        </div>
+      </div>
     </div>
   </section>
 </transition>
@@ -238,7 +308,7 @@
           <!-- Barra de eficiência -->
           <div class="dp-eff-bar-wrap">
             <div class="dp-eff-bar-labels">
-              <span>{{ isFabrica ? 'Eficiência da ficha' : 'Eficiência geral' }}</span>
+              <span>{{ isFabrica ? 'Eficiência da ficha (tempos do dia)' : 'Eficiência geral (tempos do dia)' }}</span>
               <span :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
                 {{ calcularEficienciaFuncionario(funcSelecionado) }}%
               </span>
@@ -255,7 +325,7 @@
           <!-- Barra de eficiência de referência (apenas fábricas) -->
           <div v-if="isFabrica" class="dp-eff-bar-wrap">
             <div class="dp-eff-bar-labels">
-              <span>Eficiência de referência</span>
+              <span>Eficiência de referência (tempos do dia)</span>
               <span :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
                 {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
               </span>
@@ -266,6 +336,30 @@
                 :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))"
                 :style="{ width: Math.min(calcularEficienciaReferenciaFuncionario(funcSelecionado), 100) + '%' }"
               ></div>
+            </div>
+          </div>
+
+          <!-- Auditoria: tempos acumulados do dia inteiro, para conferir
+               exatamente como a eficiência acima foi obtida. -->
+          <div v-if="totaisFuncionarioSelecionado" class="dp-auditoria">
+            <div class="dp-auditoria-titulo">Como esse número foi calculado</div>
+            <div class="dp-auditoria-grid">
+              <div class="dp-auditoria-item">
+                <span class="dp-auditoria-label">Tempo registrado total</span>
+                <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoRegistrado }} min</span>
+              </div>
+              <div class="dp-auditoria-item">
+                <span class="dp-auditoria-label">Capacidade (Ficha) total</span>
+                <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoFicha }} min</span>
+              </div>
+              <div v-if="isFabrica" class="dp-auditoria-item">
+                <span class="dp-auditoria-label">Capacidade (Referência) total</span>
+                <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoReferencia }} min</span>
+              </div>
+            </div>
+            <div class="dp-auditoria-formula">
+              <div><strong>Eficiência Ficha:</strong> {{ totaisFuncionarioSelecionado.formulaFicha }}</div>
+              <div v-if="isFabrica"><strong>Eficiência Referência:</strong> {{ totaisFuncionarioSelecionado.formulaReferencia }}</div>
             </div>
           </div>
 
@@ -412,10 +506,8 @@ import { useAuthStore } from '@/store/store'
 import api from '@/Axios'
 import debounce from 'lodash/debounce'
 import {
-  // gerarSequenciaHoras,
   horaParaMinutos,
   isEtapaFinal,
-  // buscarEtapa,
   resolverTempoPadrao,
   resolverTempoEfetivoReferencia,
   calcularTotalLinha,
@@ -427,26 +519,23 @@ import {
   calcularEficienciaFuncionarioPadrao,
   calcularEficienciaFuncionarioReferencia,
   calcularEficienciaFuncionarioPorModo,
-  // funcionarioAusenteDiaInteiro,
+  calcularTotaisFuncionarioDia,
   horaBloqueadaPorAusencia,
   agruparProducaoPorOp,
-  tempoPadraoMedioOp,
-  calcularEficienciaOpAgrupada,
-  calcularEficienciaOpAgrupadaReferencia,
+  resumoConsolidadoOp,
+  detalharEficienciaPorFuncionarioEOp,
+  // calcularEficienciaOpAgrupada,
+  // calcularEficienciaOpAgrupadaReferencia,
   calcularEficienciaMediaPonderadaOps,
-  calcularEficienciaGeralTurma,
+  minutosDisponiveisDia,
 } from '@/utils/producaoCompartilhada'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
-// Mesma chave usada pelo Registro de Produção — assim o Painel herda
-// automaticamente a configuração de horário de turno, sem duplicar UI.
-const LOCAL_STORAGE_HORARIOS_KEY = 'apontamento-horarios-turno'
-
-const CONFIG_PADRAO = {
-  manha: { inicio: '08:00', fim: '12:30' },
-  tarde: { inicio: '13:30', fim: '18:00' },
-}
+// Chave para customização manual dos minutos de jornada (uso exclusivo
+// de projeções de capacidade — não afeta mais nenhum cálculo de
+// eficiência, ver producaoCompartilhada.js).
+const LOCAL_STORAGE_MINUTOS_KEY = 'apontamento-minutos-turno'
 
 export default {
   name: 'PainelProfissionais',
@@ -463,6 +552,7 @@ export default {
     return {
       modoOrdenacao: this.carregarModoOrdenacao(),
       mostrarDetalheOps: false,
+      mostrarDetalheFuncOp: false,
       loading: true,
       socketConectado: false,
       busca: '',
@@ -478,8 +568,6 @@ export default {
       // Índices O(1) de etapas — igual ao Registro de Produção.
       etapasPorId: new Map(),
 
-      configHorarios: this.carregarConfigHorarios(),
-
       dataCarregada: null,
       ultimaBuscaId: 0,
       carregandoMeta: false,
@@ -487,6 +575,13 @@ export default {
   },
 
   computed: {
+    // ── MINUTOS DISPONÍVEIS DO DIA (jornada) ──
+    // Mantido apenas para projeções de capacidade máxima. Não é mais
+    // usado em nenhum cálculo de eficiência.
+    tempoDisponivelDia() {
+      return this.obterMinutosTrabalhoDia(this.filtro?.data)
+    },
+
     todasHoras() {
       const horasSet = new Set()
       for (const func of this.funcionariosDia) {
@@ -516,6 +611,17 @@ export default {
       return this.selecionado !== null ? this.funcionariosOrdenados[this.selecionado] : null
     },
 
+    // Totais do dia do funcionário selecionado — auditoria completa:
+    // tempo registrado, tempo ficha e tempo referência ACUMULADOS (todos
+    // os lançamentos, qualquer OP/etapa), e as eficiências já calculadas
+    // a partir desses totais (nunca média de percentuais de OP). É a
+    // MESMA função usada para gerar o badge/ranking do funcionário —
+    // então os números aqui nunca podem divergir do que aparece na lista.
+    totaisFuncionarioSelecionado() {
+      if (!this.funcSelecionado) return null
+      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId)
+    },
+
     isFabrica() {
       return this.tipoProducao === 'fabrica'
     },
@@ -525,52 +631,91 @@ export default {
       return this.funcionariosOrdenados.filter(f => this.temProducao(f))
     },
 
-    // Eficiência geral da turma — agora ponderada pelo tempo disponível de
-// cada funcionário produtivo (não mais média aritmética simples).
-eficienciaMediaTurma() {
-  return calcularEficienciaGeralTurma(this.funcionariosDia, this.configHorarios, this.etapasPorId, false)
-},
-eficienciaMediaTurmaReferencia() {
-  return calcularEficienciaGeralTurma(this.funcionariosDia, this.configHorarios, this.etapasPorId, true)
-},
+    // Eficiência exibida no cabeçalho — MESMA base de cálculo do resumo
+    // consolidado das OPs (nenhuma fórmula própria aqui): soma o
+    // tempo/capacidade de cada OP e tira a mesma razão usada em
+    // `eficienciaMediaPonderadaOps` mais abaixo. Isso garante que o
+    // cabeçalho NUNCA possa divergir do rodapé do detalhamento por OP —
+    // os dois vêm literalmente da mesma chamada de função.
+    eficienciaMediaTurma() {
+      return this.eficienciaMediaPonderadaOps
+    },
+    eficienciaMediaTurmaReferencia() {
+      return this.eficienciaMediaPonderadaOpsReferencia
+    },
 
-// Base bruta agrupada por OP (computed cacheado — reaproveitado pelos
-// três computeds abaixo sem recalcular três vezes).
-gruposOpBrutos() {
-  return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId).filter(g => g.producao > 0)
-},
+    // Base bruta agrupada por OP (computed cacheado — reaproveitado pelos
+    // computeds abaixo sem recalcular várias vezes). Agrupa TODAS as
+    // produções com o mesmo id_da_op, de qualquer funcionário/etapa,
+    // somando quantidade/tempo registrado/tempo ficha/tempo referência.
+    gruposOpBrutos() {
+      return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId).filter(g => g.producao > 0)
+    },
 
-// Lista pronta para exibição no painel de detalhe por OP.
-gruposProducaoPorOp() {
-  return this.gruposOpBrutos
-    .map(g => ({
-      opId: g.opId,
-      nome: this.nomeDaOp(g.opId),
-      producao: g.producao,
-      tempoPadraoMedio: tempoPadraoMedioOp(g),
-      multiplasEtapas: g.temposPadraoDistintos.size > 1,
-      eficiencia: calcularEficienciaOpAgrupada(g),
-      eficienciaReferencia: calcularEficienciaOpAgrupadaReferencia(g),
-    }))
-    .sort((a, b) => b.producao - a.producao)
-},
+    // Quantas etapas distintas (de quaisquer funcionários) contribuíram
+    // para cada OP — apenas informativo para a tag "várias etapas".
+    etapasDistintasPorOp() {
+      const mapa = new Map()
+      for (const funcionario of this.funcionariosDia || []) {
+        for (const linha of funcionario.linhas || []) {
+          if (!linha?.opId || !calcularTotalLinha(linha, funcionario)) continue
+          if (!mapa.has(linha.opId)) mapa.set(linha.opId, new Set())
+          mapa.get(linha.opId).add(linha.descricao || linha.etapaId || '—')
+        }
+      }
+      return mapa
+    },
 
-eficienciaMediaPonderadaOps() {
-  return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, false)
-},
-eficienciaMediaPonderadaOpsReferencia() {
-  return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
-},
+    // Lista pronta para exibição no painel de detalhe por OP — já traz o
+    // resumo consolidado (produção, tempo registrado, tempo ficha total,
+    // tempo referência total e as duas eficiências) pronto para uso
+    // aqui e em qualquer outra tela (ex.: Revisão Final).
+    gruposProducaoPorOp() {
+      return this.gruposOpBrutos
+        .map(g => {
+          const resumo = resumoConsolidadoOp(g)
+          const opAtiva = this.opsAtivas.find(o => o.pecaId === g.opId)
+          return {
+            ...resumo,
+            nome: this.nomeDaOp(g.opId),
+            metaConfigurada: opAtiva?.metaDia ?? null,
+            multiplasEtapas: (this.etapasDistintasPorOp.get(g.opId)?.size || 0) > 1,
+          }
+        })
+        .sort((a, b) => b.producao - a.producao)
+      
+    },
 
-temMultiplasOpsComProducao() {
-  return this.gruposOpBrutos.length > 1
-},
+    // Eficiência exibida no resumo consolidado das OPs — e agora também
+    // no cabeçalho (ver eficienciaMediaTurma acima, que só repassa este
+    // valor). É a média simples das eficiências de cada OP do dia
+    // (cada eficiência de OP já é, por sua vez, uma razão entre tempos
+    // somados daquela OP — nunca uma média dentro da própria OP).
+    eficienciaMediaPonderadaOps() {
+      return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, false)
+    },
+    eficienciaMediaPonderadaOpsReferencia() {
+      return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
+    },
+
+    temMultiplasOpsComProducao() {
+      return this.gruposOpBrutos.length > 1
+    },
 
     totalPecasGeral() {
       return this.funcionariosComProducao.reduce(
         (soma, f) => soma + this.calcularTotalFinalizadoFuncionario(f),
         0
       )
+    },
+
+    // Linhas detalhadas por (funcionário, OP) para a tela "Ver detalhes
+    // por OP" — mostra exatamente como cada eficiência foi obtida:
+    // quantidade produzida, tempo registrado, tempo ficha, tempo
+    // referência e a fórmula (razão entre os tempos já somados).
+    detalhePorFuncionarioEOp() {
+      return detalharEficienciaPorFuncionarioEOp(this.funcionariosDia, this.etapasPorId, this.nomeDaOp)
+        .sort((a, b) => a.opNome.localeCompare(b.opNome) || a.funcionario.localeCompare(b.funcionario))
     },
   },
 
@@ -603,48 +748,46 @@ temMultiplasOpsComProducao() {
   },
 
   methods: {
-    // ── CONFIG DE HORÁRIO (mesma chave do Registro de Produção) ──
-    carregarConfigHorarios() {
+    // ── MINUTOS DISPONÍVEIS DO DIA (jornada — só capacidade) ───────
+    // 1) Se houver uma customização manual salva (fábrica quis
+    //    sobrescrever o padrão), usa ela.
+    // 2) Senão, delega para a função compartilhada — a MESMA usada em
+    //    qualquer outro lugar do sistema que precise desse número —
+    //    que calcula 540/480/0 conforme o dia da semana da data filtrada.
+    // Este valor NÃO entra mais em nenhum cálculo de eficiência.
+    obterMinutosTrabalhoDia(dataFiltro) {
       try {
-        const salvo = localStorage.getItem(LOCAL_STORAGE_HORARIOS_KEY)
-        if (!salvo) return JSON.parse(JSON.stringify(CONFIG_PADRAO))
-        const parsed = JSON.parse(salvo)
-        return {
-          manha: {
-            inicio: parsed?.manha?.inicio || CONFIG_PADRAO.manha.inicio,
-            fim: parsed?.manha?.fim || CONFIG_PADRAO.manha.fim,
-          },
-          tarde: {
-            inicio: parsed?.tarde?.inicio || CONFIG_PADRAO.tarde.inicio,
-            fim: parsed?.tarde?.fim || CONFIG_PADRAO.tarde.fim,
-          },
+        const salvo = localStorage.getItem(LOCAL_STORAGE_MINUTOS_KEY)
+        if (salvo && !isNaN(Number(salvo))) {
+          return Number(salvo)
         }
+      } catch { /* ignora falha de storage */ }
+
+      return minutosDisponiveisDia(dataFiltro)
+    },
+
+    // ── ORDENAÇÃO (modo escolhido pelo usuário) ───────────
+    calcularEficienciaOrdenacao(func) {
+      // Oficina só tem "Ficha" — ignora o modo se não for Fábrica.
+      const modo = this.isFabrica ? this.modoOrdenacao : 'ficha'
+      return calcularEficienciaFuncionarioPorModo(func, this.etapasPorId, modo)
+    },
+
+    definirModoOrdenacao(modo) {
+      this.modoOrdenacao = modo
+      try {
+        localStorage.setItem('painel-modo-ordenacao', modo)
+      } catch { /* ignora falha de storage */ }
+    },
+
+    carregarModoOrdenacao() {
+      try {
+        const salvo = localStorage.getItem('painel-modo-ordenacao')
+        return salvo === 'referencia' ? 'referencia' : 'ficha'
       } catch {
-        return JSON.parse(JSON.stringify(CONFIG_PADRAO))
+        return 'ficha'
       }
     },
-    // ── ORDENAÇÃO (modo escolhido pelo usuário) ───────────
-calcularEficienciaOrdenacao(func) {
-  // Oficina só tem "Ficha" — ignora o modo se não for Fábrica.
-  const modo = this.isFabrica ? this.modoOrdenacao : 'ficha'
-  return calcularEficienciaFuncionarioPorModo(func, this.configHorarios, this.etapasPorId, modo)
-},
-
-definirModoOrdenacao(modo) {
-  this.modoOrdenacao = modo
-  try {
-    localStorage.setItem('painel-modo-ordenacao', modo)
-  } catch { /* ignora falha de storage */ }
-},
-
-carregarModoOrdenacao() {
-  try {
-    const salvo = localStorage.getItem('painel-modo-ordenacao')
-    return salvo === 'referencia' ? 'referencia' : 'ficha'
-  } catch {
-    return 'ficha'
-  }
-},
 
     // ── SOCKET ────────────────────────────────────────────
     iniciarSocket() {
@@ -735,8 +878,18 @@ carregarModoOrdenacao() {
     },
 
     nomeDaOp(pecaId) {
+      // Fonte oficial: meta.pecas (id_da_op + peca.descricao), já
+      // carregada em opsAtivas. Mantido fallback para this.pecas apenas
+      // por compatibilidade, caso a OP não esteja em opsAtivas.
+      const opAtiva = this.opsAtivas.find(o => o.pecaId === pecaId)
+      if (opAtiva?.descricao) return String(opAtiva.descricao)
+
       const peca = this.pecas.find(p => p.id_da_op === pecaId)
-      return peca?.descricao || pecaId
+      return String(
+        peca?.descricao ||
+        peca?.descricaoPeca ||
+        pecaId
+      );
     },
 
     // ── BUSCAR META (via Socket.IO, com ack) ──────────────
@@ -754,7 +907,7 @@ carregarModoOrdenacao() {
           estabelecimento: this.filtro.estabelecimento ?? this.store.pegar_usuario.cnpj,
           data: dataDaRequisicao,
         })
-
+        console.log('buscar-meta-dia', response)
         if (buscaId !== this.ultimaBuscaId) return
         this.carregandoMeta = false
         this.loading = false
@@ -783,6 +936,16 @@ carregarModoOrdenacao() {
           descricao: p.peca?.descricao,
         }))
 
+        // Índice O(1) da PEÇA/OP por id_da_op. Usado apenas para
+        // indicadores relacionados à PEÇA COMPLETA (capacidade,
+        // planejamento, conclusão da OP) — NUNCA para calcular a
+        // eficiência operacional de uma etapa/funcionário/equipe, que
+        // deve usar o tempo padrão da ETAPA (producao_etapa.tempo_padrao).
+        const pecasPorOpId = new Map()
+        for (const p of meta.pecas || []) {
+          if (p?.id_da_op != null) pecasPorOpId.set(p.id_da_op, p)
+        }
+
         const novosFuncionarios = []
 
         for (const metaFunc of meta.funcionarios || []) {
@@ -792,15 +955,34 @@ carregarModoOrdenacao() {
             const etapaId = producao.id_da_funcao
             const opId = producao.id_da_op || null
 
+            // Vínculo produção → peça/OP: produção.id_da_op === meta.pecas[i].id_da_op.
+            // ATENÇÃO: peca.tempo_padrao é o tempo da PEÇA COMPLETA (todas
+            // as etapas somadas) — serve apenas para indicadores de
+            // capacidade/planejamento/conclusão da OP como um todo.
+            // NÃO deve ser usado para calcular a eficiência de uma equipe
+            // que trabalhou em apenas UMA etapa (ex.: revisão, unir gola).
+            // Por isso fica guardado à parte, em tempoPadraoPeca, e nunca
+            // é atribuído a `linha.tempoPadrao`.
+            const pecaDaOp = opId != null ? pecasPorOpId.get(opId) : null
+            const tempoPadraoPeca = Number(pecaDaOp?.peca?.tempo_padrao || 0)
+
             let linha = linhas.find(l => l.etapaId === etapaId && l.opId === opId)
             if (!linha) {
               linha = {
                 id: `${metaFunc.funcionarioId}-${etapaId}-${opId || 'sem-op'}`,
                 tipo: linhas.length === 0 ? 'principal' : 'extra',
                 etapaId,
+                // `descricao` é a informação da OPERAÇÃO (etapa/função).
                 descricao: producao.producao_etapa?.descricao || '',
+                // Tempo padrão da ETAPA — usado no cálculo de eficiência
+                // operacional (por funcionário, equipe ou etapa).
                 tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
                 opId,
+                opDescricao: pecaDaOp?.peca?.descricao || '',
+                // Tempo padrão da PEÇA COMPLETA — apenas informativo, para
+                // indicadores de capacidade/planejamento/conclusão da OP.
+                // Nunca usado em resolverTempoPadrao / cálculo de eficiência.
+                tempoPadraoPeca,
                 registros: {},
               }
               linhas.push(linha)
@@ -861,12 +1043,15 @@ carregarModoOrdenacao() {
     },
 
     // ── EFICIÊNCIA (delega 100% para o módulo compartilhado) ──────
+    // Eficiência geral do funcionário = média simples das eficiências
+    // de cada OP produzida, cada uma calculada só com o tempo
+    // efetivamente produzido daquela OP.
     calcularEficienciaFuncionario(func) {
-      return calcularEficienciaFuncionarioPadrao(func, this.configHorarios, this.etapasPorId)
+      return calcularEficienciaFuncionarioPadrao(func, this.etapasPorId)
     },
 
     calcularEficienciaReferenciaFuncionario(func) {
-      return calcularEficienciaFuncionarioReferencia(func, this.configHorarios, this.etapasPorId)
+      return calcularEficienciaFuncionarioReferencia(func, this.etapasPorId)
     },
 
     calcularEficienciaLinha(linha) {
@@ -882,6 +1067,8 @@ carregarModoOrdenacao() {
     },
 
     // ── POR HORA ──────────────────────────────────────────
+    // Continua registrando/somando a produção por hora normalmente —
+    // isso não depende do tempo disponível do dia, só dos registros.
     horasPorFuncionario(func) {
       if (!func?.linhas?.length) return []
       const resultado = []
@@ -1516,6 +1703,54 @@ carregarModoOrdenacao() {
 .dp-stat-val.amarelo  { color: var(--a600); }
 .dp-stat-val.vermelho { color: var(--r600); }
 
+.dp-auditoria {
+  margin: 0 18px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  background: var(--surf);
+}
+.dp-auditoria-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--ink3);
+  margin-bottom: 10px;
+}
+.dp-auditoria-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.dp-auditoria-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dp-auditoria-label {
+  font-size: 10.5px;
+  color: var(--ink3);
+  font-weight: 600;
+}
+.dp-auditoria-val {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.dp-auditoria-formula {
+  font-size: 12.5px;
+  color: var(--ink2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.dp-auditoria-formula strong { color: var(--ink); }
+
 .dp-eff-bar-wrap {
   padding: 12px 18px 14px;
   border-bottom: 1px solid var(--line);
@@ -1742,6 +1977,7 @@ carregarModoOrdenacao() {
   font-family: inherit;
 }
 .btn-detalhe-ops:hover { background: var(--line); }
+.btn-detalhe-ops--secundario { margin-top: 4px; }
 
 .ops-detalhe {
   padding: 16px 24px;
@@ -1813,6 +2049,15 @@ carregarModoOrdenacao() {
 .op-detalhe-stat-val.amarelo  { color: var(--a600); }
 .op-detalhe-stat-val.vermelho { color: var(--r600); }
 
+.op-detalhe-formula {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line, #e5e5e5);
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--ink3);
+}
+
 .ops-detalhe-footer {
   display: flex;
   align-items: center;
@@ -1829,6 +2074,61 @@ carregarModoOrdenacao() {
 .ops-detalhe-footer strong.amarelo  { color: var(--a600); }
 .ops-detalhe-footer strong.vermelho { color: var(--r600); }
 .ops-detalhe-footer-sep { color: var(--ink3); }
+
+/* DETALHE POR FUNCIONÁRIO × OP */
+.detalhe-func-op {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.detalhe-func-op-tbl-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  background: var(--bg);
+}
+
+.detalhe-func-op-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.detalhe-func-op-tbl th {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink3);
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  background: var(--surf);
+  position: sticky;
+  top: 0;
+}
+
+.detalhe-func-op-tbl td {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+
+.detalhe-func-op-tbl tr:last-child td { border-bottom: none; }
+
+.detalhe-func-op-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--ink3);
+  margin-left: 4px;
+}
+
 /* RESPONSIVO */
 @media (max-width: 900px) {
   .main-layout.panel-open { grid-template-columns: 1fr; }

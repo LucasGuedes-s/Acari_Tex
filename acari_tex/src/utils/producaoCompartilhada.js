@@ -17,7 +17,7 @@ export function minutosParaHora(minutos) {
 export function gerarSequenciaHoras(inicio, fim) {
   const inicioMin = horaParaMinutos(inicio)
   const fimMin = horaParaMinutos(fim)
-  if (!inicio || !fim || fimMin <= inicioMin) return inicio ? [inicio] : []
+  if (!inicio || !fim || fimMin <= inicioMin) return []
 
   const sequencia = []
   let atual = inicioMin
@@ -25,14 +25,71 @@ export function gerarSequenciaHoras(inicio, fim) {
     sequencia.push(minutosParaHora(atual))
     atual += 60
   }
-  sequencia.push(fim)
   return sequencia
 }
 
-export function minutosDisponiveisDia(configHorarios) {
-  const horasManha = gerarSequenciaHoras(configHorarios.manha.inicio, configHorarios.manha.fim)
-  const horasTarde = gerarSequenciaHoras(configHorarios.tarde.inicio, configHorarios.tarde.fim)
-  return (horasManha.length + horasTarde.length) * 60
+// ── TEMPO UTILIZADO REAL (RELÓGIO), SEM SOMAR ETAPAS ──────
+/**
+ * REGRA CENTRAL (PCP têxtil): o "tempo utilizado" de uma OP (ou de uma
+ * etapa/registro dentro dela) é o tempo efetivamente decorrido do
+ * primeiro ao último registro — NUNCA a soma aritmética dos tempos de
+ * cada etapa/registro.
+ *
+ * Ex.: Etapa A das 07:00-09:00 (120min), Etapa B das 09:00-12:00 (180min),
+ * Etapa Final das 12:00-16:00 (240min) → tempo utilizado = 07:00 até 16:00
+ * = 540min, e NUNCA 120+180+240 = 540... (nesse caso coincide, mas em
+ * qualquer cenário com sobreposição/lacunas a soma pura gera valores
+ * irreais). O cálculo abaixo sempre usa o intervalo de relógio.
+ *
+ * `entradas` é uma lista de { hora, tempoProduzido }, de onde:
+ *   - início = menor horário informado;
+ *   - fim = maior (horário + duração do próprio registro daquele slot).
+ * O resultado é limitado (nunca ultrapassa) ao tempo máximo do
+ * expediente do dia, quando informado.
+ */
+export function calcularTempoUtilizadoPorIntervalo(entradas, tempoMaximoDia = null) {
+  if (!Array.isArray(entradas) || !entradas.length) return 0
+
+  let inicioMin = Infinity
+  let fimMin = -Infinity
+
+  for (const entrada of entradas) {
+    if (!entrada?.hora) continue
+    const inicioSlot = horaParaMinutos(entrada.hora)
+    const fimSlot = inicioSlot + Number(entrada.tempoProduzido || 60)
+    if (inicioSlot < inicioMin) inicioMin = inicioSlot
+    if (fimSlot > fimMin) fimMin = fimSlot
+  }
+
+  if (!isFinite(inicioMin) || !isFinite(fimMin)) return 0
+
+  const bruto = Math.max(0, fimMin - inicioMin)
+  return tempoMaximoDia != null ? Math.min(bruto, tempoMaximoDia) : bruto
+}
+
+// ── MINUTOS DISPONÍVEIS DO DIA (regra por dia da semana) ──
+function parseDataLocal(data) {
+  if (data instanceof Date) return new Date(data.getTime())
+  if (typeof data === 'string') {
+    const partes = data.split('-')
+    if (partes.length === 3) {
+      const [ano, mes, dia] = partes.map(Number)
+      if (ano && mes && dia) return new Date(ano, mes - 1, dia)
+    }
+    const tentativa = new Date(data)
+    if (!isNaN(tentativa)) return tentativa
+  }
+  return new Date()
+}
+
+export function minutosDisponiveisDia(data) {
+  const d = parseDataLocal(data)
+  d.setHours(0, 0, 0, 0)
+  const diaSemana = d.getDay() // 0 = domingo … 6 = sábado
+
+  if (diaSemana >= 1 && diaSemana <= 4) return 540 // segunda a quinta
+  if (diaSemana === 5) return 480 // sexta
+  return 0 // sábado e domingo
 }
 
 // ── ETAPA FINAL ───────────────────────────────────────
@@ -50,7 +107,7 @@ export function isEtapaFinal(linha) {
 
 // ── ETAPAS / TEMPO PADRÃO / TEMPO DE REFERÊNCIA ───────
 export function buscarEtapa(etapasPorId, etapaId, opId = null) {
-  if (!etapaId) return null
+  if (!etapaId || !etapasPorId) return null
   const candidatas = etapasPorId.get(etapaId) || []
   if (opId != null && opId !== '') {
     const match = candidatas.find(e => e.id_da_op === opId)
@@ -59,10 +116,16 @@ export function buscarEtapa(etapasPorId, etapaId, opId = null) {
   return candidatas[0] || null
 }
 
-export function resolverTempoPadrao(linha, etapasPorId) {
-  if (linha?.tempoPadrao) return Number(linha.tempoPadrao)
-  const etapa = buscarEtapa(etapasPorId, linha?.etapaId, linha?.opId)
-  return Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
+export function resolverTempoPadrao(linha) {
+  // O tempo padrão usado aqui é o da ETAPA (producao_etapa.tempo_padrao),
+  // capturado no momento do lançamento e guardado em `linha.tempoPadrao`
+  // (ver construção das linhas no componente). Ele é fixo por lançamento
+  // — uma troca de etapa/função durante o dia não altera retroativamente
+  // os lançamentos já registrados, pois cada um carrega o seu próprio
+  // tempo padrão. O tempo padrão da PEÇA (peca.tempo_padrao) é outro
+  // conceito — fica isolado em `linha.tempoPadraoPeca` e NUNCA é lido
+  // aqui; serve só a indicadores de capacidade/planejamento da OP.
+  return Number(linha?.tempoPadrao || 0)
 }
 
 export function resolverTempoReferencia(funcionario, linha, etapasPorId) {
@@ -82,41 +145,139 @@ export function resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId) 
   return resolverSam({ tempoReferencia, tempoPadrao: resolverTempoPadrao(linha, etapasPorId) })
 }
 
+// ── AUXILIAR: SELEÇÃO DA ETAPA REPRESENTATIVA DA OP ─────
+/**
+ * IMPORTANTE (SOLUÇÃO DO PROBLEMA DE DUPLICAÇÃO DE ETAPAS):
+ * Como a mesma peça passa por várias etapas (ex: Costura -> Revisão -> Acabamento),
+ * NÃO PODEMOS somar o tempo, a quantidade ou os SAMs de todas as etapas.
+ * Caso contrário, 40 peças a 60 min se tornariam 120 peças a 180 min.
+ *
+ * Esta função recebe todas as linhas de uma mesma OP e escolhe a linha/etapa
+ * REPRESENTATIVA oficial daquela produção (priorizando Etapas Finais ou com maior produção).
+ */
+function obterLinhasRepresentativasPorOp(linhas) {
+  const linhasPorOp = new Map()
+
+  for (const linha of linhas) {
+    if (!linha?.opId) continue
+    if (!linhasPorOp.has(linha.opId)) {
+      linhasPorOp.set(linha.opId, [])
+    }
+    linhasPorOp.get(linha.opId).push(linha)
+  }
+
+  const result = new Map()
+
+  for (const [opId, listaLinhas] of linhasPorOp.entries()) {
+    // 1. Tenta encontrar uma etapa final marcada
+    let escolhida = listaLinhas.find(l => isEtapaFinal(l))
+
+    // 2. Se não houver etapa final explícita, escolhe a linha com maior quantidade de peças produzidas
+    if (!escolhida) {
+      escolhida = listaLinhas.reduce((max, atual) => {
+        const qtdMax = Object.values(max.registros || {}).reduce((s, r) => s + Number(r?.quantidade || 0), 0)
+        const qtdAtual = Object.values(atual.registros || {}).reduce((s, r) => s + Number(r?.quantidade || 0), 0)
+        return qtdAtual > qtdMax ? atual : max
+      }, listaLinhas[0])
+    }
+
+    result.set(opId, escolhida)
+  }
+
+  return result
+}
+
+/**
+ * Igual à função acima, mas GLOBAL: considera as linhas de TODOS OS
+ * FUNCIONÁRIOS que trabalharam na mesma OP.
+ *
+ * Por quê isso é necessário: a seleção por funcionário (acima) já evita
+ * que UM MESMO funcionário tenha suas etapas somadas. Mas quando etapas
+ * diferentes da mesma OP são feitas por FUNCIONÁRIOS diferentes (ex.:
+ * funcionário 1 faz a Etapa A, funcionário 2 faz a Etapa B, funcionário 3
+ * faz a Etapa Final), a consolidação por OP precisa continuar tratando a
+ * OP como uma única unidade — escolhendo a etapa final (ou, na ausência
+ * dela, a etapa de maior produção) como representante de TODA a OP, e
+ * ignorando as demais etapas/funcionários no cômputo de tempo e
+ * quantidade daquela OP.
+ *
+ * Retorna: Map opId -> [{ funcionario, linha }, ...] apenas com os
+ * participantes da etapa representativa escolhida.
+ */
+function obterParticipantesRepresentativosGlobalPorOp(funcionariosDia) {
+  const participantesPorOp = new Map()
+
+  for (const funcionario of funcionariosDia || []) {
+    for (const linha of funcionario?.linhas || []) {
+      if (!linha?.opId) continue
+      if (!calcularTotalLinha(linha, funcionario)) continue // sem produção, ignora
+
+      if (!participantesPorOp.has(linha.opId)) participantesPorOp.set(linha.opId, [])
+      participantesPorOp.get(linha.opId).push({ funcionario, linha })
+    }
+  }
+
+  const resultado = new Map()
+
+  for (const [opId, participantes] of participantesPorOp.entries()) {
+    // 1. Etapa final tem prioridade absoluta: a OP "fechou" quando chegou nela
+    let selecionados = participantes.filter(p => isEtapaFinal(p.linha))
+
+    // 2. Sem etapa final registrada: usa a etapa com maior produção somada
+    //    (entre todos os funcionários que passaram por ela) como
+    //    representante provisório da OP
+    if (!selecionados.length) {
+      const producaoPorEtapa = new Map()
+      for (const p of participantes) {
+        const chaveEtapa = p.linha.etapaId ?? p.linha.descricao ?? '—'
+        const qtd = calcularTotalLinha(p.linha, p.funcionario)
+        producaoPorEtapa.set(chaveEtapa, (producaoPorEtapa.get(chaveEtapa) || 0) + qtd)
+      }
+
+      let etapaVencedora = null
+      let maiorQtd = -1
+      for (const [chaveEtapa, qtd] of producaoPorEtapa.entries()) {
+        if (qtd > maiorQtd) {
+          maiorQtd = qtd
+          etapaVencedora = chaveEtapa
+        }
+      }
+
+      selecionados = participantes.filter(p => (p.linha.etapaId ?? p.linha.descricao ?? '—') === etapaVencedora)
+    }
+
+    resultado.set(opId, selecionados)
+  }
+
+  return resultado
+}
+
 // ── AUSÊNCIA / TEMPO TRABALHADO ───────────────────────
 export function funcionarioAusenteDiaInteiro(funcionario) {
   return funcionario?.ausencia?.tipo === 'dia_inteiro'
 }
 
-export function calcularMinutosAusenciaFuncionario(funcionario, configHorarios) {
+export function calcularMinutosAusenciaFuncionario(funcionario, tempoDisponivelDia) {
   const ausencia = funcionario?.ausencia
   if (!ausencia) return 0
-  if (ausencia.tipo === 'dia_inteiro') return minutosDisponiveisDia(configHorarios)
+  if (ausencia.tipo === 'dia_inteiro') return tempoDisponivelDia
 
   if (ausencia.tipo === 'parcial' && Array.isArray(ausencia.periodos)) {
-    const janelas = [
-      [horaParaMinutos(configHorarios.manha.inicio), horaParaMinutos(configHorarios.manha.fim)],
-      [horaParaMinutos(configHorarios.tarde.inicio), horaParaMinutos(configHorarios.tarde.fim)],
-    ]
     let total = 0
     for (const periodo of ausencia.periodos) {
       if (!periodo?.inicio || !periodo?.fim) continue
-      const pIni = horaParaMinutos(periodo.inicio)
-      const pFim = horaParaMinutos(periodo.fim)
-      for (const [jIni, jFim] of janelas) {
-        const ini = Math.max(pIni, jIni)
-        const fim = Math.min(pFim, jFim)
-        if (fim > ini) total += (fim - ini)
-      }
+      const ini = horaParaMinutos(periodo.inicio)
+      const fim = horaParaMinutos(periodo.fim)
+      if (fim > ini) total += (fim - ini)
     }
-    return total
+    return Math.min(total, tempoDisponivelDia)
   }
   return 0
 }
 
-export function calcularMinutosDisponiveisFuncionario(funcionario, configHorarios) {
-  const totalPadrao = minutosDisponiveisDia(configHorarios)
-  const ausente = calcularMinutosAusenciaFuncionario(funcionario, configHorarios)
-  return Math.max(totalPadrao - ausente, 0)
+export function calcularMinutosDisponiveisFuncionario(funcionario, tempoDisponivelDia) {
+  const ausente = calcularMinutosAusenciaFuncionario(funcionario, tempoDisponivelDia)
+  return Math.max((tempoDisponivelDia || 0) - ausente, 0)
 }
 
 export function horaBloqueadaPorAusencia(funcionario, hora) {
@@ -161,11 +322,12 @@ export function calcularPecasFinalizadasFuncionario(funcionario) {
   }, 0)
 }
 
-// ── EFICIÊNCIA (Ficha e Referência) ───────────────────
+// ── EFICIÊNCIA POR ETAPA (linha) E POR REGISTRO ───────
 export function calcularEficienciaLinhaPadrao(linha, funcionario, etapasPorId) {
   const sam = resolverTempoPadrao(linha, etapasPorId)
   let producaoPonderada = 0
   let tempoTrabalhado = 0
+
   for (const [hora, reg] of Object.entries(linha?.registros || {})) {
     if (funcionario && horaBloqueadaPorAusencia(funcionario, hora)) continue
     if (reg && reg.quantidade > 0) {
@@ -202,107 +364,283 @@ export function calcularEficienciaRegistroReferencia(quantidade, tempoProduzido,
   return calcularEficiencia({ producaoPonderada: quantidade * sam, funcionarios: 1, tempoTrabalhado: tempoProduzido })
 }
 
-export function calcularEficienciaFuncionarioPadrao(funcionario, configHorarios, etapasPorId) {
-  if (!funcionario?.linhas?.length) return 0
-  let producaoPonderada = 0
-  for (const linha of funcionario.linhas) {
-    if (!linha?.registros) continue
-    const sam = resolverTempoPadrao(linha, etapasPorId)
-    for (const [hora, reg] of Object.entries(linha.registros)) {
-      if (horaBloqueadaPorAusencia(funcionario, hora)) continue
-      if (reg && reg.quantidade > 0) producaoPonderada += reg.quantidade * sam
-    }
-  }
-  const tempoDisponivel = calcularMinutosDisponiveisFuncionario(funcionario, configHorarios)
-  if (!tempoDisponivel) return 0
-  return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivel })
-}
-
-export function calcularEficienciaFuncionarioReferencia(funcionario, configHorarios, etapasPorId) {
-  if (!funcionario?.linhas?.length) return 0
-  let producaoPonderada = 0
-  for (const linha of funcionario.linhas) {
-    if (!linha?.registros) continue
-    const sam = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
-    for (const [hora, reg] of Object.entries(linha.registros)) {
-      if (horaBloqueadaPorAusencia(funcionario, hora)) continue
-      if (reg && reg.quantidade > 0) producaoPonderada += reg.quantidade * sam
-    }
-  }
-  const tempoDisponivel = calcularMinutosDisponiveisFuncionario(funcionario, configHorarios)
-  if (!tempoDisponivel) return 0
-  return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivel })
-}
-
 // ══════════════════════════════════════════════════════════════
-// EFICIÊNCIA DA TURMA — multi-OP
+// EFICIÊNCIA POR FUNCIONÁRIO × OP
 // ══════════════════════════════════════════════════════════════
 
 /**
- * Agrupa a produção do dia por OP (todos os funcionários, todas as
- * linhas/etapas). Para cada OP retorna:
- *   - producao: peças produzidas nela;
- *   - tempoProduzidoFicha / tempoProduzidoReferencia: minutos GANHOS
- *     (quantidade × SAM da etapa) — o NUMERADOR da eficiência;
- *   - tempoTrabalhadoRegistrado: minutos de RELÓGIO efetivamente
- *     lançados nos registros dessa OP — o DENOMINADOR.
- *
- * Correção de bug: o denominador usa o tempo REGISTRADO na própria OP,
- * nunca a capacidade do turno inteiro do funcionário. Se o
- * funcionário produziu em 2 OPs no mesmo dia, cada uma recebe só o
- * tempo que ele de fato lançou nela — sem duplicar a capacidade do
- * turno para cada OP que ele tocou.
+ * Agrupa a produção de UM funcionário por OP.
+ * 
+ * REGRA DE OURO (SEM DUPLICAÇÃO DE ETAPAS):
+ * Uma OP contém várias etapas operacionais para a mesma peça. Para evitar duplicar/triplicar
+ * a quantidade, os minutos trabalhados e o tempo de referência (SAM), esta função seleciona
+ * UMA ÚNICA ETAPA REPRESENTATIVA da OP e ignora o acúmulo das etapas secundárias.
  */
-export function agruparProducaoPorOp(funcionariosDia, etapasPorId) {
-  const gruposMap = new Map()
+export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data = null) {
+  // Tempo máximo do expediente do dia (540min seg-qui / 480min sexta).
+  // Se `data` não for informada, mantém o padrão seg-qui (540) por
+  // compatibilidade com chamadas existentes que ainda não passam a data.
+  const tempoMaximoDia = data != null ? minutosDisponiveisDia(data) : 540
+
+  const linhasRepresentativas = obterLinhasRepresentativasPorOp(funcionario?.linhas || [])
+  const grupos = []
+
+  for (const [opId, linha] of linhasRepresentativas.entries()) {
+    const samFicha = resolverTempoPadrao(linha, etapasPorId)
+    const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
+
+    let quantidadeProduzida = 0
+    let tempoNecessarioFicha = 0
+    let tempoNecessarioReferencia = 0
+    const horariosSet = new Set()
+    const etapasSet = new Set()
+    const entradasParaTempo = []
+
+    for (const [hora, reg] of Object.entries(linha.registros || {})) {
+      if (horaBloqueadaPorAusencia(funcionario, hora)) continue
+      if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
+
+      quantidadeProduzida += reg.quantidade
+      tempoNecessarioFicha += reg.quantidade * samFicha
+      tempoNecessarioReferencia += reg.quantidade * samReferencia
+      horariosSet.add(hora)
+      etapasSet.add(linha.descricao || linha.etapaId || '—')
+      entradasParaTempo.push({ hora, tempoProduzido: reg.tempoProduzido })
+    }
+
+    // Tempo utilizado = intervalo de relógio (primeiro → último registro),
+    // NUNCA soma dos registros/etapas, e sempre limitado à jornada do dia.
+    const tempoProduzido = calcularTempoUtilizadoPorIntervalo(entradasParaTempo, tempoMaximoDia)
+
+    if (tempoProduzido > 0) {
+      grupos.push({
+        opId,
+        quantidadeProduzida,
+        tempoProduzido,
+        tempoNecessarioFicha,
+        tempoNecessarioReferencia,
+        horariosConsiderados: [...horariosSet].sort((a, b) => horaParaMinutos(a) - horaParaMinutos(b)),
+        etapas: [...etapasSet],
+      })
+    }
+  }
+
+  return grupos
+}
+
+export function calcularEficienciaFuncionarioNaOp(grupoOpFuncionario, referencia = false) {
+  if (!grupoOpFuncionario?.tempoProduzido) return 0
+  const necessario = referencia
+    ? grupoOpFuncionario.tempoNecessarioReferencia
+    : grupoOpFuncionario.tempoNecessarioFicha
+  return calcularEficiencia({
+    producaoPonderada: necessario,
+    funcionarios: 1,
+    tempoTrabalhado: grupoOpFuncionario.tempoProduzido,
+  })
+}
+
+// ══════════════════════════════════════════════════════════════
+// EFICIÊNCIA INDIVIDUAL DO DIA — TEMPOS ACUMULADOS (NUNCA MÉDIA)
+// ══════════════════════════════════════════════════════════════
+//
+// Regra (Cronoanálise): a eficiência de um funcionário representa o
+// desempenho dele DURANTE TODO O DIA, não a média de percentuais de
+// OPs separadas. Por isso percorremos TODOS os lançamentos de
+// produção do funcionário no dia (qualquer OP, qualquer etapa, sem
+// selecionar "etapa representativa" nem recortar por intervalo de
+// relógio — aqui não há risco de inflar nada, pois cada lançamento é
+// um registro de produção genuinamente distinto daquele funcionário),
+// acumulamos os três tempos, e SÓ NO FINAL calculamos uma única razão:
+//
+//   Eficiência Ficha      = Tempo Ficha Total      ÷ Tempo Registrado Total × 100
+//   Eficiência Referência = Tempo Referência Total ÷ Tempo Registrado Total × 100
+export function calcularTotaisFuncionarioDia(funcionario, etapasPorId) {
+  let quantidade = 0
+  let tempoRegistrado = 0
+  let tempoFicha = 0
+  let tempoReferencia = 0
+
+  for (const linha of funcionario?.linhas || []) {
+    if (!linha?.opId) continue
+
+    const samFicha = resolverTempoPadrao(linha, etapasPorId)
+    const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
+
+    for (const [hora, reg] of Object.entries(linha.registros || {})) {
+      if (horaBloqueadaPorAusencia(funcionario, hora)) continue
+      if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
+
+      quantidade += reg.quantidade
+      tempoRegistrado += reg.tempoProduzido
+      tempoFicha += reg.quantidade * samFicha
+      tempoReferencia += reg.quantidade * samReferencia
+    }
+  }
+
+  quantidade = Math.round(quantidade * 100) / 100
+  tempoRegistrado = Math.round(tempoRegistrado * 100) / 100
+  tempoFicha = Math.round(tempoFicha * 100) / 100
+  tempoReferencia = Math.round(tempoReferencia * 100) / 100
+
+  const eficienciaFicha = calcularEficiencia({ producaoPonderada: tempoFicha, funcionarios: 1, tempoTrabalhado: tempoRegistrado })
+  const eficienciaReferencia = calcularEficiencia({ producaoPonderada: tempoReferencia, funcionarios: 1, tempoTrabalhado: tempoRegistrado })
+
+  return {
+    quantidade,
+    tempoRegistrado,
+    tempoFicha,
+    tempoReferencia,
+    eficienciaFicha,
+    eficienciaReferencia,
+    formulaFicha: `${tempoFicha} ÷ ${tempoRegistrado} × 100 = ${eficienciaFicha}%`,
+    formulaReferencia: `${tempoReferencia} ÷ ${tempoRegistrado} × 100 = ${eficienciaReferencia}%`,
+  }
+}
+
+/**
+ * MANTIDA POR COMPATIBILIDADE DE NOME — a lógica interna mudou: antes
+ * fazia média simples das eficiências de cada OP do funcionário (o que
+ * está proibido: nunca calcular eficiência fazendo média de
+ * percentuais). Agora delega para `calcularTotaisFuncionarioDia`, que
+ * soma os tempos do dia inteiro e calcula uma única razão.
+ */
+export function calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, referencia = false) {
+  const totais = calcularTotaisFuncionarioDia(funcionario, etapasPorId)
+  return referencia ? totais.eficienciaReferencia : totais.eficienciaFicha
+}
+
+export function detalharEficienciaPorFuncionarioEOp(funcionariosDia, etapasPorId, nomeDaOp = (id) => id, data = null) {
+  const linhas = []
 
   for (const funcionario of funcionariosDia || []) {
-    for (const linha of funcionario.linhas || []) {
-      if (!linha.opId) continue
+    const grupos = agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data)
+      .filter(g => g.tempoProduzido > 0)
 
-      let grupo = gruposMap.get(linha.opId)
-      if (!grupo) {
-        grupo = {
-          opId: linha.opId,
-          producao: 0,
-          temposPadraoDistintos: new Set(),
-          tempoProduzidoFicha: 0,
-          tempoProduzidoReferencia: 0,
-          tempoTrabalhadoRegistrado: 0,
-        }
-        gruposMap.set(linha.opId, grupo)
-      }
+    for (const g of grupos) {
+      const eficienciaFicha = calcularEficienciaFuncionarioNaOp(g, false)
+      const eficienciaReferencia = calcularEficienciaFuncionarioNaOp(g, true)
+      const temReferenciaDistinta = g.tempoNecessarioReferencia !== g.tempoNecessarioFicha
 
+      const tempoConsiderado = temReferenciaDistinta ? g.tempoNecessarioReferencia : g.tempoNecessarioFicha
+      const eficienciaPrincipal = temReferenciaDistinta ? eficienciaReferencia : eficienciaFicha
+      const tempoConsideradoArred = Math.round(tempoConsiderado * 100) / 100
+
+      linhas.push({
+        opId: g.opId,
+        opNome: nomeDaOp(g.opId),
+        funcionario: funcionario.nome || funcionario.email,
+        funcionarioEmail: funcionario.email,
+        etapa: g.etapas.join(', '),
+        quantidadeProduzida: g.quantidadeProduzida,
+        tempoUtilizado: Math.round(g.tempoProduzido * 100) / 100,
+        tempoConsiderado: tempoConsideradoArred,
+        tipoTempoConsiderado: temReferenciaDistinta ? 'referência' : 'padrão',
+        eficiencia: eficienciaPrincipal,
+        eficienciaFicha,
+        eficienciaReferencia,
+        formula: `${tempoConsideradoArred} ÷ ${Math.round(g.tempoProduzido * 100) / 100} × 100 = ${eficienciaPrincipal}%`,
+        tempoEfetivamenteProduzido: Math.round(g.tempoProduzido * 100) / 100,
+        horariosConsiderados: g.horariosConsiderados,
+      })
+    }
+  }
+
+  return linhas
+}
+
+// ══════════════════════════════════════════════════════════════
+// EFICIÊNCIA DA TURMA
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// EFICIÊNCIA DA EQUIPE — MESMA BASE DO RESUMO CONSOLIDADO DAS OPs
+// ══════════════════════════════════════════════════════════════
+//
+// Mantida por compatibilidade de nome para telas/relatórios que já
+// chamam esta função diretamente. NÃO tem fórmula própria: agrupa a
+// produção do dia por OP e delega para `calcularEficienciaMediaPonderadaOps`
+// — a MESMA função usada no resumo consolidado das OPs — para que não
+// exista uma segunda implementação da eficiência da equipe em lugar
+// nenhum do sistema.
+export function calcularEficienciaGeralTurma(funcionariosDia, etapasPorId, referencia = false) {
+  const gruposOp = agruparProducaoPorOp(funcionariosDia, etapasPorId).filter(g => g.producao > 0)
+  return calcularEficienciaMediaPonderadaOps(gruposOp, referencia)
+}
+
+// ══════════════════════════════════════════════════════════════
+// EFICIÊNCIA DA TURMA — MULTI-OP (CONSOLIDAÇÃO)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Agrupa a produção do dia por OP considerando TODOS OS FUNCIONÁRIOS.
+ *
+ * REGRA DE TRATAMENTO DE MULTI-ETAPAS (OP = UNIDADE ÚNICA):
+ * Uma OP não pode ter seu tempo/quantidade/referência inflados pela soma
+ * das suas várias etapas — nem quando uma única etapa é feita por vários
+ * funcionários, nem quando etapas diferentes são feitas por funcionários
+ * diferentes. Por isso a OP inteira usa apenas a ETAPA REPRESENTATIVA
+ * GLOBAL (a etapa final, quando atingida; ou a de maior produção, quando
+ * ainda não atingiu a etapa final) — ver obterParticipantesRepresentativosGlobalPorOp.
+ * O tempo utilizado é o intervalo de relógio (primeiro → último
+ * registro), nunca a soma dos tempos de cada etapa/funcionário, e é
+ * sempre limitado à jornada máxima do dia (540min seg-qui / 480min sexta).
+ */
+export function agruparProducaoPorOp(funcionariosDia, etapasPorId, data = null) {
+  // Tempo máximo do expediente do dia (540min seg-qui / 480min sexta).
+  // Se `data` não for informada, mantém o padrão seg-qui (540) por
+  // compatibilidade com chamadas existentes que ainda não passam a data.
+  const tempoMaximoDia = data != null ? minutosDisponiveisDia(data) : 540
+
+  // A OP é tratada como UNIDADE ÚNICA: independentemente de quantos
+  // funcionários/etapas passaram por ela, usamos apenas os participantes
+  // da etapa representativa GLOBAL (etapa final, ou a de maior produção
+  // na ausência de etapa final). Isso evita somar tempo/produção de
+  // etapas distintas feitas por funcionários diferentes.
+  const participantesPorOp = obterParticipantesRepresentativosGlobalPorOp(funcionariosDia)
+  const gruposMap = new Map()
+
+  for (const [opId, participantes] of participantesPorOp.entries()) {
+    const grupo = {
+      opId,
+      producao: 0,
+      temposPadraoDistintos: new Set(),
+      tempoProduzidoFicha: 0,
+      tempoProduzidoReferencia: 0,
+      tempoTrabalhadoRegistrado: 0,
+    }
+
+    const entradasParaTempo = []
+
+    for (const { funcionario, linha } of participantes) {
       const samFicha = resolverTempoPadrao(linha, etapasPorId)
       const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
       grupo.temposPadraoDistintos.add(samFicha)
-
-      // Só etapas finais representam peça realmente entregue/concluída.
-      // Etapas intermediárias (costura, bolso, gola, etc.) não devem
-      // inflar a contagem de "Produção" da OP.
-      const ehEtapaFinal = isEtapaFinal(linha)
 
       for (const [hora, reg] of Object.entries(linha.registros || {})) {
         if (horaBloqueadaPorAusencia(funcionario, hora)) continue
         if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
-        if (ehEtapaFinal) grupo.producao += reg.quantidade
-
-        // Eficiência da OP continua considerando o esforço em todas as
-        // etapas (regra de negócio já existente, não alterada aqui).
+        // Quantidade e tempos ponderados: somam-se apenas entre
+        // funcionários que trabalharam na MESMA etapa representativa da
+        // OP (produção genuinamente aditiva), nunca entre etapas diferentes.
+        grupo.producao += reg.quantidade
         grupo.tempoProduzidoFicha += reg.quantidade * samFicha
         grupo.tempoProduzidoReferencia += reg.quantidade * samReferencia
-        grupo.tempoTrabalhadoRegistrado += reg.tempoProduzido
+        entradasParaTempo.push({ hora, tempoProduzido: reg.tempoProduzido })
       }
     }
+
+    // Tempo utilizado da OP = intervalo de relógio (primeiro → último
+    // registro da etapa representativa), NUNCA soma dos tempos das
+    // etapas/funcionários, e sempre limitado à jornada do dia.
+    grupo.tempoTrabalhadoRegistrado = calcularTempoUtilizadoPorIntervalo(entradasParaTempo, tempoMaximoDia)
+
+    gruposMap.set(opId, grupo)
   }
 
   return [...gruposMap.values()]
 }
 
-/** Tempo padrão "médio" de exibição — na prática é o próprio earned/produção,
- *  então se a OP tiver etapas com SAMs diferentes o valor mostrado já é a
- *  média corretamente ponderada pelo volume de cada etapa. */
 export function tempoPadraoMedioOp(grupoOp, referencia = false) {
   if (!grupoOp?.producao) return 0
   const earned = referencia ? grupoOp.tempoProduzidoReferencia : grupoOp.tempoProduzidoFicha
@@ -327,76 +665,41 @@ export function calcularEficienciaOpAgrupadaReferencia(grupoOp) {
   })
 }
 
-/**
- * Média ponderada das OPs: soma dos minutos GANHOS de todas as OPs ÷
- * soma dos minutos de RELÓGIO lançados em todas elas. Uma OP com 900
- * peças a 0,45min pesa naturalmente mais que uma com 20 peças a
- * 1,80min — nunca é uma média aritmética simples dos percentuais.
- */
+export function resumoConsolidadoOp(grupoOp) {
+  if (!grupoOp) return null
+  console.log(grupoOp)
+  return {
+    opId: grupoOp.opId,
+    producao: grupoOp.producao,
+    tempoTrabalhado: Math.round(grupoOp.tempoTrabalhadoRegistrado * 100) / 100,
+    tempoPadraoTotal: Math.round(grupoOp.tempoProduzidoFicha * 100) / 100,
+    tempoReferenciaTotal: Math.round(grupoOp.tempoProduzidoReferencia * 100) / 100,
+    eficienciaFicha: calcularEficienciaOpAgrupada(grupoOp),
+    eficienciaReferencia: calcularEficienciaOpAgrupadaReferencia(grupoOp),
+  }
+}
+
 export function calcularEficienciaMediaPonderadaOps(gruposOp, referencia = false) {
+  // NOME MANTIDO POR COMPATIBILIDADE, mas a lógica agora é a correta:
+  // MÉDIA SIMPLES entre as eficiências de cada OP — nunca média
+  // ponderada por tempo/produção, e nunca soma de tempos entre OPs.
+  // Cada OP é uma unidade de produção independente (regra 9).
   if (!gruposOp?.length) return 0
-  let numerador = 0
-  let denominador = 0
-  for (const grupo of gruposOp) {
-    numerador += referencia ? grupo.tempoProduzidoReferencia : grupo.tempoProduzidoFicha
-    denominador += grupo.tempoTrabalhadoRegistrado
-  }
-  if (!denominador) return 0
-  return calcularEficiencia({ producaoPonderada: numerador, funcionarios: 1, tempoTrabalhado: denominador })
+
+  const eficiencias = gruposOp
+    .filter(grupo => grupo?.tempoTrabalhadoRegistrado > 0)
+    .map(grupo => referencia
+      ? calcularEficienciaOpAgrupadaReferencia(grupo)
+      : calcularEficienciaOpAgrupada(grupo))
+
+  if (!eficiencias.length) return 0
+  const soma = eficiencias.reduce((s, e) => s + e, 0)
+  return Math.round((soma / eficiencias.length) * 100) / 100
 }
 
-/**
- * Eficiência GERAL da turma (o número de cabeçalho). Numerador = total
- * de minutos ganhos (quantidade × SAM) de TODA a produção do dia,
- * qualquer OP. Denominador = tempo efetivamente DISPONÍVEL dos
- * funcionários que produziram, respeitando turno e ausências (mesma
- * regra que já valia por funcionário — calcularMinutosDisponiveisFuncionario).
- *
- * Por usar tempo disponível (não só o tempo registrado), esta métrica
- * penaliza ociosidade dentro do turno — por isso pode ficar um pouco
- * abaixo da "média ponderada das OPs" (que só olha os minutos
- * realmente lançados, já que tempo ocioso não pertence a nenhuma OP).
- * É a correção direta da média aritmética simples que existia antes:
- * agora cada funcionário pesa pelo tempo que teve disponível, não por
- * "1 pessoa = 1 voto" no percentual.
- */
-export function calcularEficienciaGeralTurma(funcionariosDia, configHorarios, etapasPorId, referencia = false) {
-  const produtivos = (funcionariosDia || []).filter(func =>
-    (func.linhas || []).reduce((s, l) => s + calcularTotalLinha(l, func), 0) > 0
-  )
-  if (!produtivos.length) return 0
-
-  let numerador = 0
-  let denominador = 0
-
-  for (const funcionario of produtivos) {
-    for (const linha of funcionario.linhas || []) {
-      if (!linha?.registros) continue
-      const sam = referencia
-        ? resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
-        : resolverTempoPadrao(linha, etapasPorId)
-
-      for (const [hora, reg] of Object.entries(linha.registros)) {
-        if (horaBloqueadaPorAusencia(funcionario, hora)) continue
-        if (reg && reg.quantidade > 0) numerador += reg.quantidade * sam
-      }
-    }
-    denominador += calcularMinutosDisponiveisFuncionario(funcionario, configHorarios)
-  }
-
-  if (!denominador) return 0
-  return calcularEficiencia({ producaoPonderada: numerador, funcionarios: 1, tempoTrabalhado: denominador })
-}
 // ══════════════════════════════════════════════════════════════
-// REGRA DE ALERTA — Ficha (fábrica) vs Referência com fallback
+// REGRA DE ALERTA E OUTRAS REGRAS
 // ══════════════════════════════════════════════════════════════
-// Reaproveita 100% das funções já existentes. Só escolhe QUAL delas
-// usar, conforme a regra de negócio pedida:
-//   tipo_de_producao === 'fabrica' -> sempre Ficha (SAM da etapa)
-//   qualquer outro tipo            -> Referência do funcionário, com
-//                                     fallback automático para Ficha já
-//                                     embutido em resolverSam (ver
-//                                     resolverTempoEfetivoReferencia)
 export function calcularEficienciaLinhaComRegra(linha, funcionario, etapasPorId, tipoDeProducao) {
   return tipoDeProducao === 'fabrica'
     ? calcularEficienciaLinhaPadrao(linha, funcionario, etapasPorId)
@@ -409,11 +712,6 @@ export function resolverTempoEfetivoComRegra(funcionario, linha, etapasPorId, ti
     : resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
 }
 
-/**
- * Métricas de "peças por hora" para exibir no alerta — usa o mesmo
- * tempo efetivo (SAM ou Referência, conforme a regra acima) e o mesmo
- * tempo trabalhado já usado no cálculo de eficiência da linha.
- */
 export function calcularPecasPorHora(linha, funcionario, etapasPorId, tipoDeProducao) {
   const tempoEfetivo = resolverTempoEfetivoComRegra(funcionario, linha, etapasPorId, tipoDeProducao)
   const esperadoPorHora = tempoEfetivo ? Math.round((60 / tempoEfetivo) * 10) / 10 : 0
@@ -427,25 +725,23 @@ export function calcularPecasPorHora(linha, funcionario, etapasPorId, tipoDeProd
       tempoTrabalhado += reg.tempoProduzido
     }
   }
-  
+
   const registradoPorHora = tempoTrabalhado ? Math.round((quantidade / tempoTrabalhado) * 60 * 10) / 10 : 0
 
   return { tempoEfetivo, esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado }
 }
+
+export function calcularEficienciaFuncionarioPorModo(funcionario, etapasPorId, modo) {
+  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, modo === 'referencia')
+}
+
 // ══════════════════════════════════════════════════════════════
-// REGRA DE ORDENAÇÃO/RANKING — Fábrica usa Referência, demais usam Ficha
+// COMPATIBILIDADE
 // ══════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
-// REGRA DE ORDENAÇÃO/RANKING — modo escolhido pelo usuário
-// ══════════════════════════════════════════════════════════════
-/**
- * Eficiência usada para ORDENAR/RANQUEAR funcionários no Painel.
- * O modo ('ficha' | 'referencia') agora é escolhido pelo usuário na UI,
- * não mais inferido automaticamente do tipo de estabelecimento.
- * Reaproveita 100% das funções já existentes — só decide qual delas usar.
- */
-export function calcularEficienciaFuncionarioPorModo(funcionario, configHorarios, etapasPorId, modo) {
-  return modo === 'referencia'
-    ? calcularEficienciaFuncionarioReferencia(funcionario, configHorarios, etapasPorId)
-    : calcularEficienciaFuncionarioPadrao(funcionario, configHorarios, etapasPorId)
+export function calcularEficienciaFuncionarioPadrao(funcionario, etapasPorId) {
+  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, false)
+}
+
+export function calcularEficienciaFuncionarioReferencia(funcionario, etapasPorId) {
+  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, true)
 }

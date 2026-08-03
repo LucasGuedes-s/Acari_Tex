@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
-prisma = new PrismaClient()
+const prisma = new PrismaClient();
+
 async function getNotificacoes(req) {
   const cnpj = req.user.cnpj;
 
@@ -150,9 +151,30 @@ async function registrarAlertaProdutividade(dados) {
     },
   })
 }
+
+async function limparNotificacoesAntigas(estabelecimentoCnpj) {
+  const limite = new Date()
+  limite.setDate(limite.getDate() - 1)
+
+  const resultado = await prisma.notificacoes.updateMany({
+    where: {
+      estabelecimentoCnpj,
+      lida: false,
+      criadaEm: {
+        lt: limite
+      }
+    },
+    data: {
+      lida: true
+    }
+  })
+
+  return resultado.count
+}
 module.exports = {
     getNotificacoes,
     putNotificacaoLida,
     getEmpresa,
-    registrarAlertaProdutividade
+    registrarAlertaProdutividade,
+    limparNotificacoesAntigas
 }
