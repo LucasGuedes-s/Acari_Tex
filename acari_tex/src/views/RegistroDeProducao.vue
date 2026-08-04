@@ -479,7 +479,7 @@ import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
 import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
 
 //const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
-const socket = io('http://localhost:3333', { transports: ['websocket'] })
+const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
 const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
 
