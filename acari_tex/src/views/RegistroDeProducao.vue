@@ -22,6 +22,9 @@
             <button class="btn-gerar-pdf" :disabled="gerandoPdf" @click="onClicarGerarPdf">
               📄 {{ gerandoPdf ? 'Gerando PDF…' : 'Gerar PDF' }}
             </button>
+            <button class="btn-gerar-excel" :disabled="gerandoExcel" @click="onClicarGerarExcel">
+              📊 {{ gerandoExcel ? 'Gerando Excel…' : 'Gerar Excel' }}
+            </button>
           </div>
         </div>
 
@@ -294,7 +297,7 @@
                             <select class="tempo-select"
                               :value="linha.modoTempo === 'referencia' ? linha.referenciaSelecionadaId : '__padrao__'"
                               :disabled="funcionarioAusenteDiaInteiro(funcionario)"
-                              @change="onSelecionarTempo(linha, $event.target.value)">
+                              @change="onSelecionarTempo(funcionario, linha, $event.target.value)">
                               <option value="__padrao__">⏱ Ficha: {{ linha.tempoPadrao }}min</option>
                               <option v-for="ref in listarRefsDaEtapa(buscarEtapa(linha.etapaId, linha.opId))"
                                 :key="ref.id" :value="ref.id">
@@ -475,6 +478,7 @@ import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
 import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
+import { exportarMapaProducaoExcel } from '@/utils/functions/ExportarExcelMapaProducao'
 import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
 import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
 
@@ -657,6 +661,30 @@ function listarChavesPendentesLocalStorage(estabelecimento, data) {
   return chaves
 }
 
+// ── PERSISTÊNCIA DA ESCOLHA DE TEMPO (Ficha x Referência) ──────
+const LS_TEMPO_REF_PREFIXO = 'apontamento_tempo_referencia_escolhido'
+
+function chaveLocalStorageTempoRef(estabelecimento, data, funcionarioId, opId, etapaId) {
+  return `${LS_TEMPO_REF_PREFIXO}::${estabelecimento}::${data}::${funcionarioId}::${opId || 'sem-op'}::${etapaId}`
+}
+
+function salvarTempoRefLocalStorage(chaveLS, valor) {
+  try {
+    localStorage.setItem(chaveLS, JSON.stringify(valor))
+  } catch (err) {
+    console.warn('Erro ao salvar tempo referência no localStorage.', err)
+  }
+}
+
+function lerTempoRefLocalStorage(chaveLS) {
+  try {
+    const bruto = localStorage.getItem(chaveLS)
+    return bruto ? JSON.parse(bruto) : null
+  } catch {
+    return null
+  }
+}
+
 export default {
   name: 'ApontamentoDia',
   components: { SidebarNav, carregandoTela },
@@ -688,6 +716,7 @@ export default {
       ultimaBuscaId: 0,
       carregandoMeta: false,
       gerandoPdf: false,
+      gerandoExcel: false,
       modalAusencia: {
         aberto: false,
         funcionario: null,
@@ -1352,8 +1381,14 @@ export default {
         .map(r => {
           const t = Number(r.tempo_minutos ?? r.tempo_por_peca ?? 0)
           const func = this.funcionarios.find(f => f.email === r.id_funcionario)
+          // Usar r.id (PK do banco) como valor único do option.
+          // ANTIGAMENTE usava r.id_funcionario (email), mas quando um
+          // profissional tinha VÁRIOS tempos de referência para a mesma
+          // etapa/OP, todos os options tinham o mesmo value → o select
+          // não distinguia e o resolver sempre pegava o primeiro.
           return {
-            id: r.id_funcionario,
+            id: r.id ?? r.id_funcionario,
+            funcionarioId: r.id_funcionario,
             nomeFunc: func?.nome || r.id_funcionario,
             tempo: t,
           }
@@ -1361,13 +1396,27 @@ export default {
         .filter(r => r.tempo > 0)
     },
 
-    onSelecionarTempo(linha, valor) {
+    onSelecionarTempo(funcionario, linha, valor) {
       if (valor === '__padrao__') {
         linha.modoTempo = 'padrao'
         linha.referenciaSelecionadaId = null
       } else {
         linha.modoTempo = 'referencia'
         linha.referenciaSelecionadaId = valor
+      }
+
+      // Salvar no localStorage para que a escolha sobreviva quando
+      // buscarMetaDia reconstrói as linhas.
+      const real = funcionario?._funcRef || funcionario
+      if (real?.email && linha?.etapaId) {
+        const chaveLS = chaveLocalStorageTempoRef(
+          this.store.pegar_usuario?.cnpj || '', this.dataSelecionada,
+          real.email, linha.opId, linha.etapaId
+        )
+        salvarTempoRefLocalStorage(chaveLS, {
+          modoTempo: linha.modoTempo,
+          referenciaSelecionadaId: linha.referenciaSelecionadaId,
+        })
       }
     },
 
@@ -1430,9 +1479,19 @@ export default {
       if (linha?.modoTempo === 'referencia' && linha?.referenciaSelecionadaId) {
         const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
         const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
-        const ref = Array.isArray(refs)
-          ? refs.find(r => r && r.id_funcionario === linha.referenciaSelecionadaId)
-          : null
+        let ref = null
+        if (Array.isArray(refs)) {
+          // Buscar primeiro pelo ID do registro no banco (r.id).
+          // IMPORTANTE: Usar == em vez de === porque $event.target.value
+          // retorna STRING, mas r.id do banco é NUMBER. Ex: "42" !== 42,
+          // mas "42" == 42. Sem isso, a referência nunca é encontrada e
+          // o sistema cai no tempo da ficha, ignorando a escolha do usuário.
+          const refIdBusca = String(linha.referenciaSelecionadaId)
+          ref = refs.find(r => r && String(r.id) === refIdBusca)
+          // Fallback: buscar por id_funcionario (compatibilidade com
+          // dados antigos que salvaram o email em referenciaSelecionadaId).
+          if (!ref) ref = refs.find(r => r && r.id_funcionario === linha.referenciaSelecionadaId)
+        }
         const t = Number(ref?.tempo_minutos ?? ref?.tempo_por_peca ?? 0)
         if (t > 0) tempoReferencia = t
       }
@@ -1733,10 +1792,33 @@ export default {
       linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || ''
       linha.opId = linha.opId || etapa?.id_da_op || null
 
-      const tRef = this.resolverTempoReferencia(funcionarioReal, linha)
-      if (tRef && tRef > 0) {
+      // 1. Tentar restaurar do localStorage (escolha manual do usuário)
+      const chaveLS = funcionarioReal?.email
+        ? chaveLocalStorageTempoRef(
+          this.store.pegar_usuario?.cnpj || '', this.dataSelecionada,
+          funcionarioReal.email, linha.opId, linha.etapaId
+        )
+        : null
+      const escolhaSalva = chaveLS ? lerTempoRefLocalStorage(chaveLS) : null
+      if (escolhaSalva && (escolhaSalva.modoTempo === 'padrao' || escolhaSalva.referenciaSelecionadaId)) {
+        linha.modoTempo = escolhaSalva.modoTempo
+        linha.referenciaSelecionadaId = escolhaSalva.referenciaSelecionadaId || null
+        return
+      }
+
+      // 2. Auto-detectar: se o profissional tem referência, usar 'referencia'
+      // Buscar o r.id (PK do banco) da referência encontrada para que
+      // o select possa identificar corretamente qual option selecionar.
+      const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+      const refEncontrada = Array.isArray(refs) && funcionarioReal?.email
+        ? refs.find(r => r && r.id_funcionario === funcionarioReal.email
+          && (r.tempo_minutos || r.tempo_por_peca))
+        : null
+      if (refEncontrada) {
         linha.modoTempo = 'referencia'
-        linha.referenciaSelecionadaId = funcionarioReal?.email || null
+        // Usar r.id (PK) para que o <select> encontre a option correta.
+        // Fallback para r.id_funcionario (compatibilidade).
+        linha.referenciaSelecionadaId = refEncontrada.id ?? (refEncontrada.id_funcionario || null)
       } else {
         linha.modoTempo = 'padrao'
         linha.referenciaSelecionadaId = null
@@ -2128,16 +2210,15 @@ export default {
       const tempoDisponivel = this.calcularMinutosDisponiveisFuncionario(real)
       if (!tempoDisponivel) return 0
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivel })
-    },
-
-    calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
+    },    calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
       const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
       if (!quantidade || !tempoProduzido || !sam) return 0
-      return calcularEficiencia({
+      const efic = calcularEficiencia({
         producaoPonderada: quantidade * sam,
         funcionarios: 1,
         tempoTrabalhado: tempoProduzido,
       })
+      return efic
     },
 
     // ── UTILITÁRIOS ───────────────────────────────────────
@@ -2559,6 +2640,21 @@ export default {
             this.opsExtras = []
           }
 
+          // Capturar modoTempo/referenciaSelecionadaId de TODAS as linhas
+          // ANTES de inicializarFuncionarios() destruir as linhas antigas.
+          const modoTempoGlobal = new Map()
+          for (const func of (this.funcionariosDia || [])) {
+            for (const l of (func.linhas || [])) {
+              if (l.etapaId && (l.modoTempo === 'referencia' || l.referenciaSelecionadaId)) {
+                const chave = `${func.email}::${l.etapaId}::${l.opId || 'sem-op'}`
+                modoTempoGlobal.set(chave, {
+                  modoTempo: l.modoTempo,
+                  referenciaSelecionadaId: l.referenciaSelecionadaId,
+                })
+              }
+            }
+          }
+
           this.inicializarFuncionarios()
 
           for (const metaFunc of meta.funcionarios || []) {
@@ -2585,6 +2681,14 @@ export default {
                 linha.descricao = producao.producao_etapa?.descricao || ''
                 linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
                 linha.opId = opId
+
+                // Restaurar modoTempo da linha anterior (capturado ANTES de inicializarFuncionarios)
+                const chaveAntiga = `${funcionario.email}::${etapaId}::${opId || 'sem-op'}`
+                const anterior = modoTempoGlobal.get(chaveAntiga)
+                if (anterior) {
+                  linha.modoTempo = anterior.modoTempo
+                  linha.referenciaSelecionadaId = anterior.referenciaSelecionadaId
+                }
 
                 linhas.push(linha)
               }
@@ -2770,6 +2874,29 @@ export default {
         this.gerandoPdf = false
       }
     },
+
+    async onClicarGerarExcel() {
+      if (this.gerandoExcel) return
+      this.gerandoExcel = true
+      try {
+        await exportarMapaProducaoExcel({
+          funcionariosDia: this.funcionariosDia,
+          horas: this.horasVisiveis,
+          resolverTempoEfetivoReferencia: this.resolverTempoEfetivoReferencia.bind(this),
+          calcularEficiencia,
+          horaBloqueadaPorAusencia: this.horaBloqueadaPorAusencia.bind(this),
+          dataProducao: this.dataSelecionada,
+          turno: this.turnoAtivo === 'manha' ? 'Manhã' : 'Tarde',
+          empresa: this.store.pegar_usuario?.cnpj || '',
+        })
+        Swal.fire('Sucesso', 'Mapa de produção exportado com sucesso!', 'success')
+      } catch (err) {
+        console.error(err)
+        Swal.fire('Erro', 'Não foi possível gerar o Excel da produção.', 'error')
+      } finally {
+        this.gerandoExcel = false
+      }
+    },
   },
 }
 </script>
@@ -2829,6 +2956,33 @@ export default {
 }
 
 .btn-gerar-pdf:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.btn-gerar-excel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d5a3b, #1a8a50);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
+  transition: .2s;
+  font-family: inherit;
+}
+
+.btn-gerar-excel:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-gerar-excel:disabled {
   opacity: .6;
   cursor: not-allowed;
 }

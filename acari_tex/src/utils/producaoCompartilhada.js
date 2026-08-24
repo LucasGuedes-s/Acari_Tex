@@ -128,20 +128,109 @@ export function resolverTempoPadrao(linha) {
   return Number(linha?.tempoPadrao || 0)
 }
 
-export function resolverTempoReferencia(funcionario, linha, etapasPorId) {
+/**
+ * Resolve o tempo de referência do funcionário para a etapa/OP da linha.
+ *
+ * PRIORIDADE DE BUSCA:
+ *   1. Override manual do usuário (linha.modoTempo === 'referencia' &&
+ *      linha.referenciaSelecionadaId) — este é o valor escolhido no dropdown
+ *      pela tela de Registro de Produção e tem PRIORIDADE ABSOLUTA.
+ *   2. Tempo de referência do backend: busca na etapa (filtrando por OP)
+ *      o registro que pertence ao funcionário (id_funcionario === email).
+ *   3. null (sem referência — usa tempo padrão da ficha).
+ *
+ * NUNCA usa o tempo de outro profissional, de outra OP ou de outra etapa.
+ *
+ * @param {Object} funcionario - Dados do funcionário (precisa de .email)
+ * @param {Object} linha - Linha de produção (precisa de .etapaId, .opId,
+ *   opcionalmente .modoTempo e .referenciaSelecionadaId)
+ * @param {Map} etapasPorId - Índice de etapas por id_da_funcao
+ * @param {Object} [overrides] - Overrides do usuário (opcional, usado pelo
+ *   ProducaoDia.vue para respeitar seleções do dropdown do Registro de Produção)
+ * @returns {number|null} Tempo de referência em minutos ou null
+ */
+export function resolverTempoReferencia(funcionario, linha, etapasPorId, overrides = null) {
+  // ═══════════════════════════════════════════════════════════════
+  // REGRA DE PRIORIDADE:
+  //   1. Override manual (dropdown) — via `overrides` ou propriedades da linha
+  //      (modoTempo/referenciaSelecionadaId). PRIORIDADE ABSOLUTA.
+  //   2. Referência específica do profissional para aquela PEÇA/OP
+  //      (busca na etapa filtrando por OP).
+  //   3. Referência do profissional para a mesma PEÇA (qualquer OP)
+  //      — usa o registro mais recente encontrado.
+  //   4. null → usa tempo padrão da ficha.
+  //
+  // NUNCA usa o tempo de outro profissional.
+  // ═══════════════════════════════════════════════════════════════
+
+  // 1. Override manual (dropdown)
+  const modoTempo = overrides?.modoTempo || linha?.modoTempo
+  const refId = overrides?.referenciaSelecionadaId || linha?.referenciaSelecionadaId
+
+  if (modoTempo === 'referencia' && refId) {
+    const etapa = buscarEtapa(etapasPorId, linha?.etapaId, linha?.opId)
+    const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+    if (Array.isArray(refs)) {
+      // Buscar primeiro pelo r.id (PK do banco) — necessário quando
+      // um profissional tem VÁRIOS tempos de referência para a mesma
+      // etapa/OP (cada um com r.id diferente, mas o mesmo r.id_funcionario).
+      // Usar String() porque $event.target.value retorna STRING, mas r.id
+      // do banco é NUMBER. Sem isso, a referência nunca é encontrada.
+      const refIdBusca = String(refId)
+      let ref = refs.find(r => r && String(r.id) === refIdBusca)
+      // Fallback: buscar por id_funcionario (compatibilidade).
+      if (!ref) ref = refs.find(r => r && r.id_funcionario === refId)
+      if (ref) {
+        const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+        if (t > 0) return t
+      }
+    }
+  }
+
+  // 2. Referência específica do profissional para a PEÇA/OP
   const etapa = buscarEtapa(etapasPorId, linha?.etapaId, linha?.opId)
   const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
-  if (!Array.isArray(refs) || !funcionario?.email) return null
+  if (Array.isArray(refs) && funcionario?.email) {
+    const ref = refs.find(r => r && r.id_funcionario === funcionario.email)
+    if (ref) {
+      const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+      if (t > 0) return t
+    }
+  }
 
-  const ref = refs.find(r => r && r.id_funcionario === funcionario.email)
-  if (!ref) return null
+  // 3. Referência do profissional para a mesma PEÇA (qualquer OP)
+  //    Busca nas todas as etapas com o mesmo id_da_funcao que possuam
+  //    referência deste profissional.
+  if (funcionario?.email && linha?.etapaId && etapasPorId) {
+    const candidatas = etapasPorId.get(linha.etapaId) || []
+    let ultimoT = 0
+    for (const candidata of candidatas) {
+      const candidataRefs = candidata?.tempo_referencia || candidata?.etapa?.tempo_referencia || []
+      if (!Array.isArray(candidataRefs)) continue
+      const ref = candidataRefs.find(r => r && r.id_funcionario === funcionario.email)
+      if (ref) {
+        const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+        if (t > 0) ultimoT = t
+      }
+    }
+    if (ultimoT > 0) return ultimoT
+  }
 
-  const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
-  return t > 0 ? t : null
+  // 4. Sem referência → usa tempo padrão da ficha
+  return null
 }
 
-export function resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId) {
-  const tempoReferencia = resolverTempoReferencia(funcionario, linha, etapasPorId)
+/**
+ * Resolve o tempo efetivo (referência ou ficha) considerando overrides.
+ *
+ * @param {Object} funcionario
+ * @param {Object} linha
+ * @param {Map} etapasPorId
+ * @param {Object} [overrides] - Overrides do usuário (modoTempo/referenciaSelecionadaId)
+ * @returns {number} Tempo efetivo em minutos
+ */
+export function resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, overrides = null) {
+  const tempoReferencia = resolverTempoReferencia(funcionario, linha, etapasPorId, overrides)
   return resolverSam({ tempoReferencia, tempoPadrao: resolverTempoPadrao(linha, etapasPorId) })
 }
 
@@ -338,8 +427,8 @@ export function calcularEficienciaLinhaPadrao(linha, funcionario, etapasPorId) {
   return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
 }
 
-export function calcularEficienciaLinhaReferencia(funcionario, linha, etapasPorId) {
-  const sam = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
+export function calcularEficienciaLinhaReferencia(funcionario, linha, etapasPorId, overrides = null) {
+  const sam = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, overrides)
   let producaoPonderada = 0
   let tempoTrabalhado = 0
   for (const [hora, reg] of Object.entries(linha?.registros || {})) {
@@ -358,8 +447,8 @@ export function calcularEficienciaRegistroPadrao(quantidade, tempoProduzido, lin
   return calcularEficiencia({ producaoPonderada: quantidade * sam, funcionarios: 1, tempoTrabalhado: tempoProduzido })
 }
 
-export function calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario, etapasPorId) {
-  const sam = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
+export function calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario, etapasPorId, overrides = null) {
+  const sam = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, overrides)
   if (!quantidade || !tempoProduzido || !sam) return 0
   return calcularEficiencia({ producaoPonderada: quantidade * sam, funcionarios: 1, tempoTrabalhado: tempoProduzido })
 }
@@ -376,7 +465,7 @@ export function calcularEficienciaRegistroReferencia(quantidade, tempoProduzido,
  * a quantidade, os minutos trabalhados e o tempo de referência (SAM), esta função seleciona
  * UMA ÚNICA ETAPA REPRESENTATIVA da OP e ignora o acúmulo das etapas secundárias.
  */
-export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data = null) {
+export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data = null, overrides = null) {
   // Tempo máximo do expediente do dia (540min seg-qui / 480min sexta).
   // Se `data` não for informada, mantém o padrão seg-qui (540) por
   // compatibilidade com chamadas existentes que ainda não passam a data.
@@ -387,7 +476,7 @@ export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data =
 
   for (const [opId, linha] of linhasRepresentativas.entries()) {
     const samFicha = resolverTempoPadrao(linha, etapasPorId)
-    const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
+    const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, overrides)
 
     let quantidadeProduzida = 0
     let tempoNecessarioFicha = 0
@@ -455,7 +544,7 @@ export function calcularEficienciaFuncionarioNaOp(grupoOpFuncionario, referencia
 //
 //   Eficiência Ficha      = Tempo Ficha Total      ÷ Tempo Registrado Total × 100
 //   Eficiência Referência = Tempo Referência Total ÷ Tempo Registrado Total × 100
-export function calcularTotaisFuncionarioDia(funcionario, etapasPorId) {
+export function calcularTotaisFuncionarioDia(funcionario, etapasPorId, overrides = null) {
   let quantidade = 0
   let tempoRegistrado = 0
   let tempoFicha = 0
@@ -465,7 +554,7 @@ export function calcularTotaisFuncionarioDia(funcionario, etapasPorId) {
     if (!linha?.opId) continue
 
     const samFicha = resolverTempoPadrao(linha, etapasPorId)
-    const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId)
+    const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, overrides)
 
     for (const [hora, reg] of Object.entries(linha.registros || {})) {
       if (horaBloqueadaPorAusencia(funcionario, hora)) continue
@@ -505,8 +594,8 @@ export function calcularTotaisFuncionarioDia(funcionario, etapasPorId) {
  * percentuais). Agora delega para `calcularTotaisFuncionarioDia`, que
  * soma os tempos do dia inteiro e calcula uma única razão.
  */
-export function calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, referencia = false) {
-  const totais = calcularTotaisFuncionarioDia(funcionario, etapasPorId)
+export function calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, referencia = false, overrides = null) {
+  const totais = calcularTotaisFuncionarioDia(funcionario, etapasPorId, overrides)
   return referencia ? totais.eficienciaReferencia : totais.eficienciaFicha
 }
 
@@ -680,10 +769,9 @@ export function resumoConsolidadoOp(grupoOp) {
 }
 
 export function calcularEficienciaMediaPonderadaOps(gruposOp, referencia = false) {
-  // NOME MANTIDO POR COMPATIBILIDADE, mas a lógica agora é a correta:
-  // MÉDIA SIMPLES entre as eficiências de cada OP — nunca média
-  // ponderada por tempo/produção, e nunca soma de tempos entre OPs.
-  // Cada OP é uma unidade de produção independente (regra 9).
+  // MÉDIA SIMPLES das eficiências de cada OP — mantida por compatibilidade
+  // com telas que ainda usam esta função para exibir resumo por OP.
+  // Para a eficiência GERAL DA TURMA, usar calcularResumoEficienciaGeral.
   if (!gruposOp?.length) return 0
 
   const eficiencias = gruposOp
@@ -695,6 +783,87 @@ export function calcularEficienciaMediaPonderadaOps(gruposOp, referencia = false
   if (!eficiencias.length) return 0
   const soma = eficiencias.reduce((s, e) => s + e, 0)
   return Math.round((soma / eficiencias.length) * 100) / 100
+}
+
+// ══════════════════════════════════════════════════════════════
+// EFICIÊNCIA GERAL DA TURMA — FÓRMULA CORRETA
+// ══════════════════════════════════════════════════════════════
+//
+// A eficiência geral é calculada como:
+//
+//   Eficiência Geral Ficha =
+//     Σ(Capacidade ficha de cada OP) ÷ Σ(Tempo produzido de cada OP) × 100
+//
+//   Eficiência Geral Referência =
+//     Σ(Capacidade referência de cada OP) ÷ Σ(Tempo produzido de cada OP) × 100
+//
+// Onde:
+//   - Capacidade ficha da OP = Σ(quantidade × tempo padrão/SAM)
+//   - Capacidade referência da OP = Σ(quantidade × tempo referência)
+//   - Tempo produzido da OP = intervalo de relógio (primeiro → último registro)
+//
+// IMPORTANTE: NÃO é média simples de porcentagens.
+// NÃO soma 540 min por funcionário.
+// Usa os valores brutos (minutos/capacidades) antes de transformar em %.
+
+/**
+ * Calcula o resumo completo de eficiência geral da turma.
+ *
+ * Retorna:
+ * {
+ *   capacidadeFichaTotal: number,    // Σ capacidade ficha de todas as OPs
+ *   capacidadeReferenciaTotal: number, // Σ capacidade referência de todas as OPs
+ *   tempoProduzidoTotal: number,     // Σ tempo produzido de todas as OPs
+ *   eficienciaFicha: number,         // Eficiência geral ficha (%)
+ *   eficienciaReferencia: number,    // Eficiência geral referência (%)
+ *   formulaFicha: string,            // Fórmula para exibição
+ *   formulaReferencia: string,       // Fórmula para exibição
+ *   opsConsideradas: number          // Qtd de OPs com produção
+ * }
+ *
+ * @param {Array} funcionariosDia - Lista de funcionários do dia
+ * @param {Map} etapasPorId - Índice de etapas
+ * @param {string|number|null} data - Data filtrada (para calcular turno)
+ */
+export function calcularResumoEficienciaGeral(funcionariosDia, etapasPorId, data = null) {
+  // Agrupa produção por OP — já trata etapa representativa e
+  // evita duplicação entre etapas/funcionários.
+  const gruposOp = agruparProducaoPorOp(funcionariosDia, etapasPorId, data)
+    .filter(g => g.producao > 0)
+
+  let capacidadeFichaTotal = 0
+  let capacidadeReferenciaTotal = 0
+  let tempoProduzidoTotal = 0
+
+  for (const grupo of gruposOp) {
+    capacidadeFichaTotal += grupo.tempoProduzidoFicha
+    capacidadeReferenciaTotal += grupo.tempoProduzidoReferencia
+    tempoProduzidoTotal += grupo.tempoTrabalhadoRegistrado
+  }
+
+  // Arredondamento
+  capacidadeFichaTotal = Math.round(capacidadeFichaTotal * 100) / 100
+  capacidadeReferenciaTotal = Math.round(capacidadeReferenciaTotal * 100) / 100
+  tempoProduzidoTotal = Math.round(tempoProduzidoTotal * 100) / 100
+
+  // Eficiência = Capacidade Total ÷ Tempo Produzido Total × 100
+  const eficienciaFicha = tempoProduzidoTotal > 0
+    ? Math.round((capacidadeFichaTotal / tempoProduzidoTotal) * 10000) / 100
+    : 0
+  const eficienciaReferencia = tempoProduzidoTotal > 0
+    ? Math.round((capacidadeReferenciaTotal / tempoProduzidoTotal) * 10000) / 100
+    : 0
+
+  return {
+    capacidadeFichaTotal,
+    capacidadeReferenciaTotal,
+    tempoProduzidoTotal,
+    eficienciaFicha,
+    eficienciaReferencia,
+    formulaFicha: `${capacidadeFichaTotal} ÷ ${tempoProduzidoTotal} × 100 = ${eficienciaFicha}%`,
+    formulaReferencia: `${capacidadeReferenciaTotal} ÷ ${tempoProduzidoTotal} × 100 = ${eficienciaReferencia}%`,
+    opsConsideradas: gruposOp.length,
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -731,17 +900,17 @@ export function calcularPecasPorHora(linha, funcionario, etapasPorId, tipoDeProd
   return { tempoEfetivo, esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado }
 }
 
-export function calcularEficienciaFuncionarioPorModo(funcionario, etapasPorId, modo) {
-  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, modo === 'referencia')
+export function calcularEficienciaFuncionarioPorModo(funcionario, etapasPorId, modo, overrides = null) {
+  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, modo === 'referencia', overrides)
 }
 
 // ══════════════════════════════════════════════════════════════
 // COMPATIBILIDADE
 // ══════════════════════════════════════════════════════════════
-export function calcularEficienciaFuncionarioPadrao(funcionario, etapasPorId) {
-  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, false)
+export function calcularEficienciaFuncionarioPadrao(funcionario, etapasPorId, overrides = null) {
+  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, false, overrides)
 }
 
-export function calcularEficienciaFuncionarioReferencia(funcionario, etapasPorId) {
-  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, true)
+export function calcularEficienciaFuncionarioReferencia(funcionario, etapasPorId, overrides = null) {
+  return calcularEficienciaGeralFuncionarioPorOp(funcionario, etapasPorId, true, overrides)
 }

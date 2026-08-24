@@ -527,6 +527,7 @@ import {
   // calcularEficienciaOpAgrupada,
   // calcularEficienciaOpAgrupadaReferencia,
   calcularEficienciaMediaPonderadaOps,
+  calcularResumoEficienciaGeral,
   minutosDisponiveisDia,
 } from '@/utils/producaoCompartilhada'
 
@@ -536,6 +537,26 @@ const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] 
 // de projeções de capacidade — não afeta mais nenhum cálculo de
 // eficiência, ver producaoCompartilhada.js).
 const LOCAL_STORAGE_MINUTOS_KEY = 'apontamento-minutos-turno'
+
+// ── RESTAURAÇÃO DE TEMPO DE REFERÊNCIA ESCOLHIDO PELO USUÁRIO ──────
+// O Registro de Produção salva no localStorage qual "modo de tempo"
+// (padrão da ficha ou referência de um funcionário específico) o usuário
+// escolheu para cada etapa/linha. Este componente lê essas escolhas para
+// garantir que os cálculos de eficiência usem o valor correto.
+const LS_TEMPO_REF_PREFIXO = 'apontamento_tempo_referencia_escolhido'
+
+function chaveLocalStorageTempoRef(estabelecimento, data, funcionarioId, opId, etapaId) {
+  return `${LS_TEMPO_REF_PREFIXO}::${estabelecimento}::${data}::${funcionarioId}::${opId || 'sem-op'}::${etapaId}`
+}
+
+function lerTempoRefLocalStorage(chaveLS) {
+  try {
+    const bruto = localStorage.getItem(chaveLS)
+    return bruto ? JSON.parse(bruto) : null
+  } catch {
+    return null
+  }
+}
 
 export default {
   name: 'PainelProfissionais',
@@ -631,17 +652,20 @@ export default {
       return this.funcionariosOrdenados.filter(f => this.temProducao(f))
     },
 
-    // Eficiência exibida no cabeçalho — MESMA base de cálculo do resumo
-    // consolidado das OPs (nenhuma fórmula própria aqui): soma o
-    // tempo/capacidade de cada OP e tira a mesma razão usada em
-    // `eficienciaMediaPonderadaOps` mais abaixo. Isso garante que o
-    // cabeçalho NUNCA possa divergir do rodapé do detalhamento por OP —
-    // os dois vêm literalmente da mesma chamada de função.
+    // Resumo de eficiência geral da turma — FÓRMULA CORRETA:
+    // Σ Tempo Produzido ÷ Σ Tempo Efetivo × 100
+    // Tempo efetivo de cada funcionário contado APENAS UMA VEZ.
+    resumoEficienciaGeral() {
+      return calcularResumoEficienciaGeral(this.funcionariosDia, this.etapasPorId, this.filtro?.data)
+    },
+
+    // Eficiência exibida no cabeçalho — usa a nova fórmula correta
+    // (produzido total ÷ efetivo total), NÃO média de eficiências.
     eficienciaMediaTurma() {
-      return this.eficienciaMediaPonderadaOps
+      return this.resumoEficienciaGeral.eficienciaFicha
     },
     eficienciaMediaTurmaReferencia() {
-      return this.eficienciaMediaPonderadaOpsReferencia
+      return this.resumoEficienciaGeral.eficienciaReferencia
     },
 
     // Base bruta agrupada por OP (computed cacheado — reaproveitado pelos
@@ -983,6 +1007,11 @@ export default {
                 // indicadores de capacidade/planejamento/conclusão da OP.
                 // Nunca usado em resolverTempoPadrao / cálculo de eficiência.
                 tempoPadraoPeca,
+                // Modo de tempo: 'padrao' (ficha) ou 'referencia'.
+                // Restaurado do Registro de Produção via localStorage para
+                // que a eficiência use o valor que o usuário escolheu.
+                modoTempo: 'padrao',
+                referenciaSelecionadaId: null,
                 registros: {},
               }
               linhas.push(linha)
@@ -1008,10 +1037,35 @@ export default {
 
         this.funcionariosDia = novosFuncionarios
         this.dataCarregada = dataDaRequisicao
+
+        // Restaura as escolhas de tempo de referência que o usuário
+        // fez no Registro de Produção (salvas no localStorage).
+        this.restaurarModoTempoReferencia()
       } catch (err) {
         console.error(err)
         this.carregandoMeta = false
         this.loading = false
+      }
+    },
+
+    // ── RESTAURAÇÃO DE MODO TEMPO ─────────────────────────
+    restaurarModoTempoReferencia() {
+      const estabelecimento = this.store.pegar_usuario?.cnpj || ''
+      if (!estabelecimento || !this.filtro?.data) return
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          if (!linha.etapaId) continue
+          const chaveLS = chaveLocalStorageTempoRef(
+            estabelecimento, this.filtro.data,
+            func.email, linha.opId, linha.etapaId
+          )
+          const escolha = lerTempoRefLocalStorage(chaveLS)
+          if (escolha && (escolha.modoTempo === 'padrao' || escolha.referenciaSelecionadaId)) {
+            linha.modoTempo = escolha.modoTempo
+            linha.referenciaSelecionadaId = escolha.referenciaSelecionadaId || null
+          }
+        }
       }
     },
 
