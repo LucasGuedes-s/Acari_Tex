@@ -6,11 +6,11 @@
       <div class="metrics-row">
         <div v-if="isFabrica" class="metric-chip accent">
           <span class="mc-label">Eficiência Referência</span>
-          <span class="mc-val">{{ eficienciaMediaTurmaReferencia }}%</span>
+          <span class="mc-val">{{ formatarEficiencia(eficienciaMediaTurmaReferencia) }}%</span>
         </div>
         <div class="metric-chip accent">
           <span class="mc-label">{{ isFabrica ? 'Eficiência Ficha' : 'Eficiência da turma' }}</span>
-          <span class="mc-val">{{ eficienciaMediaTurma }}%</span>
+          <span class="mc-val">{{ formatarEficiencia(eficienciaMediaTurma) }}%</span>
         </div>
         <div class="metric-chip">
           <span class="mc-label">Funcionários</span>
@@ -26,7 +26,7 @@
         </div>
       </div>
       <button
-        v-if="temMultiplasOpsComProducao"
+        v-if="gruposProducaoPorOp.length"
         class="btn-detalhe-ops"
         @click="mostrarDetalheOps = !mostrarDetalheOps"
       >
@@ -38,7 +38,7 @@
       </div>
     </header>
     <transition name="panel-slide">
-  <section v-if="mostrarDetalheOps && temMultiplasOpsComProducao" class="ops-detalhe">
+  <section v-if="mostrarDetalheOps && gruposProducaoPorOp.length" class="ops-detalhe">
     <div class="ops-detalhe-grid">
       <div v-for="op in gruposProducaoPorOp" :key="op.opId" class="op-detalhe-card">
         <div class="op-detalhe-top">
@@ -72,77 +72,67 @@
           </div>
           <div class="op-detalhe-stat">
             <span class="op-detalhe-stat-label">{{ isFabrica ? 'Efic. Ficha' : 'Eficiência' }}</span>
-            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaFicha)">{{ op.eficienciaFicha }}%</span>
+            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaFicha)">{{ formatarEficiencia(op.eficienciaFicha) }}%</span>
           </div>
           <div v-if="isFabrica" class="op-detalhe-stat">
             <span class="op-detalhe-stat-label">Efic. Ref.</span>
-            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaReferencia)">{{ op.eficienciaReferencia }}%</span>
+            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaReferencia)">{{ formatarEficiencia(op.eficienciaReferencia) }}%</span>
           </div>
         </div>
-        <div class="op-detalhe-formula">
-          {{ op.tempoPadraoTotal }} ÷ {{ op.tempoTrabalhado }} × 100 = {{ op.eficienciaFicha }}%
+        <!-- Fórmulas da OP -->
+        <div class="op-detalhe-formulas">
+          <div class="op-detalhe-formula">
+            <span class="formula-label">Efic. Ficha:</span>
+            <span class="formula-expr">{{ op.tempoPadraoTotal }} ÷ {{ op.tempoTrabalhado }} × 100</span>
+            <span class="formula-result" :class="clsEfic(op.eficienciaFicha)">= {{ formatarEficiencia(op.eficienciaFicha) }}%</span>
+          </div>
+          <div v-if="isFabrica" class="op-detalhe-formula">
+            <span class="formula-label">Efic. Ref.:</span>
+            <span class="formula-expr">{{ op.tempoReferenciaTotal }} ÷ {{ op.tempoTrabalhado }} × 100</span>
+            <span class="formula-result" :class="clsEfic(op.eficienciaReferencia)">= {{ formatarEficiencia(op.eficienciaReferencia) }}%</span>
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- RESUMO DAS MÉDIAS -->
     <div class="ops-detalhe-footer">
-      <span>Média ponderada das OPs{{ isFabrica ? ' (Ficha)' : '' }}:</span>
-      <strong :class="clsEfic(eficienciaMediaPonderadaOps)">{{ eficienciaMediaPonderadaOps }}%</strong>
-      <template v-if="isFabrica">
-        <span class="ops-detalhe-footer-sep">·</span>
-        <span>Referência:</span>
-        <strong :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">{{ eficienciaMediaPonderadaOpsReferencia }}%</strong>
-      </template>
-    </div>
+      <div v-if="gruposProducaoPorOp.length > 1" class="ops-resumo-amedia">
+        <div class="ops-resumo-amedia-title">Resumo dos Cálculos</div>
 
-    <!-- DETALHE POR FUNCIONÁRIO × OP -->
-    <!-- Mostra exatamente como cada percentual foi obtido: apenas os
-         intervalos com produção registrada daquela OP entram na conta,
-         nunca a jornada completa. -->
-    <div class="detalhe-func-op">
-      <button class="btn-detalhe-ops btn-detalhe-ops--secundario" @click="mostrarDetalheFuncOp = !mostrarDetalheFuncOp">
-        {{ mostrarDetalheFuncOp ? 'Ocultar' : 'Ver' }} detalhamento por funcionário e OP ({{ detalhePorFuncionarioEOp.length }})
-      </button>
-
-      <div v-if="mostrarDetalheFuncOp" class="detalhe-func-op-tbl-wrap">
-        <table class="detalhe-func-op-tbl">
-          <thead>
-            <tr>
-              <th>OP</th>
-              <th>Funcionário</th>
-              <th>Etapa(s)</th>
-              <th class="ta-r">Qtd. produzida</th>
-              <th class="ta-r">Tempo registrado</th>
-              <th class="ta-r">Capacidade (Ficha)</th>
-              <th v-if="isFabrica" class="ta-r">Capacidade (Referência)</th>
-              <th class="ta-r">Efic. Ficha</th>
-              <th v-if="isFabrica" class="ta-r">Efic. Referência</th>
-              <th>Fórmula</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(linha, i) in detalhePorFuncionarioEOp" :key="i">
-              <td>{{ linha.opNome }}</td>
-              <td>{{ linha.funcionario }}</td>
-              <td>{{ linha.etapa }}</td>
-              <td class="ta-r mono">{{ linha.quantidadeProduzida }}</td>
-              <td class="ta-r mono">{{ linha.tempoRegistrado }} min</td>
-              <td class="ta-r mono">{{ linha.tempoFicha }} min</td>
-              <td v-if="isFabrica" class="ta-r mono">{{ linha.tempoReferencia }} min</td>
-              <td class="ta-r">
-                <span class="badge sm" :class="clsEfic(linha.eficienciaFicha)">{{ linha.eficienciaFicha }}%</span>
-              </td>
-              <td v-if="isFabrica" class="ta-r">
-                <span class="badge sm" :class="clsEfic(linha.eficienciaReferencia)">{{ linha.eficienciaReferencia }}%</span>
-              </td>
-              <td class="mono small">{{ linha.formula }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div v-if="!detalhePorFuncionarioEOp.length" class="dp-empty">
-          Sem produção registrada para detalhar
+        <div class="ops-resumo-amedia-row">
+          <span class="ops-resumo-amedia-label">Eficiência Média da Ficha:</span>
+          <div class="ops-resumo-amedia-formula">
+            ({{ gruposProducaoPorOp.map(op => formatarEficiencia(op.eficienciaFicha) + '%').join(' + ') }})
+            ÷ {{ gruposProducaoPorOp.length }}
+          </div>
+          <strong class="ops-resumo-amedia-resultado" :class="clsEfic(eficienciaMediaPonderadaOps)">
+            = {{ formatarEficiencia(eficienciaMediaPonderadaOps) }}%
+          </strong>
         </div>
+
+        <template v-if="isFabrica">
+          <div class="ops-resumo-amedia-row">
+            <span class="ops-resumo-amedia-label">Eficiência Média de Referência:</span>
+            <div class="ops-resumo-amedia-formula">
+              ({{ gruposProducaoPorOp.map(op => formatarEficiencia(op.eficienciaReferencia) + '%').join(' + ') }})
+              ÷ {{ gruposProducaoPorOp.length }}
+            </div>
+            <strong class="ops-resumo-amedia-resultado" :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">
+              = {{ formatarEficiencia(eficienciaMediaPonderadaOpsReferencia) }}%
+            </strong>
+          </div>
+        </template>
+      </div>
+
+      <div v-else class="ops-resumo-single">
+        <span>Resultado da OP:</span>
+        <strong :class="clsEfic(eficienciaMediaPonderadaOps)">{{ formatarEficiencia(eficienciaMediaPonderadaOps) }}%</strong>
+        <template v-if="isFabrica">
+          <span class="ops-detalhe-footer-sep">·</span>
+          <span>Referência:</span>
+          <strong :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">{{ formatarEficiencia(eficienciaMediaPonderadaOpsReferencia) }}%</strong>
+        </template>
       </div>
     </div>
   </section>
@@ -430,9 +420,9 @@
                   <span class="dp-hora-clock">🕐</span>
                   <span class="dp-hora-label">{{ hg.hora }}</span>
                 </div>
-                <span v-if="!isFabrica" class="dp-hora-total">{{ hg.totalPecas }} peças · {{ hg.eficiencia }}%</span>
+                <span v-if="!isFabrica" class="dp-hora-total">{{ hg.totalPecas }} peças · {{ formatarEficiencia(hg.eficiencia) }}%</span>
                 <span v-else class="dp-hora-total">
-                  {{ hg.totalPecas }} peças · F {{ hg.eficiencia }}% · R {{ hg.eficienciaReferencia }}%
+                  {{ hg.totalPecas }} peças · F {{ formatarEficiencia(hg.eficiencia) }}% · R {{ formatarEficiencia(hg.eficienciaReferencia) }}%
                 </span>
               </div>
 
@@ -523,11 +513,7 @@ import {
   horaBloqueadaPorAusencia,
   agruparProducaoPorOp,
   resumoConsolidadoOp,
-  detalharEficienciaPorFuncionarioEOp,
-  // calcularEficienciaOpAgrupada,
-  // calcularEficienciaOpAgrupadaReferencia,
   calcularEficienciaMediaPonderadaOps,
-  calcularResumoEficienciaGeral,
   minutosDisponiveisDia,
 } from '@/utils/producaoCompartilhada'
 
@@ -572,8 +558,7 @@ export default {
   data() {
     return {
       modoOrdenacao: this.carregarModoOrdenacao(),
-      mostrarDetalheOps: false,
-      mostrarDetalheFuncOp: false,
+      mostrarDetalheOps: true,
       loading: true,
       socketConectado: false,
       busca: '',
@@ -652,20 +637,14 @@ export default {
       return this.funcionariosOrdenados.filter(f => this.temProducao(f))
     },
 
-    // Resumo de eficiência geral da turma — FÓRMULA CORRETA:
-    // Σ Tempo Produzido ÷ Σ Tempo Efetivo × 100
-    // Tempo efetivo de cada funcionário contado APENAS UMA VEZ.
-    resumoEficienciaGeral() {
-      return calcularResumoEficienciaGeral(this.funcionariosDia, this.etapasPorId, this.filtro?.data)
-    },
-
-    // Eficiência exibida no cabeçalho — usa a nova fórmula correta
-    // (produzido total ÷ efetivo total), NÃO média de eficiências.
+    // Eficiência exibida no cabeçalho — usa a MESMA média das OPs
+    // que aparece no resumo ao final da seção de detalhes por OP,
+    // garantindo consistência visual entre topo e resumo.
     eficienciaMediaTurma() {
-      return this.resumoEficienciaGeral.eficienciaFicha
+      return this.eficienciaMediaPonderadaOps
     },
     eficienciaMediaTurmaReferencia() {
-      return this.resumoEficienciaGeral.eficienciaReferencia
+      return this.eficienciaMediaPonderadaOpsReferencia
     },
 
     // Base bruta agrupada por OP (computed cacheado — reaproveitado pelos
@@ -711,19 +690,14 @@ export default {
     },
 
     // Eficiência exibida no resumo consolidado das OPs — e agora também
-    // no cabeçalho (ver eficienciaMediaTurma acima, que só repassa este
-    // valor). É a média simples das eficiências de cada OP do dia
-    // (cada eficiência de OP já é, por sua vez, uma razão entre tempos
-    // somados daquela OP — nunca uma média dentro da própria OP).
+    // Média das eficiências individuais das OPs:
+    // Cada OP é calculada individualmente (Capacidade ÷ Tempo × 100).
+    // Depois, calcula-se a média simples: (Ef1 + Ef2 + ... + EfN) ÷ N.
     eficienciaMediaPonderadaOps() {
       return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, false)
     },
     eficienciaMediaPonderadaOpsReferencia() {
       return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
-    },
-
-    temMultiplasOpsComProducao() {
-      return this.gruposOpBrutos.length > 1
     },
 
     totalPecasGeral() {
@@ -733,14 +707,7 @@ export default {
       )
     },
 
-    // Linhas detalhadas por (funcionário, OP) para a tela "Ver detalhes
-    // por OP" — mostra exatamente como cada eficiência foi obtida:
-    // quantidade produzida, tempo registrado, tempo ficha, tempo
-    // referência e a fórmula (razão entre os tempos já somados).
-    detalhePorFuncionarioEOp() {
-      return detalharEficienciaPorFuncionarioEOp(this.funcionariosDia, this.etapasPorId, this.nomeDaOp)
-        .sort((a, b) => a.opNome.localeCompare(b.opNome) || a.funcionario.localeCompare(b.funcionario))
-    },
+
   },
 
   watch: {
@@ -1165,8 +1132,8 @@ export default {
           hora,
           etapas,
           totalPecas,
-          eficiencia: somaTempoProduzido ? Math.round((somaProduzida / somaTempoProduzido) * 100) : 0,
-          eficienciaReferencia: somaTempoProduzido ? Math.round((somaProduzidaReferencia / somaTempoProduzido) * 100) : 0,
+          eficiencia: somaTempoProduzido ? Math.round((somaProduzida / somaTempoProduzido) * 10000) / 100 : 0,
+          eficienciaReferencia: somaTempoProduzido ? Math.round((somaProduzidaReferencia / somaTempoProduzido) * 10000) / 100 : 0,
         })
       }
 
@@ -1179,6 +1146,13 @@ export default {
       if (n >= 90) return 'verde'
       if (n >= 60) return 'amarelo'
       return 'vermelho'
+    },
+
+    // Formata eficiência com 2 casas decimais para exibição.
+    formatarEficiencia(valor) {
+      const n = Number(valor)
+      if (!n || isNaN(n)) return '0,00'
+      return n.toFixed(2).replace('.', ',')
     },
 
     selecionar(idx) {
@@ -2103,19 +2077,49 @@ export default {
 .op-detalhe-stat-val.amarelo  { color: var(--a600); }
 .op-detalhe-stat-val.vermelho { color: var(--r600); }
 
-.op-detalhe-formula {
+/* FÓRMULAS DAS OPs */
+.op-detalhe-formulas {
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px dashed var(--line, #e5e5e5);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.op-detalhe-formula {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-family: monospace;
   font-size: 11px;
   color: var(--ink3);
+  flex-wrap: wrap;
 }
 
+.formula-label {
+  font-weight: 700;
+  color: var(--ink2);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  min-width: 60px;
+}
+
+.formula-expr {
+  color: var(--ink3);
+}
+
+.formula-result {
+  font-weight: 700;
+}
+
+.formula-result.verde    { color: var(--g700); }
+.formula-result.amarelo  { color: var(--a600); }
+.formula-result.vermelho { color: var(--r600); }
+
+/* RESUMO DAS MÉDIAS */
 .ops-detalhe-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
@@ -2123,65 +2127,67 @@ export default {
   color: var(--ink2);
 }
 
-.ops-detalhe-footer strong { font-size: 14px; }
-.ops-detalhe-footer strong.verde    { color: var(--g700); }
-.ops-detalhe-footer strong.amarelo  { color: var(--a600); }
-.ops-detalhe-footer strong.vermelho { color: var(--r600); }
-.ops-detalhe-footer-sep { color: var(--ink3); }
-
-/* DETALHE POR FUNCIONÁRIO × OP */
-.detalhe-func-op {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+.ops-resumo-amedia {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.detalhe-func-op-tbl-wrap {
-  margin-top: 10px;
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--rc);
-  background: var(--bg);
-}
-
-.detalhe-func-op-tbl {
-  width: 100%;
-  border-collapse: collapse;
-  white-space: nowrap;
-}
-
-.detalhe-func-op-tbl th {
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--ink3);
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid var(--line);
-  background: var(--surf);
-  position: sticky;
-  top: 0;
-}
-
-.detalhe-func-op-tbl td {
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--ink);
-  border-bottom: 1px solid var(--line);
-}
-
-.detalhe-func-op-tbl tr:last-child td { border-bottom: none; }
-
-.detalhe-func-op-tag {
-  display: inline-block;
-  font-size: 9px;
+.ops-resumo-amedia-title {
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .05em;
+  letter-spacing: .08em;
   color: var(--ink3);
-  margin-left: 4px;
+  margin-bottom: 4px;
 }
+
+.ops-resumo-amedia-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+}
+
+.ops-resumo-amedia-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink2);
+}
+
+.ops-resumo-amedia-formula {
+  font-family: monospace;
+  font-size: 11.5px;
+  color: var(--ink3);
+  word-break: break-all;
+}
+
+.ops-resumo-amedia-resultado {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ops-resumo-amedia-resultado.verde    { color: var(--g700); }
+.ops-resumo-amedia-resultado.amarelo  { color: var(--a600); }
+.ops-resumo-amedia-resultado.vermelho { color: var(--r600); }
+
+.ops-resumo-single {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+.ops-resumo-single strong { font-size: 14px; }
+.ops-resumo-single strong.verde    { color: var(--g700); }
+.ops-resumo-single strong.amarelo  { color: var(--a600); }
+.ops-resumo-single strong.vermelho { color: var(--r600); }
+
+.ops-detalhe-footer-sep { color: var(--ink3); }
 
 /* RESPONSIVO */
 @media (max-width: 900px) {

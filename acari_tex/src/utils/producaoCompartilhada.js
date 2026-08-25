@@ -754,34 +754,54 @@ export function calcularEficienciaOpAgrupadaReferencia(grupoOp) {
   })
 }
 
+// ══════════════════════════════════════════════════════════════
+// EFICIÊNCIA EXATA (SEM ARREDONDAMENTO) — PARA CÁLCULO DE MÉDIAS
+// ══════════════════════════════════════════════════════════════
+// Retorna o valor exato da eficiência (com casas decimais completas)
+// para uso em cálculos de média. O arredondamento só deve ocorrer
+// no momento da exibição (toFixed(2)).
+export function calcularEficienciaOpExata(grupoOp) {
+  if (!grupoOp?.tempoTrabalhadoRegistrado) return 0
+  return (grupoOp.tempoProduzidoFicha / grupoOp.tempoTrabalhadoRegistrado) * 100
+}
+
+export function calcularEficienciaOpReferenciaExata(grupoOp) {
+  if (!grupoOp?.tempoTrabalhadoRegistrado) return 0
+  return (grupoOp.tempoProduzidoReferencia / grupoOp.tempoTrabalhadoRegistrado) * 100
+}
+
 export function resumoConsolidadoOp(grupoOp) {
   if (!grupoOp) return null
-  console.log(grupoOp)
   return {
     opId: grupoOp.opId,
     producao: grupoOp.producao,
     tempoTrabalhado: Math.round(grupoOp.tempoTrabalhadoRegistrado * 100) / 100,
     tempoPadraoTotal: Math.round(grupoOp.tempoProduzidoFicha * 100) / 100,
     tempoReferenciaTotal: Math.round(grupoOp.tempoProduzidoReferencia * 100) / 100,
-    eficienciaFicha: calcularEficienciaOpAgrupada(grupoOp),
-    eficienciaReferencia: calcularEficienciaOpAgrupadaReferencia(grupoOp),
+    eficienciaFicha: calcularEficienciaOpExata(grupoOp),
+    eficienciaReferencia: calcularEficienciaOpReferenciaExata(grupoOp),
   }
 }
 
 export function calcularEficienciaMediaPonderadaOps(gruposOp, referencia = false) {
-  // MÉDIA SIMPLES das eficiências de cada OP — mantida por compatibilidade
-  // com telas que ainda usam esta função para exibir resumo por OP.
-  // Para a eficiência GERAL DA TURMA, usar calcularResumoEficienciaGeral.
+  // MÉDIA DAS EFICIÊNCIAS INDIVIDUAIS DAS OPs:
+  // Cada OP é calculada individualmente (Capacidade ÷ Tempo Registrado × 100).
+  // Depois, calcula-se a média simples das eficiências individuais.
+  // Valores internos NÃO são arredondados antes da média (Math.round só na exibição).
+  //
+  // Fórmula:
+  //   Média = (Eficiência OP1 + Eficiência OP2 + ... + Eficiência OPn) ÷ Quantidade de OPs
   if (!gruposOp?.length) return 0
 
   const eficiencias = gruposOp
     .filter(grupo => grupo?.tempoTrabalhadoRegistrado > 0)
     .map(grupo => referencia
-      ? calcularEficienciaOpAgrupadaReferencia(grupo)
-      : calcularEficienciaOpAgrupada(grupo))
+      ? calcularEficienciaOpReferenciaExata(grupo)
+      : calcularEficienciaOpExata(grupo))
 
   if (!eficiencias.length) return 0
   const soma = eficiencias.reduce((s, e) => s + e, 0)
+  // Retornar com 2 casas decimais de precisão (arredondamento apenas para exibição)
   return Math.round((soma / eficiencias.length) * 100) / 100
 }
 
