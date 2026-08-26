@@ -351,6 +351,24 @@
               <div><strong>Eficiência Ficha:</strong> {{ totaisFuncionarioSelecionado.formulaFicha }}</div>
               <div v-if="isFabrica"><strong>Eficiência Referência:</strong> {{ totaisFuncionarioSelecionado.formulaReferencia }}</div>
             </div>
+
+            <!-- Detalhes do Tempo de Referência utilizado -->
+            <div v-if="isFabrica && totaisFuncionarioSelecionado.resumoRef?.length" class="dp-ref-detalhes">
+              <div class="dp-ref-detalhes-titulo">Tempo de Referência utilizado</div>
+              <div v-for="(ref, ri) in totaisFuncionarioSelecionado.resumoRef" :key="ri" class="dp-ref-detalhes-linha">
+                <span class="dp-ref-etapa">
+                  {{ ref.etapa }}
+                  <span v-if="totaisFuncionarioSelecionado.resumoRef.length > 1" class="dp-ref-op-tag">OP</span>
+                </span>
+                <span class="dp-ref-valor" v-if="ref.tempoRef != null">
+                  {{ formatarDecimal(ref.tempoRef) }} min
+                  <span class="dp-ref-origem" :class="ref.origem">
+                    ({{ formatarOrigem(ref.origem) }})
+                  </span>
+                </span>
+                <span class="dp-ref-valor dp-ref-sem" v-else>— (ficha)</span>
+              </div>
+            </div>
           </div>
 
           <!-- Tabs -->
@@ -402,7 +420,10 @@
                 <span class="mono small">{{ calcularTotalLinha(linha) }} peças</span>
                 <span class="mono small" v-if="!isFabrica">tempo padrão: {{ linha.tempoPadrao }} min/pç</span>
                 <span class="mono small" v-else>
-                  padrão: {{ linha.tempoPadrao }} min/pç · referência: {{ tempoEfetivoLinha(linha) }} min/pç
+                  padrão: {{ linha.tempoPadrao }} min/pç · referência: {{ formatarDecimal(tempoEfetivoLinha(linha)) }} min/pç
+                  <span v-if="obterOrigemRefLinha(linha)" class="dp-ref-origem-inline" :class="obterOrigemRefLinha(linha)">
+                    ({{ formatarOrigem(obterOrigemRefLinha(linha)) }})
+                  </span>
                 </span>
               </div>
             </div>
@@ -500,6 +521,7 @@ import {
   isEtapaFinal,
   resolverTempoPadrao,
   resolverTempoEfetivoReferencia,
+  resolverTempoReferenciaComOrigem,
   calcularTotalLinha,
   calcularPecasFinalizadasFuncionario,
   calcularEficienciaLinhaPadrao,
@@ -1155,6 +1177,33 @@ export default {
       return n.toFixed(2).replace('.', ',')
     },
 
+    // Formata um valor decimal (minutos) com separador de decimal (vírgula)
+    formatarDecimal(valor) {
+      const n = Number(valor)
+      if (n === null || n === undefined || isNaN(n)) return '—'
+      return n.toFixed(2).replace('.', ',')
+    },
+
+    // Formata a origem do tempo de referência para exibição
+    formatarOrigem(origem) {
+      const origens = {
+        manual: 'selecionado manualmente',
+        peca: 'tempo da peça',
+        ultimo_registrado: 'último registrado',
+      }
+      return origens[origem] || origem || 'desconhecida'
+    },
+
+    // Obtém a origem do tempo de referência de uma linha específica
+    // para exibição na aba Etapas
+    obterOrigemRefLinha(linha) {
+      if (!this.funcSelecionado || !this.isFabrica) return null
+      const { origem } = resolverTempoReferenciaComOrigem(
+        this.funcSelecionado, linha, this.etapasPorId
+      )
+      return origem
+    },
+
     selecionar(idx) {
       if (this.selecionado === idx) { this.selecionado = null; return }
       this.selecionado = idx
@@ -1778,6 +1827,107 @@ export default {
   border-top: 1px dashed var(--line);
 }
 .dp-auditoria-formula strong { color: var(--ink); }
+
+/* DETALHES DO TEMPO DE REFERÊNCIA */
+.dp-ref-detalhes {
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  margin-top: 10px;
+}
+
+.dp-ref-detalhes-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink3);
+  margin-bottom: 6px;
+}
+
+.dp-ref-detalhes-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  gap: 8px;
+}
+
+.dp-ref-etapa {
+  font-size: 12px;
+  color: var(--ink2);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-ref-valor {
+  font-size: 12px;
+  color: var(--ink);
+  font-weight: 600;
+  font-family: monospace;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dp-ref-op-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--ink3);
+  background: var(--line);
+  border-radius: var(--rp);
+  padding: 1px 5px;
+  margin-left: 4px;
+}
+
+.dp-ref-sem {
+  color: var(--ink3);
+  font-weight: 400;
+}
+
+.dp-ref-origem {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink3);
+  font-family: inherit;
+}
+
+.dp-ref-origem.manual {
+  color: var(--g700);
+}
+
+.dp-ref-origem.peca {
+  color: #2563eb;
+}
+
+.dp-ref-origem.ultimo_registrado {
+  color: var(--a600);
+}
+
+/* Origem inline nas etapas */
+.dp-ref-origem-inline {
+  font-size: 10px;
+  font-weight: 500;
+  font-style: normal;
+  color: var(--ink3);
+}
+
+.dp-ref-origem-inline.manual {
+  color: var(--g700);
+}
+
+.dp-ref-origem-inline.peca {
+  color: #2563eb;
+}
+
+.dp-ref-origem-inline.ultimo_registrado {
+  color: var(--a600);
+}
 
 .dp-eff-bar-wrap {
   padding: 12px 18px 14px;

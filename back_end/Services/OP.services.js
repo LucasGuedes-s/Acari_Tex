@@ -1073,7 +1073,7 @@ async function getEstatisticasPeca(id) {
   try {
     const id_da_op = parseInt(id, 10);
 
-    const peca = await prisma.PecasOP.findUnique({
+    const peca = await prisma.pecasOP.findUnique({
       where: { id_da_op },
       include: {
         Estabelecimento: {
@@ -1081,7 +1081,15 @@ async function getEstatisticasPeca(id) {
             tempo_de_producao: true,
           },
         },
-        etapas: { include: { etapa: true } },
+        etapas: { 
+          include: { 
+            etapa: {
+              include: {
+                tempo_referencia: true, // <-- ADICIONADO AQUI: traz os tempos de referência da etapa
+              },
+            },
+          },
+        },
         producao_peca: {
           include: {
             producao_funcionario: { select: { nome: true, email: true } },
@@ -1220,7 +1228,7 @@ async function getEstatisticasPeca(id) {
     const etapasFinais = peca.etapas
       .map((e) => e.etapa?.descricao)
       .filter((descricao) => isEtapaFinal(descricao));
-
+    );
     return {
       id_da_op: peca.id_da_op,
       descricao: peca.descricao,
@@ -1248,7 +1256,7 @@ async function getEstatisticasPeca(id) {
       data_do_pedido: peca.data_do_pedido,
       data_de_entrega: peca.data_de_entrega,
       notas: peca.notas,
-
+      temposreferencias: peca.tempo_referencia,
       producaoPorEtapa,
       somaPorEtapa,
       pecasEtapas: peca.etapas.map((e) => ({

@@ -279,15 +279,10 @@ export default {
 
     },
     formatarDataGrafico(data) {
+      console.log("Formatando data para gráfico:", data)
       const [ano, mes, dia] = data.split("-")
 
-      // cria data no horário LOCAL (sem bug de fuso)
-      const d = new Date(ano, mes - 1, dia)
-
-      return d.toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit"
-      })
+      return `${dia}/${mes}/${ano}`
     },
     formatarData(data) {
 

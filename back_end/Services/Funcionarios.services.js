@@ -26,7 +26,9 @@ async function getFuncionarios(cnpj) {
           producao_etapa: true,
           producao_peca: true,
         },
+
       },
+      tempo_referencia: true
     },
   });
   

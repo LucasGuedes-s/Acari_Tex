@@ -11,7 +11,7 @@ const socket = io("https://acari-tex.onrender.com"); // ajuste se necessário
 const toasts = reactive([]);
 
 // configurações padrão
-const DEFAULT_DURATION = 40000;
+const DEFAULT_DURATION = 20000;
 const MAX_TOASTS = 6; // limite visual (opcional)
 
 // helper para criar um toast
