@@ -1,169 +1,232 @@
 <template>
   <div class="painel">
 
-    <!-- TOP BAR -->
-    <header class="top-bar">
-      <div class="metrics-row">
-        <div v-if="isFabrica" class="metric-chip accent">
-          <span class="mc-label">Eficiência Referência</span>
-          <span class="mc-val">{{ formatarEficiencia(eficienciaMediaTurmaReferencia) }}%</span>
+    <!-- ═══════════════ CABEÇALHO / INDICADORES PRINCIPAIS ═══════════════ -->
+    <header class="hero">
+      <div class="hero-top">
+        <div class="hero-title-group">
+          <h2 class="hero-title">Acompanhamento de Produção</h2>
+          <span class="socket-pill" :class="{ conectado: socketConectado }">
+            <span class="socket-dot" :class="{ conectado: socketConectado }"></span>
+            {{ socketConectado ? 'Ao vivo' : 'Reconectando…' }}
+          </span>
         </div>
-        <div class="metric-chip accent">
-          <span class="mc-label">{{ isFabrica ? 'Eficiência Ficha' : 'Eficiência da turma' }}</span>
-          <span class="mc-val">{{ formatarEficiencia(eficienciaMediaTurma) }}%</span>
-        </div>
-        <div class="metric-chip">
-          <span class="mc-label">Funcionários</span>
-          <span class="mc-val">{{ funcionariosOrdenados.length }}</span>
-        </div>
-        <div class="metric-chip">
-          <span class="mc-label">Peças entregues</span>
-          <span class="mc-val">{{ totalPecasGeral }}</span>
-        </div>
-        <div class="metric-chip" v-if="opsAtivas.length">
-          <span class="mc-label">Peça do dia</span>
-          <span class="mc-val peca-chip">{{ opsAtivas.map(o => nomeDaOp(o.pecaId)).join(', ') }}</span>
+        <div class="hero-top-actions">
+          <button
+            v-if="gruposProducaoPorOp.length"
+            class="btn-ghost"
+            @click="mostrarDetalheOps = !mostrarDetalheOps"
+          >
+            {{ mostrarDetalheOps ? 'Ocultar OPs' : 'Ver OPs' }} ({{ gruposProducaoPorOp.length }})
+          </button>
         </div>
       </div>
-      <button
-        v-if="gruposProducaoPorOp.length"
-        class="btn-detalhe-ops"
-        @click="mostrarDetalheOps = !mostrarDetalheOps"
-      >
-        {{ mostrarDetalheOps ? 'Ocultar' : 'Ver' }} detalhe por OP ({{ gruposProducaoPorOp.length }})
-      </button>
 
-      <div class="top-bar-right">
-        <span class="socket-dot" :class="{ conectado: socketConectado }" :title="socketConectado ? 'Conectado' : 'Desconectado'"></span>
+      <!-- Skeleton enquanto carrega pela 1ª vez -->
+      <div v-if="loading" class="hero-metrics skeleton-wrap">
+        <div class="sk sk-featured" v-for="n in (isFabrica ? 2 : 1)" :key="'skf'+n"></div>
+        <div class="sk sk-compact" v-for="n in 3" :key="'skc'+n"></div>
+      </div>
+
+      <div v-else class="hero-metrics">
+        <div class="metric-featured" v-if="isFabrica" :title="'Capacidade total de referência ÷ tempo trabalhado × 100'">
+          <span class="mf-label">Eficiência Referência</span>
+          <span class="mf-val">{{ formatarEficiencia(eficienciaMediaTurmaReferencia) }}<small>%</small></span>
+        </div>
+        <div class="metric-featured" :class="{ solo: !isFabrica }" :title="'Capacidade total da ficha técnica ÷ tempo trabalhado × 100'">
+          <span class="mf-label">{{ isFabrica ? 'Eficiência Ficha' : 'Eficiência da turma' }}</span>
+          <span class="mf-val">{{ formatarEficiencia(eficienciaMediaTurma) }}<small>%</small></span>
+        </div>
+
+        <div class="metrics-compact">
+          <div class="metric-chip">
+            <span class="mc-label">Peças entregues</span>
+            <span class="mc-val">{{ totalPecasGeral }}</span>
+          </div>
+          <div class="metric-chip">
+            <span class="mc-label">Funcionários</span>
+            <span class="mc-val">{{ funcionariosOrdenados.length }}</span>
+          </div>
+          <div class="metric-chip" v-if="opsAtivas.length">
+            <span class="mc-label">Peça do dia</span>
+            <span class="mc-val peca-chip" :title="opsAtivas.map(o => nomeDaOp(o.pecaId)).join(', ')">
+              {{ opsAtivas.map(o => nomeDaOp(o.pecaId)).join(', ') }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Insights automáticos -->
+      <div v-if="!loading && insights" class="insights-bar">
+        <button class="insights-toggle" @click="mostrarInsights = !mostrarInsights">
+          <span>✨ Destaques do dia</span>
+          <span class="insights-chevron" :class="{ open: mostrarInsights }">›</span>
+        </button>
+        <transition name="fade-collapse">
+          <div v-if="mostrarInsights" class="insights-grid">
+            <div class="insight-card" v-if="insights.melhorReferencia">
+              <span class="insight-icon">🏆</span>
+              <div class="insight-body">
+                <span class="insight-label">Melhor eficiência referência</span>
+                <span class="insight-val">{{ insights.melhorReferencia.nome }} — {{ formatarEficiencia(insights.melhorReferencia.valor) }}%</span>
+              </div>
+            </div>
+            <div class="insight-card" v-if="insights.maiorProducao">
+              <span class="insight-icon">📦</span>
+              <div class="insight-body">
+                <span class="insight-label">Maior produção</span>
+                <span class="insight-val">{{ insights.maiorProducao.nome }} — {{ insights.maiorProducao.valor }} peças</span>
+              </div>
+            </div>
+            <div class="insight-card" v-if="insights.maiorDiferenca">
+              <span class="insight-icon">📈</span>
+              <div class="insight-body">
+                <span class="insight-label">Maior diferença Ficha × Referência</span>
+                <span class="insight-val">{{ insights.maiorDiferenca.nome }} — +{{ formatarEficiencia(insights.maiorDiferenca.valor) }}%</span>
+              </div>
+            </div>
+          </div>
+        </transition>
       </div>
     </header>
+
+    <!-- ═══════════════ DETALHE POR OP ═══════════════ -->
     <transition name="panel-slide">
-  <section v-if="mostrarDetalheOps && gruposProducaoPorOp.length" class="ops-detalhe">
-    <div class="ops-detalhe-grid">
-      <div v-for="op in gruposProducaoPorOp" :key="op.opId" class="op-detalhe-card">
-        <div class="op-detalhe-top">
-          <span class="op-detalhe-nome">{{ op.nome }}</span>
-          <span
-            v-if="op.multiplasEtapas"
-            class="op-detalhe-tag"
-            title="Esta OP teve mais de uma etapa registrada — os totais abaixo já somam todos os lançamentos de todas as etapas"
-          >várias etapas</span>
-        </div>
-        <div class="op-detalhe-stats">
-          <div class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Produção</span>
-            <span class="op-detalhe-stat-val">{{ op.producao }}</span>
-          </div>
-          <div v-if="op.metaConfigurada !== null" class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Meta</span>
-            <span class="op-detalhe-stat-val">{{ op.metaConfigurada }}</span>
-          </div>
-          <div class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Tempo registrado</span>
-            <span class="op-detalhe-stat-val">{{ op.tempoTrabalhado }} min</span>
-          </div>
-          <div class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Capacidade (Ficha)</span>
-            <span class="op-detalhe-stat-val">{{ op.tempoPadraoTotal }} min</span>
-          </div>
-          <div v-if="isFabrica" class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Capacidade (Referência)</span>
-            <span class="op-detalhe-stat-val">{{ op.tempoReferenciaTotal }} min</span>
-          </div>
-          <div class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">{{ isFabrica ? 'Efic. Ficha' : 'Eficiência' }}</span>
-            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaFicha)">{{ formatarEficiencia(op.eficienciaFicha) }}%</span>
-          </div>
-          <div v-if="isFabrica" class="op-detalhe-stat">
-            <span class="op-detalhe-stat-label">Efic. Ref.</span>
-            <span class="op-detalhe-stat-val" :class="clsEfic(op.eficienciaReferencia)">{{ formatarEficiencia(op.eficienciaReferencia) }}%</span>
-          </div>
-        </div>
-        <!-- Fórmulas da OP -->
-        <div class="op-detalhe-formulas">
-          <div class="op-detalhe-formula">
-            <span class="formula-label">Efic. Ficha:</span>
-            <span class="formula-expr">{{ op.tempoPadraoTotal }} ÷ {{ op.tempoTrabalhado }} × 100</span>
-            <span class="formula-result" :class="clsEfic(op.eficienciaFicha)">= {{ formatarEficiencia(op.eficienciaFicha) }}%</span>
-          </div>
-          <div v-if="isFabrica" class="op-detalhe-formula">
-            <span class="formula-label">Efic. Ref.:</span>
-            <span class="formula-expr">{{ op.tempoReferenciaTotal }} ÷ {{ op.tempoTrabalhado }} × 100</span>
-            <span class="formula-result" :class="clsEfic(op.eficienciaReferencia)">= {{ formatarEficiencia(op.eficienciaReferencia) }}%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RESUMO DAS MÉDIAS -->
-    <div class="ops-detalhe-footer">
-      <div v-if="gruposProducaoPorOp.length > 1" class="ops-resumo-amedia">
-        <div class="ops-resumo-amedia-title">Resumo dos Cálculos</div>
-
-        <div class="ops-resumo-amedia-row">
-          <span class="ops-resumo-amedia-label">Eficiência Média da Ficha:</span>
-          <div class="ops-resumo-amedia-formula">
-            ({{ gruposProducaoPorOp.map(op => formatarEficiencia(op.eficienciaFicha) + '%').join(' + ') }})
-            ÷ {{ gruposProducaoPorOp.length }}
-          </div>
-          <strong class="ops-resumo-amedia-resultado" :class="clsEfic(eficienciaMediaPonderadaOps)">
-            = {{ formatarEficiencia(eficienciaMediaPonderadaOps) }}%
-          </strong>
-        </div>
-
-        <template v-if="isFabrica">
-          <div class="ops-resumo-amedia-row">
-            <span class="ops-resumo-amedia-label">Eficiência Média de Referência:</span>
-            <div class="ops-resumo-amedia-formula">
-              ({{ gruposProducaoPorOp.map(op => formatarEficiencia(op.eficienciaReferencia) + '%').join(' + ') }})
-              ÷ {{ gruposProducaoPorOp.length }}
+      <section v-if="mostrarDetalheOps && gruposProducaoPorOp.length" class="ops-detalhe">
+        <div class="ops-detalhe-grid">
+          <button
+            v-for="op in gruposProducaoPorOp"
+            :key="op.opId"
+            class="op-card"
+            :class="{ ativa: filtroOpId === op.opId }"
+            @click="alternarFiltroOp(op.opId)"
+            :title="'Clique para filtrar a lista de profissionais por esta OP'"
+          >
+            <div class="op-card-head">
+              <span class="op-card-nome">{{ op.nome }}</span>
+              <span
+                v-if="op.multiplasEtapas"
+                class="op-detalhe-tag"
+                title="Esta OP teve mais de uma etapa registrada — os totais já somam todos os lançamentos"
+              >várias etapas</span>
             </div>
-            <strong class="ops-resumo-amedia-resultado" :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">
-              = {{ formatarEficiencia(eficienciaMediaPonderadaOpsReferencia) }}%
+
+            <div class="op-card-numeros">
+              <div class="op-num">
+                <span class="op-num-val">{{ op.producao }}</span>
+                <span class="op-num-label">produzidas{{ op.metaConfigurada !== null ? ' / ' + op.metaConfigurada : '' }}</span>
+              </div>
+              <div class="op-num">
+                <span class="op-num-val">{{ op.tempoTrabalhado }}<small>min</small></span>
+                <span class="op-num-label">tempo registrado</span>
+              </div>
+              <div class="op-num">
+                <span class="op-num-val">{{ op.tempoPadraoTotal }}<small>min</small></span>
+                <span class="op-num-label">capacidade (ficha)</span>
+              </div>
+              <div class="op-num" v-if="isFabrica">
+                <span class="op-num-val">{{ op.tempoReferenciaTotal }}<small>min</small></span>
+                <span class="op-num-label">capacidade (referência)</span>
+              </div>
+            </div>
+
+            <div class="op-card-eficiencias">
+              <span class="badge" :class="clsEfic(op.eficienciaFicha)">
+                Ficha {{ formatarEficiencia(op.eficienciaFicha) }}%
+              </span>
+              <span v-if="isFabrica" class="badge" :class="clsEfic(op.eficienciaReferencia)">
+                Ref. {{ formatarEficiencia(op.eficienciaReferencia) }}%
+              </span>
+            </div>
+
+            <details class="op-card-formulas" @click.stop>
+              <summary>ver fórmula</summary>
+              <div class="op-detalhe-formula">
+                <span class="formula-expr">{{ op.tempoPadraoTotal }} ÷ {{ op.tempoTrabalhado }} × 100</span>
+                <span class="formula-result" :class="clsEfic(op.eficienciaFicha)">= {{ formatarEficiencia(op.eficienciaFicha) }}%</span>
+              </div>
+              <div v-if="isFabrica" class="op-detalhe-formula">
+                <span class="formula-expr">{{ op.tempoReferenciaTotal }} ÷ {{ op.tempoTrabalhado }} × 100</span>
+                <span class="formula-result" :class="clsEfic(op.eficienciaReferencia)">= {{ formatarEficiencia(op.eficienciaReferencia) }}%</span>
+              </div>
+            </details>
+          </button>
+        </div>
+
+        <!-- RESUMO DAS MÉDIAS -->
+        <div class="resumo-medias" :class="{ single: !isFabrica }">
+          <div class="resumo-card">
+            <span class="resumo-icon">📊</span>
+            <span class="resumo-label">Eficiência Média da Ficha</span>
+            <strong class="resumo-valor" :class="clsEfic(eficienciaMediaPonderadaOps)">
+              {{ formatarEficiencia(eficienciaMediaPonderadaOps) }}%
             </strong>
+            <span class="resumo-formula">
+              ({{ gruposProducaoPorOp.map(op => formatarEficiencia(op.eficienciaFicha) + '%').join(' + ') }}) ÷ {{ gruposProducaoPorOp.length }}
+            </span>
           </div>
-        </template>
+
+          <div class="resumo-card" v-if="isFabrica">
+            <span class="resumo-icon">📈</span>
+            <span class="resumo-label">Eficiência Média de Referência</span>
+            <strong class="resumo-valor" :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">
+              {{ formatarEficiencia(eficienciaMediaPonderadaOpsReferencia) }}%
+            </strong>
+            <span class="resumo-formula">
+              ({{ gruposProducaoPorOp.map(op => formatarEficiencia(op.eficienciaReferencia) + '%').join(' + ') }}) ÷ {{ gruposProducaoPorOp.length }}
+            </span>
+          </div>
+        </div>
+      </section>
+    </transition>
+
+    <!-- ═══════════════ FILTROS ═══════════════ -->
+    <div class="filtros-row">
+      <input class="search-input" v-model="busca" placeholder="Buscar por nome, e-mail ou etapa…" />
+
+      <select class="filtro-select" v-model="filtroEficiencia" title="Filtrar por faixa de eficiência">
+        <option value="todos">Toda eficiência</option>
+        <option value="acima100">Acima de 100%</option>
+        <option value="entre80100">Entre 80% e 100%</option>
+        <option value="abaixo80">Abaixo de 80%</option>
+      </select>
+
+      <select v-if="gruposProducaoPorOp.length > 1" class="filtro-select" v-model="filtroOpId" title="Filtrar por OP">
+        <option value="todas">Todas as OPs</option>
+        <option v-for="op in gruposProducaoPorOp" :key="op.opId" :value="op.opId">{{ op.nome }}</option>
+      </select>
+
+      <select class="filtro-select" v-model="ordenarPor" title="Ordenar a lista">
+        <option value="ranking">Ordenar: Ranking</option>
+        <option value="nome">Ordenar: Nome</option>
+        <option value="pecas">Ordenar: Peças</option>
+        <option value="ficha">Ordenar: Efic. Ficha</option>
+        <option value="referencia" v-if="isFabrica">Ordenar: Efic. Referência</option>
+      </select>
+
+      <div v-if="isFabrica" class="sort-toggle" role="tablist" aria-label="Ordenar por">
+        <button
+          class="sort-toggle-btn"
+          :class="{ active: modoOrdenacao === 'ficha' }"
+          @click="definirModoOrdenacao('ficha')"
+        >Ranking Ficha</button>
+        <button
+          class="sort-toggle-btn"
+          :class="{ active: modoOrdenacao === 'referencia' }"
+          @click="definirModoOrdenacao('referencia')"
+        >Ranking Referência</button>
       </div>
 
-      <div v-else class="ops-resumo-single">
-        <span>Resultado da OP:</span>
-        <strong :class="clsEfic(eficienciaMediaPonderadaOps)">{{ formatarEficiencia(eficienciaMediaPonderadaOps) }}%</strong>
-        <template v-if="isFabrica">
-          <span class="ops-detalhe-footer-sep">·</span>
-          <span>Referência:</span>
-          <strong :class="clsEfic(eficienciaMediaPonderadaOpsReferencia)">{{ formatarEficiencia(eficienciaMediaPonderadaOpsReferencia) }}%</strong>
-        </template>
-      </div>
+      <span class="list-count">{{ funcionariosFiltrados.length }} de {{ funcionariosOrdenados.length }}</span>
     </div>
-  </section>
-</transition>
-    <!-- MAIN -->
+
+    <!-- ═══════════════ MAIN ═══════════════ -->
     <div class="main-layout" :class="{ 'panel-open': selecionado !== null }">
-      
+
       <!-- LISTA -->
       <div class="grid-area">
-        <div class="list-toolbar">
-          <span class="list-title">Profissionais</span>
-          <div class="list-toolbar-right">
-            <div v-if="isFabrica" class="sort-toggle" role="tablist" aria-label="Ordenar por">
-              <button
-                class="sort-toggle-btn"
-                :class="{ active: modoOrdenacao === 'ficha' }"
-                @click="definirModoOrdenacao('ficha')"
-              >Ficha</button>
-              <button
-                class="sort-toggle-btn"
-                :class="{ active: modoOrdenacao === 'referencia' }"
-                @click="definirModoOrdenacao('referencia')"
-              >Referência</button>
-            </div>
-            <input class="search-input" v-model="busca" placeholder="Buscar…" />
-            <span class="list-count">{{ funcionariosFiltrados.length }} de {{ funcionariosOrdenados.length }}</span>
-          </div>
-        </div>
-
         <div class="list-header" :class="{ fabrica: isFabrica }">
-          <span class="lh-name">Nome</span>
+          <span class="lh-name">Profissional</span>
           <span class="lh-col">Peças</span>
           <template v-if="isFabrica">
             <span class="lh-col">Efic. Ficha</span>
@@ -173,6 +236,15 @@
         </div>
 
         <div class="list-body">
+          <!-- Skeleton -->
+          <template v-if="loading">
+            <div class="list-row skeleton-row" v-for="n in 6" :key="'skr'+n">
+              <div class="sk sk-avatar"></div>
+              <div class="sk sk-line" style="flex:1"></div>
+              <div class="sk sk-badge"></div>
+            </div>
+          </template>
+
           <div
             v-for="func in funcionariosFiltrados"
             :key="func.email"
@@ -181,14 +253,24 @@
             @click="selecionar(func._idx)"
           >
             <div class="lr-name">
-              <span class="lr-pos" :class="{ medal: func._idx < 3 }">{{ rankIcon(func._idx) }}</span>
+              <span class="lr-pos" :class="{ medal: func._idx < 3 }" :title="'Posição ' + (func._idx + 1) + ' no ranking'">
+                {{ rankIcon(func._idx) }}
+              </span>
               <div class="lr-avatar-wrap">
                 <img v-if="func.foto" class="lr-avatar" :src="func.foto" :alt="func.nome" @error="onImgError" />
                 <div v-else class="lr-avatar-fb">{{ initials(func.nome) }}</div>
-                <span class="lr-dot" :class="clsEfic(calcularEficienciaFuncionario(func))"></span>
+                <span
+                  class="lr-dot"
+                  :class="clsEfic(calcularEficienciaFuncionario(func))"
+                  :title="legendaEfic(calcularEficienciaFuncionario(func))"
+                ></span>
               </div>
               <div class="lr-info">
-                <span class="lr-nome">{{ func.nome }}</span>
+                <span class="lr-nome">
+                  {{ func.nome }}
+                  <span v-if="insights?.maiorProducao?.nome === func.nome" class="mini-tag" title="Maior produção do dia">📦</span>
+                  <span v-if="isFabrica && insights?.melhorReferencia?.nome === func.nome" class="mini-tag" title="Melhor eficiência de referência">🏆</span>
+                </span>
                 <span class="lr-sub">{{ func.email }}</span>
               </div>
             </div>
@@ -196,46 +278,57 @@
             <span class="lr-col mono">{{ calcularTotalFuncionario(func) }}</span>
 
             <template v-if="isFabrica">
-              <span class="lr-col" style="display:flex; align-items:center; justify-content:flex-end;">
+              <span class="lr-col lr-col-badge">
                 <span v-if="temProducao(func)" class="badge sm" :class="clsEfic(calcularEficienciaFuncionario(func))">
                   {{ calcularEficienciaFuncionario(func) }}%
                 </span>
                 <span v-else class="mono small">—</span>
               </span>
-              <span class="lr-col" style="display:flex; align-items:center; justify-content:flex-end;">
+              <span class="lr-col lr-col-badge">
                 <span v-if="temProducao(func)" class="badge sm" :class="clsEfic(calcularEficienciaReferenciaFuncionario(func))">
                   {{ calcularEficienciaReferenciaFuncionario(func) }}%
                 </span>
                 <span v-else class="mono small">—</span>
+                <span
+                  v-if="temProducao(func) && calcularDiferencaEficiencia(func) !== 0"
+                  class="lr-delta"
+                  :class="calcularDiferencaEficiencia(func) > 0 ? 'positivo' : 'negativo'"
+                  title="Diferença entre Eficiência Referência e Eficiência Ficha"
+                >
+                  {{ calcularDiferencaEficiencia(func) > 0 ? '+' : '' }}{{ formatarEficiencia(calcularDiferencaEficiencia(func)) }}%
+                </span>
               </span>
             </template>
-            <span v-else class="lr-col" style="display:flex; gap:4px; align-items:center; justify-content:flex-end;">
+            <span v-else class="lr-col lr-col-badge">
               <span v-if="temProducao(func)" class="badge" :class="clsEfic(calcularEficienciaFuncionario(func))">
                 {{ calcularEficienciaFuncionario(func) }}%
               </span>
               <span v-else class="mono small">—</span>
             </span>
+
+            <span class="lr-chevron">›</span>
           </div>
 
-          <div v-if="!funcionariosFiltrados.length && !loading" class="list-empty">
-            <span v-if="busca">Nenhum resultado para "{{ busca }}"</span>
+          <div v-if="!loading && !funcionariosFiltrados.length" class="list-empty">
+            <span v-if="busca || filtroEficiencia !== 'todos' || filtroOpId !== 'todas'">Nenhum resultado para os filtros aplicados</span>
             <span v-else>Sem dados para esta data</span>
           </div>
-
-          <div v-if="loading" class="list-empty">Carregando…</div>
         </div>
       </div>
+
+      <!-- OVERLAY MOBILE -->
+      <div v-if="selecionado !== null" class="detail-overlay" @click="selecionado = null"></div>
 
       <!-- PAINEL DETALHE -->
       <transition name="panel-slide">
         <aside v-if="selecionado !== null && funcSelecionado" class="detail-panel">
 
           <div class="dp-topbar">
-            <span class="dp-topbar-title">Detalhes</span>
+            <span class="dp-topbar-title">Detalhes do profissional</span>
             <button class="dp-close" @click="selecionado = null">✕</button>
           </div>
 
-          <!-- Profile -->
+          <!-- Cabeçalho -->
           <div class="dp-profile">
             <div class="dp-avatar-wrap">
               <img v-if="funcSelecionado.foto" class="dp-avatar" :src="funcSelecionado.foto" :alt="funcSelecionado.nome" @error="onImgError" />
@@ -244,117 +337,85 @@
             </div>
             <div class="dp-profile-info">
               <h3 class="dp-nome">{{ funcSelecionado.nome }}</h3>
-              <p class="dp-email">{{ funcSelecionado.email }}</p>
+              <p class="dp-email">{{ funcSelecionado.email }} · #{{ selecionado + 1 }} no ranking</p>
             </div>
-            <div v-if="isFabrica" class="dp-badges-duplas">
-              <span class="badge lg" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
-                Ficha {{ calcularEficienciaFuncionario(funcSelecionado) }}%
-              </span>
-              <span class="badge lg" :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
-                Ref. {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
-              </span>
-            </div>
-            <span v-else class="badge xlg" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
-              {{ calcularEficienciaFuncionario(funcSelecionado) }}%
-            </span>
           </div>
 
-          <!-- Métricas -->
-          <div class="dp-stats">
-            <div class="dp-stat">
+          <!-- Resumo de eficiência -->
+          <div class="dp-eff-cards" :class="{ single: !isFabrica }">
+            <div class="dp-eff-card">
+              <span class="dp-eff-card-label">Eficiência Ficha</span>
+              <strong class="dp-eff-card-val" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
+                {{ calcularEficienciaFuncionario(funcSelecionado) }}%
+              </strong>
+              <div class="dp-eff-bar-track">
+                <div
+                  class="dp-eff-bar-fill"
+                  :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))"
+                  :style="{ width: Math.min(calcularEficienciaFuncionario(funcSelecionado), 100) + '%' }"
+                ></div>
+              </div>
+            </div>
+            <div class="dp-eff-card" v-if="isFabrica">
+              <span class="dp-eff-card-label">Eficiência Referência</span>
+              <strong class="dp-eff-card-val" :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
+                {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
+              </strong>
+              <div class="dp-eff-bar-track">
+                <div
+                  class="dp-eff-bar-fill"
+                  :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))"
+                  :style="{ width: Math.min(calcularEficienciaReferenciaFuncionario(funcSelecionado), 100) + '%' }"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dp-mini-stats">
+            <div class="dp-mini-stat">
               <span class="dp-stat-label">Peças (final)</span>
               <span class="dp-stat-val">{{ calcularTotalFinalizadoFuncionario(funcSelecionado) }}</span>
             </div>
-            <div class="dp-stat-div"></div>
-            <template v-if="isFabrica">
-              <div class="dp-stat">
-                <span class="dp-stat-label">Efic. Ficha</span>
-                <span class="dp-stat-val" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
-                  {{ calcularEficienciaFuncionario(funcSelecionado) }}%
-                </span>
-              </div>
-              <div class="dp-stat-div"></div>
-              <div class="dp-stat">
-                <span class="dp-stat-label">Efic. Ref.</span>
-                <span class="dp-stat-val" :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
-                  {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
-                </span>
-              </div>
-              <div class="dp-stat-div"></div>
-            </template>
-            <div v-else class="dp-stat">
-              <span class="dp-stat-label">Eficiência</span>
-              <span class="dp-stat-val" :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
-                {{ calcularEficienciaFuncionario(funcSelecionado) }}%
-              </span>
-            </div>
-            <div v-if="!isFabrica" class="dp-stat-div"></div>
-            <div class="dp-stat">
+            <div class="dp-mini-stat">
               <span class="dp-stat-label">Linhas</span>
               <span class="dp-stat-val">{{ (funcSelecionado.linhas || []).length }}</span>
             </div>
-          </div>
-
-          <!-- Barra de eficiência -->
-          <div class="dp-eff-bar-wrap">
-            <div class="dp-eff-bar-labels">
-              <span>{{ isFabrica ? 'Eficiência da ficha (tempos do dia)' : 'Eficiência geral (tempos do dia)' }}</span>
-              <span :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))">
-                {{ calcularEficienciaFuncionario(funcSelecionado) }}%
+            <div class="dp-mini-stat" v-if="isFabrica">
+              <span class="dp-stat-label">Diferença Ref. × Ficha</span>
+              <span class="dp-stat-val" :class="calcularDiferencaEficiencia(funcSelecionado) >= 0 ? 'verde' : 'vermelho'">
+                {{ calcularDiferencaEficiencia(funcSelecionado) > 0 ? '+' : '' }}{{ formatarEficiencia(calcularDiferencaEficiencia(funcSelecionado)) }}%
               </span>
             </div>
-            <div class="dp-eff-bar-track">
-              <div
-                class="dp-eff-bar-fill"
-                :class="clsEfic(calcularEficienciaFuncionario(funcSelecionado))"
-                :style="{ width: Math.min(calcularEficienciaFuncionario(funcSelecionado), 100) + '%' }"
-              ></div>
-            </div>
           </div>
 
-          <!-- Barra de eficiência de referência (apenas fábricas) -->
-          <div v-if="isFabrica" class="dp-eff-bar-wrap">
-            <div class="dp-eff-bar-labels">
-              <span>Eficiência de referência (tempos do dia)</span>
-              <span :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
-                {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
-              </span>
-            </div>
-            <div class="dp-eff-bar-track">
-              <div
-                class="dp-eff-bar-fill"
-                :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))"
-                :style="{ width: Math.min(calcularEficienciaReferenciaFuncionario(funcSelecionado), 100) + '%' }"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Auditoria: tempos acumulados do dia inteiro, para conferir
-               exatamente como a eficiência acima foi obtida. -->
+          <!-- Tempos utilizados no cálculo (auditoria) -->
           <div v-if="totaisFuncionarioSelecionado" class="dp-auditoria">
-            <div class="dp-auditoria-titulo">Como esse número foi calculado</div>
+            <div class="dp-auditoria-titulo">Tempos utilizados no cálculo</div>
             <div class="dp-auditoria-grid">
               <div class="dp-auditoria-item">
-                <span class="dp-auditoria-label">Tempo registrado total</span>
+                <span class="dp-auditoria-label">Tempo registrado</span>
                 <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoRegistrado }} min</span>
               </div>
               <div class="dp-auditoria-item">
-                <span class="dp-auditoria-label">Capacidade (Ficha) total</span>
+                <span class="dp-auditoria-label" title="Tempo padrão da ficha técnica">Tempo da Ficha</span>
                 <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoFicha }} min</span>
               </div>
               <div v-if="isFabrica" class="dp-auditoria-item">
-                <span class="dp-auditoria-label">Capacidade (Referência) total</span>
+                <span class="dp-auditoria-label" title="Tempo específico do profissional, quando cadastrado">Tempo de Referência</span>
                 <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoReferencia }} min</span>
               </div>
             </div>
-            <div class="dp-auditoria-formula">
-              <div><strong>Eficiência Ficha:</strong> {{ totaisFuncionarioSelecionado.formulaFicha }}</div>
-              <div v-if="isFabrica"><strong>Eficiência Referência:</strong> {{ totaisFuncionarioSelecionado.formulaReferencia }}</div>
-            </div>
+            <details class="dp-auditoria-formula-wrap">
+              <summary>ver fórmula usada</summary>
+              <div class="dp-auditoria-formula">
+                <div><strong>Eficiência Ficha:</strong> {{ totaisFuncionarioSelecionado.formulaFicha }}</div>
+                <div v-if="isFabrica"><strong>Eficiência Referência:</strong> {{ totaisFuncionarioSelecionado.formulaReferencia }}</div>
+              </div>
+            </details>
 
-            <!-- Detalhes do Tempo de Referência utilizado -->
+            <!-- Origem do tempo de referência -->
             <div v-if="isFabrica && totaisFuncionarioSelecionado.resumoRef?.length" class="dp-ref-detalhes">
-              <div class="dp-ref-detalhes-titulo">Tempo de Referência utilizado</div>
+              <div class="dp-ref-detalhes-titulo">Origem do tempo de referência</div>
               <div v-for="(ref, ri) in totaisFuncionarioSelecionado.resumoRef" :key="ri" class="dp-ref-detalhes-linha">
                 <span class="dp-ref-etapa">
                   {{ ref.etapa }}
@@ -441,10 +502,15 @@
                   <span class="dp-hora-clock">🕐</span>
                   <span class="dp-hora-label">{{ hg.hora }}</span>
                 </div>
-                <span v-if="!isFabrica" class="dp-hora-total">{{ hg.totalPecas }} peças · {{ formatarEficiencia(hg.eficiencia) }}%</span>
-                <span v-else class="dp-hora-total">
-                  {{ hg.totalPecas }} peças · F {{ formatarEficiencia(hg.eficiencia) }}% · R {{ formatarEficiencia(hg.eficienciaReferencia) }}%
-                </span>
+                <span class="dp-hora-total-pecas">{{ hg.totalPecas }} peças</span>
+              </div>
+
+              <div class="dp-hora-eff-summary">
+                <span v-if="!isFabrica" :class="clsEfic(hg.eficiencia)">{{ formatarEficiencia(hg.eficiencia) }}% eficiência</span>
+                <template v-else>
+                  <span :class="clsEfic(hg.eficiencia)">F {{ formatarEficiencia(hg.eficiencia) }}%</span>
+                  <span :class="clsEfic(hg.eficienciaReferencia)">R {{ formatarEficiencia(hg.eficienciaReferencia) }}%</span>
+                </template>
               </div>
 
               <div class="dp-hora-eff-row">
@@ -464,41 +530,21 @@
                 </div>
               </div>
 
-              <table class="dp-hora-tbl">
-                <thead>
-                  <tr>
-                    <th>Etapa</th>
-                    <th class="ta-r">Qtd.</th>
-                    <th class="ta-r">Tempo prod.</th>
-                    <th class="ta-r" v-if="!isFabrica">Eficiência</th>
-                    <template v-else>
-                      <th class="ta-r">Efic. Ficha</th>
-                      <th class="ta-r">Efic. Ref.</th>
-                    </template>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(et, ei) in hg.etapas" :key="ei">
-                    <td class="dp-hora-etapa-nome">
+              <div class="dp-hora-etapas-list">
+                <div v-for="(et, ei) in hg.etapas" :key="ei" class="dp-hora-etapa-item">
+                  <div class="dp-hora-etapa-item-top">
+                    <span class="dp-hora-etapa-nome">
                       {{ et.descricao }}
                       <span v-if="et.isFinal" class="tag-final">final</span>
-                    </td>
-                    <td class="ta-r mono">{{ et.quantidade }} pç</td>
-                    <td class="ta-r mono">{{ et.tempoProduzido }} min</td>
-                    <td class="ta-r" v-if="!isFabrica">
-                      <span class="badge sm" :class="clsEfic(et.eficiencia)">{{ et.eficiencia }}%</span>
-                    </td>
-                    <template v-else>
-                      <td class="ta-r">
-                        <span class="badge sm" :class="clsEfic(et.eficiencia)">{{ et.eficiencia }}%</span>
-                      </td>
-                      <td class="ta-r">
-                        <span class="badge sm" :class="clsEfic(et.eficienciaReferencia)">{{ et.eficienciaReferencia }}%</span>
-                      </td>
-                    </template>
-                  </tr>
-                </tbody>
-              </table>
+                    </span>
+                    <span class="mono small">{{ et.quantidade }} pç · {{ et.tempoProduzido }} min</span>
+                  </div>
+                  <div class="dp-hora-etapa-item-badges">
+                    <span class="badge sm" :class="clsEfic(et.eficiencia)">F {{ et.eficiencia }}%</span>
+                    <span v-if="isFabrica" class="badge sm" :class="clsEfic(et.eficienciaReferencia)">R {{ et.eficienciaReferencia }}%</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div v-if="!horasPorFuncionario(funcSelecionado).length" class="dp-empty">
@@ -588,6 +634,14 @@ export default {
       abaAtiva: 'Etapas',
       tabs: ['Etapas', 'Por hora'],
 
+      // ── Novos controles de filtro/ordenação de EXIBIÇÃO ──
+      // Não alteram nenhum cálculo — apenas filtram/ordenam o que já
+      // foi calculado pelas funções originais.
+      filtroEficiencia: 'todos', // todos | acima100 | entre80100 | abaixo80
+      filtroOpId: 'todas',
+      ordenarPor: 'ranking', // ranking | nome | pecas | ficha | referencia
+      mostrarInsights: false,
+
       opsAtivas: [],
       funcionariosDia: [],
       pecas: [],
@@ -626,13 +680,51 @@ export default {
         .map((f, i) => ({ ...f, _idx: i }))
     },
 
+    // Lista exibida na tabela: parte de `funcionariosOrdenados` (o
+    // ranking oficial, cujo cálculo não muda) e aplica por cima apenas
+    // filtros/ordenação de EXIBIÇÃO — busca, faixa de eficiência, OP e
+    // reordenação de colunas. O `_idx` (posição oficial no ranking,
+    // usado para medalhas) é preservado de antes da filtragem.
     funcionariosFiltrados() {
       const q = this.busca.trim().toLowerCase()
-      if (!q) return this.funcionariosOrdenados
-      return this.funcionariosOrdenados.filter(f =>
-        (f.nome || '').toLowerCase().includes(q) ||
-        (f.email || '').toLowerCase().includes(q)
-      )
+      let lista = this.funcionariosOrdenados
+
+      if (q) {
+        lista = lista.filter(f =>
+          (f.nome || '').toLowerCase().includes(q) ||
+          (f.email || '').toLowerCase().includes(q) ||
+          (f.linhas || []).some(l => (l.descricao || '').toLowerCase().includes(q))
+        )
+      }
+
+      if (this.filtroOpId !== 'todas') {
+        lista = lista.filter(f => (f.linhas || []).some(l => l.opId === this.filtroOpId))
+      }
+
+      if (this.filtroEficiencia !== 'todos') {
+        lista = lista.filter(f => {
+          if (!this.temProducao(f)) return false
+          const efic = this.isFabrica
+            ? this.calcularEficienciaReferenciaFuncionario(f)
+            : this.calcularEficienciaFuncionario(f)
+          if (this.filtroEficiencia === 'acima100') return efic >= 100
+          if (this.filtroEficiencia === 'entre80100') return efic >= 80 && efic < 100
+          if (this.filtroEficiencia === 'abaixo80') return efic < 80
+          return true
+        })
+      }
+
+      if (this.ordenarPor !== 'ranking') {
+        lista = [...lista].sort((a, b) => {
+          if (this.ordenarPor === 'nome') return (a.nome || '').localeCompare(b.nome || '')
+          if (this.ordenarPor === 'pecas') return this.calcularTotalFuncionario(b) - this.calcularTotalFuncionario(a)
+          if (this.ordenarPor === 'ficha') return this.calcularEficienciaFuncionario(b) - this.calcularEficienciaFuncionario(a)
+          if (this.ordenarPor === 'referencia') return this.calcularEficienciaReferenciaFuncionario(b) - this.calcularEficienciaReferenciaFuncionario(a)
+          return 0
+        })
+      }
+
+      return lista
     },
 
     funcSelecionado() {
@@ -708,7 +800,7 @@ export default {
           }
         })
         .sort((a, b) => b.producao - a.producao)
-      
+
     },
 
     // Eficiência exibida no resumo consolidado das OPs — e agora também
@@ -729,6 +821,36 @@ export default {
       )
     },
 
+    // ── INSIGHTS AUTOMÁTICOS (apenas apresentação — não recalcula nada,
+    // só percorre os funcionários usando os MESMOS métodos já usados
+    // na tabela/ranking) ──
+    insights() {
+      const comProducao = this.funcionariosComProducao
+      if (!comProducao.length) return null
+
+      let melhorReferencia = null
+      let maiorProducao = null
+      let maiorDiferenca = null
+
+      for (const f of comProducao) {
+        const efFicha = this.calcularEficienciaFuncionario(f)
+        const efRef = this.isFabrica ? this.calcularEficienciaReferenciaFuncionario(f) : efFicha
+        const producao = this.calcularTotalFinalizadoFuncionario(f)
+        const diferenca = efRef - efFicha
+
+        if (this.isFabrica && (!melhorReferencia || efRef > melhorReferencia.valor)) {
+          melhorReferencia = { nome: f.nome, valor: efRef }
+        }
+        if (!maiorProducao || producao > maiorProducao.valor) {
+          maiorProducao = { nome: f.nome, valor: producao }
+        }
+        if (this.isFabrica && (!maiorDiferenca || diferenca > maiorDiferenca.valor)) {
+          maiorDiferenca = { nome: f.nome, valor: diferenca }
+        }
+      }
+
+      return { melhorReferencia, maiorProducao, maiorDiferenca }
+    },
 
   },
 
@@ -800,6 +922,11 @@ export default {
       } catch {
         return 'ficha'
       }
+    },
+
+    // ── FILTRO POR OP (clique no card da OP) ───────────────
+    alternarFiltroOp(opId) {
+      this.filtroOpId = this.filtroOpId === opId ? 'todas' : opId
     },
 
     // ── SOCKET ────────────────────────────────────────────
@@ -1109,6 +1236,13 @@ export default {
       return resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId)
     },
 
+    // Diferença Referência − Ficha, apenas para EXIBIÇÃO (não altera
+    // nenhum cálculo de eficiência já existente).
+    calcularDiferencaEficiencia(func) {
+      if (!this.isFabrica) return 0
+      return Math.round((this.calcularEficienciaReferenciaFuncionario(func) - this.calcularEficienciaFuncionario(func)) * 100) / 100
+    },
+
     // ── POR HORA ──────────────────────────────────────────
     // Continua registrando/somando a produção por hora normalmente —
     // isso não depende do tempo disponível do dia, só dos registros.
@@ -1170,6 +1304,13 @@ export default {
       return 'vermelho'
     },
 
+    legendaEfic(pct) {
+      const n = parseFloat(pct)
+      if (n >= 90) return 'Eficiência dentro da meta'
+      if (n >= 60) return 'Eficiência próxima da meta'
+      return 'Eficiência abaixo da meta'
+    },
+
     // Formata eficiência com 2 casas decimais para exibição.
     formatarEficiencia(valor) {
       const n = Number(valor)
@@ -1188,8 +1329,8 @@ export default {
     formatarOrigem(origem) {
       const origens = {
         manual: 'selecionado manualmente',
-        peca: 'tempo da peça',
-        ultimo_registrado: 'último registrado',
+        peca: 'tempo específico do profissional nesta OP',
+        ultimo_registrado: 'último registrado do profissional para esta etapa',
       }
       return origens[origem] || origem || 'desconhecida'
     },
@@ -1260,6 +1401,435 @@ export default {
   box-sizing: border-box;
   padding: 0;
 }
+
+/* ══════════════ HERO / CABEÇALHO ══════════════ */
+.hero {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.hero-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hero-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: -.01em;
+}
+
+.socket-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink3);
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--rp);
+  padding: 3px 10px 3px 8px;
+}
+
+.socket-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--r600);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+
+.socket-dot.conectado { background: var(--g600); }
+.socket-pill.conectado { color: var(--g700); }
+
+.btn-ghost {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--rp);
+  border: 1px solid var(--line);
+  background: var(--surf);
+  color: var(--ink2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+  font-family: inherit;
+}
+.btn-ghost:hover { background: var(--line); }
+
+/* Grade principal de indicadores: eficiências em destaque + compactos */
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr)) 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.metric-featured {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: var(--g800);
+  border-radius: var(--rc);
+  padding: 16px 20px;
+  min-height: 84px;
+}
+
+.metric-featured.solo { grid-column: span 1; }
+
+.mf-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--g200);
+}
+
+.mf-val {
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+.mf-val small { font-size: 17px; font-weight: 600; opacity: .8; }
+
+.metrics-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.metric-chip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 10px 16px;
+}
+
+.mc-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--ink3);
+}
+
+.mc-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -.02em;
+}
+
+.peca-chip {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Insights ── */
+.insights-bar { margin-top: 14px; }
+
+.insights-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--ink2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  font-family: inherit;
+}
+
+.insights-chevron {
+  display: inline-block;
+  transition: transform .15s ease;
+  color: var(--ink3);
+}
+.insights-chevron.open { transform: rotate(90deg); }
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.insight-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 10px 14px;
+}
+
+.insight-icon { font-size: 18px; line-height: 1; }
+
+.insight-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.insight-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink3);
+}
+
+.insight-val {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fade-collapse-enter-active, .fade-collapse-leave-active {
+  transition: opacity .15s ease, max-height .2s ease;
+  overflow: hidden;
+}
+.fade-collapse-enter-from, .fade-collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.fade-collapse-enter-to, .fade-collapse-leave-from {
+  opacity: 1;
+  max-height: 200px;
+}
+
+/* ══════════════ DETALHE POR OP ══════════════ */
+.ops-detalhe {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surf);
+}
+
+.ops-detalhe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.op-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .12s, box-shadow .12s, transform .1s;
+}
+
+.op-card:hover { border-color: var(--g600); }
+.op-card:active { transform: scale(.995); }
+.op-card.ativa {
+  border-color: var(--g600);
+  box-shadow: 0 0 0 2px var(--g100);
+}
+
+.op-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.op-card-nome {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.op-detalhe-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--a700);
+  background: var(--a100);
+  border-radius: var(--rp);
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.op-card-numeros {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+}
+
+.op-num { display: flex; flex-direction: column; gap: 1px; }
+
+.op-num-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.op-num-val small { font-size: 11px; font-weight: 600; color: var(--ink3); margin-left: 2px; }
+
+.op-num-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.op-card-eficiencias {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.op-card-formulas {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  margin-top: -2px;
+}
+
+.op-card-formulas summary {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink3);
+  cursor: pointer;
+  list-style: none;
+}
+.op-card-formulas summary::-webkit-details-marker { display: none; }
+.op-card-formulas summary:hover { color: var(--ink2); }
+
+.op-detalhe-formula {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--ink3);
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.formula-expr { color: var(--ink3); }
+.formula-result { font-weight: 700; }
+.formula-result.verde    { color: var(--g700); }
+.formula-result.amarelo  { color: var(--a600); }
+.formula-result.vermelho { color: var(--r600); }
+
+/* Resumo das médias — dois cards lado a lado */
+.resumo-medias {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+.resumo-medias.single { grid-template-columns: 1fr; }
+
+.resumo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 14px 16px;
+}
+
+.resumo-icon { font-size: 16px; margin-bottom: 2px; }
+
+.resumo-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink3);
+}
+
+.resumo-valor {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.resumo-valor.verde    { color: var(--g700); }
+.resumo-valor.amarelo  { color: var(--a600); }
+.resumo-valor.vermelho { color: var(--r600); }
+
+.resumo-formula {
+  font-family: monospace;
+  font-size: 10.5px;
+  color: var(--ink3);
+  word-break: break-all;
+  margin-top: 2px;
+}
+
+/* ══════════════ FILTROS ══════════════ */
+.filtros-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.search-input {
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--rp);
+  background: var(--surf);
+  color: var(--ink);
+  width: 220px;
+  transition: border-color .15s;
+  font-family: inherit;
+}
+.search-input:focus { outline: none; border-color: var(--g600); }
+
+.filtro-select {
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--rp);
+  background: var(--surf);
+  color: var(--ink2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.filtro-select:focus { outline: none; border-color: var(--g600); }
+
 .sort-toggle {
   display: flex;
   border: 1px solid var(--line);
@@ -1281,105 +1851,28 @@ export default {
   transition: background .12s, color .12s;
   font-family: inherit;
 }
-
 .sort-toggle-btn:hover { color: var(--ink); }
+.sort-toggle-btn.active { background: var(--g800); color: #fff; }
 
-.sort-toggle-btn.active {
-  background: var(--g800);
-  color: #fff;
-}
-
-/* TOP BAR */
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-  flex-wrap: wrap;
-}
-
-.metrics-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-
-.metric-chip {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--surf);
-  border: 1px solid var(--line);
-  border-radius: var(--rc);
-  padding: 10px 18px;
-}
-
-.metric-chip.accent {
-  background: var(--g800);
-  border-color: transparent;
-}
-
-.mc-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .09em;
+.list-count {
+  font-size: 12.5px;
   color: var(--ink3);
-}
-
-.metric-chip.accent .mc-label { color: var(--g200); }
-
-.mc-val {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
-  letter-spacing: -.02em;
-}
-
-.metric-chip.accent .mc-val { color: #fff; }
-
-.peca-chip {
-  font-size: 14px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
+  margin-left: auto;
 }
 
-.top-bar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.socket-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--r600);
-  flex-shrink: 0;
-  transition: background .3s;
-}
-
-.socket-dot.conectado { background: var(--g600); }
-
-/* LAYOUT */
+/* ══════════════ LAYOUT PRINCIPAL ══════════════ */
 .main-layout {
   display: grid;
   grid-template-columns: 1fr;
   min-height: 0;
+  position: relative;
 }
 
 .main-layout.panel-open {
   grid-template-columns: 1fr 440px;
 }
 
-/* LISTA */
 .grid-area {
   display: flex;
   flex-direction: column;
@@ -1387,54 +1880,11 @@ export default {
   overflow: hidden;
 }
 
-.list-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px 10px;
-  gap: 12px;
-}
-
-.list-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.list-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.search-input {
-  font-size: 13px;
-  padding: 5px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--rp);
-  background: var(--surf);
-  color: var(--ink);
-  width: 180px;
-  transition: border-color .15s;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--g600);
-}
-
-.list-count {
-  font-size: 12.5px;
-  color: var(--ink3);
-  white-space: nowrap;
-}
-
 .list-header {
   display: grid;
-  grid-template-columns: 1fr 72px 110px;
+  grid-template-columns: 1fr 72px 110px 18px;
   align-items: center;
-  padding: 6px 24px;
-  border-top: 1px solid var(--line);
+  padding: 8px 24px;
   border-bottom: 1px solid var(--line);
   background: var(--surf);
   position: sticky;
@@ -1443,12 +1893,12 @@ export default {
 }
 
 .list-header.fabrica {
-  grid-template-columns: 1fr 64px 92px 92px;
+  grid-template-columns: 1fr 64px 92px 108px 18px;
 }
 
 .lh-name {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-align: left;
   text-transform: uppercase;
   letter-spacing: .08em;
@@ -1457,7 +1907,7 @@ export default {
 
 .lh-col {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .08em;
   color: var(--ink3);
@@ -1466,33 +1916,40 @@ export default {
 
 .list-body {
   overflow-y: auto;
-  max-height: calc(100vh - 210px);
+  max-height: calc(100vh - 320px);
 }
 
 .list-row {
   display: grid;
-  grid-template-columns: 1fr 72px 110px;
+  grid-template-columns: 1fr 72px 110px 18px;
   align-items: center;
-  padding: 9px 24px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
-  transition: background .1s;
+  transition: background .12s;
 }
 
 .list-row.fabrica {
-  grid-template-columns: 1fr 64px 92px 92px;
+  grid-template-columns: 1fr 64px 92px 108px 18px;
 }
 
 .list-row:hover { background: var(--surf); }
 
 .list-row.selected {
   background: var(--g50);
-  border-right: 2px solid var(--g600);
+  box-shadow: inset 3px 0 0 var(--g600);
 }
 
-.list-row.sem-producao {
-  opacity: .6;
+.list-row.sem-producao { opacity: .55; }
+
+.lr-chevron {
+  color: var(--ink3);
+  font-size: 16px;
+  text-align: right;
+  transition: transform .12s, color .12s;
 }
+.list-row:hover .lr-chevron { color: var(--g700); transform: translateX(2px); }
+.list-row.selected .lr-chevron { color: var(--g700); }
 
 .lr-name {
   display: flex;
@@ -1510,7 +1967,6 @@ export default {
   flex-shrink: 0;
   line-height: 1;
 }
-
 .lr-pos.medal { font-size: 18px; }
 
 .lr-avatar-wrap { position: relative; flex-shrink: 0; }
@@ -1546,7 +2002,6 @@ export default {
   border-radius: 50%;
   border: 1.5px solid var(--bg);
 }
-
 .lr-dot.verde    { background: var(--g600); }
 .lr-dot.amarelo  { background: var(--a600); }
 .lr-dot.vermelho { background: var(--r600); }
@@ -1565,7 +2020,12 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
+
+.mini-tag { font-size: 11px; }
 
 .lr-sub {
   font-size: 11.5px;
@@ -1576,10 +2036,25 @@ export default {
 }
 
 .lr-col {
-  text-align: -webkit-center;
+  text-align: right;
   font-size: 14px;
   color: var(--ink2);
 }
+
+.lr-col-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.lr-delta {
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lr-delta.positivo { color: var(--g700); }
+.lr-delta.negativo { color: var(--r600); }
 
 .mono { font-variant-numeric: tabular-nums; }
 
@@ -1590,7 +2065,26 @@ export default {
   font-size: 14px;
 }
 
-/* BADGES */
+/* ── SKELETON ── */
+.sk {
+  background: linear-gradient(90deg, var(--surf) 25%, var(--line) 37%, var(--surf) 63%);
+  background-size: 400% 100%;
+  animation: sk-shimmer 1.4s ease infinite;
+  border-radius: var(--rc);
+}
+@keyframes sk-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+.skeleton-wrap { grid-template-columns: repeat(2, minmax(160px, 1fr)) 1fr; }
+.sk-featured { min-height: 84px; }
+.sk-compact { min-height: 84px; }
+.skeleton-row { gap: 10px; }
+.sk-avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
+.sk-line { height: 14px; }
+.sk-badge { width: 48px; height: 20px; border-radius: var(--rp); }
+
+/* ══════════════ BADGES ══════════════ */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1600,21 +2094,12 @@ export default {
   font-weight: 600;
   white-space: nowrap;
 }
-
 .badge.verde    { background: var(--g100); color: var(--g800); }
 .badge.amarelo  { background: var(--a100); color: var(--a700); }
 .badge.vermelho { background: var(--r100); color: var(--r700); }
 .badge.sm  { font-size: 12px; padding: 2px 8px; }
 .badge.lg  { font-size: 13px; padding: 4px 12px; }
 .badge.xlg { font-size: 15px; padding: 5px 16px; }
-
-.dp-badges-duplas {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: flex-end;
-  flex-shrink: 0;
-}
 
 .tag-final {
   display: inline-block;
@@ -1630,14 +2115,16 @@ export default {
   vertical-align: middle;
 }
 
-/* PAINEL LATERAL */
+/* ══════════════ PAINEL LATERAL ══════════════ */
+.detail-overlay { display: none; }
+
 .detail-panel {
   border-left: 1px solid var(--line);
   background: var(--bg);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 210px);
+  max-height: calc(100vh - 320px);
 }
 
 .dp-topbar {
@@ -1674,7 +2161,6 @@ export default {
   justify-content: center;
   transition: background .1s;
 }
-
 .dp-close:hover { background: var(--line); color: var(--ink); }
 
 .dp-profile {
@@ -1718,7 +2204,6 @@ export default {
   border-radius: 50%;
   border: 2px solid var(--bg);
 }
-
 .dp-dot.verde    { background: var(--g600); }
 .dp-dot.amarelo  { background: var(--a600); }
 .dp-dot.vermelho { background: var(--r600); }
@@ -1744,42 +2229,87 @@ export default {
   text-overflow: ellipsis;
 }
 
-.dp-stats {
-  display: flex;
-  align-items: center;
+/* Resumo de eficiência — dois cards */
+.dp-eff-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--line);
 }
+.dp-eff-cards.single { grid-template-columns: 1fr; }
 
-.dp-stat {
-  flex: 1;
+.dp-eff-card {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  text-align: center;
+  gap: 6px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 12px 14px;
 }
 
-.dp-stat-div { width: 1px; height: 36px; background: var(--line); }
-
-.dp-stat-label {
-  font-size: 11px;
+.dp-eff-card-label {
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   color: var(--ink3);
 }
 
-.dp-stat-val {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--ink);
+.dp-eff-card-val {
+  font-size: 24px;
+  font-weight: 700;
   letter-spacing: -.02em;
 }
+.dp-eff-card-val.verde    { color: var(--g700); }
+.dp-eff-card-val.amarelo  { color: var(--a600); }
+.dp-eff-card-val.vermelho { color: var(--r600); }
 
-.dp-stat-val.verde    { color: var(--g700); }
-.dp-stat-val.amarelo  { color: var(--a600); }
+.dp-eff-bar-track {
+  height: 5px;
+  background: var(--line);
+  border-radius: var(--rp);
+  overflow: hidden;
+}
+.dp-eff-bar-fill {
+  height: 100%;
+  border-radius: var(--rp);
+  transition: width .5s ease;
+}
+.dp-eff-bar-fill.verde    { background: var(--g600); }
+.dp-eff-bar-fill.amarelo  { background: var(--a600); }
+.dp-eff-bar-fill.vermelho { background: var(--r600); }
+
+.dp-mini-stats {
+  display: flex;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  gap: 8px;
+}
+.dp-mini-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+.dp-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink3);
+}
+.dp-stat-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.dp-stat-val.verde { color: var(--g700); }
 .dp-stat-val.vermelho { color: var(--r600); }
 
+/* Auditoria de tempos utilizados */
 .dp-auditoria {
   margin: 0 18px 14px;
   padding: 12px 14px;
@@ -1799,42 +2329,43 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-.dp-auditoria-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.dp-auditoria-label {
-  font-size: 10.5px;
-  color: var(--ink3);
-  font-weight: 600;
-}
+.dp-auditoria-item { display: flex; flex-direction: column; gap: 2px; }
+.dp-auditoria-label { font-size: 10.5px; color: var(--ink3); font-weight: 600; }
 .dp-auditoria-val {
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+.dp-auditoria-formula-wrap summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink3);
+  cursor: pointer;
+  list-style: none;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.dp-auditoria-formula-wrap summary::-webkit-details-marker { display: none; }
+.dp-auditoria-formula-wrap summary:hover { color: var(--ink2); }
 .dp-auditoria-formula {
   font-size: 12.5px;
   color: var(--ink2);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--line);
+  padding-top: 8px;
 }
 .dp-auditoria-formula strong { color: var(--ink); }
 
-/* DETALHES DO TEMPO DE REFERÊNCIA */
 .dp-ref-detalhes {
   padding-top: 10px;
   border-top: 1px dashed var(--line);
   margin-top: 10px;
 }
-
 .dp-ref-detalhes-titulo {
   font-size: 11px;
   font-weight: 700;
@@ -1843,7 +2374,6 @@ export default {
   color: var(--ink3);
   margin-bottom: 6px;
 }
-
 .dp-ref-detalhes-linha {
   display: flex;
   align-items: center;
@@ -1851,7 +2381,6 @@ export default {
   padding: 4px 0;
   gap: 8px;
 }
-
 .dp-ref-etapa {
   font-size: 12px;
   color: var(--ink2);
@@ -1861,7 +2390,6 @@ export default {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .dp-ref-valor {
   font-size: 12px;
   color: var(--ink);
@@ -1872,7 +2400,6 @@ export default {
   align-items: center;
   gap: 4px;
 }
-
 .dp-ref-op-tag {
   font-size: 9px;
   font-weight: 700;
@@ -1884,93 +2411,22 @@ export default {
   padding: 1px 5px;
   margin-left: 4px;
 }
+.dp-ref-sem { color: var(--ink3); font-weight: 400; }
+.dp-ref-origem { font-size: 10px; font-weight: 500; color: var(--ink3); font-family: inherit; }
+.dp-ref-origem.manual { color: var(--g700); }
+.dp-ref-origem.peca { color: #2563eb; }
+.dp-ref-origem.ultimo_registrado { color: var(--a600); }
 
-.dp-ref-sem {
-  color: var(--ink3);
-  font-weight: 400;
-}
-
-.dp-ref-origem {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--ink3);
-  font-family: inherit;
-}
-
-.dp-ref-origem.manual {
-  color: var(--g700);
-}
-
-.dp-ref-origem.peca {
-  color: #2563eb;
-}
-
-.dp-ref-origem.ultimo_registrado {
-  color: var(--a600);
-}
-
-/* Origem inline nas etapas */
-.dp-ref-origem-inline {
-  font-size: 10px;
-  font-weight: 500;
-  font-style: normal;
-  color: var(--ink3);
-}
-
-.dp-ref-origem-inline.manual {
-  color: var(--g700);
-}
-
-.dp-ref-origem-inline.peca {
-  color: #2563eb;
-}
-
-.dp-ref-origem-inline.ultimo_registrado {
-  color: var(--a600);
-}
-
-.dp-eff-bar-wrap {
-  padding: 12px 18px 14px;
-  border-bottom: 1px solid var(--line);
-}
-
-.dp-eff-bar-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--ink3);
-  margin-bottom: 6px;
-  font-weight: 500;
-}
-
-.dp-eff-bar-labels span:last-child { font-weight: 700; }
-.dp-eff-bar-labels .verde    { color: var(--g700); }
-.dp-eff-bar-labels .amarelo  { color: var(--a600); }
-.dp-eff-bar-labels .vermelho { color: var(--r600); }
-
-.dp-eff-bar-track {
-  height: 7px;
-  background: var(--line);
-  border-radius: var(--rp);
-  overflow: hidden;
-}
-
-.dp-eff-bar-fill {
-  height: 100%;
-  border-radius: var(--rp);
-  transition: width .5s ease;
-}
-
-.dp-eff-bar-fill.verde    { background: var(--g600); }
-.dp-eff-bar-fill.amarelo  { background: var(--a600); }
-.dp-eff-bar-fill.vermelho { background: var(--r600); }
+.dp-ref-origem-inline { font-size: 10px; font-weight: 500; font-style: normal; color: var(--ink3); }
+.dp-ref-origem-inline.manual { color: var(--g700); }
+.dp-ref-origem-inline.peca { color: #2563eb; }
+.dp-ref-origem-inline.ultimo_registrado { color: var(--a600); }
 
 .dp-tabs {
   display: flex;
   border-bottom: 1px solid var(--line);
   padding: 0 18px;
 }
-
 .dp-tab {
   font-size: 13.5px;
   font-weight: 500;
@@ -1982,33 +2438,16 @@ export default {
   cursor: pointer;
   transition: color .12s, border-color .12s;
   margin-bottom: -1px;
+  font-family: inherit;
 }
-
 .dp-tab:hover { color: var(--ink); }
-
-.dp-tab.active {
-  color: var(--g700);
-  border-bottom-color: var(--g600);
-  font-weight: 600;
-}
+.dp-tab.active { color: var(--g700); border-bottom-color: var(--g600); font-weight: 600; }
 
 .dp-content { padding: 16px 18px; flex: 1; }
 
-.dp-etapa {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-}
-
+.dp-etapa { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .dp-etapa:last-child { border-bottom: none; }
-
-.dp-etapa-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 7px;
-  gap: 8px;
-}
-
+.dp-etapa-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; gap: 8px; }
 .dp-etapa-nome {
   font-size: 14px;
   font-weight: 500;
@@ -2019,336 +2458,97 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.dp-etapa-bar-track {
-  height: 5px;
-  background: var(--line);
-  border-radius: var(--rp);
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.dp-etapa-bar-fill {
-  height: 100%;
-  border-radius: var(--rp);
-  transition: width .4s ease;
-}
-
+.dp-etapa-bar-track { height: 5px; background: var(--line); border-radius: var(--rp); overflow: hidden; margin-bottom: 6px; }
+.dp-etapa-bar-fill { height: 100%; border-radius: var(--rp); transition: width .4s ease; }
 .dp-etapa-bar-fill.verde    { background: var(--g600); }
 .dp-etapa-bar-fill.amarelo  { background: var(--a600); }
 .dp-etapa-bar-fill.vermelho { background: var(--r600); }
-
 .dp-etapa-bottom { display: flex; justify-content: space-between; }
-
 .small { font-size: 12px; color: var(--ink3); }
 
 /* POR HORA */
-.dp-hora-bloco {
-  border: 1px solid var(--line);
-  border-radius: var(--rs);
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
+.dp-hora-bloco { border: 1px solid var(--line); border-radius: var(--rs); overflow: hidden; margin-bottom: 12px; }
 .dp-hora-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 14px;
+  padding: 10px 14px;
   background: var(--surf);
-  border-bottom: 1px solid var(--line);
 }
-
-.dp-hora-head-left {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
+.dp-hora-head-left { display: flex; align-items: center; gap: 7px; }
 .dp-hora-clock { font-size: 14px; line-height: 1; }
-.dp-hora-label { font-size: 14px; font-weight: 600; color: var(--ink); }
-.dp-hora-total { font-size: 12.5px; color: var(--ink3); }
+.dp-hora-label { font-size: 14px; font-weight: 700; color: var(--ink); }
+.dp-hora-total-pecas { font-size: 12.5px; font-weight: 600; color: var(--ink2); }
 
-.dp-hora-eff-row {
-  padding: 7px 14px 0;
+.dp-hora-eff-summary {
+  display: flex;
+  gap: 12px;
+  padding: 0 14px 8px;
   background: var(--surf);
-  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
 }
+.dp-hora-eff-summary .verde    { color: var(--g700); }
+.dp-hora-eff-summary .amarelo  { color: var(--a600); }
+.dp-hora-eff-summary .vermelho { color: var(--r600); }
 
-.dp-hora-eff-bar-track {
-  height: 4px;
-  background: var(--line);
-  border-radius: var(--rp);
-  overflow: hidden;
-  margin-bottom: 7px;
-}
-
-.dp-hora-eff-bar-track + .dp-hora-eff-bar-track {
-  margin-top: -3px;
-}
-
-.dp-hora-eff-bar-fill {
-  height: 100%;
-  border-radius: var(--rp);
-  transition: width .4s ease;
-}
-
+.dp-hora-eff-row { padding: 0 14px 10px; background: var(--surf); border-bottom: 1px solid var(--line); }
+.dp-hora-eff-bar-track { height: 4px; background: var(--line); border-radius: var(--rp); overflow: hidden; margin-bottom: 6px; }
+.dp-hora-eff-bar-track:last-child { margin-bottom: 0; }
+.dp-hora-eff-bar-fill { height: 100%; border-radius: var(--rp); transition: width .4s ease; }
 .dp-hora-eff-bar-fill.verde    { background: var(--g600); }
 .dp-hora-eff-bar-fill.amarelo  { background: var(--a600); }
 .dp-hora-eff-bar-fill.vermelho { background: var(--r600); }
 
-.dp-hora-tbl { width: 100%; border-collapse: collapse; }
+.dp-hora-etapas-list { display: flex; flex-direction: column; }
+.dp-hora-etapa-item { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.dp-hora-etapa-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dp-hora-etapa-nome { font-weight: 500; color: var(--ink2); font-size: 13.5px; }
+.dp-hora-etapa-item-badges { display: flex; gap: 6px; }
 
-.dp-hora-tbl th {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--ink3);
-  padding: 6px 14px;
-  text-align: left;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-}
-
-.dp-hora-tbl td {
-  padding: 8px 14px;
-  text-align: left;
-  font-size: 13.5px;
-  color: var(--ink);
-  border-bottom: 1px solid var(--line);
-}
-
-.dp-hora-tbl tr:last-child td { border-bottom: none; }
-.dp-hora-etapa-nome { font-weight: 500; color: var(--ink2); }
-.ta-r { text-align: right; }
-
-.dp-empty {
-  text-align: center;
-  color: var(--ink3);
-  font-size: 14px;
-  padding: 28px 0;
-}
+.dp-empty { text-align: center; color: var(--ink3); font-size: 14px; padding: 28px 0; }
 
 /* TRANSIÇÃO */
 .panel-slide-enter-active,
-.panel-slide-leave-active {
-  transition: opacity .18s ease, transform .2s ease;
-}
-
+.panel-slide-leave-active { transition: opacity .18s ease, transform .2s ease; }
 .panel-slide-enter-from,
-.panel-slide-leave-to {
-  opacity: 0;
-  transform: translateX(16px);
-}
-.btn-detalhe-ops {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: var(--rp);
-  border: 1px solid var(--line);
-  background: var(--surf);
-  color: var(--ink2);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background .1s;
-  font-family: inherit;
-}
-.btn-detalhe-ops:hover { background: var(--line); }
-.btn-detalhe-ops--secundario { margin-top: 4px; }
-
-.ops-detalhe {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surf);
-}
-
-.ops-detalhe-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-.op-detalhe-card {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--rc);
-  padding: 12px 14px;
-}
-
-.op-detalhe-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.op-detalhe-nome {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.op-detalhe-tag {
-  font-size: 9.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--a700);
-  background: var(--a100);
-  border-radius: var(--rp);
-  padding: 2px 7px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.op-detalhe-stats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.op-detalhe-stat { display: flex; flex-direction: column; gap: 2px; }
-
-.op-detalhe-stat-label {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--ink3);
-}
-
-.op-detalhe-stat-val { font-size: 15px; font-weight: 600; color: var(--ink); }
-.op-detalhe-stat-val.verde    { color: var(--g700); }
-.op-detalhe-stat-val.amarelo  { color: var(--a600); }
-.op-detalhe-stat-val.vermelho { color: var(--r600); }
-
-/* FÓRMULAS DAS OPs */
-.op-detalhe-formulas {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--line, #e5e5e5);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.op-detalhe-formula {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: monospace;
-  font-size: 11px;
-  color: var(--ink3);
-  flex-wrap: wrap;
-}
-
-.formula-label {
-  font-weight: 700;
-  color: var(--ink2);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  min-width: 60px;
-}
-
-.formula-expr {
-  color: var(--ink3);
-}
-
-.formula-result {
-  font-weight: 700;
-}
-
-.formula-result.verde    { color: var(--g700); }
-.formula-result.amarelo  { color: var(--a600); }
-.formula-result.vermelho { color: var(--r600); }
-
-/* RESUMO DAS MÉDIAS */
-.ops-detalhe-footer {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  font-size: 13px;
-  color: var(--ink2);
-}
-
-.ops-resumo-amedia {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ops-resumo-amedia-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--ink3);
-  margin-bottom: 4px;
-}
-
-.ops-resumo-amedia-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--rc);
-}
-
-.ops-resumo-amedia-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink2);
-}
-
-.ops-resumo-amedia-formula {
-  font-family: monospace;
-  font-size: 11.5px;
-  color: var(--ink3);
-  word-break: break-all;
-}
-
-.ops-resumo-amedia-resultado {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.ops-resumo-amedia-resultado.verde    { color: var(--g700); }
-.ops-resumo-amedia-resultado.amarelo  { color: var(--a600); }
-.ops-resumo-amedia-resultado.vermelho { color: var(--r600); }
-
-.ops-resumo-single {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--ink2);
-}
-
-.ops-resumo-single strong { font-size: 14px; }
-.ops-resumo-single strong.verde    { color: var(--g700); }
-.ops-resumo-single strong.amarelo  { color: var(--a600); }
-.ops-resumo-single strong.vermelho { color: var(--r600); }
-
-.ops-detalhe-footer-sep { color: var(--ink3); }
+.panel-slide-leave-to { opacity: 0; transform: translateX(16px); }
 
 /* RESPONSIVO */
 @media (max-width: 900px) {
   .main-layout.panel-open { grid-template-columns: 1fr; }
-  .detail-panel { border-left: none; border-top: 1px solid var(--line); max-height: 55vh; }
+
+  .detail-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 21, 18, .35);
+    z-index: 20;
+  }
+
+  .detail-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(420px, 92vw);
+    max-height: 100vh;
+    z-index: 21;
+    box-shadow: -8px 0 24px rgba(0,0,0,.12);
+  }
+
+  .hero-metrics { grid-template-columns: 1fr 1fr; }
+  .metric-featured { grid-column: span 1; }
+  .metrics-compact { grid-column: span 2; }
 }
 
 @media (max-width: 560px) {
-  .top-bar { padding: 12px 16px; }
+  .hero { padding: 14px 16px 12px; }
+  .hero-metrics { grid-template-columns: 1fr; }
+  .metrics-compact { grid-column: auto; }
+  .filtros-row { padding: 12px 16px; }
+  .search-input { width: 100%; }
   .list-header, .list-row { padding: 8px 16px; }
-  .list-title { display: none; }
-  .search-input { width: 130px; }
+  .resumo-medias { grid-template-columns: 1fr; }
 }
 </style>
