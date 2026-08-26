@@ -1228,7 +1228,7 @@ async function getEstatisticasPeca(id) {
     const etapasFinais = peca.etapas
       .map((e) => e.etapa?.descricao)
       .filter((descricao) => isEtapaFinal(descricao));
-    );
+    
     return {
       id_da_op: peca.id_da_op,
       descricao: peca.descricao,

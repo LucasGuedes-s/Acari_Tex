@@ -3,22 +3,25 @@
     <div class="grafico-header">
       <div>
         <h4 class="grafico-titulo">Meta × Produção por Dia</h4>
-        <p class="grafico-subtitulo">Compare diariamente a produção realizada com a meta prevista.</p>
+        <p class="grafico-subtitulo">Últimos 30 dias com atividade · produção considera apenas etapas finais.</p>
       </div>
       <div v-if="diasComMeta.length" class="grafico-resumo">
         <span class="resumo-badge" :class="resumoBadgeClass">
-          Dias com meta atingida: {{ diasAtingidos }} de {{ diasComMeta.length }}
+          {{ diasAtingidos }} de {{ diasComMeta.length }} dias com meta atingida
+        </span>
+        <span class="resumo-sub">
+          {{ formatarNumero(metaTotalPeriodo) }} peças de meta · {{ formatarNumero(producaoTotalPeriodo) }} produzidas
         </span>
       </div>
     </div>
 
     <div class="grafico-container">
-      <canvas ref="chartCanvas" v-show="temDados"></canvas>
-      <p v-if="!temDados && !loading" class="sem-dados">
-        Sem dados de meta e produção disponíveis.
-      </p>
-      <p v-if="loading" class="sem-dados">
-        Carregando dados...
+      <div v-if="loading" class="skeleton-chart">
+        <div class="sk-bar" v-for="n in 14" :key="n" :style="{ height: alturaSkeleton(n) + '%' }"></div>
+      </div>
+      <canvas v-show="!loading && temDados" ref="chartCanvas"></canvas>
+      <p v-if="!loading && !temDados" class="sem-dados">
+        Sem dados de meta e produção nos últimos 30 dias.
       </p>
     </div>
   </div>
@@ -50,6 +53,8 @@ function isEtapaFinal(descricaoEtapa) {
   )
 }
 
+const DIAS_JANELA = 30
+
 export default {
   name: 'GraficoMetaProducao',
 
@@ -65,6 +70,8 @@ export default {
     const diasComMeta = ref([])
     const diasAtingidos = ref(0)
     const resumoBadgeClass = ref('')
+    const metaTotalPeriodo = ref(0)
+    const producaoTotalPeriodo = ref(0)
 
     const destruirGrafico = () => {
       if (chartInstance.value) {
@@ -81,6 +88,14 @@ export default {
     const formatarDataCompleta = (data) => {
       const [ano, mes, dia] = data.split('-')
       return new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    }
+
+    const formatarNumero = (n) => Number(n || 0).toLocaleString('pt-BR')
+
+    const alturaSkeleton = (n) => {
+      // Alturas pseudo-aleatórias, mas estáveis (sem Math.random) para o skeleton.
+      const padrao = [40, 65, 50, 80, 35, 60, 45, 90, 55, 70, 30, 85, 50, 65]
+      return padrao[n % padrao.length]
     }
 
     const atualizarGrafico = async () => {
@@ -103,25 +118,34 @@ export default {
         }
 
         // ═══════════════════════════════════════════════════════════
-        // REGRA PRINCIPAL: produção conta SOMENTE etapas finais.
+        // REGRA PRINCIPAL (produção): conta SOMENTE etapas finais.
         // Uma peça que passou por Corte → Costura → Acabamento → Revisão
         // só é contada UMA vez (na etapa final).
+        //
+        // REGRA PRINCIPAL (meta) — CORRIGIDA:
+        // A meta de uma OP é um valor ÚNICO (o alvo total daquela OP),
+        // não um alvo diário. Portanto ela deve entrar no gráfico UMA
+        // ÚNICA VEZ, nunca repetida em todos os dias em que a OP teve
+        // QUALQUER lançamento (essa era a causa da meta aparecer
+        // "muito alta": uma OP com atividade em 5 dias diferentes tinha
+        // sua meta inteira somada 5 vezes).
+        //
+        // A meta é atribuída ao dia em que a OP teve sua MAIOR produção
+        // final (indicando que foi ali que a OP efetivamente "fechou"
+        // ou teve seu principal resultado). Se a OP ainda não teve
+        // nenhuma etapa final registrada, a meta é atribuída ao último
+        // dia de atividade, para continuar visível no gráfico enquanto
+        // a OP está em andamento.
         // ═══════════════════════════════════════════════════════════
 
-        // Para cada OP, consolidar:
-        //   - meta (contada 1x por OP, nunca multiplicada)
-        //   - produção final (somente etapas finais)
-        //   - data (para agrupamento por dia)
-        const opConsolidadas = [] // { data, meta, producaoFinal, nomeOp }
+        const opConsolidadas = [] // { data, meta, producaoFinal }
 
         for (const peca of pecas) {
           const metaOp = Number(peca.meta) || 0
-          const nomeOp = peca.peca || ''
           const historico = peca.historico || []
 
-          // Separar registros por etapa: verificar quais são finais
           const producaoFinalPorDia = {} // data -> quantidade (só etapas finais)
-          const metaJaContada = {} // data -> boolean (meta contada 1x por OP por dia)
+          let ultimoDiaAtividade = null
 
           for (const registro of historico) {
             const dataStr = registro.data
@@ -136,27 +160,37 @@ export default {
             const etapaDescricao = registro.etapa || ''
             const quantidade = Number(registro.quantidade) || 0
 
-            // Contabilizar produção APENAS de etapas finais
             if (isEtapaFinal(etapaDescricao)) {
-              if (!producaoFinalPorDia[dataNormalizada]) producaoFinalPorDia[dataNormalizada] = 0
-              producaoFinalPorDia[dataNormalizada] += quantidade
+              producaoFinalPorDia[dataNormalizada] = (producaoFinalPorDia[dataNormalizada] || 0) + quantidade
             }
 
-            // Meta contada 1x por OP por dia (independente de quantos registros existem)
-            if (metaOp > 0 && !metaJaContada[dataNormalizada]) {
-              metaJaContada[dataNormalizada] = true
+            if (!ultimoDiaAtividade || dataNormalizada > ultimoDiaAtividade) {
+              ultimoDiaAtividade = dataNormalizada
             }
           }
 
-          // Montar consolidação desta OP para cada dia em que ela teve produção final
-          const diasComProducao = Object.keys(producaoFinalPorDia)
-          const todosDiasOp = new Set([...diasComProducao, ...Object.keys(metaJaContada)])
+          // Dia de referência da meta: o dia de MAIOR produção final
+          // desta OP. Empate resolvido pelo primeiro encontrado.
+          let diaReferenciaMeta = null
+          let maiorProducaoFinal = -1
+          for (const [dia, qtd] of Object.entries(producaoFinalPorDia)) {
+            if (qtd > maiorProducaoFinal) {
+              maiorProducaoFinal = qtd
+              diaReferenciaMeta = dia
+            }
+          }
+          if (!diaReferenciaMeta) diaReferenciaMeta = ultimoDiaAtividade
 
-          for (const dia of todosDiasOp) {
+          // Conjunto de dias que esta OP contribui para o gráfico: todo
+          // dia com produção final + o dia de referência da meta (caso
+          // ainda não esteja incluso).
+          const diasDaOp = new Set(Object.keys(producaoFinalPorDia))
+          if (diaReferenciaMeta) diasDaOp.add(diaReferenciaMeta)
+
+          for (const dia of diasDaOp) {
             opConsolidadas.push({
               data: dia,
-              nomeOp,
-              meta: metaJaContada[dia] ? metaOp : 0,
+              meta: (metaOp > 0 && dia === diaReferenciaMeta) ? metaOp : 0,
               producaoFinal: producaoFinalPorDia[dia] || 0,
             })
           }
@@ -164,7 +198,7 @@ export default {
 
         // ═══════════════════════════════════════════════════════════
         // AGRUPAMENTO POR DIA:
-        //   Meta do Dia = soma das metas das OPs únicas daquele dia
+        //   Meta do Dia = soma das metas (já únicas por OP) do dia
         //   Produção do Dia = soma das produções finais das OPs do dia
         // ═══════════════════════════════════════════════════════════
         const producaoPorDia = {}
@@ -178,13 +212,15 @@ export default {
           metaPorDia[op.data] += op.meta
         }
 
-        // Filtrar apenas dias com produção OU meta, ordenar cronologicamente
         const todosDias = new Set([
           ...Object.keys(producaoPorDia),
           ...Object.keys(metaPorDia)
         ])
 
-        const diasOrdenados = [...todosDias].sort()
+        // Limitar aos últimos 30 dias com dados (não 30 dias corridos
+        // do calendário — 30 dias mais recentes que efetivamente têm
+        // produção e/ou meta registrada).
+        const diasOrdenados = [...todosDias].sort().slice(-DIAS_JANELA)
 
         if (!diasOrdenados.length) {
           loading.value = false
@@ -195,23 +231,28 @@ export default {
         const dadosMeta = diasOrdenados.map(d => metaPorDia[d] || 0)
         const dadosProducao = diasOrdenados.map(d => producaoPorDia[d] || 0)
 
-        // Calcular resumo (dias com meta atingida)
+        // Resumo
         const diasComMetaLocal = []
         let diasAtingidosLocal = 0
+        let metaTotal = 0
+        let producaoTotal = 0
 
         diasOrdenados.forEach((dia, i) => {
           const meta = dadosMeta[i]
           const producao = dadosProducao[i]
+          producaoTotal += producao
           if (meta > 0) {
             diasComMetaLocal.push({ dia, meta, producao })
+            metaTotal += meta
             if (producao >= meta) diasAtingidosLocal++
           }
         })
 
         diasComMeta.value = diasComMetaLocal
         diasAtingidos.value = diasAtingidosLocal
+        metaTotalPeriodo.value = metaTotal
+        producaoTotalPeriodo.value = producaoTotal
 
-        // Badge class
         if (!diasComMetaLocal.length) {
           resumoBadgeClass.value = ''
         } else {
@@ -229,6 +270,10 @@ export default {
 
         const ctx = chartCanvas.value.getContext('2d')
 
+        const gradienteProducao = ctx.createLinearGradient(0, 0, 0, 320)
+        gradienteProducao.addColorStop(0, 'rgba(22, 163, 74, 0.95)')
+        gradienteProducao.addColorStop(1, 'rgba(22, 163, 74, 0.65)')
+
         chartInstance.value = new Chart(ctx, {
           type: 'bar',
           data: {
@@ -237,21 +282,21 @@ export default {
               {
                 label: 'Meta',
                 data: dadosMeta,
-                backgroundColor: 'rgba(209, 213, 219, 0.8)',
-                borderColor: 'rgba(156, 163, 175, 1)',
-                borderWidth: 1,
-                borderRadius: 4,
-                barPercentage: 0.7,
+                backgroundColor: 'rgba(209, 213, 219, 0.55)',
+                borderColor: 'rgba(156, 163, 175, 0.9)',
+                borderWidth: 1.5,
+                borderRadius: 5,
+                barPercentage: 0.62,
                 categoryPercentage: 0.7,
               },
               {
                 label: 'Produção',
                 data: dadosProducao,
-                backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                backgroundColor: gradienteProducao,
                 borderColor: 'rgba(22, 101, 52, 1)',
                 borderWidth: 1,
-                borderRadius: 4,
-                barPercentage: 0.7,
+                borderRadius: 5,
+                barPercentage: 0.62,
                 categoryPercentage: 0.7,
               }
             ]
@@ -260,28 +305,36 @@ export default {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
+            animation: { duration: 400 },
             plugins: {
               legend: {
                 position: 'bottom',
                 labels: {
                   usePointStyle: true,
                   pointStyle: 'rectRounded',
-                  padding: 20,
-                  font: { size: 13 }
+                  padding: 18,
+                  boxWidth: 10,
+                  boxHeight: 10,
+                  font: { size: 12.5, weight: '600' },
+                  color: '#374151',
                 }
               },
               title: { display: false },
               tooltip: {
                 backgroundColor: '#fff',
-                titleColor: '#1f2937',
+                titleColor: '#0d1512',
+                titleFont: { size: 12.5, weight: '700' },
                 bodyColor: '#374151',
-                borderColor: '#e5e7eb',
+                bodyFont: { size: 12 },
+                borderColor: '#e3e8e6',
                 borderWidth: 1,
                 padding: 12,
+                cornerRadius: 8,
+                displayColors: false,
                 callbacks: {
                   title: (items) => {
                     const idx = items[0].dataIndex
-                    return `Data: ${formatarDataCompleta(diasOrdenados[idx])}`
+                    return formatarDataCompleta(diasOrdenados[idx])
                   },
                   afterBody: (items) => {
                     const idx = items[0].dataIndex
@@ -289,7 +342,7 @@ export default {
                     const producao = dadosProducao[idx]
 
                     if (meta <= 0) {
-                      return ['', `Meta: —`, `Produção: ${producao} peças`, 'Atingimento: —']
+                      return ['', `Meta: —`, `Produção: ${producao} peças`]
                     }
 
                     const diferenca = producao - meta
@@ -304,20 +357,20 @@ export default {
                       `Atingimento: ${atingimento}%`
                     ]
                   },
-                  label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} peças`
+                  label: () => null,
                 }
               }
             },
             scales: {
               x: {
                 grid: { display: false },
-                ticks: { color: '#6b7280', font: { size: 12 }, maxRotation: 45, minRotation: 45 }
+                ticks: { color: '#6b7280', font: { size: 11.5 }, maxRotation: 0, minRotation: 0, autoSkipPadding: 8 }
               },
               y: {
                 beginAtZero: true,
                 grid: { color: '#f3f4f6' },
-                ticks: { color: '#6b7280', font: { size: 12 } },
-                title: { display: true, text: 'Quantidade (peças)', color: '#6b7280', font: { size: 12 } }
+                ticks: { color: '#6b7280', font: { size: 11.5 } },
+                title: { display: true, text: 'Quantidade (peças)', color: '#9ca3af', font: { size: 11.5, weight: '600' } }
               }
             }
           }
@@ -334,7 +387,11 @@ export default {
     onMounted(atualizarGrafico)
     onBeforeUnmount(destruirGrafico)
 
-    return { chartCanvas, temDados, loading, diasComMeta, diasAtingidos, resumoBadgeClass }
+    return {
+      chartCanvas, temDados, loading, diasComMeta, diasAtingidos,
+      resumoBadgeClass, metaTotalPeriodo, producaoTotalPeriodo,
+      formatarNumero, alturaSkeleton,
+    }
   }
 }
 </script>
@@ -342,9 +399,10 @@ export default {
 <style scoped>
 .grafico-meta-producao {
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  padding: 24px;
+  border: 1px solid #e3e8e6;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(13, 21, 18, 0.04);
+  padding: 22px 24px 20px;
   max-width: 100%;
   margin: 0 auto;
 }
@@ -353,32 +411,39 @@ export default {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 14px;
 }
 
 .grafico-titulo {
-  font-size: 18px;
+  font-size: 16.5px;
   font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 4px;
+  color: #0d1512;
+  margin: 0 0 3px;
+  letter-spacing: -.01em;
 }
 
 .grafico-subtitulo {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 12.5px;
+  color: #6b7f79;
   margin: 0;
 }
 
-.grafico-resumo { flex-shrink: 0; }
+.grafico-resumo {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
 
 .resumo-badge {
   display: inline-flex;
   align-items: center;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 5px 13px;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -387,19 +452,45 @@ export default {
 .badge-amarelo  { background: #fef3c7; color: #92400e; }
 .badge-vermelho { background: #fee2e2; color: #991b1b; }
 
-.grafico-container { height: 350px; position: relative; }
+.resumo-sub {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.grafico-container { height: 340px; position: relative; }
 
 .sem-dados {
   text-align: center;
   color: #9ca3af;
-  font-size: 15px;
-  padding: 80px 0;
+  font-size: 14px;
+  padding: 90px 0;
   font-style: italic;
+}
+
+/* SKELETON */
+.skeleton-chart {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 0 4px 24px;
+}
+.sk-bar {
+  flex: 1;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+  animation: sk-pulse 1.3s ease-in-out infinite;
+}
+@keyframes sk-pulse {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; }
 }
 
 @media (max-width: 768px) {
   .grafico-meta-producao { padding: 16px; border-radius: 12px; }
   .grafico-header { flex-direction: column; align-items: flex-start; }
+  .grafico-resumo { align-items: flex-start; }
   .grafico-container { height: 280px; overflow-x: auto; }
 }
 </style>
