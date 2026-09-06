@@ -138,6 +138,7 @@ const routerIa = require('./Routes/ia.router.js');
 const EtapasRouter = require('./Routes/Etapas.router.js');
 const FinanceiroRouter = require('./Routes/Financeiro.router.js');
 const IntegracoesRouter = require('./Routes/Integracoes.router.js');
+const relatorioProducaoRouter = require('./Routes/relatorioProducaoRoutes.js');
 //ROTAS
 app.get('/teste', (req, res) => {
   res.send('Teste')
@@ -155,7 +156,8 @@ app.use(
   routerIa,
   EtapasRouter,
   FinanceiroRouter,
-  IntegracoesRouter
+  IntegracoesRouter,
+  relatorioProducaoRouter
 );
 
 // ===== Iniciar servidor =====
