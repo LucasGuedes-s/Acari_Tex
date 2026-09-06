@@ -174,6 +174,36 @@
                     {{ etapa.tempo_padrao }} min
                   </span>
                   <span>{{ getLiquidoEtapa(etapa.descricao || etapa.etapa) }} concluídos</span>
+
+                  <!-- Profissionais com tempo de referência -->
+                  <div
+                    v-for="item in getProfissionaisTempoEtapa(etapa)"
+                    :key="(item.funcionario.email || item.funcionario.id) + '-' + (etapa.id_da_funcao || etapa.id || '')"
+                    class="etapa-profissional-tempo"
+                    :class="{ 'tempo-sem-op': !item.vinculadoOP }"
+                    :title="`${item.funcionario.nome} — ${item.vinculadoOP ? 'Tempo vinculado à OP' : 'Tempo não vinculado à OP'}`"
+                  >
+                    <img
+                      v-if="item.funcionario.foto"
+                      :src="item.funcionario.foto"
+                      :alt="item.funcionario.nome"
+                      class="etapa-profissional-foto"
+                      @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'"
+                    />
+                    <div
+                      v-else
+                      class="etapa-profissional-avatar"
+                    >{{ item.funcionario.nome?.charAt(0) }}</div>
+                    <!-- fallback avatar for broken image -->
+                    <div
+                      v-if="item.funcionario.foto"
+                      class="etapa-profissional-avatar"
+                      style="display:none"
+                    >{{ item.funcionario.nome?.charAt(0) }}</div>
+                    <span class="etapa-profissional-tempo-valor">
+                      {{ item.tempo != null ? item.tempo : '—' }} min
+                    </span>
+                  </div>
                 </div>
                 <button class="btn-tempo-ref" @click="abrirModalTempoReferencia(etapa)" title="Definir tempo de referência">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -324,63 +354,6 @@
               </tbody>
             </table>
           </div>
-        </div>
-
-        <!-- ── Tempos de Referência dos Profissionais ── -->
-        <div class="section-card" v-if="temposReferenciaOrganizados.length > 0">
-          <div class="section-header">
-            <div class="section-title-row">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <h3>Tempos de Referência dos Profissionais</h3>
-            </div>
-          </div>
-
-          <div class="ref-prof-list">
-            <div
-              v-for="(func, fi) in temposReferenciaOrganizados"
-              :key="fi"
-              class="ref-prof-card"
-            >
-              <div class="ref-prof-header">
-                <div class="ref-prof-avatar">{{ getInitials(func.nome) }}</div>
-                <div class="ref-prof-info">
-                  <span class="ref-prof-nome">{{ func.nome }}</span>
-                  <span class="ref-prof-email">{{ func.email }}</span>
-                </div>
-                <span
-                  v-if="func.etapas.length === 0"
-                  class="ref-badge ref-badge--sem"
-                >Sem tempo cadastrado</span>
-              </div>
-
-              <div v-if="func.etapas.length > 0" class="ref-etapas-list">
-                <div
-                  v-for="(et, ei) in func.etapas"
-                  :key="ei"
-                  class="ref-etapa-row"
-                >
-                  <div class="ref-etapa-left">
-                    <span class="ref-etapa-nome">{{ et.etapa }}</span>
-                    <span class="ref-etapa-origem">{{ et.origem }}</span>
-                  </div>
-                  <span class="ref-badge" :class="et.tempo !== null ? 'ref-badge--valor' : 'ref-badge--sem'">
-                    {{ et.tempo !== null ? et.tempo + ' min/peça' : 'Não cadastrado' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- sem dados de referência -->
-        <div class="section-card" v-else-if="funcionarios.length > 0 && pecaDetalhes.pecasEtapas && pecaDetalhes.pecasEtapas.length > 0">
-          <div class="section-header">
-            <div class="section-title-row">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <h3>Tempos de Referência dos Profissionais</h3>
-            </div>
-          </div>
-          <p class="empty-hint">Nenhum tempo de referência cadastrado para esta peça.</p>
         </div>
 
       </div><!-- /page-body -->
@@ -577,129 +550,68 @@ export default {
     store() {
       return useAuthStore();
     },
+  },
 
+  methods: {
     /**
-     * Organiza os tempos de referência por funcionário e etapa.
-     * Para cada funcionário, percorre as etapas da peça e encontra
-     * o registro de tempo_referencia mais específico usando prioridade:
-     *   1. id_funcionario + id_da_funcao + opId
-     *   2. id_funcionario + id_da_funcao + produtoId
-     *   3. id_funcionario + id_da_funcao
-     *   4. id_funcionario (último registro por data_medicao)
-     *   5. Não cadastrado
+     * Retorna profissionais com tempo de referência compatível com uma etapa.
+     * Prioridade:
+     *   P1: mesma função + OP atual → vinculadoOP: true
+     *   P2: mesma função + opId null/undefined → vinculadoOP: false
+     *   P3: outro opId → não aparece
      */
-    temposReferenciaOrganizados() {
-      if (!this.funcionarios?.length || !this.pecaDetalhes) return [];
+    getProfissionaisTempoEtapa(etapa) {
+      if (!this.funcionarios?.length) return [];
 
-      const etapas = this.pecaDetalhes.pecasEtapas || [];
+      const idFuncao = etapa.id_da_funcao || etapa.id || null;
+      if (!idFuncao) return [];
+
       const opId = parseInt(this.$route.params.id) || null;
-      const produtoId = this.pecaDetalhes.produtoId || null;
-
       const resultado = [];
 
       for (const func of this.funcionarios) {
         if (!func.tempo_referencia?.length) continue;
 
-        const etapasComRef = [];
+        const refs = func.tempo_referencia;
 
-        for (const etapa of etapas) {
-          const idFuncao = etapa.id_da_funcao || etapa.id || null;
-          if (!idFuncao) {
-            etapasComRef.push({
-              etapa: etapa.descricao || etapa.etapa || '—',
-              tempo: null,
-              origem: 'Sem ID de função',
-            });
-            continue;
-          }
-
-          const refs = func.tempo_referencia;
-
-          // P1: funcionário + função + opId
-          let match = refs.find(
-            (r) =>
-              r.id_funcionario === func.email &&
-              r.id_da_funcao === idFuncao &&
-              opId && r.opId === opId
-          );
-          if (match) {
-            etapasComRef.push({
-              etapa: etapa.descricao || etapa.etapa || '—',
-              tempo: match.tempo_minutos,
-              origem: 'Tempo da peça (OP)',
-            });
-            continue;
-          }
-
-          // P2: funcionário + função + produtoId
-          match = refs.find(
-            (r) =>
-              r.id_funcionario === func.email &&
-              r.id_da_funcao === idFuncao &&
-              produtoId && r.produtoId === produtoId
-          );
-          if (match) {
-            etapasComRef.push({
-              etapa: etapa.descricao || etapa.etapa || '—',
-              tempo: match.tempo_minutos,
-              origem: 'Tempo da peça (Produto)',
-            });
-            continue;
-          }
-
-          // P3: funcionário + função
-          match = refs.find(
-            (r) =>
-              r.id_funcionario === func.email &&
-              r.id_da_funcao === idFuncao
-          );
-          if (match) {
-            etapasComRef.push({
-              etapa: etapa.descricao || etapa.etapa || '—',
-              tempo: match.tempo_minutos,
-              origem: 'Tempo da função',
-            });
-            continue;
-          }
-
-          // P4: último registro válido do funcionário (qualquer função)
-          const refsFunc = refs
-            .filter((r) => r.id_funcionario === func.email && r.tempo_minutos != null)
-            .sort((a, b) => {
-              const da = a.data_medicao ? new Date(a.data_medicao).getTime() : 0;
-              const db = b.data_medicao ? new Date(b.data_medicao).getTime() : 0;
-              return db - da;
-            });
-
-          if (refsFunc.length > 0) {
-            etapasComRef.push({
-              etapa: etapa.descricao || etapa.etapa || '—',
-              tempo: refsFunc[0].tempo_minutos,
-              origem: 'Último tempo registrado',
-            });
-            continue;
-          }
-
-          // P5: nenhum
-          etapasComRef.push({
-            etapa: etapa.descricao || etapa.etapa || '—',
-            tempo: null,
-            origem: 'Não cadastrado',
+        // P1: mesma função + OP atual
+        const matchOp = refs.find(
+          (r) =>
+            r.id_funcionario === func.email &&
+            r.id_da_funcao === idFuncao &&
+            opId && r.opId === opId
+        );
+        if (matchOp) {
+          resultado.push({
+            funcionario: func,
+            tempo: matchOp.tempo_minutos,
+            vinculadoOP: true,
           });
+          continue;
         }
 
-        resultado.push({
-          nome: func.nome,
-          email: func.email,
-          etapas: etapasComRef,
-        });
+        // P2: mesma função + opId null/undefined
+        const matchSemOp = refs.find(
+          (r) =>
+            r.id_funcionario === func.email &&
+            r.id_da_funcao === idFuncao &&
+            (r.opId === null || r.opId === undefined)
+        );
+        if (matchSemOp) {
+          resultado.push({
+            funcionario: func,
+            tempo: matchSemOp.tempo_minutos,
+            vinculadoOP: false,
+          });
+          continue;
+        }
+
+        // P3: outro opId → não incluir
       }
 
       return resultado;
     },
-  },
 
-  methods: {
     async buscarEstatisticas() {
       try {
         const store = useAuthStore();
@@ -1306,127 +1218,54 @@ export default {
 
 .eficiencia-tempo { color: #4a7a5c; font-weight: 500; }
 
-/* ── Tempos de Referência dos Profissionais ── */
-.ref-prof-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ref-prof-card {
-  border: 1.5px solid #eef6f1;
-  border-radius: 14px;
-  padding: 14px 16px;
-  background: #fafdfb;
+/* ── Profissionais inline na etapa ── */
+.etapa-profissional-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  background: rgba(255,255,255,0.5);
+  white-space: nowrap;
   transition: border-color 0.2s;
 }
 
-.ref-prof-card:hover {
-  border-color: #b8dfc8;
+.etapa-profissional-tempo:hover {
+  background: #fff;
 }
 
-.ref-prof-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.etapa-profissional-tempo.tempo-sem-op {
+  border-color: #dc3545;
 }
 
-.ref-prof-avatar {
-  width: 36px;
-  height: 36px;
+.etapa-profissional-foto,
+.etapa-profissional-avatar {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: #d0edda;
-  border: 2px solid #1a8a46;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.etapa-profissional-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #0a3d20;
-  flex-shrink: 0;
+  background: #d0edda;
+  border: 1.5px solid #b8dfc8;
 }
 
-.ref-prof-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1;
-  min-width: 0;
-}
-
-.ref-prof-nome {
-  font-size: 14px;
-  font-weight: 600;
-  color: #052e14;
-}
-
-.ref-prof-email {
+.etapa-profissional-tempo-valor {
   font-size: 11px;
-  color: #7aaa8c;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ref-etapas-list {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #eef6f1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ref-etapa-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 10px;
-  background: #fff;
-  border-radius: 8px;
-  border: 1px solid #eef6f1;
-}
-
-.ref-etapa-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ref-etapa-nome {
-  font-size: 13px;
-  font-weight: 500;
-  color: #052e14;
-}
-
-.ref-etapa-origem {
-  font-size: 10.5px;
-  color: #90bb9e;
-  font-style: italic;
-}
-
-.ref-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 100px;
-  font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
+  color: #4a7a5c;
 }
 
-.ref-badge--valor {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.ref-badge--sem {
-  background: #f3f4f6;
-  color: #9ca3af;
-}
+.etapa-node--progress .etapa-profissional-tempo-valor { color: #92400e; }
 
 /* ── Etapas Pipeline ── */
 .etapas-pipeline {
@@ -1485,7 +1324,7 @@ export default {
 .etapa-status-dot.etapa-node--progress { background: #d97706; }
 .etapa-status-dot.etapa-node--pending  { background: #b8dfc8; }
 
-.etapa-node-info { display: flex; gap: 10px; font-size: 11px; color: #4a7a5c; margin-bottom: 8px; }
+.etapa-node-info { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #4a7a5c; margin-bottom: 8px; }
 .etapa-node--progress .etapa-node-info { color: #92400e; }
 .etapa-node-info svg { vertical-align: middle; }
 .etapa-estorno { color: #dc2626; font-weight: 500; }

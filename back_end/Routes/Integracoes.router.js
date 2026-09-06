@@ -130,13 +130,13 @@ router.post("/auth/login-cpf", async function(req, res) {
 router.get("/producao/telefone/:telefone/hoje", async function(req, res) {
   try {
     var telefone = req.params.telefone;
-    console.log("Requisicao producao hoje para telefone:", telefone);
+    //console.log("Requisicao producao hoje para telefone:", telefone);
     // 1. USUARIO
     var usuario = await prisma.usuarios.findFirst({
       where: { telefone: telefone },
       select: { email: true, nome: true, estabelecimentoCnpj: true }
     });
-    if (!usuario) { return res.status(404).json({ erro: "Usuario nao encontrado" }); }
+    if (!usuario) { return res.status(404).json({ erro: "Usuario nao encontrado em nosso banco de dados" }); }
     var cnpj = usuario.estabelecimentoCnpj;
 
     // 2. ESTABELECIMENTO (CNPJ como STRING, nunca objeto)
