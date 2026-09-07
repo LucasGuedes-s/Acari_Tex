@@ -9,7 +9,7 @@
     </nav>
 
     <!-- Sidebar -->
-    <div  v-if="usuario" :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
+    <div v-if="usuario" :class="['sidebar', { minimized: isMinimized, 'mobile-open': isMinimized }]">
       <div class="menu">
         <div @click="irPara()">
           <img class="icon-logo"
@@ -17,7 +17,7 @@
             :class="{ 'logo-minimized': isMinimized }"
             alt="Logo">
         </div>
-        
+
         <div class="list-group">
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/dashboard" class="d-flex align-items-center text-reset" exact-active-class="ativo">
@@ -83,19 +83,23 @@
               <span>Dúvidas</span>
             </router-link>
           </div>
-          
-          <div class="list-group-item"  v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'" @click="toggleSidebar">
+
+          <div class="list-group-item" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'" @click="toggleSidebar">
             <router-link to="/configuracoes" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-gear icon"></i>
               <span>Configurações</span>
             </router-link>
           </div>
-          <div class="list-group-item" @click="toggleSidebar">
-            <router-link to="/login" class="d-flex align-items-center text-reset" exact-active-class="ativo">
-              <i class="bi bi-box-arrow-left icon"></i>
-              <span>Sair</span>
-            </router-link>
-          </div>
+        </div>
+      </div>
+
+      <!-- Sair sempre fixo no rodapé, fora do fluxo dos itens principais -->
+      <div class="list-group menu-footer">
+        <div class="list-group-item" @click="toggleSidebar">
+          <router-link to="/login" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+            <i class="bi bi-box-arrow-left icon"></i>
+            <span>Sair</span>
+          </router-link>
         </div>
       </div>
     </div>
@@ -138,7 +142,7 @@ export default {
     verificarAutenticacao() {
       const token = this.store.pegar_token;
       const usuario = this.store.pegar_usuario;
-       
+
       if (!token || !usuario || usuario.permissoes === null) {
         console.warn('Usuário não autenticado. Redirecionando...');
         router.push('/'); // redireciona para login
@@ -152,9 +156,9 @@ export default {
 </script>
 <style scoped>
 .ativo {
-  background-color: #f2f4f7; 
-  color: #2b2b2b !important; 
-  border-left: 4px solid var(--verde-escuro); 
+  background-color: #f2f4f7;
+  color: #2b2b2b !important;
+  border-left: 4px solid var(--verde-escuro);
   font-weight: 500;
   border-radius: 0 8px 8px 0;
   padding-left: 10px;
@@ -178,7 +182,15 @@ export default {
   bottom: 0;
   background-color: #ffffff;
   width: 200px;
+  display: flex;
+  flex-direction: column;
   transition: width 0.3s;
+  /* Bordas arredondadas apenas do lado direito, já que o sidebar
+     ocupa 100% da altura da tela e fica colado na borda esquerda */
+  border-top-right-radius: 16px;
+  border-bottom-right-radius: 16px;
+  box-shadow: 2px 0 14px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
 .btn {
@@ -198,20 +210,35 @@ export default {
   margin-right: 10px;
 }
 
-.menu .list-group-item {
+/* Área rolável com os itens principais do menu */
+.menu {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Bloco fixo do "Sair", sempre empurrado para o rodapé */
+.menu-footer {
+  margin-top: auto;
+  padding-bottom: 12px;
+}
+
+.sidebar .list-group-item {
   padding: 10px 20px;
   border: none;
-  transition: background-color 0.3s;
-  cursor: pointer;
-}
-
-.menu .list-group-item {
   margin-left: 10px;
   color: #616161;
+  cursor: pointer;
+  border-radius: 8px 0 0 8px;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-.menu .list-group-item:hover {
+.sidebar .list-group-item:hover {
   color: rgb(41, 41, 41);
+  background-color: #f7f8fa;
 }
 
 a {

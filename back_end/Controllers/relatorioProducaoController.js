@@ -14,7 +14,6 @@ const relatorioService = require('../Services/relatorioProducaoService')
 async function gerarRelatorio(req, res) {
   try {
     const cnpj = req.user.cnpj
-    console.log('CNPJ do usuário autenticado:', cnpj)
 
     if (!cnpj) {
       return res.status(400).json({ message: 'Estabelecimento não identificado.' })
