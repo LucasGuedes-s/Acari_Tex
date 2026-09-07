@@ -76,6 +76,13 @@
               <span>Relatórios</span>
             </router-link>
           </div>
+
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/duvidas" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-question-circle icon"></i>
+              <span>Dúvidas</span>
+            </router-link>
+          </div>
           
           <div class="list-group-item"  v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'" @click="toggleSidebar">
             <router-link to="/configuracoes" class="d-flex align-items-center text-reset" exact-active-class="ativo">
