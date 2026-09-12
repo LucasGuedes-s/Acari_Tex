@@ -46,7 +46,7 @@ app.use(cors({
     return callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type","Authorization"],
+  allowedHeaders: ["Content-Type","Authorization","x-api-key"],
   preflightContinue: false,  // importante
   optionsSuccessStatus: 204   // resposta para OPTIONS
 }));
@@ -139,6 +139,7 @@ const EtapasRouter = require('./Routes/Etapas.router.js');
 const FinanceiroRouter = require('./Routes/Financeiro.router.js');
 const IntegracoesRouter = require('./Routes/Integracoes.router.js');
 const relatorioProducaoRouter = require('./Routes/relatorioProducaoRoutes.js');
+const CycleCountRouter = require('./Routes/CycleCount.router.js');
 //ROTAS
 app.get('/teste', (req, res) => {
   res.send('Teste')
@@ -157,7 +158,8 @@ app.use(
   EtapasRouter,
   FinanceiroRouter,
   IntegracoesRouter,
-  relatorioProducaoRouter
+  relatorioProducaoRouter,
+  CycleCountRouter
 );
 
 // ===== Iniciar servidor =====

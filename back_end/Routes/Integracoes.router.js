@@ -76,6 +76,31 @@ function escolherRefMaisRecente(refs) {
   }, null);
 }
 
+function isEtapaFinal(descricaoEtapa) {
+  if (!descricaoEtapa) return false;
+  var d = descricaoEtapa.toLowerCase();
+  if (
+    d.includes('revisão intermediaria') ||
+    d.includes('revisao intermediaria') ||
+    d.includes('revisão intermediária')
+  ) {
+    return false;
+  }
+  return (
+    d.includes('final') ||
+    d.includes('revisão final') ||
+    d.includes('revisao final') ||
+    d.includes('revisão') ||
+    d.includes('revisao') ||
+    d.includes('acabamento') ||
+    d.includes('qualidade') ||
+    d.includes('revisar peça pronta') ||
+    d.includes('revisar peca pronta') ||
+    d.includes('expedição') ||
+    d.includes('expedicao')
+  );
+}
+
 function extrairTempoRef(ref) {
   if (!ref) return 0;
   return Number(ref.tempo_minutos || ref.tempo_por_peca || 0);
@@ -205,10 +230,14 @@ router.get("/producao/telefone/:telefone/hoje", async function(req, res) {
       etapasReferenciaMap.get(idFuncao).push(ref);
     }
 
-    // 6. FILTRAR: SOMENTE ATE O HORARIO ATUAL
+    // 6. FILTRAR: SOMENTE PRODUCOES DE ETAPAS FINAIS ATE O HORARIO ATUAL
     var producoesFiltradas = producoesDia.filter(function(p) {
       if (!p.hora_registro) return false;
-      return horaParaMinutos(p.hora_registro) <= minutosAgora;
+      if (horaParaMinutos(p.hora_registro) > minutosAgora) {
+        return false;
+      }
+      var descricaoEtapa = (p.producao_etapa && p.producao_etapa.descricao) || "";
+      return isEtapaFinal(descricaoEtapa);
     });
 
     if (producoesFiltradas.length === 0) {
