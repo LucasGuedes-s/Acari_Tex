@@ -181,14 +181,36 @@ export default {
 
         async fetchPecas() {
             this.loading = true;
-            const token = this.store.pegar_token;
 
-            const { data } = await api.get('/pecas', {
-                headers: { Authorization: `${token}` },
-            });
+            try {
+                const token = this.store.pegar_token;
 
-            this.pecas = data.peca;
-            this.loading = false;
+                const { data } = await api.get('/pecas', {
+                    headers: {
+                        Authorization: `${token}`,
+                    },
+                });
+
+                console.log('Resposta /pecas:', data);
+
+                this.pecas = data.peca || {};
+
+            } catch (error) {
+                console.error('Erro ao carregar peças:', error);
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro ao carregar',
+                    text: error.response?.data?.message ||
+                        error.message ||
+                        'Não foi possível carregar os relatórios de produção.'
+                });
+
+                this.pecas = {};
+
+            } finally {
+                this.loading = false;
+            }
         },
 
         async deletarPeca(pecaId) {

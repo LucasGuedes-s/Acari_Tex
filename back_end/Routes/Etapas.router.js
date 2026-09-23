@@ -490,7 +490,6 @@ router.post(
     }
   }
 );
-
 router.post(
   "/tempo-referencia",
   jwtMiddleware,
@@ -503,6 +502,7 @@ router.post(
         id_da_funcao,
         tempo_minutos,
         tipo_medicao = "manual",
+        opId = null, // Recebe opId opcionalmente da requisição
       } = req.body;
 
       if (
@@ -544,46 +544,22 @@ router.post(
         });
       }
 
-      // Procura um tempo de referência já existente
-      const existente = await prisma.TempoReferencia.findFirst({
-        where: {
+      // Sempre cria um novo registro de tempo de referência
+      const tempoReferencia = await prisma.TempoReferencia.create({
+        data: {
           estabelecimentoCnpj: cnpj,
           id_funcionario,
           id_da_funcao: Number(id_da_funcao),
-          opId: null,
+          tempo_minutos: Number(tempo_minutos),
+          tipo_medicao,
+          data_medicao: new Date(),
+          opId: opId ? Number(opId) : null,
         },
       });
 
-      let tempoReferencia;
-
-      if (existente) {
-        tempoReferencia = await prisma.TempoReferencia.update({
-          where: {
-            id: existente.id,
-          },
-          data: {
-            tempo_minutos: Number(tempo_minutos),
-            tipo_medicao,
-            data_medicao: new Date(),
-          },
-        });
-      } else {
-        tempoReferencia = await prisma.TempoReferencia.create({
-          data: {
-            estabelecimentoCnpj: cnpj,
-            id_funcionario,
-            id_da_funcao: Number(id_da_funcao),
-            tempo_minutos: Number(tempo_minutos),
-            tipo_medicao,
-            data_medicao: new Date(),
-            opId: null,
-          },
-        });
-      }
-
-      return res.status(existente ? 200 : 201).json({
+      return res.status(201).json({
         sucesso: true,
-        acao: existente ? "atualizado" : "criado",
+        acao: "criado",
         tempoReferencia,
       });
     } catch (error) {

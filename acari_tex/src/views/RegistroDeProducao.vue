@@ -481,6 +481,7 @@ import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
 import { exportarMapaProducaoExcel } from '@/utils/functions/ExportarExcelMapaProducao'
 import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
 import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
+import { escolherReferenciaPorData, tempoDaReferencia } from '@/utils/tempoReferencia'
 
 //const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
@@ -1421,40 +1422,42 @@ export default {
     },
 
     // ── RESOLVERS DE TEMPO ────────────────────────────────
-    listarReferenciasOp(opId) {
-      if (!opId) return []
-      const resultado = []
-      const etapasOp = this.etapasPorOp.get(opId) || []
+   listarReferenciasOp(opId) {
+  if (!opId) return []
+  const resultado = []
+  const etapasOp = this.etapasPorOp.get(opId) || []
 
-      for (const func of this.funcionariosDia) {
-        const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
-        if (!temLinhaOp) continue
+  for (const func of this.funcionariosDia) {
+    const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
+    if (!temLinhaOp) continue
 
-        for (const etapa of etapasOp) {
-          const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
-          if (!Array.isArray(refs)) continue
+    for (const etapa of etapasOp) {
+      const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+      if (!Array.isArray(refs)) continue
 
-          const ref = refs.find(r => r && r.id_funcionario === func.email)
-          if (!ref) continue
+      const ref = escolherReferenciaPorData(refs, {
+        funcionarioId: func.email,
+        dataConsulta: this.dataSelecionada,
+      })
+      if (!ref) continue
 
-          const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
-          if (!t) continue
+      const t = tempoDaReferencia(ref)
+      if (!t) continue
 
-          resultado.push({
-            funcionarioId: func.email,
-            nomeFunc: func.nome || func.email,
-            foto: func.foto || null,
-            etapaId: etapa.id_da_funcao || etapa.etapa?.id_da_funcao,
-            etapaDescricao: etapa.descricao || etapa.etapa?.descricao || '—',
-            tempo: t,
-            tempoPadrao: Number(etapa.tempo_padrao ?? etapa.etapa?.tempo_padrao ?? 0),
-          })
-        }
-      }
+      resultado.push({
+        funcionarioId: func.email,
+        nomeFunc: func.nome || func.email,
+        foto: func.foto || null,
+        etapaId: etapa.id_da_funcao || etapa.etapa?.id_da_funcao,
+        etapaDescricao: etapa.descricao || etapa.etapa?.descricao || '—',
+        tempo: t,
+        tempoPadrao: Number(etapa.tempo_padrao ?? etapa.etapa?.tempo_padrao ?? 0),
+      })
+    }
+  }
 
-      return resultado
-    },
-
+  return resultado
+},
     resolverTempoPadrao(linha) {
       if (linha?.tempoPadrao) return Number(linha.tempoPadrao)
       const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
@@ -1810,10 +1813,10 @@ export default {
       // Buscar o r.id (PK do banco) da referência encontrada para que
       // o select possa identificar corretamente qual option selecionar.
       const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
-      const refEncontrada = Array.isArray(refs) && funcionarioReal?.email
-        ? refs.find(r => r && r.id_funcionario === funcionarioReal.email
-          && (r.tempo_minutos || r.tempo_por_peca))
-        : null
+      const refEncontrada = escolherReferenciaPorData(refs, {
+        funcionarioId: funcionarioReal?.email,
+        dataConsulta: this.dataSelecionada,
+      })
       if (refEncontrada) {
         linha.modoTempo = 'referencia'
         // Usar r.id (PK) para que o <select> encontre a option correta.
