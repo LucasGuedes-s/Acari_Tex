@@ -1,6 +1,6 @@
 // Campos candidatos onde a data da referência pode vir do backend.
 // AJUSTAR conforme o retorno real de /pecas.
-const CAMPOS_DATA_REFERENCIA = ['data_referencia', 'data', 'data_registro', 'created_at', 'createdAt']
+const CAMPOS_DATA_REFERENCIA = ['data_medicao', 'criadoEm', 'data_referencia', 'data', 'data_registro', 'created_at', 'createdAt']
 
 function dataLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -63,7 +63,14 @@ export function escolherReferenciaPorData(refs, { funcionarioId, dataConsulta })
   const semData = candidatas.filter(c => !c.data)
 
   const naData = datadas.filter(c => c.data === alvo)
-  if (naData.length) return naData[0].ref // já está em ordem original
+  if (naData.length) {
+    if (naData.length === 1) return naData[0].ref
+    return naData.sort((a, b) => {
+      const ca = a.ref?.criadoEm || ''
+      const cb = b.ref?.criadoEm || ''
+      return cb.localeCompare(ca) // mais recente primeiro
+    })[0].ref
+  }
 
   const anteriores = datadas
     .filter(c => c.data < alvo)

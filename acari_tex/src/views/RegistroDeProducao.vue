@@ -1163,6 +1163,7 @@ export default {
         ])
 
         this.funcionarios = resFuncs.data.funcionarios || []
+        console.log('Funcionários carregados:', this.funcionarios)
 
         const pecasPorStatus = resPecas.data.peca || {}
         const todasAsPecas = Array.isArray(pecasPorStatus)
