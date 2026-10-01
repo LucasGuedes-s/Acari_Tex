@@ -583,6 +583,7 @@ import {
   resumoConsolidadoOp,
   calcularEficienciaMediaPonderadaOps,
   minutosDisponiveisDia,
+  
 } from '@/utils/producaoCompartilhada'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
@@ -739,7 +740,7 @@ export default {
     // então os números aqui nunca podem divergir do que aparece na lista.
     totaisFuncionarioSelecionado() {
       if (!this.funcSelecionado) return null
-      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId)
+      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.filtro?.data)
     },
 
     isFabrica() {
@@ -766,7 +767,7 @@ export default {
     // produções com o mesmo id_da_op, de qualquer funcionário/etapa,
     // somando quantidade/tempo registrado/tempo ficha/tempo referência.
     gruposOpBrutos() {
-      return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId).filter(g => g.producao > 0)
+      return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId, this.filtro?.data).filter(g => g.producao > 0)
     },
 
     // Quantas etapas distintas (de quaisquer funcionários) contribuíram
@@ -903,9 +904,8 @@ export default {
 
     // ── ORDENAÇÃO (modo escolhido pelo usuário) ───────────
     calcularEficienciaOrdenacao(func) {
-      // Oficina só tem "Ficha" — ignora o modo se não for Fábrica.
       const modo = this.isFabrica ? this.modoOrdenacao : 'ficha'
-      return calcularEficienciaFuncionarioPorModo(func, this.etapasPorId, modo)
+      return calcularEficienciaFuncionarioPorModo(func, this.etapasPorId, modo, null, this.filtro?.data)
     },
 
     definirModoOrdenacao(modo) {
@@ -1217,11 +1217,11 @@ export default {
     // de cada OP produzida, cada uma calculada só com o tempo
     // efetivamente produzido daquela OP.
     calcularEficienciaFuncionario(func) {
-      return calcularEficienciaFuncionarioPadrao(func, this.etapasPorId)
+      return calcularEficienciaFuncionarioPadrao(func, this.etapasPorId, null, this.filtro?.data)
     },
 
     calcularEficienciaReferenciaFuncionario(func) {
-      return calcularEficienciaFuncionarioReferencia(func, this.etapasPorId)
+      return calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, this.filtro?.data)
     },
 
     calcularEficienciaLinha(linha) {
@@ -1229,13 +1229,12 @@ export default {
     },
 
     calcularEficienciaReferenciaLinha(linha) {
-      return calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId)
+      return calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
     },
 
     tempoEfetivoLinha(linha) {
-      return resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId)
+      return resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
     },
-
     // Diferença Referência − Ficha, apenas para EXIBIÇÃO (não altera
     // nenhum cálculo de eficiência já existente).
     calcularDiferencaEficiencia(func) {
@@ -1263,10 +1262,9 @@ export default {
           const reg = linha.registros?.[hora]
           if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
-          const tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId)
+          const tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId, null, this.filtro?.data)
           const eficiencia = calcularEficienciaRegistroPadrao(reg.quantidade, reg.tempoProduzido, linha, this.etapasPorId)
-          const eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId)
-
+          const eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId, null, this.filtro?.data)
           etapas.push({
             descricao: linha.descricao || linha.etapaId || '—',
             isFinal: isEtapaFinal(linha),
@@ -1340,7 +1338,7 @@ export default {
     obterOrigemRefLinha(linha) {
       if (!this.funcSelecionado || !this.isFabrica) return null
       const { origem } = resolverTempoReferenciaComOrigem(
-        this.funcSelecionado, linha, this.etapasPorId
+        this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data
       )
       return origem
     },
