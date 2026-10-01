@@ -434,7 +434,7 @@
                               </span>
                               <span :class="['efic-dia-item', getEficClass(resumoFunc(funcionario, grupo).efRef), !tipoProducaoFabrica ? 'efic-item--primario' : 'efic-item--secundario']"
                                 title="Eficiência Tempo Fábrica: produção × referência individual do profissional ÷ tempo trabalhado (dia completo)">
-                                <span class="efic-dia-item-label">Tempo Fábrica:</span>
+                                <span class="efic-dia-item-label">Fábrica:</span>
                                 <span class="efic-dia-item-valor">{{ resumoFunc(funcionario, grupo).efRef ? resumoFunc(funcionario, grupo).efRef + '%' : '—' }}</span>
                               </span>
                             </div>
