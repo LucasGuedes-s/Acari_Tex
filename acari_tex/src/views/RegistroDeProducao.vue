@@ -31,33 +31,12 @@
         <!-- SETUP CARD -->
         <div class="setup-card">
 
-          <!-- LINHA SUPERIOR: título + turno -->
           <div class="setup-topbar">
             <div class="setup-title">
               <div class="setup-icon">⚙️</div>
               <div>
                 <h3>Configuração do Dia</h3>
                 <span>{{ funcionariosDia.length }} funcionários ativos</span>
-              </div>
-            </div>
-            <div class="turno-config-group">
-              <div class="turno-switch">
-                <button :class="['turno-btn', turnoAtivo === 'manha' ? 'active' : '']" @click="turnoAtivo = 'manha'">
-                  ☀️ Manhã
-                </button>
-                <button :class="['turno-btn', turnoAtivo === 'tarde' ? 'active' : '']" @click="turnoAtivo = 'tarde'">
-                  🌙 Tarde
-                </button>
-              </div>
-
-              <div class="horarios-config-inline">
-                <select v-model="configTurnoAtivo.inicio" class="horario-select-sm" @change="onAlterarConfigHorario">
-                  <option v-for="h in opcoesHoraInicio" :key="h" :value="h">{{ h }}</option>
-                </select>
-                <span class="horario-ate">até</span>
-                <select v-model="configTurnoAtivo.fim" class="horario-select-sm" @change="onAlterarConfigHorario">
-                  <option v-for="h in opcoesHoraFim" :key="h" :value="h">{{ h }}</option>
-                </select>
               </div>
             </div>
           </div>
@@ -178,6 +157,72 @@
 
         </div>
 
+        <!-- BARRA DE SELEÇÃO DE HORAS -->
+        <div v-if="temConteudoParaTabela" class="horas-toolbar">
+          <div class="horas-toolbar-row">
+            <div class="seg" role="group" aria-label="Atalhos de período">
+              <button type="button" class="seg-btn" @click="aplicarAtalhoTurno('dia')">Dia todo</button>
+              <button type="button" class="seg-btn" @click="aplicarAtalhoTurno('manha')">Manhã</button>
+              <button type="button" class="seg-btn" @click="aplicarAtalhoTurno('tarde')">Tarde</button>
+            </div>
+
+            <div class="seg" role="group" aria-label="Filtro por preenchimento">
+              <button type="button" :class="['seg-btn', filtroHoras === 'todas' ? 'active' : '']"
+                @click="definirFiltroHoras('todas')">Todas as horas</button>
+              <button type="button" :class="['seg-btn', filtroHoras === 'preenchidas' ? 'active' : '']"
+                @click="definirFiltroHoras('preenchidas')">Apenas preenchidas</button>
+              <button type="button" :class="['seg-btn', filtroHoras === 'pendentes' ? 'active' : '']"
+                @click="definirFiltroHoras('pendentes')">Apenas pendentes</button>
+            </div>
+
+            <details class="janelas">
+              <summary>Janelas de horário</summary>
+              <div class="janelas-body">
+                <div v-for="t in ['manha', 'tarde']" :key="t" class="janela-row">
+                  <strong>{{ t === 'manha' ? 'Manhã' : 'Tarde' }}</strong>
+                  <select v-model="configHorarios[t].inicio" class="horario-select-sm"
+                    @change="onAlterarConfigHorario(t)">
+                    <option v-for="h in opcoesHoraInicio" :key="h" :value="h">{{ h }}</option>
+                  </select>
+                  <span class="horario-ate">até</span>
+                  <select v-model="configHorarios[t].fim" class="horario-select-sm"
+                    @change="onAlterarConfigHorario(t)">
+                    <option v-for="h in opcoesHoraFimDe(t)" :key="h" :value="h">{{ h }}</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <div class="horas-chips">
+            <button v-for="h in todasHorasDia" :key="h" type="button"
+              :class="['hora-chip', !horasOcultas.includes(h) ? 'is-on' : '', horasPreenchidas.has(h) ? 'is-filled' : '']"
+              :aria-pressed="!horasOcultas.includes(h)"
+              :title="horasOcultas.includes(h) ? 'Mostrar coluna' : 'Ocultar coluna'" @click="alternarHora(h)">
+              <span class="hora-chip-mark">{{ horasPreenchidas.has(h) ? '✓' : '○' }}</span>{{ h }}
+            </button>
+          </div>
+
+          <!-- RESUMO DO PERÍODO SELECIONADO (horas visíveis) -->
+          <div v-if="horasVisiveis.length && resumoPeriodoGeral.total > 0" class="periodo-resumo">
+            <span class="periodo-resumo-label">
+              Período {{ horasVisiveis[0] }} → {{ horasVisiveis[horasVisiveis.length - 1] }}
+            </span>
+            <span :class="['periodo-chip', getEficClass(resumoPeriodoGeral.efFicha)]"
+              title="Eficiência da FICHA no período: Σ (peças × TR da etapa) ÷ Σ tempo, acumulado nas horas visíveis">
+              Ficha {{ resumoPeriodoGeral.efFicha }}%
+            </span>
+            <span :class="['periodo-chip', getEficClass(resumoPeriodoGeral.efRef)]"
+              title="Eficiência Tempo Fábrica no período: Σ (peças × referência individual do profissional) ÷ Σ tempo, acumulado nas horas visíveis">
+              Tempo Fábrica {{ resumoPeriodoGeral.efRef }}%
+            </span>
+          </div>
+
+          <p v-if="!horasVisiveis.length" class="horas-vazio">
+            Nenhuma hora visível. Marque ao menos um horário acima ou escolha “Todas as horas”.
+          </p>
+        </div>
+
         <!-- TABELA AGRUPADA POR OP (MÓDULOS) -->
         <div v-if="temConteudoParaTabela" class="ops-modulos-wrapper">
           <template v-for="grupo in funcionariosAgrupadosPorOp" :key="grupo.opId || 'sem-op'">
@@ -203,37 +248,50 @@
             <!-- TABELA DO MÓDULO -->
             <div class="table-wrapper">
               <div class="table-scroll">
-                <table class="apontamento-table">
+                <table class="apontamento-table" :style="{ '--n-horas': horasVisiveis.length }">
                   <colgroup>
                     <col class="col-func" />
                     <col class="col-etapa" />
                     <col v-for="hora in horasVisiveis" :key="'col-' + hora" class="col-hora" />
                     <col class="col-total" />
-                    <col class="col-efic" />
-                    <col class="col-efic-ref" />
+                    <col class="col-efic-dia" />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th class="func-col">Funcionário</th>
-                      <th class="etapa-col">Etapa</th>
-                      <th v-for="hora in horasVisiveis" :key="hora" class="hora-th">{{ hora }}h</th>
-                      <th class="total-col">Total</th>
-                      <th class="efic-col">Efic. Ficha</th>
-                      <th class="efic-col efic-col--ref">Efic. Ref.</th>
+                      <th class="sticky-l sticky-l-1">Funcionário</th>
+                      <th class="sticky-l sticky-l-2 sticky-edge-l">Etapa</th>
+                      <th v-for="hora in horasVisiveis" :key="hora" class="hora-th">
+                        {{ hora }}
+                        <span class="th-dot" :class="{ 'th-dot--ok': horasPreenchidas.has(hora) }"
+                          :title="horasPreenchidas.has(hora) ? 'Há lançamentos nesta hora' : 'Nenhum lançamento nesta hora'"></span>
+                      </th>
+                      <th class="sticky-r sticky-r-2 sticky-edge-r">Total</th>
+                      <th class="sticky-r sticky-r-1">Eficiência do dia</th>
                     </tr>
                   </thead>
                   <tbody>
                     <template v-for="funcionario in grupo.funcionarios"
                       :key="funcionario.email + '_' + (grupo.opId || 'sem')">
                       <tr v-for="(linha, idxLinha) in funcionario.linhas" :key="linha.id"
-                        :class="{ 'linha-extra': linha.tipo === 'extra', 'linha-ausente': funcionarioAusenteDiaInteiro(funcionario) }">
+                        :class="{ 'linha-extra': linha.tipo === 'extra', 'linha-ausente': funcionarioAusenteDiaInteiro(funcionario), 'primeira-linha': idxLinha === 0 }">
 
-                        <!-- FUNCIONÁRIO -->
-                        <td class="func-col">
-                          <div v-if="idxLinha === 0" class="func-info">
-                            <img :src="funcionario.foto || '/default-avatar.png'" />
+                        <!-- FUNCIONÁRIO (fixo à esquerda; ocupa todas as linhas dele) -->
+                        <td v-if="idxLinha === 0" class="sticky-l sticky-l-1 func-col"
+                          :rowspan="funcionario.linhas.length">
+                          <div class="func-info">
+                            <img :src="funcionario.foto || '/default-avatar.png'" alt="" />
                             <div class="func-info-text">
                               <span class="func-nome">{{ funcionario.nome }}</span>
+                              <span class="func-resumo">
+                                <span>{{ resumoFunc(funcionario, grupo).total }} pç</span>
+                                <span>{{ fmtHorasRegistradas(resumoFunc(funcionario, grupo).minutos) }}</span>
+                                <span>{{ resumoFunc(funcionario, grupo).etapas }} etapa{{
+                                  resumoFunc(funcionario, grupo).etapas === 1 ? '' : 's' }}</span>
+                                <span v-if="tempoReferenciaUnico(funcionario, grupo) !== null" class="func-resumo-tr"
+                                  title="Tempo Fábrica: referência individual deste profissional nesta OP/etapa">
+                                  TR Fábrica {{ fmtNum(tempoReferenciaUnico(funcionario, grupo)) }} min
+                                </span>
+                              </span>
                               <button class="btn-ausencia-toggle" @click="abrirModalAusencia(funcionario)">
                                 {{ funcionario.ausencia ? '✏️ Ausência' : '🚫 Ausência' }}
                               </button>
@@ -243,20 +301,19 @@
                                 <template v-if="funcionario.ausencia.tipo === 'dia_inteiro'">🌑 Ausente (dia
                                   inteiro)</template>
                                 <template v-else>
-                                  🕒 Ausente: <strong>{{ formatarPeriodosAusencia(funcionario.ausencia.periodos)
-                                    }}</strong>
-                                  <span class="ausencia-tag-minutos">({{ calcularMinutosAusenciaFuncionario(funcionario)
-                                    }}min)</span>
+                                  🕒 <strong>{{ formatarPeriodosAusencia(funcionario.ausencia.periodos) }}</strong>
+                                  <span class="ausencia-tag-minutos">({{
+                                    calcularMinutosAusenciaFuncionario(funcionario) }}min)</span>
                                 </template>
                               </span>
                             </div>
                           </div>
-                          <div v-else class="extra-tag">↳ Extra</div>
                         </td>
 
-                        <!-- ETAPA + indicadores de tempo (somente leitura) -->
-                        <td class="etapa-col">
+                        <!-- ETAPA (fixa à esquerda, logo após o funcionário) -->
+                        <td class="sticky-l sticky-l-2 sticky-edge-l etapa-col">
                           <div class="etapa-wrap">
+                            <span v-if="linha.tipo === 'extra'" class="extra-tag" title="Etapa extra deste funcionário">↳</span>
                             <template v-if="grupo.ativa">
                               <select :value="indiceOpcaoEtapa(linha)" class="etapa-select"
                                 :disabled="funcionarioAusenteDiaInteiro(funcionario)"
@@ -307,99 +364,179 @@
                           </div>
                         </td>
 
-                        <!-- HORAS -->
+                        <!-- HORAS: o campo de quantidade é o elemento principal -->
                         <td v-for="hora in horasVisiveis" :key="hora" class="hora-td">
-                          <div class="hora-box-outer">
-                            <!-- Ausência (total ou parcial) bloqueia o lançamento nesta hora -->
-                            <div v-if="horaBloqueadaPorAusencia(funcionario, hora)" class="hora-ausente-marker">
-                              🚫 Ausente
+                          <div v-if="horaBloqueadaPorAusencia(funcionario, hora)" class="hora-ausente-marker">
+                            🚫 Ausente
+                          </div>
+                          <div v-else class="hora-card">
+                            <div class="qtd-input-wrap">
+                              <span v-if="statusCelula(funcionario, linha, hora) !== 'idle'" class="save-dot"
+                                :class="'save-dot--' + statusCelula(funcionario, linha, hora)"
+                                :title="tituloStatusCelula(funcionario, linha, hora)"></span>
+                              <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
+                                inputmode="numeric" placeholder="0" :aria-label="`Quantidade produzida às ${hora}`"
+                                :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                                @input="onDigitarCelula(funcionario, linha, hora)" />
                             </div>
-                            <template v-else>
-                              <div class="hora-box-inputs">
-                                <!--
-                                  Container position:relative — a bolinha de status
-                                  fica sobreposta (position:absolute) no canto
-                                  superior direito, apenas sobre o input de
-                                  QUANTIDADE, conforme pedido.
-                                -->
-                                <div class="qtd-input-wrap">
-                                  <span v-if="statusCelula(funcionario, linha, hora) !== 'idle'" class="save-dot"
-                                    :class="'save-dot--' + statusCelula(funcionario, linha, hora)"
-                                    :title="tituloStatusCelula(funcionario, linha, hora)">
-                                  </span>
-                                  <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
-                                    placeholder="0"
-                                    :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                                    @input="onDigitarCelula(funcionario, linha, hora)" />
-                                </div>
 
-                                <div class="tempo-wrap">
-                                  <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-                                    max="60" class="min-input" @input="onDigitarCelula(funcionario, linha, hora)" />
-                                  <span class="min-label">min</span>
-                                </div>
+                            <div class="hora-meta">
+                              <label class="tempo-wrap" title="Minutos disponíveis nesta hora">
+                                <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
+                                  max="60" class="min-input" @input="onDigitarCelula(funcionario, linha, hora)" />
+                                <span class="min-label">min</span>
+                              </label>
+                              <span v-if="infoHora(linha, hora).sam" class="hora-tr"
+                                :title="resumoLinha(linha).rotuloTempo === 'TR' ? 'Tempo de referência por peça' : 'Tempo da ficha por peça'">
+                                {{ resumoLinha(linha).rotuloTempo }} {{ fmtNum(infoHora(linha, hora).sam) }}
+                              </span>
+                            </div>
 
-                                <!-- Botão de salvamento manual da célula -->
-                                <button type="button" class="btn-salvar-celula"
-                                  :disabled="!celulaTemAlteracaoPendente(funcionario, linha, hora)"
-                                  :title="celulaTemAlteracaoPendente(funcionario, linha, hora) ? 'Salvar agora' : 'Nada pendente para salvar'"
-                                  @click="salvarCelulaManual(funcionario, linha, hora)">
-                                  💾
-                                </button>
+                            <!-- Eficiência dupla da hora: F = Ficha (TR da etapa) · TF = Tempo Fábrica (referência individual) -->
+                            <div class="hora-ef-par">
+                              <span :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efFicha)]"
+                                :title="`Ficha: capacidade ${fmtNum(infoHora(linha, hora).capFicha)} pçs · TR ficha ${fmtNum(resumoLinha(linha).samFicha)} min`">
+                                F {{ infoHora(linha, hora).efFicha ? infoHora(linha, hora).efFicha + '%' : '—' }}
+                              </span>
+                              <span v-if="resumoLinha(linha).trPessoaDistinto"
+                                :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efRef)]"
+                                :title="`Tempo Fábrica: capacidade ${fmtNum(infoHora(linha, hora).capRef)} pçs · TR ${fmtNum(resumoLinha(linha).samRef)} min`">
+                                TF {{ infoHora(linha, hora).efRef ? infoHora(linha, hora).efRef + '%' : '—' }}
+                              </span>
+                              <span v-else class="hora-ef-mini hora-ef-mini--vazio"
+                                title="Tempo Fábrica: sem referência individual — usa o TR da ficha">
+                                TF —
+                              </span>
+                            </div>
+
+                            <button v-if="celulaTemAlteracaoPendente(funcionario, linha, hora)" type="button"
+                              class="btn-salvar-celula" title="Salvar agora"
+                              @click="salvarCelulaManual(funcionario, linha, hora)">💾</button>
+                          </div>
+                        </td>
+
+                        <!-- TOTAL da linha (fixo à direita) -->
+                        <td class="sticky-r sticky-r-2 sticky-edge-r total-col">{{ resumoLinha(linha).total }}</td>
+
+                        <!-- EFICIÊNCIA DO DIA (fixa à direita; ocupa todas as linhas do funcionário) -->
+                        <td v-if="idxLinha === 0" class="sticky-r sticky-r-1 efic-dia-col"
+                          :rowspan="funcionario.linhas.length">
+                          <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
+                            class="efic-badge ausencia-tag--dia_inteiro">Ausente</span>
+                          <template v-else>
+                            <!-- Duas métricas distintas: FICHA (TR da etapa) × TEMPO FÁBRICA (referência
+                                 individual do profissional). A principal fica em destaque conforme o tipo. -->
+                            <div class="efic-dia-par">
+                              <span :class="['efic-dia-item', getEficClass(resumoFunc(funcionario, grupo).efFicha), tipoProducaoFabrica ? 'efic-item--primario' : 'efic-item--secundario']"
+                                title="Eficiência Ficha: produção × TR da etapa ÷ tempo trabalhado (dia completo)">
+                                <span class="efic-dia-item-label">Ficha:</span>
+                                <span class="efic-dia-item-valor">{{ resumoFunc(funcionario, grupo).efFicha ? resumoFunc(funcionario, grupo).efFicha + '%' : '—' }}</span>
+                              </span>
+                              <span :class="['efic-dia-item', getEficClass(resumoFunc(funcionario, grupo).efRef), !tipoProducaoFabrica ? 'efic-item--primario' : 'efic-item--secundario']"
+                                title="Eficiência Tempo Fábrica: produção × referência individual do profissional ÷ tempo trabalhado (dia completo)">
+                                <span class="efic-dia-item-label">Tempo Fábrica:</span>
+                                <span class="efic-dia-item-valor">{{ resumoFunc(funcionario, grupo).efRef ? resumoFunc(funcionario, grupo).efRef + '%' : '—' }}</span>
+                              </span>
+                            </div>
+                            <span v-if="resumoFunc(funcionario, grupo).capacidade" class="efic-dia-sub">
+                              {{ resumoFunc(funcionario, grupo).total }} de {{
+                                fmtNum(resumoFunc(funcionario, grupo).capacidade) }} pç
+                            </span>
+                          </template>
+
+                          <!-- Hierarquia: funcionário → produção → eficiências → detalhamento -->
+                          <button class="btn-detalhar"
+                            :aria-expanded="!!detalhesAbertos[chaveDetalhes(funcionario, grupo)]"
+                            @click="alternarDetalhes(funcionario, grupo)">
+                            {{ detalhesAbertos[chaveDetalhes(funcionario, grupo)] ? '⌃ Ocultar detalhes' : '⌄ Detalhar produção' }}
+                          </button>
+                        </td>
+
+                      </tr>
+
+                      <!-- PAINEL EXPANSÍVEL DE DETALHAMENTO (mesma tela, sem modal/página) -->
+                      <tr v-if="detalhesAbertos[chaveDetalhes(funcionario, grupo)]" class="linha-detalhe">
+                        <td :colspan="2 + horasVisiveis.length + 2" class="linha-detalhe-td">
+                          <div v-for="d in [detalhesVisiveis[chaveDetalhes(funcionario, grupo)]].filter(Boolean)"
+                            :key="d ? 'painel-detalhe' : 'painel-vazio'" class="detalhe-panel">
+                            <div class="detalhe-header">
+                              <span class="detalhe-titulo">Resumo do profissional</span>
+                              <span class="detalhe-contexto">{{ funcionario.nome }} · {{ grupo.label }}</span>
+                            </div>
+
+                            <div class="detalhe-cards">
+                              <div v-for="card in d.cards" :key="card.label" :class="['detalhe-card', card.classe]"
+                                :title="card.titulo">
+                                <span class="detalhe-card-label">{{ card.label }}</span>
+                                <span class="detalhe-card-valor">{{ card.valor }}</span>
                               </div>
-                              <div v-if="linha.registros[hora].quantidade > 0" class="efic-inline-col">
-                                <span
-                                  :class="['efic-inline', getEficClass(calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha))]">
-                                  <span class="efic-inline-label">FT</span>
-                                  {{ calcularEficienciaRegistroPadrao(linha.registros[hora].quantidade,
-                                    linha.registros[hora].tempoProduzido, linha) }}%
-                                </span>
-                                <span
-                                  :class="['efic-inline efic-inline--ref', getEficClass(calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade, linha.registros[hora].tempoProduzido, linha, funcionario))]">
-                                  <span class="efic-inline-label">TR</span>
-                                  {{ calcularEficienciaRegistroReferencia(linha.registros[hora].quantidade,
-                                    linha.registros[hora].tempoProduzido, linha, funcionario) }}%
-                                </span>
+                            </div>
+
+                            <div class="detalhe-colunas">
+                              <!-- Produção por hora (horas visíveis) -->
+                              <div class="detalhe-tabela-wrap">
+                                <div class="detalhe-secao-titulo">Produção por hora</div>
+                                <table class="detalhe-tabela">
+                                  <thead>
+                                    <tr>
+                                      <th>Hora</th>
+                                      <th>Produção</th>
+                                      <th>Tempo</th>
+                                      <th>TR Ficha</th>
+                                      <th>TR Fábrica</th>
+                                      <th>Ef. Ficha</th>
+                                      <th>Ef. Fábrica</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr v-for="h in d.horasTabela" :key="h.hora"
+                                      :class="{ 'detalhe-linha-ativa': h.qtd > 0 }">
+                                      <td>{{ h.hora }}</td>
+                                      <td>{{ h.qtd || '—' }}</td>
+                                      <td>{{ h.qtd ? h.min + ' min' : '—' }}</td>
+                                      <td>{{ h.rotuloTrFicha }}</td>
+                                      <td>{{ h.rotuloTrPessoa }}</td>
+                                      <td>
+                                        <span :class="['detalhe-ef-chip', getEficClass(h.efFicha)]">
+                                          {{ h.qtd && h.efFicha ? h.efFicha + '%' : '—' }}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <span :class="['detalhe-ef-chip', h.trDistinto ? getEficClass(h.efRef) : '']"
+                                          :title="h.trDistinto ? 'Eficiência com o TR individual do profissional' : 'Sem TR individual — usa o TR da ficha (valores iguais ao da coluna Ef. Ficha)'">
+                                          {{ h.qtd && h.efRef ? h.efRef + '%' : '—' }}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
                               </div>
-                            </template>
+
+                              <!-- Produção por etapa (inclui as etapas extras) -->
+                              <div class="detalhe-tabela-wrap">
+                                <div class="detalhe-secao-titulo">Produção por etapa</div>
+                                <table class="detalhe-tabela">
+                                  <thead>
+                                    <tr>
+                                      <th>Etapa</th>
+                                      <th>TR Ficha</th>
+                                      <th>TR Fábrica</th>
+                                      <th>Produção</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr v-for="e in d.etapas" :key="e.chave">
+                                      <td>{{ e.descricao }}<span v-if="e.extra" class="detalhe-etapa-extra"> ↳ extra</span></td>
+                                      <td>{{ e.rotuloTrFicha }}</td>
+                                      <td>{{ e.rotuloTrPessoa }}</td>
+                                      <td><strong>{{ e.total }}</strong></td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
                           </div>
                         </td>
-
-                        <!-- TOTAL -->
-                        <td class="total-col">{{ calcularTotalLinha(linha, funcionario) }}</td>
-
-                        <!-- EFICIÊNCIA FICHA (por funcionário) -->
-                        <td class="efic-col">
-                          <div v-if="idxLinha === 0">
-                            <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
-                              class="efic-badge ausencia-tag--dia_inteiro">
-                              Ausente
-                            </span>
-                            <span v-else
-                              :class="['efic-badge', getEficClass(calcularEficienciaFuncionarioPadrao(funcionario))]">
-                              {{ calcularEficienciaFuncionarioPadrao(funcionario)
-                                ? calcularEficienciaFuncionarioPadrao(funcionario) + '%'
-                                : '—' }}
-                            </span>
-                          </div>
-                        </td>
-
-                        <!-- EFICIÊNCIA REFERÊNCIA (por funcionário) -->
-                        <td class="efic-col efic-col--ref">
-                          <div v-if="idxLinha === 0">
-                            <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
-                              class="efic-badge ausencia-tag--dia_inteiro">
-                              Ausente
-                            </span>
-                            <span v-else
-                              :class="['efic-badge efic-badge--ref', getEficClass(calcularEficienciaFuncionarioReferencia(funcionario))]">
-                              {{ calcularEficienciaFuncionarioReferencia(funcionario)
-                                ? calcularEficienciaFuncionarioReferencia(funcionario) + '%'
-                                : '—' }}
-                            </span>
-                          </div>
-                        </td>
-
                       </tr>
                     </template>
                   </tbody>
@@ -487,11 +624,22 @@ import { escolherReferenciaPorData, tempoDaReferencia } from '@/utils/tempoRefer
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
 const LOCAL_STORAGE_KEY = 'apontamento-horarios-turno'
+const LS_HORAS_OCULTAS = 'apontamento-horas-ocultas'
 
 const CONFIG_PADRAO = {
   manha: { inicio: '08:00', fim: '11:30' },
   tarde: { inicio: '13:30', fim: '17:00' },
 }
+
+// Limiar de eficiência usado como referência de "abaixo da média".
+// É o MESMO limite que já dispara os alertas do monitor de produtividade
+// (useMonitorProdutividade) — nenhuma regra paralela de referência.
+const LIMIAR_EFICIENCIA_REFERENCIA = 80
+
+// Valores padrão (somente leitura) usados pelos helpers de resumo do template.
+const RESUMO_LINHA_VAZIO = { total: 0, minutos: 0, ponderadaFicha: 0, ponderadaRef: 0, capacidade: 0, capacidadeFicha: 0, capacidadeRef: 0, samPrincipal: 0, samFicha: 0, samRef: 0, trPessoaDistinto: false, rotuloTempo: 'FT', horas: {} }
+const RESUMO_FUNC_VAZIO = { total: 0, minutos: 0, capacidade: 0, capacidadeFicha: 0, capacidadeRef: 0, etapas: 0, efFicha: 0, efRef: 0, efDia: 0 }
+const INFO_HORA_VAZIA = { sam: 0, capacidade: 0, ef: 0, efFicha: 0, efRef: 0, capFicha: 0, capRef: 0, minutos: 60 }
 
 // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ──────────────────────────
 // Garante que a seleção de etapa nunca dependa de haver produção
@@ -690,7 +838,7 @@ export default {
   name: 'ApontamentoDia',
   components: { SidebarNav, carregandoTela },
   setup() {
-    return { store: useAuthStore(), monitorProdutividade: useMonitorProdutividade({ limiarEficiencia: 80, intervaloMinutos: 30 }), }
+    return { store: useAuthStore(), monitorProdutividade: useMonitorProdutividade({ limiarEficiencia: LIMIAR_EFICIENCIA_REFERENCIA, intervaloMinutos: 30 }), }
 
   },
 
@@ -700,7 +848,6 @@ export default {
       socketConectado: false,
       dataSelecionada: this.formatarDataLocal(),
       dataCarregada: null,
-      turnoAtivo: 'manha',
       opsAtivas: [this.novaOpSetup()],
       opsExtras: [],
       funcionarios: [],
@@ -725,6 +872,20 @@ export default {
       },
 
       /**
+       * Painéis de "Detalhar produção" atualmente expandidos, por
+       * funcionário+OP (chave `email::opId`). Somente visualização:
+       * não afeta registros, salvamento nem cálculos.
+       */
+      detalhesAbertos: {},
+
+      // ── Seleção/filtro de horas (somente VISUALIZAÇÃO) ──
+      // Guarda as horas ocultas (e não as visíveis) para que horas novas
+      // criadas pela configuração apareçam automaticamente.
+      horasOcultas: this.carregarHorasOcultas(),
+      filtroHoras: 'todas', // 'todas' | 'preenchidas' | 'pendentes'
+      horasFiltroSnapshot: null, // lista congelada no clique do filtro
+
+      /**
        * Estado de salvamento POR CÉLULA (quantidade+minutos de um
        * funcionário/OP/etapa/hora específicos). Estrutura pedida:
        *   saveStatus: {
@@ -740,10 +901,6 @@ export default {
   },
 
   computed: {
-    configTurnoAtivo() {
-      return this.configHorarios[this.turnoAtivo]
-    },
-
     opcoesHoraInicio() {
       return this.gerarOpcoesHorario(6, 22)
     },
@@ -752,15 +909,49 @@ export default {
       return this.gerarOpcoesHorario(6, 22)
     },
 
-    opcoesHoraFim() {
-      const todas = this.gerarOpcoesHorario(6, 23)
-      const inicioMin = this.horaParaMinutos(this.configTurnoAtivo.inicio)
-      return todas.filter(h => this.horaParaMinutos(h) > inicioMin)
+    /** Todas as horas do dia (manhã + tarde das configurações), ordenadas e sem repetir. */
+    todasHorasDia() {
+      const { manha, tarde } = this.configHorarios
+      const set = new Set([
+        ...this.gerarSequenciaHoras(manha.inicio, manha.fim),
+        ...this.gerarSequenciaHoras(tarde.inicio, tarde.fim),
+      ])
+      return [...set].sort((a, b) => this.horaParaMinutos(a) - this.horaParaMinutos(b))
     },
 
+    /** Colunas exibidas. Só controla VISUALIZAÇÃO: nenhum dado é apagado. */
     horasVisiveis() {
-      const { inicio, fim } = this.configTurnoAtivo
-      return this.gerarSequenciaHoras(inicio, fim)
+      const ocultas = new Set(this.horasOcultas)
+      let horas = this.todasHorasDia.filter(h => !ocultas.has(h))
+      if (this.horasFiltroSnapshot) {
+        const snap = new Set(this.horasFiltroSnapshot)
+        horas = horas.filter(h => snap.has(h))
+      }
+      return horas
+    },
+
+    /** Horas em que alguém já lançou quantidade > 0. */
+    horasPreenchidas() {
+      const set = new Set()
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            if (reg && reg.quantidade > 0) set.add(hora)
+          }
+        }
+      }
+      return set
+    },
+
+    /** Rótulo usado no PDF/Excel no lugar do antigo turnoAtivo. */
+    rotuloTurno() {
+      const v = this.horasVisiveis
+      const { manha, tarde } = this.configHorarios
+      const man = new Set(this.gerarSequenciaHoras(manha.inicio, manha.fim))
+      const tar = new Set(this.gerarSequenciaHoras(tarde.inicio, tarde.fim))
+      if (v.length && v.every(h => man.has(h))) return 'Manhã'
+      if (v.length && v.every(h => tar.has(h))) return 'Tarde'
+      return 'Dia todo'
     },
 
     opsAtivasComPeca() {
@@ -862,6 +1053,236 @@ export default {
     },
 
     /**
+     * ÚNICO ponto de cálculo da tabela. Por linha (funcionário/OP/etapa)
+     * calcula, uma vez só, o tempo de referência e os dados de cada hora.
+     * Usa SOMENTE calcularCapacidade / calcularEficiencia já existentes,
+     * com os mesmos parâmetros de calcularEficienciaRegistroPadrao/Referencia.
+     * Regra de qual tempo vale (a mesma do monitor de produtividade):
+     *   fábrica -> Ficha; demais -> Referência escolhida (fallback p/ Ficha).
+     */
+    resumoLinhas() {
+      const mapa = new Map()
+      const fabrica = this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
+
+      for (const func of this.funcionariosDia) {
+        for (const linha of func.linhas || []) {
+          const samFicha = this.resolverTempoPadrao(linha)
+          const samRef = this.resolverTempoEfetivoReferencia(func, linha)
+          const samPrincipal = fabrica ? samFicha : samRef
+          const usaRef = !fabrica && linha.modoTempo === 'referencia' && !!linha.referenciaSelecionadaId
+
+          const trPessoaDistinto = !!samRef && samRef !== samFicha
+
+          const horas = {}
+          let total = 0, minutos = 0, ponderadaFicha = 0, ponderadaRef = 0
+          let capacidade = 0, capacidadeFicha = 0, capacidadeRef = 0
+
+          for (const [hora, reg] of Object.entries(linha.registros || {})) {
+            const qtd = Number(reg?.quantidade || 0)
+            const min = Number(reg?.tempoProduzido || 60)
+            const cap = samPrincipal
+              ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samPrincipal })
+              : 0
+            const capFicha = samFicha
+              ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samFicha })
+              : 0
+            const capRef = samRef
+              ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samRef })
+              : 0
+            const ef = qtd > 0 && samPrincipal
+              ? calcularEficiencia({ producaoPonderada: qtd * samPrincipal, funcionarios: 1, tempoTrabalhado: min })
+              : 0
+            const efFicha = qtd > 0 && samFicha
+              ? calcularEficiencia({ producaoPonderada: qtd * samFicha, funcionarios: 1, tempoTrabalhado: min })
+              : 0
+            const efRef = qtd > 0 && samRef
+              ? calcularEficiencia({ producaoPonderada: qtd * samRef, funcionarios: 1, tempoTrabalhado: min })
+              : 0
+            horas[hora] = { sam: samPrincipal, capacidade: cap, ef, efFicha, efRef, capFicha, capRef, minutos: min }
+
+            // Horas "válidas" = com produção e não bloqueadas por ausência
+            // (mesmo critério já usado em calcularEficienciaLinha*).
+            if (qtd > 0 && !this.horaBloqueadaPorAusencia(func, hora)) {
+              total += qtd
+              minutos += min
+              ponderadaFicha += qtd * samFicha
+              ponderadaRef += qtd * samRef
+              capacidade += cap
+              capacidadeFicha += capFicha
+              capacidadeRef += capRef
+            }
+          }
+
+          mapa.set(linha.id, {
+            total, minutos, ponderadaFicha, ponderadaRef,
+            capacidade, capacidadeFicha, capacidadeRef,
+            samPrincipal, samFicha, samRef, trPessoaDistinto,
+            rotuloTempo: usaRef ? 'TR' : 'FT', horas,
+          })
+        }
+      }
+      return mapa
+    },
+
+    /**
+     * Consolidação do DIA por funcionário dentro de cada módulo de OP.
+     * Eficiência do dia = Σ produção ponderada ÷ Σ tempo das horas válidas
+     * (equivale a Σ peças ÷ Σ capacidade). NUNCA média de percentuais.
+     */
+    resumoFuncionarioGrupo() {
+      const mapa = new Map()
+      const fabrica = this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
+
+      for (const grupo of this.funcionariosAgrupadosPorOp) {
+        for (const f of grupo.funcionarios) {
+          let total = 0, minutos = 0, pondFicha = 0, pondRef = 0
+          let capacidade = 0, capacidadeFicha = 0, capacidadeRef = 0, etapas = 0
+          for (const linha of f.linhas || []) {
+            const r = this.resumoLinhas.get(linha.id)
+            if (!r) continue
+            total += r.total
+            minutos += r.minutos
+            capacidade += r.capacidade
+            capacidadeFicha += r.capacidadeFicha || 0
+            capacidadeRef += r.capacidadeRef || 0
+            pondFicha += r.ponderadaFicha
+            pondRef += r.ponderadaRef
+            if (linha.etapaId) etapas++
+          }
+          const ef = (pond) => minutos
+            ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: minutos })
+            : 0
+          const efFicha = ef(pondFicha)
+          const efRef = ef(pondRef)
+          mapa.set(`${f.email}::${grupo.opId || 'sem'}`, {
+            total,
+            minutos,
+            capacidade: Math.round(capacidade * 10) / 10,
+            capacidadeFicha: Math.round(capacidadeFicha * 10) / 10,
+            capacidadeRef: Math.round(capacidadeRef * 10) / 10,
+            etapas,
+            efFicha,
+            efRef,
+            efDia: fabrica ? efFicha : efRef,
+          })
+        }
+      }
+      return mapa
+    },
+
+    /**
+     * Tipo de produção define qual métrica é a "principal" na exibição:
+     * fábrica -> Ficha (TR da etapa); demais -> referência individual (TR).
+     * As DUAS continuam sendo calculadas e exibidas separadamente.
+     */
+    tipoProducaoFabrica() {
+      return this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
+    },
+
+    /**
+     * Consolidação do PERÍODO SELECIONADO (horasVisiveis) por
+     * funcionário dentro de cada módulo de OP. Mesma fórmula acumulada
+     * do dia — Σ peças × TR ÷ Σ tempo — NUNCA média de percentuais.
+     * Apenas leitura: não altera registros nem salvamento.
+     */
+    resumoPeriodoGrupo() {
+      const mapa = new Map()
+      const horasVisiveis = this.horasVisiveis
+
+      for (const grupo of this.funcionariosAgrupadosPorOp) {
+        for (const f of grupo.funcionarios) {
+          let total = 0, minutos = 0, pondFicha = 0, pondRef = 0, capacidadeFicha = 0, capacidadeRef = 0
+
+          for (const linha of f.linhas || []) {
+            const samFicha = this.resolverTempoPadrao(linha)
+            const samRef = this.resolverTempoEfetivoReferencia(f, linha)
+
+            for (const hora of horasVisiveis) {
+              const reg = linha.registros?.[hora]
+              const qtd = Number(reg?.quantidade || 0)
+              if (!qtd || this.horaBloqueadaPorAusencia(f, hora)) continue
+
+              const min = Number(reg?.tempoProduzido || 60)
+              total += qtd
+              minutos += min
+              pondFicha += qtd * samFicha
+              pondRef += qtd * samRef
+              if (samFicha) capacidadeFicha += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samFicha })
+              if (samRef) capacidadeRef += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samRef })
+            }
+          }
+
+          const ef = (pond) => minutos
+            ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: minutos })
+            : 0
+
+          mapa.set(`${f.email}::${grupo.opId || 'sem'}`, {
+            total,
+            minutos,
+            efFicha: ef(pondFicha),
+            efRef: ef(pondRef),
+            capacidadeFicha: Math.round(capacidadeFicha * 10) / 10,
+            capacidadeRef: Math.round(capacidadeRef * 10) / 10,
+          })
+        }
+      }
+      return mapa
+    },
+
+    /**
+     * Eficiência consolidada do PERÍODO selecionado (horas visíveis)
+     * somando todos os funcionários/etapas da tabela — alimenta a faixa
+     * de resumo da barra de horários. Mesma fórmula acumulada.
+     */
+    resumoPeriodoGeral() {
+      let total = 0, minutos = 0, pondFicha = 0, pondRef = 0
+
+      for (const grupo of this.funcionariosAgrupadosPorOp) {
+        for (const f of grupo.funcionarios) {
+          for (const linha of f.linhas || []) {
+            const samFicha = this.resolverTempoPadrao(linha)
+            const samRef = this.resolverTempoEfetivoReferencia(f, linha)
+
+            for (const hora of this.horasVisiveis) {
+              const reg = linha.registros?.[hora]
+              const qtd = Number(reg?.quantidade || 0)
+              if (!qtd || this.horaBloqueadaPorAusencia(f, hora)) continue
+
+              const min = Number(reg?.tempoProduzido || 60)
+              total += qtd
+              minutos += min
+              pondFicha += qtd * samFicha
+              pondRef += qtd * samRef
+            }
+          }
+        }
+      }
+
+      const ef = (pond) => minutos
+        ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: minutos })
+        : 0
+
+      return { total, minutos, efFicha: ef(pondFicha), efRef: ef(pondRef) }
+    },
+
+    /**
+     * Dados do painel "Detalhar produção", montados APENAS para os
+     * funcionários atualmente expandidos (ver detalhesAbertos) —
+     * reutiliza resumoLinhas/resumoFuncionarioGrupo/resumoPeriodoGrupo,
+     * sem duplicar nenhuma regra de cálculo.
+     */
+    detalhesVisiveis() {
+      const mapa = {}
+      for (const grupo of this.funcionariosAgrupadosPorOp) {
+        for (const f of grupo.funcionarios) {
+          const chave = `${f.email}::${grupo.opId || 'sem'}`
+          if (this.detalhesAbertos[chave]) mapa[chave] = this.montarDadosDetalhe(f, grupo)
+        }
+      }
+      return mapa
+    },
+
+    /**
      * Contador global de células com alteração ainda não confirmada pelo
      * backend (pendente de debounce, em salvamento, ou em erro).
      * Alimenta o badge do header.
@@ -890,6 +1311,8 @@ export default {
       // recente poderia ser perdida da tela (ainda ficaria seguro no
       // localStorage, mas é melhor já tentar salvar antes de trocar).
       this.flushAntesDeTrocarTela()
+      // Painéis de detalhamento não fazem sentido para outro dia.
+      this.detalhesAbertos = {}
       this.buscarMetaDia()
     },
 
@@ -992,6 +1415,225 @@ export default {
       return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`
     },
 
+    // ── RESUMOS PARA O TEMPLATE (somente leitura de computeds) ─────
+    resumoLinha(linha) {
+      return this.resumoLinhas.get(linha.id) || RESUMO_LINHA_VAZIO
+    },
+
+    infoHora(linha, hora) {
+      return this.resumoLinha(linha).horas[hora] || INFO_HORA_VAZIA
+    },
+
+    resumoFunc(funcionario, grupo) {
+      return this.resumoFuncionarioGrupo.get(`${funcionario.email}::${grupo.opId || 'sem'}`) || RESUMO_FUNC_VAZIO
+    },
+
+    resumoPeriodo(funcionario, grupo) {
+      return this.resumoPeriodoGrupo.get(`${funcionario.email}::${grupo.opId || 'sem'}`) || {}
+    },
+
+    /**
+     * TR individual em exibição na linha do funcionário — só quando
+     * existe UMA etapa e o TR individual é DIFERENTE do da ficha
+     * (senão o próprio select de tempo da etapa já mostra o valor).
+     */
+    tempoReferenciaUnico(funcionario, grupo) {
+      if (!funcionario || !grupo) return null
+      const linhasComEtapa = (funcionario.linhas || []).filter(l => l.etapaId)
+      if (linhasComEtapa.length !== 1) return null
+      const r = this.resumoLinha(linhasComEtapa[0])
+      return r.trPessoaDistinto ? r.samRef : null
+    },
+
+    fmtNum(n) {
+      return Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+    },
+
+    fmtHorasRegistradas(min) {
+      const h = Math.floor((min || 0) / 60)
+      const m = (min || 0) % 60
+      return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`
+    },
+
+    // ── DETALHAMENTO EXPANSÍVEL DO PROFISSIONAL ───────────
+    // Mesma tela, sem modal e sem nova página: o painel aparece como
+    // uma linha logo abaixo das linhas do funcionário na tabela.
+    chaveDetalhes(funcionario, grupo) {
+      return `${funcionario.email}::${grupo.opId || 'sem'}`
+    },
+
+    alternarDetalhes(funcionario, grupo) {
+      const chave = this.chaveDetalhes(funcionario, grupo)
+      this.detalhesAbertos = { ...this.detalhesAbertos, [chave]: !this.detalhesAbertos[chave] }
+    },
+
+    /**
+     * Monta os dados do painel do profissional. Reutiliza os resumos
+     * existentes (resumoLinhas/resumoFuncionarioGrupo/resumoPeriodoGrupo)
+     * e as funções oficiais de eficiência/capacidade — nenhuma regra
+     * de cálculo nova é criada aqui.
+     */
+    montarDadosDetalhe(funcionario, grupo) {
+      const chave = this.chaveDetalhes(funcionario, grupo)
+      const dia = this.resumoFuncionarioGrupo.get(chave) || RESUMO_FUNC_VAZIO
+      const periodo = this.resumoPeriodoGrupo.get(chave) || {}
+
+      const linhasComEtapa = (funcionario.linhas || []).filter(l => l.etapaId)
+      const etapaUnica = linhasComEtapa.length === 1 ? linhasComEtapa[0] : null
+
+      // Horas com produção no dia (deduplicadas entre etapas)
+      const horasComProducao = new Set()
+      for (const linha of linhasComEtapa) {
+        for (const [hora, reg] of Object.entries(linha.registros || {})) {
+          if (Number(reg?.quantidade || 0) > 0) horasComProducao.add(hora)
+        }
+      }
+      const horasSemProducao = Math.max(this.todasHorasDia.length - horasComProducao.size, 0)
+
+      // Produção por hora — consolida todas as etapas do funcionário na
+      // hora com a MESMA fórmula acumulada (Σ qtd×TR ÷ Σ tempo).
+      const horasTabela = this.horasVisiveis.map(hora => {
+        let qtd = 0, min = 0, pondFicha = 0, pondRef = 0, trDistinto = false
+        for (const linha of linhasComEtapa) {
+          const reg = linha.registros?.[hora]
+          const q = Number(reg?.quantidade || 0)
+          if (!q) continue
+          const samFicha = this.resolverTempoPadrao(linha)
+          const samRef = this.resolverTempoEfetivoReferencia(funcionario, linha)
+          qtd += q
+          min += Number(reg?.tempoProduzido || 60)
+          pondFicha += q * samFicha
+          pondRef += q * samRef
+          if (samRef && samRef !== samFicha) trDistinto = true
+        }
+        const ef = (pond) => min
+          ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: min })
+          : 0
+        return {
+          hora,
+          qtd,
+          min,
+          efFicha: ef(pondFicha),
+          efRef: ef(pondRef),
+          trDistinto,
+          rotuloTrFicha: etapaUnica && this.resolverTempoPadrao(etapaUnica)
+            ? `${this.fmtNum(this.resolverTempoPadrao(etapaUnica))} min`
+            : '—',
+          rotuloTrPessoa: etapaUnica && this.resolverTempoEfetivoReferencia(funcionario, etapaUnica)
+            ? `${this.fmtNum(this.resolverTempoEfetivoReferencia(funcionario, etapaUnica))} min`
+            : '—',
+        }
+      })
+
+      // Produção por etapa (inclui as etapas extras)
+      const etapas = linhasComEtapa.map(linha => {
+        const r = this.resumoLinha(linha)
+        const samFicha = this.resolverTempoPadrao(linha)
+        const samRef = this.resolverTempoEfetivoReferencia(funcionario, linha)
+        return {
+          chave: linha.id,
+          descricao: linha.descricao || this.buscarEtapa(linha.etapaId, linha.opId)?.descricao || '—',
+          extra: linha.tipo === 'extra',
+          total: r.total,
+          minutos: r.minutos,
+          rotuloTrFicha: samFicha ? `${this.fmtNum(samFicha)} min` : '—',
+          rotuloTrPessoa: samRef ? `${this.fmtNum(samRef)} min` : '—',
+          trDistinto: !!samRef && samRef !== samFicha,
+        }
+      })
+
+      const classeCard = (pct) => ({
+        'efic-alta': 'detalhe-card--alta',
+        'efic-media': 'detalhe-card--media',
+        'efic-baixa': 'detalhe-card--baixa',
+      }[this.getEficClass(pct)] || '')
+
+      const cards = [
+        { label: 'Produção total', valor: `${this.fmtNum(dia.total)} peças` },
+        { label: 'Horas produtivas', valor: this.fmtHorasRegistradas(dia.minutos) },
+        { label: 'Horas sem produção', valor: `${horasSemProducao}h`, titulo: 'Horas do dia em que este profissional não lançou produção' },
+      ]
+
+      if (etapaUnica) {
+        const samF = this.resolverTempoPadrao(etapaUnica)
+        const samR = this.resolverTempoEfetivoReferencia(funcionario, etapaUnica)
+        if (samF) cards.push({ label: 'Tempo de referência da ficha', valor: `${this.fmtNum(samF)} min/peça` })
+        if (samR) cards.push({
+          label: 'Tempo de referência Tempo Fábrica',
+          valor: `${this.fmtNum(samR)} min/peça`,
+          titulo: 'Referência individual deste profissional nesta OP/etapa (regra TempoReferencia existente)',
+        })
+      }
+
+      cards.push(
+        { label: 'Capacidade pela ficha', valor: `${this.fmtNum(dia.capacidadeFicha)} peças`, titulo: 'Produção esperada usando o TR da ficha técnica' },
+        { label: 'Capacidade pelo Tempo Fábrica', valor: `${this.fmtNum(dia.capacidadeRef)} peças`, titulo: 'Produção esperada usando a referência individual do profissional' },
+        { label: 'Eficiência Ficha (dia)', valor: dia.efFicha ? `${dia.efFicha}%` : '—', classe: classeCard(dia.efFicha), titulo: 'Dia completo · produção × TR da ficha ÷ tempo trabalhado' },
+        { label: 'Eficiência Tempo Fábrica (dia)', valor: dia.efRef ? `${dia.efRef}%` : '—', classe: classeCard(dia.efRef), titulo: 'Dia completo · produção × referência individual ÷ tempo trabalhado' },
+        { label: 'Produção no período', valor: `${this.fmtNum(periodo.total || 0)} peças`, titulo: this.horasVisiveis.length ? `Horas visíveis: ${this.horasVisiveis.join(', ')}` : '' },
+        { label: 'Eficiência Ficha (período)', valor: periodo.efFicha ? `${periodo.efFicha}%` : '—', classe: classeCard(periodo.efFicha), titulo: 'Somente as horas visíveis · TR da ficha' },
+        { label: 'Eficiência Tempo Fábrica (período)', valor: periodo.efRef ? `${periodo.efRef}%` : '—', classe: classeCard(periodo.efRef), titulo: 'Somente as horas visíveis · referência individual do profissional' },
+      )
+
+      return { cards, horasTabela, etapas }
+    },
+
+    // ── SELEÇÃO / FILTRO DE HORAS ─────────────────────────
+    carregarHorasOcultas() {
+      try {
+        const bruto = localStorage.getItem(LS_HORAS_OCULTAS)
+        const lista = bruto ? JSON.parse(bruto) : []
+        return Array.isArray(lista) ? lista : []
+      } catch {
+        return []
+      }
+    },
+
+    persistirHorasOcultas() {
+      try {
+        localStorage.setItem(LS_HORAS_OCULTAS, JSON.stringify(this.horasOcultas))
+      } catch (err) {
+        console.warn('Não foi possível salvar as horas ocultas.', err)
+      }
+    },
+
+    alternarHora(hora) {
+      this.horasOcultas = this.horasOcultas.includes(hora)
+        ? this.horasOcultas.filter(h => h !== hora)
+        : [...this.horasOcultas, hora]
+      this.persistirHorasOcultas()
+    },
+
+    /** Atalhos de conveniência: Manhã/Tarde deixam de ser estrutura e viram só seleção. */
+    aplicarAtalhoTurno(turno) {
+      let alvo = this.todasHorasDia
+      if (turno === 'manha' || turno === 'tarde') {
+        const cfg = this.configHorarios[turno]
+        alvo = this.gerarSequenciaHoras(cfg.inicio, cfg.fim)
+      }
+      const manter = new Set(alvo)
+      this.horasOcultas = this.todasHorasDia.filter(h => !manter.has(h))
+      this.persistirHorasOcultas()
+      this.definirFiltroHoras('todas')
+    },
+
+    /**
+     * O filtro por preenchimento usa um SNAPSHOT tirado no clique. Sem
+     * isso, em "Pendentes" a coluna sumiria debaixo do cursor assim que
+     * o gestor digitasse nela. Clicar no filtro de novo reavalia.
+     */
+    definirFiltroHoras(modo) {
+      this.filtroHoras = modo
+      if (modo === 'todas') {
+        this.horasFiltroSnapshot = null
+        return
+      }
+      const pre = this.horasPreenchidas
+      this.horasFiltroSnapshot = this.todasHorasDia.filter(h =>
+        modo === 'preenchidas' ? pre.has(h) : !pre.has(h)
+      )
+    },
+
     // ── HORÁRIOS ──────────────────────────────────────────
     horaParaMinutos(hora) {
       const [h, m] = hora.split(':').map(Number)
@@ -1011,6 +1653,12 @@ export default {
         if (h < horaFinal) opcoes.push(`${String(h).padStart(2, '0')}:30`)
       }
       return opcoes
+    },
+
+    opcoesHoraFimDe(turno) {
+      const cfg = this.configHorarios[turno]
+      const inicioMin = this.horaParaMinutos(cfg.inicio)
+      return this.gerarOpcoesHorario(6, 23).filter(h => this.horaParaMinutos(h) > inicioMin)
     },
 
     gerarSequenciaHoras(inicio, fim) {
@@ -1063,12 +1711,10 @@ export default {
       }
     },
 
-    onAlterarConfigHorario() {
-      const inicioMin = this.horaParaMinutos(this.configTurnoAtivo.inicio)
-      const fimMin = this.horaParaMinutos(this.configTurnoAtivo.fim)
-
-      if (fimMin <= inicioMin) {
-        this.configTurnoAtivo.fim = this.opcoesHoraFim[0] || this.configTurnoAtivo.inicio
+    onAlterarConfigHorario(turno) {
+      const cfg = this.configHorarios[turno]
+      if (this.horaParaMinutos(cfg.fim) <= this.horaParaMinutos(cfg.inicio)) {
+        cfg.fim = this.opcoesHoraFimDe(turno)[0] || cfg.inicio
       }
 
       this.salvarConfigHorarios()
@@ -1076,13 +1722,12 @@ export default {
     },
 
     ajustarRegistrosParaNovasHoras() {
-      const horasAtuais = this.horasVisiveis
-
+      // Antes só cobria o turno ativo; agora garante TODAS as horas do dia.
       for (const funcionario of this.funcionariosDia) {
         for (const linha of funcionario.linhas || []) {
           if (!linha.registros) linha.registros = {}
 
-          for (const hora of horasAtuais) {
+          for (const hora of this.todasHorasDia) {
             if (!linha.registros[hora]) {
               linha.registros[hora] = {
                 quantidade: null,
@@ -1423,42 +2068,43 @@ export default {
     },
 
     // ── RESOLVERS DE TEMPO ────────────────────────────────
-   listarReferenciasOp(opId) {
-  if (!opId) return []
-  const resultado = []
-  const etapasOp = this.etapasPorOp.get(opId) || []
+    listarReferenciasOp(opId) {
+      if (!opId) return []
+      const resultado = []
+      const etapasOp = this.etapasPorOp.get(opId) || []
 
-  for (const func of this.funcionariosDia) {
-    const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
-    if (!temLinhaOp) continue
+      for (const func of this.funcionariosDia) {
+        const temLinhaOp = (func.linhas || []).some(l => l.opId === opId)
+        if (!temLinhaOp) continue
 
-    for (const etapa of etapasOp) {
-      const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
-      if (!Array.isArray(refs)) continue
+        for (const etapa of etapasOp) {
+          const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+          if (!Array.isArray(refs)) continue
 
-      const ref = escolherReferenciaPorData(refs, {
-        funcionarioId: func.email,
-        dataConsulta: this.dataSelecionada,
-      })
-      if (!ref) continue
+          const ref = escolherReferenciaPorData(refs, {
+            funcionarioId: func.email,
+            dataConsulta: this.dataSelecionada,
+          })
+          if (!ref) continue
 
-      const t = tempoDaReferencia(ref)
-      if (!t) continue
+          const t = tempoDaReferencia(ref)
+          if (!t) continue
 
-      resultado.push({
-        funcionarioId: func.email,
-        nomeFunc: func.nome || func.email,
-        foto: func.foto || null,
-        etapaId: etapa.id_da_funcao || etapa.etapa?.id_da_funcao,
-        etapaDescricao: etapa.descricao || etapa.etapa?.descricao || '—',
-        tempo: t,
-        tempoPadrao: Number(etapa.tempo_padrao ?? etapa.etapa?.tempo_padrao ?? 0),
-      })
-    }
-  }
+          resultado.push({
+            funcionarioId: func.email,
+            nomeFunc: func.nome || func.email,
+            foto: func.foto || null,
+            etapaId: etapa.id_da_funcao || etapa.etapa?.id_da_funcao,
+            etapaDescricao: etapa.descricao || etapa.etapa?.descricao || '—',
+            tempo: t,
+            tempoPadrao: Number(etapa.tempo_padrao ?? etapa.etapa?.tempo_padrao ?? 0),
+          })
+        }
+      }
 
-  return resultado
-},
+      return resultado
+    },
+
     resolverTempoPadrao(linha) {
       if (linha?.tempoPadrao) return Number(linha.tempoPadrao)
       const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
@@ -1971,14 +2617,15 @@ export default {
       }
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado })
     },
+
     /**
- * Decide QUAL eficiência usar para fins de alerta, conforme o tipo de
- * empresa — sem duplicar nenhuma fórmula: delega 100% para os métodos
- * que já existem (calcularEficienciaLinhaPadrao / calcularEficienciaLinhaReferencia).
- *   - "fabrica"        -> sempre Ficha (tempo padrão da etapa).
- *   - qualquer outro tipo -> Referência do funcionário, com fallback
- *     automático para o padrão já embutido em resolverTempoEfetivoReferencia.
- */
+     * Decide QUAL eficiência usar para fins de alerta, conforme o tipo de
+     * empresa — sem duplicar nenhuma fórmula: delega 100% para os métodos
+     * que já existem (calcularEficienciaLinhaPadrao / calcularEficienciaLinhaReferencia).
+     *   - "fabrica"        -> sempre Ficha (tempo padrão da etapa).
+     *   - qualquer outro tipo -> Referência do funcionário, com fallback
+     *     automático para o padrão já embutido em resolverTempoEfetivoReferencia.
+     */
     calcularEficienciaLinhaComRegra(linha, funcionario) {
       const tipoDeProducao = this.store.pegar_usuario?.tipo_de_producao
       return tipoDeProducao === 'fabrica'
@@ -2008,6 +2655,7 @@ export default {
 
       return { esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado }
     },
+
     calcularTotalFuncionario(funcionario) {
       if (!Array.isArray(funcionario?.linhas)) return 0
       return funcionario.linhas.reduce((soma, linha) => {
@@ -2214,23 +2862,29 @@ export default {
       const tempoDisponivel = this.calcularMinutosDisponiveisFuncionario(real)
       if (!tempoDisponivel) return 0
       return calcularEficiencia({ producaoPonderada, funcionarios: 1, tempoTrabalhado: tempoDisponivel })
-    },    calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
+    },
+
+    calcularEficienciaRegistroReferencia(quantidade, tempoProduzido, linha, funcionario) {
       const sam = this.resolverTempoEfetivoReferencia(funcionario, linha)
       if (!quantidade || !tempoProduzido || !sam) return 0
-      const efic = calcularEficiencia({
+      return calcularEficiencia({
         producaoPonderada: quantidade * sam,
         funcionarios: 1,
         tempoTrabalhado: tempoProduzido,
       })
-      return efic
     },
 
     // ── UTILITÁRIOS ───────────────────────────────────────
+    /**
+     * Regra ÚNICA de cor dos indicadores de eficiência da tela:
+     *   verde  -> dentro/acima da referência (>= LIMIAR_EFICIENCIA_REFERENCIA,
+     *             o mesmo limiar do monitor de produtividade)
+     *   vermelho -> abaixo da referência (destaque discreto)
+     *   neutro  -> sem produção calculada
+     */
     getEficClass(pct) {
-      if (pct >= 100) return 'efic-alta'
-      if (pct >= 75) return 'efic-media'
-      if (pct > 0) return 'efic-baixa'
-      return ''
+      if (!pct || pct <= 0) return ''
+      return pct >= LIMIAR_EFICIENCIA_REFERENCIA ? 'efic-alta' : 'efic-baixa'
     },
 
     // ══════════════════════════════════════════════════════════════
@@ -2243,7 +2897,7 @@ export default {
       return `${funcionarioId}::${opId || 'sem-op'}::${etapaId}::${hora}`
     },
 
-    /** Lê o status atual da célula (para o :class da bolinha e o :disabled do botão). */
+    /** Lê o status atual da célula (para o :class da bolinha e o botão de salvar). */
     statusCelula(funcionario, linha, hora) {
       if (!linha?.etapaId) return 'idle'
       const real = funcionario._funcRef || funcionario
@@ -2764,7 +3418,7 @@ export default {
         emitidoEm: new Date(),
         estabelecimento: this.store.pegar_usuario?.cnpj || '',
         dataProducao: this.dataSelecionada,
-        turno: this.turnoAtivo === 'manha' ? 'Manhã' : 'Tarde',
+        turno: this.rotuloTurno,
         ausencias: this.funcionariosDia
           .filter(f => f.ausencia)
           .map(f => ({
@@ -2890,7 +3544,7 @@ export default {
           calcularEficiencia,
           horaBloqueadaPorAusencia: this.horaBloqueadaPorAusencia.bind(this),
           dataProducao: this.dataSelecionada,
-          turno: this.turnoAtivo === 'manha' ? 'Manhã' : 'Tarde',
+          turno: this.rotuloTurno,
           empresa: this.store.pegar_usuario?.cnpj || '',
         })
         Swal.fire('Sucesso', 'Mapa de produção exportado com sucesso!', 'success')
@@ -3105,50 +3759,6 @@ export default {
 .setup-title span {
   font-size: 14px;
   color: #72907e;
-}
-
-.turno-switch {
-  display: flex;
-  gap: 6px;
-  background: #edf7f1;
-  padding: 5px;
-  border-radius: 16px;
-}
-
-.turno-btn {
-  height: 42px;
-  padding: 0 18px;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: #6d8c79;
-  font-weight: 700;
-  cursor: pointer;
-  transition: 0.2s;
-  font-size: 14px;
-}
-
-.turno-btn:hover {
-  background: rgba(13, 102, 50, .08);
-}
-
-.turno-btn.active {
-  background: linear-gradient(135deg, #0d6632, #118a43);
-  color: white;
-  box-shadow: 0 4px 14px rgba(13, 102, 50, .25);
-}
-
-.turno-config-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.horarios-config-inline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .horario-select-sm {
@@ -3452,8 +4062,142 @@ export default {
   padding: 0 16px;
 }
 
-/* ── TABLE ──────────────────────────────────────────── */
+/* ── BARRA DE HORAS ─────────────────────────────────── */
+.horas-toolbar {
+  background: white;
+  border: 1px solid #dceee3;
+  border-radius: 16px;
+  padding: .8rem 1rem;
+  margin-bottom: .75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+}
+
+.horas-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem 1rem;
+}
+
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  background: #edf7f1;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.seg-btn {
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #5d8470;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.seg-btn:hover {
+  background: rgba(13, 102, 50, .08);
+}
+
+.seg-btn.active {
+  background: linear-gradient(135deg, #0d6632, #118a43);
+  color: white;
+}
+
+.janelas summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5d8470;
+  list-style: none;
+}
+
+.janelas summary::-webkit-details-marker {
+  display: none;
+}
+
+.janelas summary::before {
+  content: '⚙ ';
+}
+
+.janelas-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.janela-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #052e14;
+}
+
+.janela-row strong {
+  width: 52px;
+}
+
+.horas-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hora-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #dceee3;
+  background: #f7faf8;
+  color: #93a89c;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: line-through;
+}
+
+.hora-chip.is-on {
+  background: white;
+  color: #052e14;
+  border-color: #118a43;
+  text-decoration: none;
+}
+
+.hora-chip-mark {
+  font-size: 11px;
+  color: #9aa5a1;
+}
+
+.hora-chip.is-filled .hora-chip-mark {
+  color: #1fae57;
+}
+
+.horas-vazio {
+  margin: 0;
+  font-size: 13px;
+  color: #8a6a00;
+}
+
+/* ── TABELA: só a região das horas rola ─────────────── */
 .table-wrapper {
+  --w-func: 200px;
+  --w-etapa: 250px;
+  --w-hora: 124px;
+  --w-total: 72px;
+  --w-efic: 132px;
   background: white;
   border-radius: 20px;
   border: 1px solid #e3f0e7;
@@ -3461,76 +4205,131 @@ export default {
 }
 
 .table-scroll {
-  overflow-x: auto;
+  /* Rolagem vertical é responsabilidade da PÁGINA (sem max-height):
+   * ao expandir o detalhamento, o conteúdo simplesmente cresce para
+   * baixo — sem scroll interno. Só o eixo horizontal rola aqui. */
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .apontamento-table {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 1556px;
   table-layout: fixed;
-}
-
-.apontamento-table tbody tr {
-  min-height: 56px;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: calc(var(--w-func) + var(--w-etapa) + var(--n-horas, 10) * var(--w-hora) + var(--w-total) + var(--w-efic));
 }
 
 .col-func {
-  width: 180px;
+  width: var(--w-func);
 }
 
 .col-etapa {
-  width: 230px;
+  width: var(--w-etapa);
 }
 
 .col-hora {
-  width: 190px;
+  width: var(--w-hora);
 }
 
 .col-total {
-  width: 80px;
+  width: var(--w-total);
 }
 
-.col-efic {
-  width: 128px;
+.col-efic-dia {
+  width: var(--w-efic);
 }
 
-.col-efic-ref {
-  width: 128px;
-}
-
-.apontamento-table thead {
-  background: linear-gradient(90deg, #0d6632, #084d24);
-}
-
-.apontamento-table th {
-  height: 48px;
+.apontamento-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 46px;
+  padding: 0 8px;
+  text-align: left;
+  background: #0d6632;
   color: white;
   font-size: 13px;
   font-weight: 700;
-  align-content: center;
-  padding: 0 8px;
-  text-align: left;
   white-space: nowrap;
-  box-sizing: border-box;
 }
 
 .apontamento-table td {
-  border-bottom: 1px solid #edf6f1;
-  padding: 8px 8px;
+  padding: 8px;
   vertical-align: middle;
-  box-sizing: border-box;
+  border-bottom: 1px solid #edf6f1;
+  background: white;
+}
+
+.apontamento-table tr.linha-extra td {
+  background: #f9fcfa;
+}
+
+.apontamento-table tr.primeira-linha td {
+  border-top: 2px solid #e3f0e7;
+}
+
+/* colunas fixas */
+.sticky-l,
+.sticky-r {
+  position: sticky;
+  z-index: 2;
+}
+
+.apontamento-table thead th.sticky-l,
+.apontamento-table thead th.sticky-r {
+  z-index: 5;
+}
+
+.sticky-l-1 {
+  left: 0;
+}
+
+.sticky-l-2 {
+  left: var(--w-func);
+}
+
+.sticky-r-1 {
+  right: 0;
+}
+
+.sticky-r-2 {
+  right: var(--w-efic);
+}
+
+.sticky-edge-l {
+  box-shadow: 6px 0 8px -6px rgba(5, 46, 20, .25);
+}
+
+.sticky-edge-r {
+  box-shadow: -6px 0 8px -6px rgba(5, 46, 20, .25);
+}
+
+.hora-th {
+  text-align: center !important;
+}
+
+.th-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .35);
+}
+
+.th-dot--ok {
+  background: #7ee2a3;
 }
 
 .func-col {
-  width: 180px;
-  min-width: 180px;
-  box-sizing: border-box;
+  vertical-align: top !important;
 }
 
 .func-info {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
 }
 
@@ -3542,25 +4341,43 @@ export default {
   flex-shrink: 0;
 }
 
-.func-info span {
+.func-info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  min-width: 0;
+}
+
+.func-nome {
   font-size: 13px;
   font-weight: 700;
+  text-align: justify;
   color: #052e14;
 }
 
-.extra-tag {
+.func-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #648673;
+}
+
+.func-resumo span+span {
   padding-left: 8px;
-  font-size: 12px;
+  border-left: 1px solid #dceee3;
+}
+
+.extra-tag {
+  font-size: 14px;
   font-weight: 700;
   color: #5d8972;
 }
 
 .etapa-col {
-  width: 230px;
-  min-width: 230px;
-  vertical-align: top;
-  padding-top: 10px;
-  box-sizing: border-box;
+  vertical-align: top !important;
 }
 
 .etapa-wrap {
@@ -3612,10 +4429,6 @@ export default {
   color: #d93b3b;
 }
 
-.linha-extra {
-  background: #f9fcfa;
-}
-
 .tempo-toggle-wrap {
   margin-top: 5px;
 }
@@ -3632,7 +4445,7 @@ export default {
   padding: 0 6px;
   cursor: pointer;
   width: 100%;
-  max-width: 240px;
+  max-width: 100%;
   transition: border-color .15s;
 }
 
@@ -3641,72 +4454,119 @@ export default {
   border-color: #0d6632;
 }
 
-.sem-referencia {
-  font-size: 10px;
-  color: #b0c5b8;
-  font-style: italic;
-}
-
-.hora-th {
-  width: 190px;
-  min-width: 190px;
-  text-align: center !important;
-  box-sizing: border-box;
-}
-
+/* célula de hora */
 .hora-td {
-  padding: 6px 6px;
-  vertical-align: middle;
-  box-sizing: border-box;
+  padding: 6px !important;
+  text-align: center;
+}
+
+.hora-card {
   position: relative;
-}
-
-.hora-box-outer {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.hora-box-inputs {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
+  gap: 4px;
 }
 
-/*
-  Container position:relative da bolinha de status. Fica só ao redor do
-  input de QUANTIDADE (não do de minutos), conforme pedido.
-*/
 .qtd-input-wrap {
   position: relative;
   display: inline-block;
 }
 
 .hora-input {
-  width: 52px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid #dceee3;
+  width: 76px;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid #cfe5d7;
+  background: #fff;
   text-align: center;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   font-family: inherit;
+  color: #052e14;
   transition: .15s;
+}
+
+.hora-input::placeholder {
+  color: #c3d4ca;
 }
 
 .hora-input:focus {
   outline: none;
-  border-color: #0d6632;
+  border-color: #118a43;
+  box-shadow: 0 0 0 4px rgba(17, 138, 67, .12);
 }
 
 .hora-input.tem-producao {
-  background: #e9f2ff;
-  border-color: #2b77d9;
-  color: #1454ad;
+  background: #f0faf4;
+  border-color: #118a43;
+}
+
+.hora-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #8ca998;
+}
+
+.tempo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.min-input {
+  width: 34px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #ddebe3;
+  text-align: center;
+  font-size: 11px;
+  background: #f8fcf9;
+  color: #69907b;
+}
+
+.min-label {
+  font-size: 10px;
+  color: #8ca998;
+}
+
+.hora-tr {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hora-ef {
+  min-width: 64px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 20px;
+  color: #9aa5a1;
+  background: #f4f4f4;
+}
+
+/* estados de eficiência (cores comunicam estado)
+ *   alta  -> dentro/acima da referência (verde suave)
+ *   baixa -> abaixo da referência (vermelho discreto + borda interna) */
+.efic-alta {
+  background: #d4f1df;
+  color: #0c6b34;
+}
+
+.efic-media {
+  background: #fff4cf;
+  color: #8a6a00;
+}
+
+.efic-baixa {
+  background: #ffe8e8;
+  color: #b12626;
+  box-shadow: inset 0 0 0 1px rgba(177, 38, 38, .28);
 }
 
 /*
@@ -3748,149 +4608,66 @@ export default {
 }
 
 .btn-salvar-celula {
-  width: 22px;
-  height: 22px;
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 24px;
+  height: 24px;
   border: none;
-  border-radius: 6px;
-  background: #eef6f1;
-  color: #0d6632;
-  font-size: 11px;
+  border-radius: 7px;
+  background: #fff4cf;
+  font-size: 12px;
   line-height: 1;
   cursor: pointer;
+}
+
+.hora-ausente-marker {
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  transition: .15s;
-}
-
-.btn-salvar-celula:hover:not(:disabled) {
-  background: #dcefe3;
-}
-
-.btn-salvar-celula:disabled {
-  opacity: .3;
-  cursor: default;
-}
-
-.tempo-wrap {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.min-input {
-  width: 36px;
-  height: 20px;
-  border-radius: 6px;
-  border: 1px solid #ddebe3;
-  text-align: center;
-  font-size: 10px;
-  background: #f8fcf9;
-  color: #69907b;
-}
-
-.min-label {
-  font-size: 10px;
-  color: #8ca998;
-}
-
-.efic-inline-col {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  bottom: 6px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  align-items: flex-end;
-  pointer-events: auto;
-}
-
-.efic-inline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  height: 18px;
-  border-radius: 4px;
-  padding: 0 6px;
+  border-radius: 10px;
+  background: #f4f4f4;
+  border: 1px dashed #d5d5d5;
+  color: #9a9a9a;
   font-size: 11px;
   font-weight: 700;
-  white-space: nowrap;
-  line-height: 1;
-  margin: 0;
 }
 
-.efic-inline-label {
-  font-size: 9px;
+/* total e eficiência do dia */
+.total-col {
+  text-align: center;
+  font-size: 15px;
   font-weight: 800;
-  opacity: 0.65;
-  letter-spacing: .02em;
+  color: #052e14;
 }
 
-.efic-inline--ref {
-  background: transparent !important;
-  border: 1px dashed currentColor;
+.efic-dia-col {
+  text-align: left;
+  vertical-align: middle !important;
 }
 
 .efic-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 64px;
-  height: 28px;
+  min-width: 70px;
+  height: 32px;
   border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   padding: 0 12px;
 }
 
-.efic-badge--ref {
-  background: transparent !important;
-  border: 1.5px dashed currentColor;
+.efic-dia-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #648673;
 }
 
-.efic-alta {
-  background: #d4f1df;
-  color: #0c6b34;
-}
-
-.efic-media {
-  background: #fff4cf;
-  color: #8a6a00;
-}
-
-.efic-baixa {
-  background: #ffe8e8;
-  color: #b12626;
-}
-
-.total-col {
-  width: 80px;
-  min-width: 80px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: #052e14;
-  box-sizing: border-box;
-}
-
-.efic-col {
-  width: 128px;
-  min-width: 128px;
-  text-align: center;
-  box-sizing: border-box;
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-.efic-col--ref {
-  background: rgba(109, 72, 201, 0.05);
-  border-left: 1px solid #e3f0e7;
-}
-
+/* ── MÓDULOS DE OP ──────────────────────────────────── */
 .ops-modulos-wrapper {
   display: flex;
   flex-direction: column;
@@ -3931,28 +4708,6 @@ export default {
 
 .op-module-header--empty .op-module-badge {
   color: #8a6a00;
-}
-
-.op-module-stats {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: #537664;
-  font-weight: 700;
-}
-
-.op-module-stats .stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.op-module-stats .stat strong {
-  color: #052e14;
-  font-weight: 800;
-  font-size: 13px;
 }
 
 /* ── OP HISTÓRICA (fora da lista de OPs ativas) ────── */
@@ -4007,36 +4762,9 @@ export default {
   color: #93a89c;
 }
 
-.hora-ausente-marker {
-  width: 100%;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: #f4f4f4;
-  border: 1px dashed #d5d5d5;
-  color: #9a9a9a;
-  font-size: 11px;
-  font-weight: 700;
-}
-
 /* ── FUNCIONÁRIO AUSENTE ────────────────────────────── */
 .linha-ausente {
   opacity: .55;
-}
-
-.func-info-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  justify-content: center;
-}
-
-.func-nome {
-  font-size: 13px;
-  font-weight: 700;
-  color: #052e14;
 }
 
 .btn-ausencia-toggle {
@@ -4062,7 +4790,7 @@ export default {
   align-items: center;
   flex-wrap: wrap;
   width: fit-content;
-  max-width: 150px;
+  max-width: 170px;
   font-size: 9px;
   font-weight: 700;
   line-height: 1.35;
@@ -4321,6 +5049,307 @@ export default {
   box-shadow: 0 4px 12px rgba(13, 102, 50, .2);
 }
 
+/* ── DETALHAMENTO DO PROFISSIONAL (painel expansível na tabela) ── */
+.btn-detalhar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  max-width: 100%;
+  text-align: left;
+  border: 1px solid #dceee3;
+  background: white;
+  color: #0d6632;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 7px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: .15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-detalhar:hover {
+  background: #e7f8ef;
+  border-color: #118a43;
+}
+
+.func-resumo-tr {
+  color: #0d6632 !important;
+  font-weight: 800 !important;
+}
+
+.linha-detalhe-td {
+  padding: 0 !important;
+  background: #f7fcf9;
+  border-bottom: 2px solid #dceee3;
+}
+
+.detalhe-panel {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detalhe-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detalhe-titulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #0d6632;
+}
+
+.detalhe-contexto {
+  font-size: 12px;
+  font-weight: 600;
+  color: #648673;
+}
+
+.detalhe-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.detalhe-card {
+  background: white;
+  border: 1px solid #dceee3;
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detalhe-card-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #648673;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detalhe-card-valor {
+  font-size: 16px;
+  font-weight: 800;
+  color: #052e14;
+}
+
+.detalhe-card--alta {
+  border-color: #b7e4c7;
+  background: linear-gradient(135deg, #ffffff, #f2fbf6);
+}
+
+.detalhe-card--alta .detalhe-card-valor {
+  color: #0c6b34;
+}
+
+.detalhe-card--media {
+  border-color: #f0df9a;
+  background: linear-gradient(135deg, #ffffff, #fffdf2);
+}
+
+.detalhe-card--media .detalhe-card-valor {
+  color: #8a6a00;
+}
+
+.detalhe-card--baixa {
+  border-color: #f3c6c6;
+  background: linear-gradient(135deg, #ffffff, #fff5f5);
+}
+
+.detalhe-card--baixa .detalhe-card-valor {
+  color: #b12626;
+}
+
+.detalhe-colunas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.detalhe-tabela-wrap {
+  background: white;
+  border: 1px solid #dceee3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+.detalhe-secao-titulo {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #537664;
+  margin-bottom: 6px;
+}
+
+.detalhe-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.detalhe-tabela th {
+  background: #f2f8f4;
+  color: #537664;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 5px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.detalhe-tabela td {
+  padding: 5px 8px;
+  border-top: 1px solid #eef6f1;
+  color: #052e14;
+  white-space: nowrap;
+}
+
+.detalhe-linha-ativa td {
+  background: #f7fcf9;
+  font-weight: 700;
+}
+
+.detalhe-ef-chip {
+  display: inline-block;
+  min-width: 38px;
+  text-align: center;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.detalhe-etapa-extra {
+  font-size: 10px;
+  color: #93a89c;
+  font-weight: 600;
+}
+
+/* ── EFICIÊNCIA DUPLA POR HORA (F = Ficha · TF = Tempo Fábrica) ── */
+.hora-ef-par {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.hora-ef-mini {
+  min-width: 42px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: #9aa5a1;
+  background: #f4f4f4;
+  white-space: nowrap;
+}
+
+.hora-ef-mini--vazio {
+  color: #c3d4ca;
+  background: #f8f8f8;
+}
+
+/* ── EFICIÊNCIA DO DIA: Ficha × Tempo Fábrica (alinhadas à esquerda) ── */
+.efic-dia-par {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.efic-dia-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa5a1;
+  background: #f4f4f4;
+}
+
+.efic-dia-item-label {
+  white-space: nowrap;
+}
+
+.efic-dia-item-valor {
+  font-weight: 800;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.efic-item--primario .efic-dia-item-valor {
+  font-size: 13.5px;
+}
+
+.efic-item--secundario {
+  opacity: .78;
+}
+
+/* ── FAIXA DE EFICIÊNCIA DO PERÍODO na barra de horários ── */
+.periodo-resumo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f7fcf9;
+  border: 1px dashed #dceee3;
+  font-size: 12px;
+  color: #537664;
+}
+
+.periodo-resumo-label {
+  font-weight: 700;
+}
+
+.periodo-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #9aa5a1;
+  background: #f4f4f4;
+}
+
+.periodo-resumo-total {
+  margin-left: auto;
+  font-weight: 800;
+  color: #0d6632;
+}
+
 /* ── RESPONSIVO ─────────────────────────────────────── */
 @media (max-width: 1024px) {
   .content-wrapper {
@@ -4334,16 +5363,37 @@ export default {
   .op-fields {
     grid-template-columns: 1fr;
   }
-}
 
-/* Tablets: mantém a tabela com scroll horizontal (já previsto acima),
-   mas dá mais espaço de toque para o botão de salvar e a bolinha de
-   status, que em telas touch precisam de alvo maior. */
-@media (max-width: 1024px) and (min-width: 769px) {
+  /* Tablet: colunas fixas mais enxutas; campos de toque preservados */
+  .table-wrapper {
+    --w-func: 150px;
+    --w-etapa: 190px;
+    --w-hora: 116px;
+    --w-efic: 112px;
+  }
+
+  .func-info img {
+    display: none;
+  }
+
+  /* Coluna de eficiência mais estreita no tablet */
+  .efic-dia-item {
+    font-size: 10px;
+    padding: 0 6px;
+  }
+
+  .efic-dia-item-valor {
+    font-size: 11px;
+  }
+
+  .btn-detalhar {
+    font-size: 9.5px;
+    padding: 3px 6px;
+  }
+
   .btn-salvar-celula {
-    width: 26px;
-    height: 26px;
-    font-size: 12px;
+    width: 28px;
+    height: 28px;
   }
 
   .save-dot {
@@ -4366,14 +5416,6 @@ export default {
     width: 100%;
   }
 
-  .turno-switch {
-    width: 100%;
-  }
-
-  .turno-btn {
-    flex: 1;
-  }
-
   .progress-footer {
     flex-direction: column;
     gap: 4px;
@@ -4383,18 +5425,13 @@ export default {
     flex-direction: column;
   }
 
-  .turno-config-group {
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .horarios-config-inline {
+  .seg {
     width: 100%;
   }
 
-  .horario-select-sm {
+  .seg-btn {
     flex: 1;
+    padding: 0 8px;
   }
 }
 </style>
