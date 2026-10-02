@@ -139,6 +139,7 @@ const EtapasRouter = require('./Routes/Etapas.router.js');
 const FinanceiroRouter = require('./Routes/Financeiro.router.js');
 const IntegracoesRouter = require('./Routes/Integracoes.router.js');
 const relatorioProducaoRouter = require('./Routes/relatorioProducaoRoutes.js');
+const analiseProfissionalRouter = require('./Routes/analiseProfissionalRoutes.js');
 const CycleCountRouter = require('./Routes/CycleCount.router.js');
 //ROTAS
 app.get('/teste', (req, res) => {
@@ -159,6 +160,7 @@ app.use(
   FinanceiroRouter,
   IntegracoesRouter,
   relatorioProducaoRouter,
+  analiseProfissionalRouter,
   CycleCountRouter
 );
 

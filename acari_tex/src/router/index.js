@@ -152,6 +152,18 @@ const routes = [
     }
   },
   {
+    path: '/equipe/profissional/:id',
+    name: 'analiseProfissional',
+    // route level code-splitting
+    // this generates a separate chunk (about.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    props: true,
+    component: () => import(/* webpackChunkName: "analiseProfissional" */ '../views/AnaliseProfissionalView.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
+  },
+  {
     path: '/relatorios',
     name: 'Relatórios',
     // route level code-splitting

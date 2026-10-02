@@ -61,6 +61,7 @@
           <!-- <button @click="tempodeProducao(funcionario.email)">Ver mais</button> -->
 
           <button class="registro" @click="abrirModalEditar(funcionario)">Editar</button>
+          <button class="analisar" @click="verDesempenho(funcionario)">Ver desempenho</button>
           <!-- <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome, funcionario.foto)">
             Registrar Produção
           </button> -->
@@ -627,6 +628,13 @@ export default {
     async cadastrar() {
       this.$router.push('/adicionar-profissional')
     },
+    verDesempenho(funcionario) {
+      this.$router.push({
+        name: 'analiseProfissional',
+        params: { id: funcionario.email }
+      })
+    },
+
     async tempodeProducao(email) {
       this.$router.push({
         name: 'tempoProducao',
@@ -998,6 +1006,15 @@ export default {
 .acoes-funcionario .registro {
   background-color: var(--verde-escuro);
   color: white;
+}
+
+.acoes-funcionario .analisar {
+  background-color: #818282;
+  color: #fff;
+}
+
+.acoes-funcionario .analisar:hover {
+  background-color: #717273;
 }
 
 .acoes-funcionario .registro:hover {

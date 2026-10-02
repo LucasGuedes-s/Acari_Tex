@@ -18,10 +18,24 @@
  *   Segunda a Quinta: 540 min (9h)
  *   Sexta: 480 min (8h)
  *   Sábado/Domingo: 0
+ *
+ * PRODUÇÃO CONCLUIDA (regra de negócio dos relatórios):
+ *   Os totais de produção (dia, funcionário e OP) contabilizam SOMENTE
+ *   peças efetivamente concluídas na etapa final do fluxo (regra única
+ *   `isEtapaFinal` de utils/etapaFinal.js, a mesma usada pelo restante
+ *   do backend). Quando a OP tem mais de uma etapa final no fluxo,
+ *   vale a ÚLTIMA do fluxo (ou a etapa `peca_final` configurada no
+ *   estabelecimento, quando a descrição casar exatamente).
+ *   Produção apontada em etapas intermediárias (costura, revisão
+ *   intermediária etc.) NÃO entra nesses totais — segue aparecendo
+ *   apenas na tabela "Produção por Etapa".
+ *   Eficiência, tempo trabalhado e ranking de eficiência continuam
+ *   considerando todos os apontamentos (regra igual ao frontend).
  */
 
 const { PrismaClient } = require('@prisma/client')
 const PDFDocument = require('pdfkit')
+const { isEtapaFinal } = require('../utils/etapaFinal')
 const prisma = new PrismaClient()
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -130,23 +144,104 @@ function normalizar(texto = '') {
     .replace(/\s+/g, ' ')
 }
 
+// A regra de etapa final é a MESMA usada em todo o backend:
+// require('../utils/etapaFinal').isEtapaFinal (ver topo do arquivo).
+
 // ══════════════════════════════════════════════════════════════════════════════
-// ETAPA FINAL (regra do frontend)
+// PRODUÇÃO CONCLUIDA — ETAPA FINAL POR OP + DEDUPLICAÇÃO
 // ══════════════════════════════════════════════════════════════════════════════
 
-function isEtapaFinal(descricao) {
-  if (!descricao) return false
-  const d = normalizar(descricao)
-  if (d.includes('revisao intermediaria') || d.includes('revisão intermediaria')) return false
-  return (
-    d.includes('final') ||
-    d.includes('revisão final') || d.includes('revisao final') ||
-    d.includes('revisão') || d.includes('revisao') ||
-    d.includes('acabamento') ||
-    d.includes('qualidade') ||
-    d.includes('revisar peça pronta') ||
-    d.includes('expedição') || d.includes('expedicao')
+/**
+ * Decide quais etapas representam a CONCLUSÃO de cada OP.
+ *
+ * Prioridade (mesma ideia usada em Relatorios.services.js e OP.services.js):
+ *   1. `peca_final` configurada no estabelecimento: se a descrição da etapa
+ *      casar exatamente (normalizada), só ela conta como final.
+ *   2. Caso contrário, entre as etapas da OP que casam com a regra única
+ *      `isEtapaFinal`, vale a ÚLTIMA do fluxo (ordem em PecasEtapas).
+ *      Ex.: revisão → acabamento → revisão final conta somente "revisão final".
+ *
+ * @returns {Map<number, Set<number>>} Map<id_da_op, Set<id_da_funcao>>
+ */
+function montarEtapasFinaisPorOp({ opsComEtapas, pecaFinalConfigurada }) {
+  const pecaFinalNorm = normalizar(pecaFinalConfigurada || '')
+  const resultado = new Map()
+
+  for (const op of opsComEtapas || []) {
+    const etapasFinais = (op.etapas || []).filter(e => isEtapaFinal(e.etapa?.descricao))
+    if (!etapasFinais.length) continue
+
+    let escolhidas = etapasFinais
+
+    if (pecaFinalNorm) {
+      const exata = etapasFinais.filter(e => normalizar(e.etapa.descricao) === pecaFinalNorm)
+      if (exata.length) escolhidas = exata
+    }
+
+    if (escolhidas.length > 1) {
+      escolhidas = [escolhidas[escolhidas.length - 1]]
+    }
+
+    resultado.set(op.id_da_op, new Set(escolhidas.map(e => e.id_da_funcao)))
+  }
+
+  return resultado
+}
+
+/**
+ * Remove lançamentos duplicados de produção.
+ *
+ * A duplicidade surge de sincronização offline/reapontamentos que não
+ * bateram com a chave única do banco:
+ *   (id_funcionario, id_da_funcao, id_da_op, dataReferencia, hora_registro, tipoRegistro)
+ *
+ * Regras:
+ *   - Chave de dedupe: funcionário + OP + etapa + data (fuso SP) + hora
+ *     registrada + tipo de registro (dataReferencia quando existir;
+ *     senão data_inicio convertida para o fuso de São Paulo).
+ *   - Estornos (quantidade_pecas < 0) nunca são descartados.
+ *   - Entre duplicatas mantém o registro de MAIOR id (lançamento mais
+ *     recente, ex.: reapontamento sobrescrevendo valor antigo).
+ *
+ * @returns {{ producoes: Array, removidos: number }}
+ */
+function removerProducoesDuplicadas(producoes) {
+  const melhores = new Map()
+
+  for (const prod of producoes) {
+    if (Number(prod.quantidade_pecas || 0) < 0) continue // estorno: preservar
+
+    const dataReferenciaStr = prod.dataReferencia
+      ? dateToSP(prod.dataReferencia)
+      : (prod.data_inicio ? dateToSP(prod.data_inicio) : '')
+
+    const chave = [
+      prod.id_funcionario,
+      prod.id_da_op,
+      prod.id_da_funcao,
+      dataReferenciaStr,
+      prod.hora_registro ?? '',
+      prod.tipoRegistro ?? 'principal',
+    ].join('|')
+
+    const atual = melhores.get(chave)
+    if (!atual || Number(prod.id_da_producao) > Number(atual.id_da_producao)) {
+      melhores.set(chave, prod)
+    }
+  }
+
+  const filtradas = producoes.filter(p =>
+    Number(p.quantidade_pecas || 0) < 0 || melhores.get([
+      p.id_funcionario,
+      p.id_da_op,
+      p.id_da_funcao,
+      p.dataReferencia ? dateToSP(p.dataReferencia) : (p.data_inicio ? dateToSP(p.data_inicio) : ''),
+      p.hora_registro ?? '',
+      p.tipoRegistro ?? 'principal',
+    ].join('|')) === p
   )
+
+  return { producoes: filtradas, removidos: producoes.length - filtradas.length }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -356,6 +451,8 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
             tempo_padrao: true,
           },
         },
+        // dataReferencia e tipoRegistro são campos ESCALARES de Producao
+        // (não relações): o Prisma já os retorna no objeto — NÃO entrar no include.
       },
       orderBy: [
         { id_funcionario: 'asc' },
@@ -438,6 +535,48 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
   })
   const opsMap = new Map(ops.map(o => [o.id_da_op, o]))
 
+  // ═══ Produção concluída: etapa final de cada OP + dedupe de lançamentos ═══
+  const opsComEtapas = await prisma.pecasOP.findMany({
+    where: {
+      id_Estabelecimento: cnpj,
+      id_da_op: { in: opIds },
+    },
+    select: {
+      id_da_op: true,
+      etapas: {
+        select: {
+          id_da_funcao: true,
+          etapa: { select: { descricao: true } },
+        },
+      },
+    },
+  })
+  const etapasFinaisPorOp = montarEtapasFinaisPorOp({
+    opsComEtapas,
+    pecaFinalConfigurada: estabelecimento.peca_final,
+  })
+
+  const { producoes: producoesValidas, removidos: duplicadosRemovidos } =
+    removerProducoesDuplicadas(producoes)
+  if (duplicadosRemovidos > 0) {
+    console.log(`[relatorioProducao] ${duplicadosRemovidos} lançamento(s) duplicado(s) ignorado(s) na consolidação.`)
+  }
+
+  // Soma líquida (positivos − estornos) por OP/etapa/funcionário/dia/hora.
+  // Usada para zerar etapas cuja produção foi toda estornada.
+  // (mesma base de data do agrupamento por dia: data_inicio)
+  const saldoPorChave = new Map()
+  for (const prod of producoesValidas) {
+    const chave = [
+      prod.id_da_op,
+      prod.id_da_funcao,
+      prod.id_funcionario,
+      prod.data_inicio ? dateToSP(prod.data_inicio) : '',
+      prod.hora_registro ?? '',
+    ].join('|')
+    saldoPorChave.set(chave, (saldoPorChave.get(chave) || 0) + Number(prod.quantidade_pecas || 0))
+  }
+
   // ═══ Buscar funcionários ativos ═══
   const funcionariosAtivos = await prisma.usuarios.count({
     where: { estabelecimentoCnpj: cnpj, status: 'ativo' },
@@ -453,14 +592,19 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
 
   // ═══ Consolidação por OP ═══
   // Map<id_da_op, { descricao, producao, meta, eficiencia, tempoTrabalhado, tempoFicha, tempoReferencia }>
+  // `producao` = peças CONCLUÍDAS na etapa final da OP (ver montarEtapasFinaisPorOp).
   const opsConsolidado = new Map()
+
+  // ═══ Consolidação "Produção registrada" (todas as etapas, com dedupe) ═══
+  // Map<id_da_op, { registrada }>
+  const registradaPorOp = new Map()
 
   // ═══ Consolidação por etapa ═══
   // Map<descricao, { producao, meta, eficiencia, tempoTrabalhado, tempoFicha }>
   const etapasConsolidado = new Map()
 
-  // ═══ Processar cada registro de produção ═══
-  for (const prod of producoes) {
+  // ═══ Processar cada registro de produção (após dedupe) ═══
+  for (const prod of producoesValidas) {
     const funcEmail = prod.id_funcionario
     const funcNome = prod.producao_funcionario?.nome || funcEmail
     const funcFoto = prod.producao_funcionario?.foto || null
@@ -494,6 +638,7 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       })
     }
     const dia = diasMap.get(diaStr)
+    // "producao" = apontamentos do dia (todas as etapas); totais concluídos são calculados depois
     dia.producao += quantidade
     dia.funcionariosSet.add(funcEmail)
     dia.tempoTrabalhado += tempoProduzido
@@ -520,11 +665,31 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       })
     }
     const func = funcionariosMap.get(funcEmail)
+    // "producao" = apontamentos do funcionário (todas as etapas); concluídas são calculadas depois
     func.producao += quantidade
     func.diasTrabalhadosSet.add(diaStr)
     func.tempoRegistrado += tempoProduzido
     func.tempoFicha += quantidade * (etapaTempoPadrao || 0)
     func.tempoReferencia += quantidade * tempoEfetivo
+
+    // ── "Produção registrada" (todas as etapas, já sem duplicatas) ──
+    if (!registradaPorOp.has(idOp)) {
+      registradaPorOp.set(idOp, { registrada: 0 })
+    }
+    registradaPorOp.get(idOp).registrada += quantidade
+
+    // ── Produção CONCLUÍDA: somente a etapa final do fluxo da OP ──
+    // (zerada quando o saldo da chave foi todo estornado)
+    const idsEtapasFinais = etapasFinaisPorOp.get(idOp)
+    const ehEtapaFinalDaOp = idsEtapasFinais?.has(etapaId) || false
+    const saldoLiquido = saldoPorChave.get([
+      idOp,
+      etapaId,
+      funcEmail,
+      diaStr,
+      prod.hora_registro ?? '',
+    ].join('|')) || 0
+    const quantidadeConcluida = ehEtapaFinalDaOp && saldoLiquido > 0 ? quantidade : 0
 
     // ── Inicializar OP ──
     if (!opsConsolidado.has(idOp)) {
@@ -542,7 +707,7 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       })
     }
     const opCons = opsConsolidado.get(idOp)
-    opCons.producao += quantidade
+    opCons.producao += quantidadeConcluida
     opCons.funcionariosSet.add(funcEmail)
     opCons.tempoTrabalhado += tempoProduzido
     opCons.tempoFicha += quantidade * (etapaTempoPadrao || 0)
@@ -575,6 +740,7 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       ? Math.round((dia.tempoReferencia / dia.tempoTrabalhado) * 10000) / 100
       : 0
     dia.funcionarios = dia.funcionariosSet.size
+    dia.producaoConcluida = 0
   }
 
   // Por funcionário
@@ -586,6 +752,23 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       ? Math.round((func.tempoReferencia / func.tempoRegistrado) * 10000) / 100
       : 0
     func.diasTrabalhados = func.diasTrabalhadosSet.size
+    func.producaoConcluida = 0
+  }
+
+  // ═══ Produção CONCLUÍDA (etapa final), por dia e funcionário ═══
+  // Mesma base de data do agrupamento por dia (data_inicio).
+  for (const prod of producoesValidas) {
+    if (Number(prod.quantidade_pecas || 0) <= 0) continue // estornos não somam
+
+    const idsEtapasFinais = etapasFinaisPorOp.get(prod.id_da_op)
+    if (!idsEtapasFinais || !idsEtapasFinais.has(prod.id_da_funcao)) continue
+
+    const diaStrProd = prod.data_inicio ? dateToSP(prod.data_inicio) : ''
+    const dia = diasMap.get(diaStrProd)
+    if (dia) dia.producaoConcluida += prod.quantidade_pecas
+
+    const func = funcionariosMap.get(prod.id_funcionario)
+    if (func) func.producaoConcluida += prod.quantidade_pecas
   }
 
   // Por OP
@@ -594,6 +777,7 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       ? Math.round((opC.tempoReferencia / opC.tempoTrabalhado) * 10000) / 100
       : 0
     opC.funcionarios = opC.funcionariosSet.size
+    opC.producaoRegistrada = registradaPorOp.get(opC.idOp)?.registrada || 0
   }
 
   // Por etapa
@@ -605,7 +789,8 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
 
   // ═══ Totais gerais ═══
   const dias = [...diasMap.values()].sort((a, b) => a.data.localeCompare(b.data))
-  const producaoTotal = dias.reduce((s, d) => s + d.producao, 0)
+  // PRODUÇÃO TOTAL = peças efetivamente concluídas na etapa final do fluxo
+  const producaoTotal = dias.reduce((s, d) => s + (d.producaoConcluida || 0), 0)
   const metaTotal = dias.reduce((s, d) => s + d.meta, 0)
   const tempoTrabalhadoTotal = dias.reduce((s, d) => s + d.tempoTrabalhado, 0)
   const tempoFichaTotal = dias.reduce((s, d) => s + d.tempoFicha, 0)
@@ -616,13 +801,15 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
   const eficienciaGeralFicha = tempoTrabalhadoTotal > 0
     ? Math.round((tempoFichaTotal / tempoTrabalhadoTotal) * 10000) / 100
     : 0
+  // Produção apontada em todas as etapas (mantida apenas como informação)
+  const producaoRegistradaTotalFinal = [...registradaPorOp.values()].reduce((s, o) => s + o.registrada, 0)
 
-  // ═══ Ranking de funcionários ═══
+  // ═══ Ranking de funcionários (ordenado pela produção CONCLUÍDA) ═══
   const rankingFuncionarios = [...funcionariosMap.values()]
-    .sort((a, b) => b.producao - a.producao)
+    .sort((a, b) => b.producaoConcluida - a.producaoConcluida || b.producao - a.producao)
 
-  // ═══ Melhor/pior dia ═══
-  const diasComProducao = dias.filter(d => d.producao > 0)
+  // ═══ Melhor/pior dia (pela produção concluída) ═══
+  const diasComProducao = dias.filter(d => (d.producaoConcluida || 0) > 0)
   const melhorDia = diasComProducao.length > 0
     ? diasComProducao.reduce((max, d) => d.eficiencia > max.eficiencia ? d : max, diasComProducao[0])
     : null
@@ -630,10 +817,15 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
     ? diasComProducao.reduce((min, d) => d.eficiencia < min.eficiencia ? d : min, diasComProducao[0])
     : null
 
-  // ═══ Melhor funcionário ═══
-  const funcsComProd = rankingFuncionarios.filter(f => f.producao > 0)
+  // ═══ Melhor funcionário (concluídas × eficiência de referência; sem mutar o ranking) ═══
+  const funcsComProd = rankingFuncionarios.filter(f => (f.producaoConcluida || 0) > 0)
   const melhorFuncionario = funcsComProd.length > 0
-    ? funcsComProd.reduce((max, f) => f.eficienciaReferencia > max.eficienciaReferencia ? f : max, funcsComProd[0])
+    ? funcsComProd.reduce((max, f) => {
+        if (f.producaoConcluida !== max.producaoConcluida) {
+          return f.producaoConcluida > max.producaoConcluida ? f : max
+        }
+        return f.eficienciaReferencia > max.eficienciaReferencia ? f : max
+      }, funcsComProd[0])
     : null
 
   return {
@@ -643,9 +835,10 @@ async function buscarEConsolidar(cnpj, inicio, fim) {
       eficienciaGeral,
       eficienciaGeralFicha,
       funcionariosAtivos,
-      funcionariosComProducao: rankingFuncionarios.filter(f => f.producao > 0).length,
+      funcionariosComProducao: rankingFuncionarios.filter(f => (f.producaoConcluida || 0) > 0 || (f.producao || 0) > 0).length,
       opsCount: opsConsolidado.size,
       diasTrabalhados: diasComProducao.length,
+      producaoRegistradaTotal: producaoRegistradaTotalFinal,
       tempoTrabalhadoTotal,
       tempoFichaTotal,
       tempoReferenciaTotal,
@@ -762,16 +955,22 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
     doc.text('Fórmula utilizada', 55, yAtual + 2)
     yAtual += 18
 
-    doc.rect(45, yAtual, LARGURA_UTIL, 28).fill(COR.fundoCard)
-    doc.rect(45, yAtual, LARGURA_UTIL, 28).lineWidth(0.5).stroke(COR.linha)
+    doc.rect(45, yAtual, LARGURA_UTIL, 40).fill(COR.fundoCard)
+    doc.rect(45, yAtual, LARGURA_UTIL, 40).lineWidth(0.5).stroke(COR.linha)
 
     doc.fontSize(8.5).font('Helvetica-Bold').fillColor(COR.primariaEscura)
     doc.text('Eficiência (%) = (Σ Peças × SAM × 100) ÷ (Funcionários × Tempo Trabalhado)', 52, yAtual + 5, { width: LARGURA_UTIL - 14 })
 
     doc.fontSize(7.5).font('Helvetica').fillColor(COR.textoSuave)
-    doc.text('SAM = Tempo de Referência do funcionário para a etapa ou, quando não houver, o Tempo Padrão da Ficha Técnica.', 52, yAtual + 17, { width: LARGURA_UTIL - 14 })
+    doc.text('SAM = Tempo de Referência do funcionário para a etapa ou, quando não houver, o Tempo Padrão da Ficha Técnica.', 52, yAtual + 16, { width: LARGURA_UTIL - 14 })
 
-    yAtual += 36
+    doc.text(
+      'Produção concluída considera somente a etapa final do fluxo de cada OP; etapas intermediárias aparecem apenas em "Produção por Etapa".',
+      52, yAtual + 27,
+      { width: LARGURA_UTIL - 14 }
+    )
+
+    yAtual += 48
 
     // ══════════════════════════════════════════════════════════════
     // RESUMO EXECUTIVO
@@ -784,7 +983,8 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
     yAtual += 18
 
     const cardsResumo = [
-      { label: 'PRODUÇÃO TOTAL', valor: fmtQtd(dados.producaoTotal), cor: COR.texto },
+      { label: 'PRODUÇÃO CONCLUÍDA', valor: fmtQtd(dados.producaoTotal), cor: COR.texto },
+      { label: 'PRODUÇÃO REGISTRADA', valor: fmtQtd(dados.producaoRegistradaTotal), cor: COR.textoSuave },
       { label: 'META TOTAL', valor: fmtQtd(dados.metaTotal), cor: COR.texto },
       { label: 'EFICIÊNCIA', valor: fmtPct(dados.eficienciaGeral), cor: corEficiencia(dados.eficienciaGeral) },
       { label: 'FUNCIONÁRIOS', valor: `${dados.funcionariosComProducao}/${dados.funcionariosAtivos}`, cor: COR.texto },
@@ -830,9 +1030,10 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
     yAtual += 18
 
     const colunasDiario = [
-      { header: 'Data', width: 60, align: 'left' },
+      { header: 'Data', width: 55, align: 'left' },
       { header: 'Dia', width: 45, align: 'left' },
-      { header: 'Produção', width: 55, align: 'right' },
+      { header: 'Concluídas', width: 58, align: 'right' },
+      { header: 'Apontadas', width: 58, align: 'right' },
       { header: 'Meta', width: 50, align: 'right' },
       { header: 'Eficiência', width: 60, align: 'right' },
       { header: 'Funcionários', width: 55, align: 'right' },
@@ -864,7 +1065,8 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
       const linha = [
         { texto: `${diaNum}/${String(mes).padStart(2, '0')}`, align: 'left' },
         { texto: nomeDia, align: 'left' },
-        { texto: fmtQtd(dia.producao), align: 'right' },
+        { texto: fmtQtd(dia.producaoConcluida), align: 'right' },
+        { texto: fmtQtd(dia.producao), align: 'right', cor: COR.textoSuave },
         { texto: dia.meta > 0 ? fmtQtd(dia.meta) : '—', align: 'right' },
         { texto: dia.producao > 0 ? fmtPct(dia.eficiencia) : '—', align: 'right', cor: dia.producao > 0 ? corEficiencia(dia.eficiencia) : COR.textoSuave },
         { texto: String(dia.funcionarios), align: 'right' },
@@ -896,8 +1098,9 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
 
       const colunasRanking = [
         { header: 'Pos.', width: 30, align: 'center' },
-        { header: 'Funcionário', width: 120, align: 'left' },
-        { header: 'Produção', width: 55, align: 'right' },
+        { header: 'Funcionário', width: 110, align: 'left' },
+        { header: 'Concluídas', width: 55, align: 'right' },
+        { header: 'Apontadas', width: 55, align: 'right' },
         { header: 'Efic. Ficha', width: 55, align: 'right' },
         { header: 'Efic. Ref.', width: 55, align: 'right' },
         { header: 'Dias', width: 30, align: 'right' },
@@ -924,7 +1127,8 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         const linha = [
           { texto: medalha, align: 'center' },
           { texto: func.nome || func.email, align: 'left' },
-          { texto: fmtQtd(func.producao), align: 'right' },
+          { texto: fmtQtd(func.producaoConcluida), align: 'right' },
+          { texto: fmtQtd(func.producao), align: 'right', cor: COR.textoSuave },
           { texto: func.producao > 0 ? fmtPct(func.eficienciaFicha) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaFicha) : COR.textoSuave },
           { texto: func.producao > 0 ? fmtPct(func.eficienciaReferencia) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaReferencia) : COR.textoSuave },
           { texto: String(func.diasTrabalhados), align: 'right' },
@@ -957,8 +1161,9 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
 
       const colunasOp = [
         { header: 'OP', width: 40, align: 'center' },
-        { header: 'Descrição', width: 110, align: 'left' },
-        { header: 'Produção', width: 55, align: 'right' },
+        { header: 'Descrição', width: 100, align: 'left' },
+        { header: 'Concluídas', width: 55, align: 'right' },
+        { header: 'Apontadas', width: 55, align: 'right' },
         { header: 'Meta', width: 50, align: 'right' },
         { header: 'Eficiência', width: 60, align: 'right' },
         { header: 'Funcionários', width: 50, align: 'right' },
@@ -984,6 +1189,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
           { texto: String(op.idOp), align: 'center' },
           { texto: (op.descricao || '—').substring(0, 40), align: 'left' },
           { texto: fmtQtd(op.producao), align: 'right' },
+          { texto: fmtQtd(op.producaoRegistrada), align: 'right', cor: COR.textoSuave },
           { texto: op.metaTotal > 0 ? fmtQtd(op.metaTotal) : '—', align: 'right' },
           { texto: op.producao > 0 ? fmtPct(op.eficiencia) : '—', align: 'right', cor: op.producao > 0 ? corEficiencia(op.eficiencia) : COR.textoSuave },
           { texto: String(op.funcionarios), align: 'right' },
@@ -1012,7 +1218,15 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
       doc.fontSize(11).font('Helvetica-Bold').fillColor(COR.texto)
       doc.rect(45, yAtual, 3, 14).fill(COR.primaria)
       doc.text('Produção por Etapa', 55, yAtual + 2)
-      yAtual += 18
+      yAtual += 16
+
+      doc.fontSize(7.5).font('Helvetica').fillColor(COR.textoSuave)
+      doc.text(
+        'Apontamentos de todas as etapas do fluxo (inclui etapas intermediárias) — NÃO somar como produção concluída.',
+        55, yAtual + 1,
+        { width: LARGURA_UTIL - 10 }
+      )
+      yAtual += 14
 
       const colunasEtapa = [
         { header: 'Etapa', width: 150, align: 'left' },
@@ -1077,7 +1291,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         titulo: '🏆 Melhor Dia',
         campos: [
           { label: 'Data', valor: `${diaNum}/${String(mes).padStart(2, '0')} (${nomeDia})` },
-          { label: 'Produção', valor: fmtQtd(dados.melhorDia.producao) },
+          { label: 'Concluídas', valor: fmtQtd(dados.melhorDia.producaoConcluida) },
           { label: 'Eficiência', valor: fmtPct(dados.melhorDia.eficiencia), cor: corEficiencia(dados.melhorDia.eficiencia) },
         ],
       })
@@ -1091,7 +1305,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         titulo: '📉 Pior Dia',
         campos: [
           { label: 'Data', valor: `${diaNum}/${String(mes).padStart(2, '0')} (${nomeDia})` },
-          { label: 'Produção', valor: fmtQtd(dados.piorDia.producao) },
+          { label: 'Concluídas', valor: fmtQtd(dados.piorDia.producaoConcluida) },
           { label: 'Eficiência', valor: fmtPct(dados.piorDia.eficiencia), cor: corEficiencia(dados.piorDia.eficiencia) },
         ],
       })
@@ -1102,7 +1316,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         titulo: '🏆 Melhor Funcionário',
         campos: [
           { label: 'Nome', valor: dados.melhorFuncionario.nome },
-          { label: 'Produção', valor: fmtQtd(dados.melhorFuncionario.producao) },
+          { label: 'Concluídas', valor: fmtQtd(dados.melhorFuncionario.producaoConcluida) },
           { label: 'Eficiência', valor: fmtPct(dados.melhorFuncionario.eficienciaReferencia), cor: corEficiencia(dados.melhorFuncionario.eficienciaReferencia) },
         ],
       })
@@ -1204,4 +1418,14 @@ async function gerarRelatorioProducao(cnpj, params) {
 
 module.exports = {
   gerarRelatorioProducao,
+  // Exportados para testes (tests/relatorioProducao_test.js)
+  montarEtapasFinaisPorOp,
+  removerProducoesDuplicadas,
+  // Reaproveitados pela análise individual de profissionais
+  // (Services/analiseProfissionalService.js) — mesma resolução de SAM,
+  // mesmo dedupe e mesmas datas em fuso SP do relatório.
+  dateToSP,
+  parseDataUTC,
+  normalizar,
+  resolverSAM,
 }
