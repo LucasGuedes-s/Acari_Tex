@@ -744,6 +744,7 @@ export default {
     },
 
     isFabrica() {
+      
       return this.tipoProducao === 'fabrica'
     },
 
@@ -1059,7 +1060,8 @@ export default {
           this.funcionariosDia = []
           this.dataCarregada = dataDaRequisicao
           return
-        }
+        } 
+       
 
         const usuario = this.store.pegar_usuario
         this.tipoProducao =
@@ -1067,7 +1069,13 @@ export default {
           meta.Estabelecimento?.tipo_de_producao ||
           meta.tipo_de_producao ||
           null
-
+         console.log('tipoProducao', {
+          usuario: usuario.tipo_de_producao,
+          estab: meta.Estabelecimento?.tipo_de_producao,
+          meta: meta.tipo_de_producao,
+          final: this.tipoProducao,
+          etapasPorIdSize: this.etapasPorId.size,
+        })
         this.opsAtivas = (meta.pecas || []).map(p => ({
           pecaId: p.id_da_op,
           metaDia: p.meta || 0,
@@ -1157,6 +1165,21 @@ export default {
         // Restaura as escolhas de tempo de referência que o usuário
         // fez no Registro de Produção (salvas no localStorage).
         this.restaurarModoTempoReferencia()
+        const f = this.funcionariosDia.find(f => (f.linhas || []).length)
+if (f) {
+  for (const l of f.linhas) {
+    console.log('REF DEBUG', {
+      func: f.nome,
+      etapaId: l.etapaId,
+      opId: l.opId,
+      modoTempo: l.modoTempo,
+      refSelecionada: l.referenciaSelecionadaId,
+      tempoFicha: l.tempoPadrao,
+      etapaNoIndice: this.etapasPorId.get(l.etapaId),
+      resolvido: resolverTempoReferenciaComOrigem(f, l, this.etapasPorId, null, this.filtro?.data),
+    })
+  }
+}
       } catch (err) {
         console.error(err)
         this.carregandoMeta = false

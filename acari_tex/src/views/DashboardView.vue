@@ -97,13 +97,13 @@
 
             <!-- <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" /> -->
-            <GraficoEtapas class="mb-4" />
+            <!-- <GraficoEtapas class="mb-4" /> -->
             <!-- <GradicoProducaoPorEtapa class="mb-4" />-->
 
             <!--<GraficoProducaoIndividual :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" /> 
             <ProducaoPorPeca v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" /> -->
-            <GraficoProducaoPecas class="mb-4"  v-if="producao?.producao?.producaoDia?.funcionarios?.length"/>
+            <!-- <GraficoProducaoPecas class="mb-4"  v-if="producao?.producao?.producaoDia?.funcionarios?.length"/> -->
 
             <GraficosIntercorrencias :porClassificacao="porClassificacao" :porNotas="porNotas"  v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :linhaTemporal="linhaTemporal" :porFuncionario="porFuncionario" />
@@ -164,11 +164,11 @@ import SidebarNav from '@/components/Sidebar.vue';
 //import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
 //import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
 //import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
-import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
+// import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
 import GraficoMetaProducao from '@/components/GraficoMetaProducao.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
 //import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
-import GraficoEtapas from '@/components/GraficoEtapas.vue';
+// import GraficoEtapas from '@/components/GraficoEtapas.vue';
 
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import CarregandoTela from '@/components/carregandoTela.vue';
@@ -190,13 +190,13 @@ export default {
     // GraficoProducaoTotal,
     // GraficoProducaoIndividual,
     // ProducaoPorPeca,
-    GraficoProducaoPecas,
+    // GraficoProducaoPecas,
     GraficoMetaProducao,
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
     //GradicoProducaoPorEtapa,
-    GraficoEtapas,
+    // GraficoEtapas,
   },
   data() {
     return {

@@ -93,7 +93,7 @@ const producoes = [
 ]
 
 const ctx = {
-  etapasReferenciaMap,
+  referenciasPorEtapa: etapasReferenciaMap,
   funcionarioEmail: 'joao@empresa.com',
   opsMap: new Map([[100, { id_da_op: 100, descricao: 'Camiseta branca', quantidade_pecas: 500 }]]),
 }
@@ -105,10 +105,10 @@ verificar('opsTrabalhadas', agregado.resumo.opsTrabalhadas, 3)
 verificar('etapasTrabalhadas', agregado.resumo.etapasTrabalhadas, 2)
 verificar('horasTrabalhadas (135min)', agregado.resumo.horasTrabalhadas, 2.25)
 
-// tempoReferencia total = 100×0.5 + 50×0.6 + 10×1.0 = 90 → 90/135 = 66.67%
-verificar('eficiência Tempo Fábrica (66.67)', agregado.resumo.eficienciaReferencia, 66.67)
-// tempoFicha total = 100×1 + 50×1 + 10×1 = 160 → 160/135 = 118.52%
-verificar('eficiência Ficha (118.52)', agregado.resumo.eficienciaFicha, 118.52)
+// tempoReferencia total = 100×0.5 + 50×0.6 + 10×1.0 = 90 → 90/135 = 66.67 → Math.round = 67
+verificar('eficiência Tempo Fábrica (67)', agregado.resumo.eficienciaReferencia, 67)
+// tempoFicha total = 100×1 + 50×1 + 10×1 = 160 → 160/135 = 118.52 → Math.round = 119
+verificar('eficiência Ficha (119)', agregado.resumo.eficienciaFicha, 119)
 // tempo médio = 135/160 = 0.84
 verificar('tempoMedioPorPeca (0.84)', agregado.resumo.tempoMedioPorPeca, 0.84)
 // TR médio ponderado = 90/160 = 0.56
@@ -120,7 +120,7 @@ verificar('porOp OP100: TR individual (0.5)', op100.tempoReferenciaIndividual, 0
 verificar('porOp OP100: origem TR = peca', op100.origemTempoReferencia, 'peca')
 verificar('porOp OP100: padrão da etapa (1)', op100.tempoPadrao, 1)
 verificar('porOp OP100: realizado/peça (0.6)', op100.tempoRealizadoPorPeca, 0.6)
-verificar('porOp OP100: eficiência Tempo Fábrica (83.33)', op100.eficienciaReferencia, 83.33)
+verificar('porOp OP100: eficiência Tempo Fábrica (83)', op100.eficienciaReferencia, 83)
 // capacidade = floor(60 / 0.5) = 120
 verificar('porOp OP100: capacidade (120)', op100.capacidade, 120)
 
@@ -133,11 +133,12 @@ verificar('porOp OP300: TR = padrão da etapa (1)', op300.tempoReferenciaIndivid
 verificar('porOp OP300: origem TR = padrao_ficha', op300.origemTempoReferencia, 'padrao_ficha')
 
 verificar('porOp ordenado por produção desc', agregado.porOp.map(r => r.idOp), [100, 200, 300])
-// A chave do dia usa dateToSP (fuso SP), igual ao relatório: data_inicio é
-// meia-noite UTC → em SP cai na data anterior (comportamento já existente).
-verificar('porDia: dias presentes (fuso SP, igual ao relatório)', agregado.porDia.map(d => d.data),
-  ['2026-09-09', '2026-09-10', '2026-09-11'])
-verificar('porDia dia1: eficiência (83.33)', agregado.porDia[0].eficienciaReferencia, 83.33)
+// A chave do dia segue a REGRA HÍBRIDA OFICIAL: data_inicio gravada como
+// meia-noite UTC preserva o dia gravado (componentes UTC) — o dia 10 fica
+// no dia 10, sem deslocamento de fuso.
+verificar('porDia: dias presentes (dia gravado preservado)', agregado.porDia.map(d => d.data),
+  ['2026-09-10', '2026-09-11', '2026-09-12'])
+verificar('porDia dia1: eficiência (83)', agregado.porDia[0].eficienciaReferencia, 83)
 
 // ─────────────────────────────────────────────────────────────
 // 3b. Dedupe + estorno integrados à agregação
@@ -150,7 +151,9 @@ const comDuplicata = [
 const { producoes: dedupe } = removerProducoesDuplicadas(comDuplicata)
 verificar('dedupe: mantém 2 lançamentos', dedupe.length, 2)
 const agregado2 = agregarProducoes(dedupe, ctx)
-verificar('estorno líquido: producaoTotal = 100', agregado2.resumo.producaoTotal, 100)
+// Lançamentos com qtd <= 0 (estorno) não entram nos totais da análise
+// individual; duplicata removida mantém o maior id (120).
+verificar('duplicata removida: producaoTotal = 120', agregado2.resumo.producaoTotal, 120)
 
 // ─────────────────────────────────────────────────────────────
 // 4. montarEvolucao — sem inventar percentuais

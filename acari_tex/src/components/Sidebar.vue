@@ -63,6 +63,13 @@
             </router-link>
           </div>
 
+          <div class="list-group-item" @click="toggleSidebar">
+            <router-link to="/cyclecount" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-camera-video icon"></i>
+              <span>CycleCount</span>
+            </router-link>
+          </div>
+
           <!-- <div class="list-group-item" @click="toggleSidebar" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'">
             <router-link to="/financeiro" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-cash-coin icon"></i>

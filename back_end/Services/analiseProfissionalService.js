@@ -53,211 +53,64 @@
  * - Não é feita média simples das eficiências das etapas.
  * - Quando existem várias OPs/etapas, os tempos ponderados são somados
  *   antes da divisão.
+ *
+ * CONSISTÊNCIA COM OS RELATÓRIOS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Este serviço reutiliza a FONTE ÚNICA das regras (utils/producaoCalculos.js):
+ * mesmas datas (fuso), mesmo dedupe, mesmo SAM (Tempo Fábrica) e mesma
+ * eficiência usados pelos relatórios de produção. As funções locais abaixo
+ * são delegações diretas ao módulo compartilhado — a lógica NÃO é duplicada.
  */
 
 const { PrismaClient } = require('@prisma/client')
+
+const {
+  // Datas / fuso
+  dataLocalSP,
+  dataProducaoSP,
+  diaDaProducao,
+  noPeriodo,
+  normalizarDataReferencia,
+  extrairDataReferencia,
+  tempoDaReferencia,
+  parseDataUTC,
+  rangeConsulta,
+  rangeConsultaAmpliada,
+  formatarBR,
+  // Fórmulas oficiais
+  round2,
+  calcularEficiencia,
+  calcularCapacidade,
+  // SAM / referências
+  escolherMaisRecenteSemAlvo,
+  escolherReferenciaPorData,
+  montarResultadoSAM,
+  resolverSAMPorProducao,
+  agruparReferenciasPorEtapa,
+  // Dedupe (mesma regra dos relatórios)
+  removerProducoesDuplicadas,
+} = require('../utils/producaoCalculos')
 
 const prisma = new PrismaClient()
 
 const MS_DIA = 24 * 60 * 60 * 1000
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DATA / FUSO
+// DATA / FUSO — delegam a utils/producaoCalculos.js (fonte única)
 // ══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Retorna YYYY-MM-DD no fuso de São Paulo.
- *
- * O backend não deve depender do timezone configurado no servidor.
- */
-function dataLocalSP(date) {
-  if (!(date instanceof Date) || isNaN(date.getTime())) {
-    return null
-  }
 
-  /**
-   * IMPORTANTE:
-   *
-   * Datas vindas do banco representam o DIA da produção.
-   *
-   * Não devemos aplicar America/Sao_Paulo aqui, porque uma data
-   * armazenada como:
-   *
-   *   2026-10-02T00:00:00.000Z
-   *
-   * quando convertida para UTC-3 vira:
-   *
-   *   2026-10-01 21:00
-   *
-   * causando o deslocamento de um dia.
-   *
-   * Para preservar o dia originalmente armazenado pelo banco,
-   * usamos os componentes UTC.
-   */
 
-  return [
-    date.getUTCFullYear(),
-    String(date.getUTCMonth() + 1).padStart(2, '0'),
-    String(date.getUTCDate()).padStart(2, '0'),
-  ].join('-')
-}
 
-/**
- * Normaliza uma data de referência para YYYY-MM-DD.
- *
- * Regras equivalentes ao tempoReferencia.js do frontend.
- */
-function normalizarDataReferencia(valor) {
-  if (valor == null || valor === '') return null
-
-  if (valor instanceof Date) {
-    return dataLocalSP(valor)
-  }
-
-  const s = String(valor).trim()
-
-  if (!s) return null
-
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return s
-  }
-
-  // DD/MM/YYYY
-  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-
-  if (br) {
-    return `${br[3]}-${br[2]}-${br[1]}`
-  }
-
-  /**
-   * DATE serializado como meia-noite UTC.
-   *
-   * Não convertemos para São Paulo porque isso poderia transformar:
-   *
-   * 2026-09-23T00:00:00.000Z
-   *
-   * em 22/09 no Brasil.
-   */
-  const utcMidnight = s.match(
-    /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.0+)?(?:Z|[+-]00:?00)?$/
-  )
-
-  if (utcMidnight) {
-    return utcMidnight[1]
-  }
-
-  const date = new Date(s)
-
-  if (isNaN(date.getTime())) return null
-
-  return dataLocalSP(date)
-}
-
-/**
- * Extrai a data da referência.
- *
- * Mesma ordem utilizada no frontend.
- */
-function extrairDataReferencia(ref) {
-  const campos = [
-    'data_medicao',
-    'criadoEm',
-    'data_referencia',
-    'data',
-    'data_registro',
-    'created_at',
-    'createdAt',
-    'data_cadastro',
-    'data_criacao',
-  ]
-
-  for (const campo of campos) {
-    const data = normalizarDataReferencia(ref?.[campo])
-
-    if (data) return data
-  }
-
-  return null
-}
-
-/**
- * Obtém o tempo da referência.
- */
-function tempoDaReferencia(ref) {
-  const valor =
-    ref?.tempo_minutos ??
-    ref?.tempo_por_peca ??
-    0
-
-  const numero = Number(valor)
-
-  return Number.isFinite(numero) && numero > 0
-    ? numero
-    : 0
-}
-
-/**
- * Data da produção no fuso de São Paulo.
- */
-function dataProducaoSP(data) {
-  if (!data) return ''
-
-  if (typeof data === 'string') {
-    // Se já vier somente como YYYY-MM-DD.
-    if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
-      return data
-    }
-  }
-
-  return normalizarDataReferencia(data) || ''
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HELPERS DE DATA DA CONSULTA
 // ══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Converte YYYY-MM-DD para meia-noite UTC.
- *
- * A coluna data_inicio é consultada dessa forma para preservar o dia
- * informado pelo usuário.
- */
-function parseDataUTC(dataISO) {
-  if (!dataISO) return null
 
-  const [ano, mes, dia] = String(dataISO)
-    .split('-')
-    .map(Number)
-
-  if (!ano || !mes || !dia) return null
-
-  return new Date(Date.UTC(ano, mes - 1, dia))
-}
 
 /**
- * Intervalo [gte, lt).
- */
-function rangeConsulta(dataInicio, dataFim) {
-  const gte = parseDataUTC(dataInicio)
-
-  if (!gte) {
-    throw new Error(`Data inicial inválida: ${dataInicio}`)
-  }
-
-  const fim = parseDataUTC(dataFim)
-
-  if (!fim) {
-    throw new Error(`Data final inválida: ${dataFim}`)
-  }
-
-  const lt = new Date(fim.getTime() + MS_DIA)
-
-  return { gte, lt }
-}
-
-/**
- * Período anterior de mesma duração.
+ * Período anterior de mesma duração (para a seção de evolução).
  */
 function resolverPeriodoAnterior(dataInicio, dataFim) {
   const inicio = parseDataUTC(dataInicio)
@@ -287,17 +140,6 @@ function resolverPeriodoAnterior(dataInicio, dataFim) {
   }
 }
 
-/**
- * YYYY-MM-DD → DD/MM/YYYY.
- */
-function formatarBR(dataISO) {
-  if (!dataISO) return ''
-
-  const [ano, mes, dia] =
-    String(dataISO).split('-')
-
-  return `${dia}/${mes}/${ano}`
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // USUÁRIO
@@ -323,492 +165,17 @@ function escolherUsuarioPorEmail(usuarios, idRecebido) {
 // ARREDONDAMENTO / FÓRMULAS OFICIAIS
 // ══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Arredondamento auxiliar para tempos.
- *
- * Eficiência NÃO usa round2.
- * Eficiência usa Math.round(), como calculosProducao.js.
- */
-const round2 = value =>
-  Math.round((Number(value) || 0) * 100) / 100
-
-/**
- * Fórmula oficial equivalente ao calcularEficiencia() do frontend.
- *
- * Front:
- *
- *   calcularEficiencia({
- *     producaoPonderada,
- *     funcionarios: 1,
- *     tempoTrabalhado
- *   })
- *
- * Backend deste serviço:
- *
- *   eficiencia = tempoPonderado × 100 / tempoTrabalhado
- *
- * Como esta análise é individual:
- *
- *   funcionários = 1
- */
-function calcularEficiencia(
-  tempoPonderado,
-  tempoTrabalhado
-) {
-  const ponderado =
-    Number(tempoPonderado) || 0
-
-  const trabalhado =
-    Number(tempoTrabalhado) || 0
-
-  if (!trabalhado) return 0
-
-  return Math.round(
-    (ponderado * 100) /
-      trabalhado
-  )
-}
-
-/**
- * Capacidade:
- *
- *   Capacidade =
- *     Tempo Trabalhado / SAM
- *
- * Como a análise é de UM profissional:
- * funcionários = 1.
- */
-function calcularCapacidade(
-  tempoTrabalhado,
-  sam
-) {
-  const tempo =
-    Number(tempoTrabalhado) || 0
-
-  const referencia =
-    Number(sam) || 0
-
-  if (!referencia) return 0
-
-  return Math.floor(
-    tempo / referencia
-  )
-}
+// round2, calcularEficiencia e calcularCapacidade →
+// utils/producaoCalculos.js (fonte única das fórmulas oficiais).
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TEMPO DE REFERÊNCIA
+// TEMPO DE REFERÊNCIA / SAM
 // ══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Ordena referências para desempate.
- *
- * Quando duas referências possuem a mesma data, utiliza o ID maior
- * como registro mais recente.
- */
-function escolherMaisRecenteSemAlvo(
-  candidatas
-) {
-  if (!candidatas.length) return null
+// valorRecenciaRef, escolherMaisRecenteSemAlvo, escolherReferenciaPorData,
+// montarResultadoSAM, resolverSAMPorProducao e agruparReferenciasPorEtapa →
+// utils/producaoCalculos.js (fonte única, mesma regra dos relatórios).
 
-  return candidatas.reduce(
-    (melhor, atual) => {
-      if (!melhor) return atual
-
-      if (
-        atual.data &&
-        melhor.data
-      ) {
-        if (atual.data > melhor.data) {
-          return atual
-        }
-
-        if (atual.data < melhor.data) {
-          return melhor
-        }
-      }
-
-      if (
-        atual.data &&
-        !melhor.data
-      ) {
-        return atual
-      }
-
-      if (
-        !atual.data &&
-        melhor.data
-      ) {
-        return melhor
-      }
-
-      const idAtual =
-        Number(atual.ref?.id)
-
-      const idMelhor =
-        Number(melhor.ref?.id)
-
-      if (
-        Number.isFinite(idAtual) &&
-        Number.isFinite(idMelhor)
-      ) {
-        return idAtual > idMelhor
-          ? atual
-          : melhor
-      }
-
-      return atual.ordem > melhor.ordem
-        ? atual
-        : melhor
-    },
-    null
-  )
-}
-
-/**
- * Escolhe uma referência de acordo com a data da produção.
- *
- * REGRA:
- *
- *   1. exatamente na data;
- *   2. mais recente anterior;
- *   3. sem data;
- *   4. futura mais próxima.
- */
-function escolherReferenciaPorData(
-  refs,
-  dataConsulta
-) {
-  if (!Array.isArray(refs)) {
-    return null
-  }
-
-  const candidatas = refs
-    .filter(ref => {
-      return (
-        ref &&
-        tempoDaReferencia(ref) > 0
-      )
-    })
-    .map((ref, ordem) => ({
-      ref,
-      ordem,
-      data:
-        extrairDataReferencia(ref),
-    }))
-
-  if (!candidatas.length) {
-    return null
-  }
-
-  const alvo =
-    normalizarDataReferencia(
-      dataConsulta
-    )
-
-  if (!alvo) {
-    return (
-      escolherMaisRecenteSemAlvo(
-        candidatas
-      )?.ref || null
-    )
-  }
-
-  const datadas =
-    candidatas.filter(c => c.data)
-
-  const semData =
-    candidatas.filter(c => !c.data)
-
-  // 1. Exatamente na data.
-  const naData =
-    datadas.filter(
-      c => c.data === alvo
-    )
-
-  if (naData.length) {
-    if (naData.length === 1) {
-      return naData[0].ref
-    }
-
-    return (
-      escolherMaisRecenteSemAlvo(
-        naData
-      )?.ref || null
-    )
-  }
-
-  // 2. Mais recente anterior.
-  const anteriores =
-    datadas
-      .filter(c => c.data < alvo)
-      .sort((a, b) => {
-        if (a.data < b.data) return 1
-        if (a.data > b.data) return -1
-        return a.ordem - b.ordem
-      })
-
-  if (anteriores.length) {
-    return anteriores[0].ref
-  }
-
-  // 3. Sem data.
-  if (semData.length) {
-    return (
-      escolherMaisRecenteSemAlvo(
-        semData
-      )?.ref || null
-    )
-  }
-
-  // 4. Futuro mais próximo.
-  const futuras =
-    datadas
-      .filter(c => c.data > alvo)
-      .sort((a, b) => {
-        if (a.data < b.data) return -1
-        if (a.data > b.data) return 1
-        return a.ordem - b.ordem
-      })
-
-  return futuras[0]?.ref || null
-}
-
-/**
- * Cria uma resposta padronizada de SAM.
- */
-function montarResultadoSAM(
-  ref,
-  origem,
-  tempoPadrao
-) {
-  const tempoReferencia =
-    tempoDaReferencia(ref)
-
-  if (tempoReferencia > 0) {
-    return {
-      tempo: tempoReferencia,
-      origem,
-      referenciaId:
-        ref?.id ?? null,
-      dataReferencia:
-        extrairDataReferencia(ref),
-      opId:
-        ref?.opId ?? null,
-    }
-  }
-
-  return {
-    tempo:
-      Number(tempoPadrao) || 0,
-    origem: 'padrao_ficha',
-    referenciaId: null,
-    dataReferencia: null,
-    opId: null,
-  }
-}
-
-/**
- * Resolve o SAM para UMA produção.
- *
- * Prioridade:
- *
- *   1. Tempo Referência específico da OP + etapa + profissional;
- *   2. Tempo Referência geral da etapa + profissional;
- *   3. Tempo Padrão da etapa.
- *
- * Dentro de cada grupo:
- *
- *   1. data exata;
- *   2. anterior mais recente;
- *   3. sem data;
- *   4. futuro mais próximo.
- *
- * IMPORTANTE:
- *
- * A lista recebida já pertence ao profissional.
- */
-function resolverSAMPorProducao({
-  refs,
-  idOp,
-  dataProducao,
-  tempoPadrao,
-}) {
-  const lista =
-    Array.isArray(refs)
-      ? refs
-      : []
-
-  const opIdNumero =
-    idOp == null
-      ? null
-      : Number(idOp)
-
-  /**
-   * Referências específicas da OP.
-   *
-   * opId pode vir como número ou string.
-   */
-  const refsDaOP =
-    opIdNumero == null
-      ? []
-      : lista.filter(ref => {
-          if (
-            ref?.opId == null
-          ) {
-            return false
-          }
-
-          return (
-            Number(ref.opId) ===
-            opIdNumero
-          )
-        })
-
-  if (refsDaOP.length) {
-    const refOP =
-      escolherReferenciaPorData(
-        refsDaOP,
-        dataProducao
-      )
-
-    if (refOP) {
-      return montarResultadoSAM(
-        refOP,
-        'peca',
-        tempoPadrao
-      )
-    }
-  }
-
-  /**
-   * Referências gerais.
-   *
-   * Só entram referências sem OP.
-   *
-   * Isso impede que uma referência de outra OP seja utilizada
-   * indevidamente em uma produção que não possui aquela OP.
-   */
-  const refsGerais =
-    lista.filter(
-      ref =>
-        ref?.opId == null
-    )
-
-  if (refsGerais.length) {
-    const refGeral =
-      escolherReferenciaPorData(
-        refsGerais,
-        dataProducao
-      )
-
-    if (refGeral) {
-      return montarResultadoSAM(
-        refGeral,
-        'ultimo_registrado',
-        tempoPadrao
-      )
-    }
-  }
-
-  return montarResultadoSAM(
-    null,
-    'padrao_ficha',
-    tempoPadrao
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// DEDUPLICAÇÃO
-// ══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Dedupe local dos lançamentos.
- *
- * A função tenta reproduzir a finalidade do relatório:
- * eliminar reapontamentos/duplicações de sincronização offline.
- *
- * A chave usa os campos que identificam o lançamento produtivo.
- */
-function removerProducoesDuplicadas(
-  producao
-) {
-  const mapa = new Map()
-  const semChave = []
-
-  for (let prod of producao || []) {
-    const data =
-      prod.data_inicio
-        ? new Date(prod.data_inicio)
-            .getTime()
-        : ''
-
-    const chave = [
-      prod.id_funcionario || '',
-      prod.id_da_funcao || '',
-      prod.id_da_op || '',
-      data,
-      prod.horaNumero ?? '',
-      prod.tipoRegistro ?? '',
-      prod.dataReferencia ?? '',
-    ].join('|')
-
-    if (
-      !prod.id &&
-      !chave
-    ) {
-      semChave.push(prod)
-      continue
-    }
-
-    const existente =
-      mapa.get(chave)
-
-    if (!existente) {
-      mapa.set(chave, prod)
-      continue
-    }
-
-    /**
-     * Quando houver dois registros para a mesma chave,
-     * mantém o registro com ID maior.
-     *
-     * Isso normalmente corresponde ao último registro criado
-     * durante uma sincronização/reapontamento.
-     */
-    const idAtual =
-      Number(prod.id) || 0
-
-    const idExistente =
-      Number(existente.id) || 0
-
-    if (idAtual > idExistente) {
-      mapa.set(chave, prod)
-    }
-  }
-
-  let producoes = [
-    ...mapa.values(),
-    ...semChave,
-  ]
-  
-
-  return {
-    producoes,
-    removidos:
-      (producoes || []).length -
-      producoes.length,
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// AGREGAÇÃO
-// ══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Consolida os lançamentos de UM profissional.
- *
- * Cada lançamento válido é resolvido individualmente.
- */
 function agregarProducoes(
   producoesValidas,
   {
@@ -898,10 +265,15 @@ function agregarProducoes(
      * SAM correto PARA ESTE lançamento.
      *
      * Não usamos uma referência única para todo o período.
+     *
+     * As referências vêm agrupadas por etapa (referenciasPorEtapa) e a
+     * resolução filtra pelo FUNCIONÁRIO do lançamento — fonte única
+     * (utils/producaoCalculos.js), mesma regra dos relatórios.
      */
     const samRes =
       resolverSAMPorProducao({
         refs,
+        funcionarioEmail: funcionarioEmail,
         idOp,
         dataProducao: diaStr,
         tempoPadrao:
@@ -1114,16 +486,16 @@ function agregarProducoes(
          * Mesma fórmula do frontend.
          */
         eficienciaReferencia:
-          calcularEficiencia(
-            d.tempoReferencia,
-            d.tempoTrabalhado
-          ),
+          calcularEficiencia({
+            producaoPonderada: d.tempoReferencia,
+            tempoTrabalhado: d.tempoTrabalhado,
+          }),
 
         eficienciaFicha:
-          calcularEficiencia(
-            d.tempoFicha,
-            d.tempoTrabalhado
-          ),
+          calcularEficiencia({
+            producaoPonderada: d.tempoFicha,
+            tempoTrabalhado: d.tempoTrabalhado,
+          }),
 
         tempoMedioPorPeca:
           d.producao > 0
@@ -1220,16 +592,16 @@ function agregarProducoes(
                   : 0,
 
               eficienciaReferencia:
-                calcularEficiencia(
-                  d.tempoReferencia,
-                  d.tempoTrabalhado
-                ),
+                calcularEficiencia({
+                  producaoPonderada: d.tempoReferencia,
+                  tempoTrabalhado: d.tempoTrabalhado,
+                }),
 
               eficienciaFicha:
-                calcularEficiencia(
-                  d.tempoFicha,
-                  d.tempoTrabalhado
-                ),
+                calcularEficiencia({
+                  producaoPonderada: d.tempoFicha,
+                  tempoTrabalhado: d.tempoTrabalhado,
+                }),
             }))
 
         return {
@@ -1297,22 +669,22 @@ function agregarProducoes(
               : 0,
 
           capacidade:
-            calcularCapacidade(
-              row.tempoTrabalhado,
-              samMedio
-            ),
+            calcularCapacidade({
+              tempoTrabalhado: row.tempoTrabalhado,
+              sam: samMedio,
+            }),
 
           eficienciaFicha:
-            calcularEficiencia(
-              row.tempoFicha,
-              row.tempoTrabalhado
-            ),
+            calcularEficiencia({
+              producaoPonderada: row.tempoFicha,
+              tempoTrabalhado: row.tempoTrabalhado,
+            }),
 
           eficienciaReferencia:
-            calcularEficiencia(
-              row.tempoReferencia,
-              row.tempoTrabalhado
-            ),
+            calcularEficiencia({
+              producaoPonderada: row.tempoReferencia,
+              tempoTrabalhado: row.tempoTrabalhado,
+            }),
 
           registros:
             row.registros,
@@ -1350,16 +722,16 @@ function agregarProducoes(
       ),
 
     eficienciaReferencia:
-      calcularEficiencia(
-        tempoReferenciaTotal,
-        tempoTrabalhadoTotal
-      ),
+      calcularEficiencia({
+        producaoPonderada: tempoReferenciaTotal,
+        tempoTrabalhado: tempoTrabalhadoTotal,
+      }),
 
     eficienciaFicha:
-      calcularEficiencia(
-        tempoFichaTotal,
-        tempoTrabalhadoTotal
-      ),
+      calcularEficiencia({
+        producaoPonderada: tempoFichaTotal,
+        tempoTrabalhado: tempoTrabalhadoTotal,
+      }),
 
     tempoMedioPorPeca:
       producaoTotal > 0
@@ -1581,11 +953,17 @@ async function gerarAnaliseProfissional(
     throw err
   }
 
+  /**
+   * Janela ampliada (±3h de margem de fuso) — MESMA estratégia dos
+   * relatórios: captura lançamentos reais gravados à noite em SP que caem
+   * no dia UTC seguinte; o recorte exato do período é feito em memória
+   * com diaDaProducao + noPeriodo.
+   */
   const {
     gte,
     lt,
   } =
-    rangeConsulta(
+    rangeConsultaAmpliada(
       dataInicio,
       dataFim
     )
@@ -1597,7 +975,7 @@ async function gerarAnaliseProfissional(
     )
 
   const rangeAnterior =
-    rangeConsulta(
+    rangeConsultaAmpliada(
       periodoAnterior.inicio,
       periodoAnterior.fim
     )
@@ -1925,17 +1303,26 @@ async function gerarAnaliseProfissional(
   /**
    * IMPORTANTE:
    *
-   * O serviço mantém a mesma ideia de dedupe para os lançamentos atuais
-   * e anteriores.
+   * Mesma regra de dedupe dos relatórios (fonte única) aplicada aos
+   * lançamentos atuais e anteriores.
+   *
+   * O recorte exato do período é refeito em memória (diaDaProducao +
+   * noPeriodo) porque a consulta usa a janela ampliada de ±3h.
    */
+  const noPeriodoAtual = p =>
+    noPeriodo(diaDaProducao(p.data_inicio), dataInicio, dataFim)
+
+  const noPeriodoAnterior = p =>
+    noPeriodo(diaDaProducao(p.data_inicio), periodoAnterior.inicio, periodoAnterior.fim)
+
   const atuaisValidas =
     removerProducoesDuplicadas(
-      producoesAtuais
+      producoesAtuais.filter(noPeriodoAtual)
     )
 
   const anterioresValidas =
     removerProducoesDuplicadas(
-      producoesAnteriores
+      producoesAnteriores.filter(noPeriodoAnterior)
     )
 
   if (
@@ -2008,7 +1395,7 @@ async function gerarAnaliseProfissional(
     },
 
     vazio:
-      producoesAtuais.length === 0,
+      atuaisValidas.producoes.length === 0,
 
     resumo:
       agregadoAtual.resumo,

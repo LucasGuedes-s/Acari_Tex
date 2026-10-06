@@ -246,6 +246,17 @@ const routes = [
     meta: {
       title: 'Linha Tex'
     }
+  },
+  {
+    path: '/cyclecount',
+    name: 'cyclecount',
+    // route level code-splitting
+    // this generates a separate chunk (about.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () => import(/* webpackChunkName: "cyclecount" */ '../views/CycleCount.vue'),
+    meta: {
+      title: 'Linha Tex'
+    }
   }
 ]
 
