@@ -22,7 +22,6 @@
         </div>
       </div>
 
-      <!-- Skeleton enquanto carrega pela 1ª vez -->
       <div v-if="loading" class="hero-metrics skeleton-wrap">
         <div class="sk sk-featured" v-for="n in (isFabrica ? 2 : 1)" :key="'skf'+n"></div>
         <div class="sk sk-compact" v-for="n in 3" :key="'skc'+n"></div>
@@ -56,7 +55,11 @@
         </div>
       </div>
 
-      <!-- Insights automáticos -->
+      <!-- Aviso quando alguma referência precisou usar a ficha -->
+      <div v-if="!loading && isFabrica && temFallbackReferencia" class="ref-aviso">
+        Alguns lançamentos não têm tempo de referência cadastrado — nesses casos a eficiência de referência usa o tempo da ficha (marcados com *).
+      </div>
+
       <div v-if="!loading && insights" class="insights-bar">
         <button class="insights-toggle" @click="mostrarInsights = !mostrarInsights">
           <span>✨ Destaques do dia</span>
@@ -126,7 +129,7 @@
               </div>
               <div class="op-num" v-if="isFabrica">
                 <span class="op-num-val">{{ op.tempoReferenciaTotal }}<small>min</small></span>
-                <span class="op-num-label">capacidade (referência)</span>
+                <span class="op-num-label">capacidade (referência){{ op.refFallback ? ' *' : '' }}</span>
               </div>
             </div>
 
@@ -135,7 +138,7 @@
                 Ficha {{ formatarEficiencia(op.eficienciaFicha) }}%
               </span>
               <span v-if="isFabrica" class="badge" :class="clsEfic(op.eficienciaReferencia)">
-                Ref. {{ formatarEficiencia(op.eficienciaReferencia) }}%
+                Ref. {{ formatarEficiencia(op.eficienciaReferencia) }}%{{ op.refFallback ? ' *' : '' }}
               </span>
             </div>
 
@@ -153,7 +156,6 @@
           </button>
         </div>
 
-        <!-- RESUMO DAS MÉDIAS -->
         <div class="resumo-medias" :class="{ single: !isFabrica }">
           <div class="resumo-card">
             <span class="resumo-icon">📊</span>
@@ -223,7 +225,6 @@
     <!-- ═══════════════ MAIN ═══════════════ -->
     <div class="main-layout" :class="{ 'panel-open': selecionado !== null }">
 
-      <!-- LISTA -->
       <div class="grid-area">
         <div class="list-header" :class="{ fabrica: isFabrica }">
           <span class="lh-name">Profissional</span>
@@ -236,7 +237,6 @@
         </div>
 
         <div class="list-body">
-          <!-- Skeleton -->
           <template v-if="loading">
             <div class="list-row skeleton-row" v-for="n in 6" :key="'skr'+n">
               <div class="sk sk-avatar"></div>
@@ -286,7 +286,7 @@
               </span>
               <span class="lr-col lr-col-badge">
                 <span v-if="temProducao(func)" class="badge sm" :class="clsEfic(calcularEficienciaReferenciaFuncionario(func))">
-                  {{ calcularEficienciaReferenciaFuncionario(func) }}%
+                  {{ calcularEficienciaReferenciaFuncionario(func) }}%{{ referenciaEhFallbackFuncionario(func) ? ' *' : '' }}
                 </span>
                 <span v-else class="mono small">—</span>
                 <span
@@ -316,7 +316,6 @@
         </div>
       </div>
 
-      <!-- OVERLAY MOBILE -->
       <div v-if="selecionado !== null" class="detail-overlay" @click="selecionado = null"></div>
 
       <!-- PAINEL DETALHE -->
@@ -328,7 +327,6 @@
             <button class="dp-close" @click="selecionado = null">✕</button>
           </div>
 
-          <!-- Cabeçalho -->
           <div class="dp-profile">
             <div class="dp-avatar-wrap">
               <img v-if="funcSelecionado.foto" class="dp-avatar" :src="funcSelecionado.foto" :alt="funcSelecionado.nome" @error="onImgError" />
@@ -341,7 +339,6 @@
             </div>
           </div>
 
-          <!-- Resumo de eficiência -->
           <div class="dp-eff-cards" :class="{ single: !isFabrica }">
             <div class="dp-eff-card">
               <span class="dp-eff-card-label">Eficiência Ficha</span>
@@ -357,7 +354,7 @@
               </div>
             </div>
             <div class="dp-eff-card" v-if="isFabrica">
-              <span class="dp-eff-card-label">Eficiência Referência</span>
+              <span class="dp-eff-card-label">Eficiência Referência{{ referenciaEhFallbackFuncionario(funcSelecionado) ? ' *' : '' }}</span>
               <strong class="dp-eff-card-val" :class="clsEfic(calcularEficienciaReferenciaFuncionario(funcSelecionado))">
                 {{ calcularEficienciaReferenciaFuncionario(funcSelecionado) }}%
               </strong>
@@ -388,7 +385,6 @@
             </div>
           </div>
 
-          <!-- Tempos utilizados no cálculo (auditoria) -->
           <div v-if="totaisFuncionarioSelecionado" class="dp-auditoria">
             <div class="dp-auditoria-titulo">Tempos utilizados no cálculo</div>
             <div class="dp-auditoria-grid">
@@ -413,7 +409,6 @@
               </div>
             </details>
 
-            <!-- Origem do tempo de referência -->
             <div v-if="isFabrica && totaisFuncionarioSelecionado.resumoRef?.length" class="dp-ref-detalhes">
               <div class="dp-ref-detalhes-titulo">Origem do tempo de referência</div>
               <div v-for="(ref, ri) in totaisFuncionarioSelecionado.resumoRef" :key="ri" class="dp-ref-detalhes-linha">
@@ -432,7 +427,6 @@
             </div>
           </div>
 
-          <!-- Tabs -->
           <div class="dp-tabs">
             <button
               v-for="tab in tabs"
@@ -459,7 +453,7 @@
                     F {{ calcularEficienciaLinha(linha) }}%
                   </span>
                   <span class="badge sm" :class="clsEfic(calcularEficienciaReferenciaLinha(linha))" title="Eficiência de referência">
-                    R {{ calcularEficienciaReferenciaLinha(linha) }}%
+                    R {{ calcularEficienciaReferenciaLinha(linha) }}%{{ referenciaEhFallbackLinha(linha) ? ' *' : '' }}
                   </span>
                 </span>
               </div>
@@ -482,7 +476,8 @@
                 <span class="mono small" v-if="!isFabrica">tempo padrão: {{ linha.tempoPadrao }} min/pç</span>
                 <span class="mono small" v-else>
                   padrão: {{ linha.tempoPadrao }} min/pç · referência: {{ formatarDecimal(tempoEfetivoLinha(linha)) }} min/pç
-                  <span v-if="obterOrigemRefLinha(linha)" class="dp-ref-origem-inline" :class="obterOrigemRefLinha(linha)">
+                  <span v-if="referenciaEhFallbackLinha(linha)" class="dp-ref-origem-inline ultimo_registrado">(usando ficha)</span>
+                  <span v-else-if="obterOrigemRefLinha(linha)" class="dp-ref-origem-inline" :class="obterOrigemRefLinha(linha)">
                     ({{ formatarOrigem(obterOrigemRefLinha(linha)) }})
                   </span>
                 </span>
@@ -557,6 +552,7 @@
     </div>
   </div>
 </template>
+
 <script>
 import { io } from 'socket.io-client'
 import { useAuthStore } from '@/store/store'
@@ -583,21 +579,11 @@ import {
   resumoConsolidadoOp,
   calcularEficienciaMediaPonderadaOps,
   minutosDisponiveisDia,
-  
 } from '@/utils/producaoCompartilhada'
 
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
-// Chave para customização manual dos minutos de jornada (uso exclusivo
-// de projeções de capacidade — não afeta mais nenhum cálculo de
-// eficiência, ver producaoCompartilhada.js).
 const LOCAL_STORAGE_MINUTOS_KEY = 'apontamento-minutos-turno'
-
-// ── RESTAURAÇÃO DE TEMPO DE REFERÊNCIA ESCOLHIDO PELO USUÁRIO ──────
-// O Registro de Produção salva no localStorage qual "modo de tempo"
-// (padrão da ficha ou referência de um funcionário específico) o usuário
-// escolheu para cada etapa/linha. Este componente lê essas escolhas para
-// garantir que os cálculos de eficiência usem o valor correto.
 const LS_TEMPO_REF_PREFIXO = 'apontamento_tempo_referencia_escolhido'
 
 function chaveLocalStorageTempoRef(estabelecimento, data, funcionarioId, opId, etapaId) {
@@ -612,6 +598,13 @@ function lerTempoRefLocalStorage(chaveLS) {
     return null
   }
 }
+
+// Um número só é "utilizável" como eficiência/tempo de referência se for
+// finito e maior que zero. Qualquer outra coisa (NaN, undefined, 0, null)
+// significa que a resolução da referência falhou e precisamos do fallback.
+const valido = (n) => Number.isFinite(Number(n)) && Number(n) > 0
+
+const esperar = (ms) => new Promise(r => setTimeout(r, ms))
 
 export default {
   name: 'PainelProfissionais',
@@ -635,12 +628,9 @@ export default {
       abaAtiva: 'Etapas',
       tabs: ['Etapas', 'Por hora'],
 
-      // ── Novos controles de filtro/ordenação de EXIBIÇÃO ──
-      // Não alteram nenhum cálculo — apenas filtram/ordenam o que já
-      // foi calculado pelas funções originais.
-      filtroEficiencia: 'todos', // todos | acima100 | entre80100 | abaixo80
+      filtroEficiencia: 'todos',
       filtroOpId: 'todas',
-      ordenarPor: 'ranking', // ranking | nome | pecas | ficha | referencia
+      ordenarPor: 'ranking',
       mostrarInsights: false,
 
       opsAtivas: [],
@@ -648,7 +638,6 @@ export default {
       pecas: [],
       tipoProducao: null,
 
-      // Índices O(1) de etapas — igual ao Registro de Produção.
       etapasPorId: new Map(),
 
       dataCarregada: null,
@@ -658,11 +647,22 @@ export default {
   },
 
   computed: {
-    // ── MINUTOS DISPONÍVEIS DO DIA (jornada) ──
-    // Mantido apenas para projeções de capacidade máxima. Não é mais
-    // usado em nenhum cálculo de eficiência.
     tempoDisponivelDia() {
       return this.obterMinutosTrabalhoDia(this.filtro?.data)
+    },
+
+    // ── TIPO DE PRODUÇÃO ──────────────────────────────────
+    // Não depende mais de a busca ter terminado com sucesso: lê direto do
+    // usuário logado e só usa o valor vindo do servidor como complemento.
+    // Normaliza acento/caixa/espaços ("Fábrica", "FABRICA ", etc.).
+    isFabrica() {
+      const bruto = this.tipoProducao || this.store.pegar_usuario?.tipo_de_producao || ''
+      const t = String(bruto)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+      return t.includes('fabrica')
     },
 
     todasHoras() {
@@ -681,11 +681,6 @@ export default {
         .map((f, i) => ({ ...f, _idx: i }))
     },
 
-    // Lista exibida na tabela: parte de `funcionariosOrdenados` (o
-    // ranking oficial, cujo cálculo não muda) e aplica por cima apenas
-    // filtros/ordenação de EXIBIÇÃO — busca, faixa de eficiência, OP e
-    // reordenação de colunas. O `_idx` (posição oficial no ranking,
-    // usado para medalhas) é preservado de antes da filtragem.
     funcionariosFiltrados() {
       const q = this.busca.trim().toLowerCase()
       let lista = this.funcionariosOrdenados
@@ -732,30 +727,27 @@ export default {
       return this.selecionado !== null ? this.funcionariosOrdenados[this.selecionado] : null
     },
 
-    // Totais do dia do funcionário selecionado — auditoria completa:
-    // tempo registrado, tempo ficha e tempo referência ACUMULADOS (todos
-    // os lançamentos, qualquer OP/etapa), e as eficiências já calculadas
-    // a partir desses totais (nunca média de percentuais de OP). É a
-    // MESMA função usada para gerar o badge/ranking do funcionário —
-    // então os números aqui nunca podem divergir do que aparece na lista.
+    // Auditoria do funcionário selecionado. Se o módulo compartilhado
+    // devolver tempo de referência vazio/zero, usa o tempo da ficha e
+    // deixa a fórmula explícita sobre isso.
     totaisFuncionarioSelecionado() {
       if (!this.funcSelecionado) return null
-      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.filtro?.data)
+      const t = calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.filtro?.data)
+      if (!t) return null
+      if (this.isFabrica && !valido(t.tempoReferencia) && valido(t.tempoFicha)) {
+        return {
+          ...t,
+          tempoReferencia: t.tempoFicha,
+          formulaReferencia: `${t.tempoFicha} ÷ ${t.tempoRegistrado} × 100 (sem tempo de referência — usando ficha)`,
+        }
+      }
+      return t
     },
 
-    isFabrica() {
-      
-      return this.tipoProducao === 'fabrica'
-    },
-
-    // Só quem realmente produziu entra nas médias/totais do dia.
     funcionariosComProducao() {
       return this.funcionariosOrdenados.filter(f => this.temProducao(f))
     },
 
-    // Eficiência exibida no cabeçalho — usa a MESMA média das OPs
-    // que aparece no resumo ao final da seção de detalhes por OP,
-    // garantindo consistência visual entre topo e resumo.
     eficienciaMediaTurma() {
       return this.eficienciaMediaPonderadaOps
     },
@@ -763,16 +755,10 @@ export default {
       return this.eficienciaMediaPonderadaOpsReferencia
     },
 
-    // Base bruta agrupada por OP (computed cacheado — reaproveitado pelos
-    // computeds abaixo sem recalcular várias vezes). Agrupa TODAS as
-    // produções com o mesmo id_da_op, de qualquer funcionário/etapa,
-    // somando quantidade/tempo registrado/tempo ficha/tempo referência.
     gruposOpBrutos() {
       return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId, this.filtro?.data).filter(g => g.producao > 0)
     },
 
-    // Quantas etapas distintas (de quaisquer funcionários) contribuíram
-    // para cada OP — apenas informativo para a tag "várias etapas".
     etapasDistintasPorOp() {
       const mapa = new Map()
       for (const funcionario of this.funcionariosDia || []) {
@@ -785,35 +771,51 @@ export default {
       return mapa
     },
 
-    // Lista pronta para exibição no painel de detalhe por OP — já traz o
-    // resumo consolidado (produção, tempo registrado, tempo ficha total,
-    // tempo referência total e as duas eficiências) pronto para uso
-    // aqui e em qualquer outra tela (ex.: Revisão Final).
+    // Resumo por OP. Se a referência da OP não pôde ser resolvida (tempo
+    // total de referência ou eficiência zerados), cai para a ficha e marca
+    // `refFallback` para a tela sinalizar com "*".
     gruposProducaoPorOp() {
       return this.gruposOpBrutos
         .map(g => {
           const resumo = resumoConsolidadoOp(g)
           const opAtiva = this.opsAtivas.find(o => o.pecaId === g.opId)
+          const refFallback =
+            !valido(resumo.eficienciaReferencia) || !valido(resumo.tempoReferenciaTotal)
+
           return {
             ...resumo,
+            ...(refFallback && valido(resumo.eficienciaFicha)
+              ? {
+                  eficienciaReferencia: resumo.eficienciaFicha,
+                  tempoReferenciaTotal: resumo.tempoPadraoTotal,
+                }
+              : {}),
+            refFallback: refFallback && valido(resumo.eficienciaFicha),
             nome: this.nomeDaOp(g.opId),
             metaConfigurada: opAtiva?.metaDia ?? null,
             multiplasEtapas: (this.etapasDistintasPorOp.get(g.opId)?.size || 0) > 1,
           }
         })
         .sort((a, b) => b.producao - a.producao)
-
     },
 
-    // Eficiência exibida no resumo consolidado das OPs — e agora também
-    // Média das eficiências individuais das OPs:
-    // Cada OP é calculada individualmente (Capacidade ÷ Tempo × 100).
-    // Depois, calcula-se a média simples: (Ef1 + Ef2 + ... + EfN) ÷ N.
     eficienciaMediaPonderadaOps() {
       return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, false)
     },
+
+    // A média de referência é a do módulo compartilhado; se ela falhar,
+    // usa a média simples dos valores já exibidos nos cards (mesma fórmula
+    // mostrada na tela), então topo e resumo nunca ficam vazios.
     eficienciaMediaPonderadaOpsReferencia() {
-      return calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
+      const v = calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
+      if (valido(v)) return v
+      const lista = this.gruposProducaoPorOp
+      if (!lista.length) return 0
+      return lista.reduce((s, g) => s + Number(g.eficienciaReferencia || 0), 0) / lista.length
+    },
+
+    temFallbackReferencia() {
+      return this.funcionariosComProducao.some(f => this.referenciaEhFallbackFuncionario(f))
     },
 
     totalPecasGeral() {
@@ -823,9 +825,6 @@ export default {
       )
     },
 
-    // ── INSIGHTS AUTOMÁTICOS (apenas apresentação — não recalcula nada,
-    // só percorre os funcionários usando os MESMOS métodos já usados
-    // na tabela/ranking) ──
     insights() {
       const comProducao = this.funcionariosComProducao
       if (!comProducao.length) return null
@@ -846,14 +845,13 @@ export default {
         if (!maiorProducao || producao > maiorProducao.valor) {
           maiorProducao = { nome: f.nome, valor: producao }
         }
-        if (this.isFabrica && (!maiorDiferenca || diferenca > maiorDiferenca.valor)) {
+        if (this.isFabrica && diferenca > 0 && (!maiorDiferenca || diferenca > maiorDiferenca.valor)) {
           maiorDiferenca = { nome: f.nome, valor: diferenca }
         }
       }
 
       return { melhorReferencia, maiorProducao, maiorDiferenca }
     },
-
   },
 
   watch: {
@@ -868,11 +866,9 @@ export default {
   async mounted() {
     this.iniciarSocket()
     await this.aguardarConexaoSocket()
-    await this.carregarPecas()
+    await this.garantirEtapas()
     await this.buscarMetaDia()
 
-    // Reconexão sem depender só do evento 'online' do navegador —
-    // mesma tática de segurança do Registro de Produção.
     this._intervaloRetentativa = setInterval(() => {
       if (socket.connected) this.buscarMetaDia()
     }, 30000)
@@ -885,47 +881,35 @@ export default {
   },
 
   methods: {
-    // ── MINUTOS DISPONÍVEIS DO DIA (jornada — só capacidade) ───────
-    // 1) Se houver uma customização manual salva (fábrica quis
-    //    sobrescrever o padrão), usa ela.
-    // 2) Senão, delega para a função compartilhada — a MESMA usada em
-    //    qualquer outro lugar do sistema que precise desse número —
-    //    que calcula 540/480/0 conforme o dia da semana da data filtrada.
-    // Este valor NÃO entra mais em nenhum cálculo de eficiência.
     obterMinutosTrabalhoDia(dataFiltro) {
       try {
         const salvo = localStorage.getItem(LOCAL_STORAGE_MINUTOS_KEY)
-        if (salvo && !isNaN(Number(salvo))) {
-          return Number(salvo)
-        }
+        if (salvo && !isNaN(Number(salvo))) return Number(salvo)
       } catch { /* ignora falha de storage */ }
-
       return minutosDisponiveisDia(dataFiltro)
     },
 
-    // ── ORDENAÇÃO (modo escolhido pelo usuário) ───────────
+    // ── ORDENAÇÃO ─────────────────────────────────────────
     calcularEficienciaOrdenacao(func) {
       const modo = this.isFabrica ? this.modoOrdenacao : 'ficha'
-      return calcularEficienciaFuncionarioPorModo(func, this.etapasPorId, modo, null, this.filtro?.data)
+      const v = calcularEficienciaFuncionarioPorModo(func, this.etapasPorId, modo, null, this.filtro?.data)
+      if (modo === 'referencia' && !valido(v)) return this.calcularEficienciaFuncionario(func)
+      return v
     },
 
     definirModoOrdenacao(modo) {
       this.modoOrdenacao = modo
-      try {
-        localStorage.setItem('painel-modo-ordenacao', modo)
-      } catch { /* ignora falha de storage */ }
+      try { localStorage.setItem('painel-modo-ordenacao', modo) } catch { /* ignora */ }
     },
 
     carregarModoOrdenacao() {
       try {
-        const salvo = localStorage.getItem('painel-modo-ordenacao')
-        return salvo === 'referencia' ? 'referencia' : 'ficha'
+        return localStorage.getItem('painel-modo-ordenacao') === 'referencia' ? 'referencia' : 'ficha'
       } catch {
         return 'ficha'
       }
     },
 
-    // ── FILTRO POR OP (clique no card da OP) ───────────────
     alternarFiltroOp(opId) {
       this.filtroOpId = this.filtroOpId === opId ? 'todas' : opId
     },
@@ -940,22 +924,17 @@ export default {
 
       socket.on('connect', () => {
         this.socketConectado = true
-        // Se já havia conectado antes (ou seja, isso é uma reconexão),
-        // busca de novo para não perder nada que aconteceu offline.
         if (this._jaConectouUmaVez) this.buscarMetaDia()
         this._jaConectouUmaVez = true
       })
       socket.on('disconnect', () => { this.socketConectado = false })
 
-      if (cnpj) {
-        socket.on(`nova_atualizacao_${cnpj}`, () => this.onAtualizacaoRemota())
-      }
+      if (cnpj) socket.on(`nova_atualizacao_${cnpj}`, () => this.onAtualizacaoRemota())
 
       if (!socket.connected) socket.connect()
       else this.socketConectado = true
     },
 
-    // Debounce: várias atualizações próximas viram uma única busca.
     onAtualizacaoRemota: debounce(function () {
       this.buscarMetaDia()
     }, 800),
@@ -993,49 +972,75 @@ export default {
       })
     },
 
-    // ── PEÇAS / ETAPAS ────────────────────────────────────
-    async carregarPecas() {
-      try {
-        const res = await api.get('/pecas', {
-          headers: { Authorization: this.store.pegar_token },
-        })
-        this.pecas = res.data.peca.em_progresso || []
+    // ── PEÇAS / ETAPAS (base do tempo de referência) ──────
+    // O tempo de referência de cada profissional vem das etapas das peças.
+    // Se esse carregamento falha (servidor "dormindo" no Render, rede, etc.)
+    // ou chega depois do cálculo, a referência some. Por isso:
+    //  - tentamos até 3 vezes com espera crescente;
+    //  - uma única promise compartilhada evita corrida entre chamadas;
+    //  - aceitamos qualquer lista de peças devolvida (não só em_progresso).
+    garantirEtapas() {
+      if (this.etapasPorId.size) return Promise.resolve()
+      if (!this._promessaEtapas) {
+        this._promessaEtapas = this.carregarPecas().finally(() => { this._promessaEtapas = null })
+      }
+      return this._promessaEtapas
+    },
 
-        // Monta o índice O(1) de etapas (mesma estrutura do Registro
-        // de Produção) para resolver tempo padrão / tempo de referência
-        // com a regra padronizada.
-        this.etapasPorId = new Map()
-        for (const peca of this.pecas) {
-          for (const etapa of (peca.etapas || [])) {
-            const idFuncao = etapa.id_da_funcao || etapa.etapa?.id_da_funcao
-            if (!idFuncao) continue
-            if (!this.etapasPorId.has(idFuncao)) this.etapasPorId.set(idFuncao, [])
-            this.etapasPorId.get(idFuncao).push(etapa)
+    async carregarPecas() {
+      for (let tentativa = 1; tentativa <= 3; tentativa++) {
+        try {
+          const res = await api.get('/pecas', {
+            headers: { Authorization: this.store.pegar_token },
+          })
+
+          const grupos = res.data?.peca || {}
+          const todas = []
+          const vistos = new Set()
+          for (const lista of Object.values(grupos)) {
+            if (!Array.isArray(lista)) continue
+            for (const p of lista) {
+              const chave = p?.id_da_op ?? p
+              if (vistos.has(chave)) continue
+              vistos.add(chave)
+              todas.push(p)
+            }
           }
+
+          const indice = new Map()
+          for (const peca of todas) {
+            for (const etapa of (peca.etapas || [])) {
+              const idFuncao = etapa.id_da_funcao || etapa.etapa?.id_da_funcao
+              if (!idFuncao) continue
+              if (!indice.has(idFuncao)) indice.set(idFuncao, [])
+              indice.get(idFuncao).push(etapa)
+            }
+          }
+
+          this.pecas = todas
+          this.etapasPorId = indice
+          this._ultimoCarregamentoPecas = Date.now()
+          if (indice.size) return
+        } catch (err) {
+          console.error('Falha ao carregar peças (tentativa ' + tentativa + ')', err)
         }
-      } catch (err) {
-        console.error(err)
+        await esperar(1500 * tentativa)
       }
     },
 
     nomeDaOp(pecaId) {
-      // Fonte oficial: meta.pecas (id_da_op + peca.descricao), já
-      // carregada em opsAtivas. Mantido fallback para this.pecas apenas
-      // por compatibilidade, caso a OP não esteja em opsAtivas.
       const opAtiva = this.opsAtivas.find(o => o.pecaId === pecaId)
       if (opAtiva?.descricao) return String(opAtiva.descricao)
 
       const peca = this.pecas.find(p => p.id_da_op === pecaId)
-      return String(
-        peca?.descricao ||
-        peca?.descricaoPeca ||
-        pecaId
-      );
+      return String(peca?.descricao || peca?.descricaoPeca || pecaId)
     },
 
-    // ── BUSCAR META (via Socket.IO, com ack) ──────────────
+    // ── BUSCAR META ───────────────────────────────────────
     async buscarMetaDia() {
       await this.aguardarConexaoSocket()
+      // Nunca calcula eficiência sem o índice de etapas.
+      await this.garantirEtapas()
 
       const dataDaRequisicao = this.filtro
       this.ultimaBuscaId = (this.ultimaBuscaId || 0) + 1
@@ -1048,34 +1053,39 @@ export default {
           estabelecimento: this.filtro.estabelecimento ?? this.store.pegar_usuario.cnpj,
           data: dataDaRequisicao,
         })
-        console.log('buscar-meta-dia', response)
         if (buscaId !== this.ultimaBuscaId) return
         this.carregandoMeta = false
         this.loading = false
         if (!response?.sucesso) return
 
         const meta = response.metaDia
+
+        // O tipo de produção é definido ANTES de qualquer retorno antecipado.
+        const usuario = this.store.pegar_usuario
+        this.tipoProducao =
+          usuario?.tipo_de_producao ||
+          meta?.Estabelecimento?.tipo_de_producao ||
+          meta?.tipo_de_producao ||
+          this.tipoProducao ||
+          null
+
         if (!meta) {
           this.opsAtivas = []
           this.funcionariosDia = []
           this.dataCarregada = dataDaRequisicao
           return
-        } 
-       
+        }
 
-        const usuario = this.store.pegar_usuario
-        this.tipoProducao =
-          usuario.tipo_de_producao ||
-          meta.Estabelecimento?.tipo_de_producao ||
-          meta.tipo_de_producao ||
-          null
-         console.log('tipoProducao', {
-          usuario: usuario.tipo_de_producao,
-          estab: meta.Estabelecimento?.tipo_de_producao,
-          meta: meta.tipo_de_producao,
-          final: this.tipoProducao,
-          etapasPorIdSize: this.etapasPorId.size,
-        })
+        // Se alguma OP do dia não está no índice de peças (OP nova), recarrega
+        // uma vez (no máximo a cada 30s) para ter os tempos de referência dela.
+        const opDesconhecida = (meta.pecas || []).some(
+          p => p?.id_da_op != null && !this.pecas.some(x => x.id_da_op === p.id_da_op)
+        )
+        if (opDesconhecida && Date.now() - (this._ultimoCarregamentoPecas || 0) > 30000) {
+          await this.carregarPecas()
+          if (buscaId !== this.ultimaBuscaId) return
+        }
+
         this.opsAtivas = (meta.pecas || []).map(p => ({
           pecaId: p.id_da_op,
           metaDia: p.meta || 0,
@@ -1084,11 +1094,6 @@ export default {
           descricao: p.peca?.descricao,
         }))
 
-        // Índice O(1) da PEÇA/OP por id_da_op. Usado apenas para
-        // indicadores relacionados à PEÇA COMPLETA (capacidade,
-        // planejamento, conclusão da OP) — NUNCA para calcular a
-        // eficiência operacional de uma etapa/funcionário/equipe, que
-        // deve usar o tempo padrão da ETAPA (producao_etapa.tempo_padrao).
         const pecasPorOpId = new Map()
         for (const p of meta.pecas || []) {
           if (p?.id_da_op != null) pecasPorOpId.set(p.id_da_op, p)
@@ -1103,14 +1108,6 @@ export default {
             const etapaId = producao.id_da_funcao
             const opId = producao.id_da_op || null
 
-            // Vínculo produção → peça/OP: produção.id_da_op === meta.pecas[i].id_da_op.
-            // ATENÇÃO: peca.tempo_padrao é o tempo da PEÇA COMPLETA (todas
-            // as etapas somadas) — serve apenas para indicadores de
-            // capacidade/planejamento/conclusão da OP como um todo.
-            // NÃO deve ser usado para calcular a eficiência de uma equipe
-            // que trabalhou em apenas UMA etapa (ex.: revisão, unir gola).
-            // Por isso fica guardado à parte, em tempoPadraoPeca, e nunca
-            // é atribuído a `linha.tempoPadrao`.
             const pecaDaOp = opId != null ? pecasPorOpId.get(opId) : null
             const tempoPadraoPeca = Number(pecaDaOp?.peca?.tempo_padrao || 0)
 
@@ -1120,20 +1117,11 @@ export default {
                 id: `${metaFunc.funcionarioId}-${etapaId}-${opId || 'sem-op'}`,
                 tipo: linhas.length === 0 ? 'principal' : 'extra',
                 etapaId,
-                // `descricao` é a informação da OPERAÇÃO (etapa/função).
                 descricao: producao.producao_etapa?.descricao || '',
-                // Tempo padrão da ETAPA — usado no cálculo de eficiência
-                // operacional (por funcionário, equipe ou etapa).
                 tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
                 opId,
                 opDescricao: pecaDaOp?.peca?.descricao || '',
-                // Tempo padrão da PEÇA COMPLETA — apenas informativo, para
-                // indicadores de capacidade/planejamento/conclusão da OP.
-                // Nunca usado em resolverTempoPadrao / cálculo de eficiência.
                 tempoPadraoPeca,
-                // Modo de tempo: 'padrao' (ficha) ou 'referencia'.
-                // Restaurado do Registro de Produção via localStorage para
-                // que a eficiência use o valor que o usuário escolheu.
                 modoTempo: 'padrao',
                 referenciaSelecionadaId: null,
                 registros: {},
@@ -1155,31 +1143,18 @@ export default {
             nome: metaFunc.funcionario?.nome || metaFunc.funcionarioId,
             foto: metaFunc.funcionario?.foto || null,
             ausencia: metaFunc.ausencia || null,
-            linhas: linhas.length ? linhas : [],
+            linhas,
           })
         }
 
+        // Restaura as escolhas de tempo ANTES de publicar os dados no estado
+        // reativo. Antes, a restauração alterava objetos depois da atribuição,
+        // o que em Vue 3 não dispara recálculo e podia deixar a tela com o
+        // modo antigo.
+        this.restaurarModoTempoReferencia(novosFuncionarios)
+
         this.funcionariosDia = novosFuncionarios
         this.dataCarregada = dataDaRequisicao
-
-        // Restaura as escolhas de tempo de referência que o usuário
-        // fez no Registro de Produção (salvas no localStorage).
-        this.restaurarModoTempoReferencia()
-        const f = this.funcionariosDia.find(f => (f.linhas || []).length)
-if (f) {
-  for (const l of f.linhas) {
-    console.log('REF DEBUG', {
-      func: f.nome,
-      etapaId: l.etapaId,
-      opId: l.opId,
-      modoTempo: l.modoTempo,
-      refSelecionada: l.referenciaSelecionadaId,
-      tempoFicha: l.tempoPadrao,
-      etapaNoIndice: this.etapasPorId.get(l.etapaId),
-      resolvido: resolverTempoReferenciaComOrigem(f, l, this.etapasPorId, null, this.filtro?.data),
-    })
-  }
-}
       } catch (err) {
         console.error(err)
         this.carregandoMeta = false
@@ -1187,18 +1162,15 @@ if (f) {
       }
     },
 
-    // ── RESTAURAÇÃO DE MODO TEMPO ─────────────────────────
-    restaurarModoTempoReferencia() {
+    restaurarModoTempoReferencia(funcionarios) {
       const estabelecimento = this.store.pegar_usuario?.cnpj || ''
-      if (!estabelecimento || !this.filtro?.data) return
+      const data = this.filtro?.data
+      if (!estabelecimento || !data) return
 
-      for (const func of this.funcionariosDia) {
+      for (const func of funcionarios || []) {
         for (const linha of func.linhas || []) {
           if (!linha.etapaId) continue
-          const chaveLS = chaveLocalStorageTempoRef(
-            estabelecimento, this.filtro.data,
-            func.email, linha.opId, linha.etapaId
-          )
+          const chaveLS = chaveLocalStorageTempoRef(estabelecimento, data, func.email, linha.opId, linha.etapaId)
           const escolha = lerTempoRefLocalStorage(chaveLS)
           if (escolha && (escolha.modoTempo === 'padrao' || escolha.referenciaSelecionadaId)) {
             linha.modoTempo = escolha.modoTempo
@@ -1208,7 +1180,6 @@ if (f) {
       }
     },
 
-    // ── ETAPA FINAL ───────────────────────────────────────
     isEtapaFinal(linha) {
       return isEtapaFinal(linha)
     },
@@ -1219,15 +1190,11 @@ if (f) {
     },
 
     calcularTotalFuncionario(func) {
-      // "Peças" na lista = produção total, qualquer etapa (mantém o
-      // comportamento visual original do Painel).
       if (!Array.isArray(func?.linhas)) return 0
       return func.linhas.reduce((soma, linha) => soma + calcularTotalLinha(linha, func), 0)
     },
 
     calcularTotalFinalizadoFuncionario(func) {
-      // "Peças (final)" no painel de detalhe — mesma regra do Registro
-      // de Produção (soma só etapas finais, respeitando ausências).
       return calcularPecasFinalizadasFuncionario(func)
     },
 
@@ -1235,16 +1202,24 @@ if (f) {
       return this.calcularTotalFuncionario(func) > 0
     },
 
-    // ── EFICIÊNCIA (delega 100% para o módulo compartilhado) ──────
-    // Eficiência geral do funcionário = média simples das eficiências
-    // de cada OP produzida, cada uma calculada só com o tempo
-    // efetivamente produzido daquela OP.
+    // ── EFICIÊNCIA ────────────────────────────────────────
     calcularEficienciaFuncionario(func) {
       return calcularEficienciaFuncionarioPadrao(func, this.etapasPorId, null, this.filtro?.data)
     },
 
+    // Referência do funcionário: se o módulo compartilhado não conseguir
+    // resolver (devolve 0/NaN com produção existente), usa a ficha em vez
+    // de sumir ou mostrar 0%. `referenciaEhFallbackFuncionario` informa isso.
     calcularEficienciaReferenciaFuncionario(func) {
-      return calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, this.filtro?.data)
+      const ref = calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, this.filtro?.data)
+      if (valido(ref)) return ref
+      return this.temProducao(func) ? this.calcularEficienciaFuncionario(func) : 0
+    },
+
+    referenciaEhFallbackFuncionario(func) {
+      if (!this.temProducao(func)) return false
+      const ref = calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, this.filtro?.data)
+      return !valido(ref) && valido(this.calcularEficienciaFuncionario(func))
     },
 
     calcularEficienciaLinha(linha) {
@@ -1252,22 +1227,27 @@ if (f) {
     },
 
     calcularEficienciaReferenciaLinha(linha) {
-      return calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      const ref = calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      return valido(ref) ? ref : this.calcularEficienciaLinha(linha)
+    },
+
+    referenciaEhFallbackLinha(linha) {
+      if (!this.isFabrica || !this.funcSelecionado) return false
+      const ref = calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      return !valido(ref) && valido(this.calcularEficienciaLinha(linha))
     },
 
     tempoEfetivoLinha(linha) {
-      return resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      const t = resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      return valido(t) ? t : Number(linha.tempoPadrao || 0)
     },
-    // Diferença Referência − Ficha, apenas para EXIBIÇÃO (não altera
-    // nenhum cálculo de eficiência já existente).
+
     calcularDiferencaEficiencia(func) {
       if (!this.isFabrica) return 0
       return Math.round((this.calcularEficienciaReferenciaFuncionario(func) - this.calcularEficienciaFuncionario(func)) * 100) / 100
     },
 
     // ── POR HORA ──────────────────────────────────────────
-    // Continua registrando/somando a produção por hora normalmente —
-    // isso não depende do tempo disponível do dia, só dos registros.
     horasPorFuncionario(func) {
       if (!func?.linhas?.length) return []
       const resultado = []
@@ -1285,9 +1265,14 @@ if (f) {
           const reg = linha.registros?.[hora]
           if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
-          const tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId, null, this.filtro?.data)
+          const tempoPadrao = resolverTempoPadrao(linha, this.etapasPorId)
+          let tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId, null, this.filtro?.data)
+          if (!valido(tempoEfetivo)) tempoEfetivo = tempoPadrao
+
           const eficiencia = calcularEficienciaRegistroPadrao(reg.quantidade, reg.tempoProduzido, linha, this.etapasPorId)
-          const eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId, null, this.filtro?.data)
+          let eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId, null, this.filtro?.data)
+          if (!valido(eficienciaReferencia)) eficienciaReferencia = eficiencia
+
           etapas.push({
             descricao: linha.descricao || linha.etapaId || '—',
             isFinal: isEtapaFinal(linha),
@@ -1298,7 +1283,7 @@ if (f) {
           })
 
           totalPecas += reg.quantidade
-          somaProduzida += reg.quantidade * resolverTempoPadrao(linha, this.etapasPorId)
+          somaProduzida += reg.quantidade * tempoPadrao
           somaProduzidaReferencia += reg.quantidade * tempoEfetivo
           somaTempoProduzido += reg.tempoProduzido
         }
@@ -1317,7 +1302,7 @@ if (f) {
       return resultado
     },
 
-    // ── HELPERS DE UI (thresholds visuais próprios do Painel) ─────
+    // ── HELPERS DE UI ─────────────────────────────────────
     clsEfic(pct) {
       const n = parseFloat(pct)
       if (n >= 90) return 'verde'
@@ -1332,21 +1317,19 @@ if (f) {
       return 'Eficiência abaixo da meta'
     },
 
-    // Formata eficiência com 2 casas decimais para exibição.
     formatarEficiencia(valor) {
       const n = Number(valor)
       if (!n || isNaN(n)) return '0,00'
       return n.toFixed(2).replace('.', ',')
     },
 
-    // Formata um valor decimal (minutos) com separador de decimal (vírgula)
     formatarDecimal(valor) {
+      if (valor === null || valor === undefined) return '—'
       const n = Number(valor)
-      if (n === null || n === undefined || isNaN(n)) return '—'
+      if (isNaN(n)) return '—'
       return n.toFixed(2).replace('.', ',')
     },
 
-    // Formata a origem do tempo de referência para exibição
     formatarOrigem(origem) {
       const origens = {
         manual: 'selecionado manualmente',
@@ -1356,14 +1339,12 @@ if (f) {
       return origens[origem] || origem || 'desconhecida'
     },
 
-    // Obtém a origem do tempo de referência de uma linha específica
-    // para exibição na aba Etapas
     obterOrigemRefLinha(linha) {
       if (!this.funcSelecionado || !this.isFabrica) return null
       const { origem } = resolverTempoReferenciaComOrigem(
         this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data
-      )
-      return origem
+      ) || {}
+      return origem || null
     },
 
     selecionar(idx) {
@@ -1384,7 +1365,17 @@ if (f) {
   },
 }
 </script>
+
 <style scoped>
+.ref-aviso {
+  margin-top: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--a700);
+  background: var(--a100);
+  border-radius: var(--rs);
+}
+
 .painel {
   --g900: #052e16;
   --g800: #14532d;
