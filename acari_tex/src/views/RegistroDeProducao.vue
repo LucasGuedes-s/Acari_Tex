@@ -208,13 +208,12 @@
             <span class="periodo-resumo-label">
               Período {{ horasVisiveis[0] }} → {{ horasVisiveis[horasVisiveis.length - 1] }}
             </span>
-            <span :class="['periodo-chip', getEficClass(resumoPeriodoGeral.efFicha)]"
-              title="Eficiência da FICHA no período: Σ (peças × TR da etapa) ÷ Σ tempo, acumulado nas horas visíveis">
-              Ficha {{ resumoPeriodoGeral.efFicha }}%
-            </span>
-            <span :class="['periodo-chip', getEficClass(resumoPeriodoGeral.efRef)]"
-              title="Eficiência Tempo Fábrica no período: Σ (peças × referência individual do profissional) ÷ Σ tempo, acumulado nas horas visíveis">
-              Tempo Fábrica {{ resumoPeriodoGeral.efRef }}%
+            <!-- EFICIÊNCIA OFICIAL ÚNICA do período: mesma fórmula acumulada
+                 (Σ peças × tempoUtilizado ÷ Σ tempo) — ver comentário da coluna
+                 "Eficiência do dia" e o método resolverTempoUtilizado. -->
+            <span :class="['periodo-chip', getEficClass(resumoPeriodoGeral.efDia)]"
+              title="Eficiência oficial do período: Σ (peças × tempo utilizado) ÷ Σ tempo, acumulado nas horas visíveis. O tempo utilizado é o menor entre o Tempo Ficha e o Tempo Referência do profissional.">
+              Eficiência {{ resumoPeriodoGeral.efDia }}%
             </span>
           </div>
 
@@ -387,25 +386,21 @@
                                 <span class="min-label">min</span>
                               </label>
                               <span v-if="infoHora(linha, hora).sam" class="hora-tr"
-                                :title="resumoLinha(linha).rotuloTempo === 'TR' ? 'Tempo de referência por peça' : 'Tempo da ficha por peça'">
-                                {{ resumoLinha(linha).rotuloTempo }} {{ fmtNum(infoHora(linha, hora).sam) }}
+                                :title="`Tempo utilizado no cálculo por peça — o menor entre o Tempo Ficha e o Tempo Referência do profissional`">
+                                TR {{ fmtNum(infoHora(linha, hora).sam) }}
                               </span>
                             </div>
 
-                            <!-- Eficiência dupla da hora: F = Ficha (TR da etapa) · TF = Tempo Fábrica (referência individual) -->
                             <div class="hora-ef-par">
-                              <span :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efFicha)]"
-                                :title="`Ficha: capacidade ${fmtNum(infoHora(linha, hora).capFicha)} pçs · TR ficha ${fmtNum(resumoLinha(linha).samFicha)} min`">
-                                F {{ infoHora(linha, hora).efFicha ? infoHora(linha, hora).efFicha + '%' : '—' }}
-                              </span>
-                              <span v-if="resumoLinha(linha).trPessoaDistinto"
-                                :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efRef)]"
-                                :title="`Tempo Fábrica: capacidade ${fmtNum(infoHora(linha, hora).capRef)} pçs · TR ${fmtNum(resumoLinha(linha).samRef)} min`">
-                                TF {{ infoHora(linha, hora).efRef ? infoHora(linha, hora).efRef + '%' : '—' }}
+                              <!-- Eficiência OFICIAL única da hora: produção × tempoUtilizado
+                                   (menor entre Tempo Ficha e Tempo Referência) ÷ tempo da hora. -->
+                              <span v-if="infoHora(linha, hora).capacidade" :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efUtilizado)]"
+                                :title="`Eficiência oficial: TR utilizado ${fmtNum(resumoLinha(linha).samUtilizado)} min · capacidade ${fmtNum(infoHora(linha, hora).capacidade)} pçs neste horário`">
+                                {{ infoHora(linha, hora).efUtilizado ? infoHora(linha, hora).efUtilizado + '%' : '—' }}
                               </span>
                               <span v-else class="hora-ef-mini hora-ef-mini--vazio"
-                                title="Tempo Fábrica: sem referência individual — usa o TR da ficha">
-                                TF —
+                                title="Sem tempo válido — nenhum lançamento de produção nesta hora">
+                                —
                               </span>
                             </div>
 
@@ -424,18 +419,14 @@
                           <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
                             class="efic-badge ausencia-tag--dia_inteiro">Ausente</span>
                           <template v-else>
-                            <!-- Duas métricas distintas: FICHA (TR da etapa) × TEMPO FÁBRICA (referência
-                                 individual do profissional). A principal fica em destaque conforme o tipo. -->
-                            <div class="efic-dia-par">
-                              <span :class="['efic-dia-item', getEficClass(resumoFunc(funcionario, grupo).efFicha), tipoProducaoFabrica ? 'efic-item--primario' : 'efic-item--secundario']"
-                                title="Eficiência Ficha: produção × TR da etapa ÷ tempo trabalhado (dia completo)">
-                                <span class="efic-dia-item-label">Ficha:</span>
-                                <span class="efic-dia-item-valor">{{ resumoFunc(funcionario, grupo).efFicha ? resumoFunc(funcionario, grupo).efFicha + '%' : '—' }}</span>
-                              </span>
-                              <span :class="['efic-dia-item', getEficClass(resumoFunc(funcionario, grupo).efRef), !tipoProducaoFabrica ? 'efic-item--primario' : 'efic-item--secundario']"
-                                title="Eficiência Tempo Fábrica: produção × referência individual do profissional ÷ tempo trabalhado (dia completo)">
-                                <span class="efic-dia-item-label">Fábrica:</span>
-                                <span class="efic-dia-item-valor">{{ resumoFunc(funcionario, grupo).efRef ? resumoFunc(funcionario, grupo).efRef + '%' : '—' }}</span>
+                            <!-- EFICIÊNCIA OFICIAL ÚNICA: a fórmula continua calcularEficiencia
+                                 (produção × SAM ÷ tempo trabalhado); o que mudou é somente a
+                                 ORIGEM do SAM usado: o menor tempo confiável entre o Tempo Ficha
+                                 e o Tempo Referência do profissional (ver resolverTempoUtilizado). -->
+                            <div class="efic-dia-oficial">
+                              <span class="efic-dia-oficial-label">EFICIÊNCIA</span>
+                              <span :class="['efic-dia-oficial-valor', getEficClass(resumoFunc(funcionario, grupo).efDia)]">
+                                {{ resumoFunc(funcionario, grupo).efDia ? resumoFunc(funcionario, grupo).efDia + '%' : '—' }}
                               </span>
                             </div>
                             <span v-if="resumoFunc(funcionario, grupo).capacidade" class="efic-dia-sub">
@@ -483,9 +474,8 @@
                                       <th>Produção</th>
                                       <th>Tempo</th>
                                       <th>TR Ficha</th>
-                                      <th>TR Fábrica</th>
-                                      <th>Ef. Ficha</th>
-                                      <th>Ef. Fábrica</th>
+                                      <th>TR Utilizado</th>
+                                      <th>Eficiência</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -495,18 +485,46 @@
                                       <td>{{ h.qtd || '—' }}</td>
                                       <td>{{ h.qtd ? h.min + ' min' : '—' }}</td>
                                       <td>{{ h.rotuloTrFicha }}</td>
-                                      <td>{{ h.rotuloTrPessoa }}</td>
+                                      <td>{{ h.rotuloTrUtilizado }}</td>
                                       <td>
-                                        <span :class="['detalhe-ef-chip', getEficClass(h.efFicha)]">
-                                          {{ h.qtd && h.efFicha ? h.efFicha + '%' : '—' }}
+                                        <span :class="['detalhe-ef-chip', getEficClass(h.efUtilizado)]"
+                                          :title="h.motivo ? 'TR utilizado: ' + h.motivo : ''">
+                                          {{ h.qtd && h.efUtilizado ? h.efUtilizado + '%' : '—' }}
                                         </span>
                                       </td>
-                                      <td>
-                                        <span :class="['detalhe-ef-chip', h.trDistinto ? getEficClass(h.efRef) : '']"
-                                          :title="h.trDistinto ? 'Eficiência com o TR individual do profissional' : 'Sem TR individual — usa o TR da ficha (valores iguais ao da coluna Ef. Ficha)'">
-                                          {{ h.qtd && h.efRef ? h.efRef + '%' : '—' }}
-                                        </span>
-                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              <!-- Auditoria da decisão de tempo: qual tempo entrou no cálculo e por quê -->
+                              <div class="detalhe-tabela-wrap">
+                                <div class="detalhe-secao-titulo">Tempo utilizado no cálculo</div>
+                                <table class="detalhe-tabela detalhe-tabela--tempo">
+                                  <tbody>
+                                    <tr>
+                                      <td class="detalhe-causa-label">Tempo Ficha</td>
+                                      <td>{{ d.tempoSaida.fichaFmt }}</td>
+                                    </tr>
+                                    <tr>
+                                      <td class="detalhe-causa-label">Tempo Referência Prof.</td>
+                                      <td>{{ d.tempoSaida.temReferencia ? d.tempoSaida.referenciaFmt : '—' }}</td>
+                                    </tr>
+                                    <tr>
+                                      <td class="detalhe-causa-label">Tempo Padrão</td>
+                                      <td>{{ d.tempoSaida.padraoFmt }}</td>
+                                    </tr>
+                                    <tr class="detalhe-causa-destaque">
+                                      <td class="detalhe-causa-label">Tempo utilizado no cálculo</td>
+                                      <td><strong>{{ d.tempoSaida.utilizadoFmt }}</strong></td>
+                                    </tr>
+                                    <tr>
+                                      <td class="detalhe-causa-label">Critério</td>
+                                      <td class="detalhe-causa-motivo">{{ d.tempoSaida.motivo }}</td>
+                                    </tr>
+                                    <tr>
+                                      <td class="detalhe-causa-label">Eficiência final</td>
+                                      <td>{{ d.tempoSaida.efFmt }}</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -520,7 +538,7 @@
                                     <tr>
                                       <th>Etapa</th>
                                       <th>TR Ficha</th>
-                                      <th>TR Fábrica</th>
+                                      <th>TR Utilizado</th>
                                       <th>Produção</th>
                                     </tr>
                                   </thead>
@@ -528,7 +546,7 @@
                                     <tr v-for="e in d.etapas" :key="e.chave">
                                       <td>{{ e.descricao }}<span v-if="e.extra" class="detalhe-etapa-extra"> ↳ extra</span></td>
                                       <td>{{ e.rotuloTrFicha }}</td>
-                                      <td>{{ e.rotuloTrPessoa }}</td>
+                                      <td>{{ e.rotuloTrUtilizado }}</td>
                                       <td><strong>{{ e.total }}</strong></td>
                                     </tr>
                                   </tbody>
@@ -636,10 +654,34 @@ const CONFIG_PADRAO = {
 // (useMonitorProdutividade) — nenhuma regra paralela de referência.
 const LIMIAR_EFICIENCIA_REFERENCIA = 80
 
+/**
+ * ═══ Regra do Tempo Utilizado (função pura) ═══
+ *
+ *   1. Referência > Ficha  → usa a Ficha  (o TR individual nunca estica
+ *                            o tempo além do definido na ficha)
+ *   2. Referência < Ficha  → usa a Referência (ritmo individual é melhor)
+ *   3. Iguais / inválidos  → usa a Ficha (compatível com o fallback já
+ *                            existente em resolverSam)
+ *
+ * Equivalentemente: Math.min(ficha, referencia) com fallback para a
+ * ficha quando não há referência válida. Os cálculos finais da
+ * eficiência NÃO são alterados — a fórmula oficial
+ * (calcularEficiencia de calculosProducao.js) continua a mesma.
+ */
+function tempoUtilizadoDe(tempoFicha, tempoReferenciaProfissional) {
+  const ficha = Number(tempoFicha) || 0
+  const ref = Number(tempoReferenciaProfissional) || 0
+  // Validação dos tempos: ficha sempre presente; se a referência é
+  // inválida/zerada, sobra só a ficha — nunca rebaixa o tempo a zero.
+  if (!(ref > 0)) return ficha
+  if (!(ficha > 0)) return ref
+  return Math.min(ficha, ref)
+}
+
 // Valores padrão (somente leitura) usados pelos helpers de resumo do template.
-const RESUMO_LINHA_VAZIO = { total: 0, minutos: 0, ponderadaFicha: 0, ponderadaRef: 0, capacidade: 0, capacidadeFicha: 0, capacidadeRef: 0, samPrincipal: 0, samFicha: 0, samRef: 0, trPessoaDistinto: false, rotuloTempo: 'FT', horas: {} }
-const RESUMO_FUNC_VAZIO = { total: 0, minutos: 0, capacidade: 0, capacidadeFicha: 0, capacidadeRef: 0, etapas: 0, efFicha: 0, efRef: 0, efDia: 0 }
-const INFO_HORA_VAZIA = { sam: 0, capacidade: 0, ef: 0, efFicha: 0, efRef: 0, capFicha: 0, capRef: 0, minutos: 60 }
+const RESUMO_LINHA_VAZIO = { total: 0, minutos: 0, ponderadaUtilizado: 0, capacidade: 0, capacidadeFicha: 0, samFicha: 0, samUtilizado: 0, horas: {} }
+const RESUMO_FUNC_VAZIO = { total: 0, minutos: 0, capacidade: 0, capacidadeFicha: 0, etapas: 0, efDia: 0 }
+const INFO_HORA_VAZIA = { sam: 0, capacidade: 0, ef: 0, efUtilizado: 0, capFicha: 0, minutos: 60 }
 
 // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ──────────────────────────
 // Garante que a seleção de etapa nunca dependa de haver produção
@@ -1054,70 +1096,57 @@ export default {
 
     /**
      * ÚNICO ponto de cálculo da tabela. Por linha (funcionário/OP/etapa)
-     * calcula, uma vez só, o tempo de referência e os dados de cada hora.
-     * Usa SOMENTE calcularCapacidade / calcularEficiencia já existentes,
-     * com os mesmos parâmetros de calcularEficienciaRegistroPadrao/Referencia.
-     * Regra de qual tempo vale (a mesma do monitor de produtividade):
-     *   fábrica -> Ficha; demais -> Referência escolhida (fallback p/ Ficha).
+     * calcula, uma vez só, o TEMPO UTILIZADO e os dados de cada hora.
+     * Usa SOMENTE calcularCapacidade / calcularEficiencia já existentes.
+     *
+     * Tempo Utilizado (origem do SAM): o MENOR entre o Tempo Ficha e o
+     * Tempo Referência do profissional — o profissional nunca rende menos
+     * que a ficha, e sua referência individual nunca pode esticar o tempo
+     * além do que a ficha define. Sem referência válida, usar a ficha.
      */
     resumoLinhas() {
       const mapa = new Map()
-      const fabrica = this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
 
       for (const func of this.funcionariosDia) {
         for (const linha of func.linhas || []) {
           const samFicha = this.resolverTempoPadrao(linha)
-          const samRef = this.resolverTempoEfetivoReferencia(func, linha)
-          const samPrincipal = fabrica ? samFicha : samRef
-          const usaRef = !fabrica && linha.modoTempo === 'referencia' && !!linha.referenciaSelecionadaId
-
-          const trPessoaDistinto = !!samRef && samRef !== samFicha
+          const samUtilizado = this.resolverTempoUtilizado(func, linha)
 
           const horas = {}
-          let total = 0, minutos = 0, ponderadaFicha = 0, ponderadaRef = 0
-          let capacidade = 0, capacidadeFicha = 0, capacidadeRef = 0
+          let total = 0, minutos = 0, ponderadaUtilizado = 0
+          let capacidade = 0, capacidadeFicha = 0
 
           for (const [hora, reg] of Object.entries(linha.registros || {})) {
             const qtd = Number(reg?.quantidade || 0)
             const min = Number(reg?.tempoProduzido || 60)
-            const cap = samPrincipal
-              ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samPrincipal })
+            const cap = samUtilizado
+              ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samUtilizado })
               : 0
             const capFicha = samFicha
               ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samFicha })
               : 0
-            const capRef = samRef
-              ? calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samRef })
+            const ef = qtd > 0 && samUtilizado
+              ? calcularEficiencia({ producaoPonderada: qtd * samUtilizado, funcionarios: 1, tempoTrabalhado: min })
               : 0
-            const ef = qtd > 0 && samPrincipal
-              ? calcularEficiencia({ producaoPonderada: qtd * samPrincipal, funcionarios: 1, tempoTrabalhado: min })
-              : 0
-            const efFicha = qtd > 0 && samFicha
-              ? calcularEficiencia({ producaoPonderada: qtd * samFicha, funcionarios: 1, tempoTrabalhado: min })
-              : 0
-            const efRef = qtd > 0 && samRef
-              ? calcularEficiencia({ producaoPonderada: qtd * samRef, funcionarios: 1, tempoTrabalhado: min })
-              : 0
-            horas[hora] = { sam: samPrincipal, capacidade: cap, ef, efFicha, efRef, capFicha, capRef, minutos: min }
+            horas[hora] = { sam: samUtilizado, capacidade: cap, ef, capFicha, minutos: min }
+            horas[hora].efUtilizado = ef
 
             // Horas "válidas" = com produção e não bloqueadas por ausência
             // (mesmo critério já usado em calcularEficienciaLinha*).
             if (qtd > 0 && !this.horaBloqueadaPorAusencia(func, hora)) {
               total += qtd
               minutos += min
-              ponderadaFicha += qtd * samFicha
-              ponderadaRef += qtd * samRef
+              ponderadaUtilizado += qtd * samUtilizado
               capacidade += cap
               capacidadeFicha += capFicha
-              capacidadeRef += capRef
             }
           }
 
           mapa.set(linha.id, {
-            total, minutos, ponderadaFicha, ponderadaRef,
-            capacidade, capacidadeFicha, capacidadeRef,
-            samPrincipal, samFicha, samRef, trPessoaDistinto,
-            rotuloTempo: usaRef ? 'TR' : 'FT', horas,
+            total, minutos, ponderadaUtilizado,
+            capacidade, capacidadeFicha,
+            samFicha, samUtilizado,
+            horas,
           })
         }
       }
@@ -1131,12 +1160,11 @@ export default {
      */
     resumoFuncionarioGrupo() {
       const mapa = new Map()
-      const fabrica = this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
 
       for (const grupo of this.funcionariosAgrupadosPorOp) {
         for (const f of grupo.funcionarios) {
-          let total = 0, minutos = 0, pondFicha = 0, pondRef = 0
-          let capacidade = 0, capacidadeFicha = 0, capacidadeRef = 0, etapas = 0
+          let total = 0, minutos = 0, pondUtilizado = 0
+          let capacidade = 0, capacidadeFicha = 0, etapas = 0
           for (const linha of f.linhas || []) {
             const r = this.resumoLinhas.get(linha.id)
             if (!r) continue
@@ -1144,39 +1172,25 @@ export default {
             minutos += r.minutos
             capacidade += r.capacidade
             capacidadeFicha += r.capacidadeFicha || 0
-            capacidadeRef += r.capacidadeRef || 0
-            pondFicha += r.ponderadaFicha
-            pondRef += r.ponderadaRef
+            pondUtilizado += r.ponderadaUtilizado
             if (linha.etapaId) etapas++
           }
-          const ef = (pond) => minutos
-            ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: minutos })
+          // FÓRMULA OFICIAL inalterada — o que mudou é somente o SAM que
+          // entra na produção ponderada (tempoUtilizado, ver resumoLinhas).
+          const efDia = minutos
+            ? calcularEficiencia({ producaoPonderada: pondUtilizado, funcionarios: 1, tempoTrabalhado: minutos })
             : 0
-          const efFicha = ef(pondFicha)
-          const efRef = ef(pondRef)
           mapa.set(`${f.email}::${grupo.opId || 'sem'}`, {
             total,
             minutos,
             capacidade: Math.round(capacidade * 10) / 10,
             capacidadeFicha: Math.round(capacidadeFicha * 10) / 10,
-            capacidadeRef: Math.round(capacidadeRef * 10) / 10,
             etapas,
-            efFicha,
-            efRef,
-            efDia: fabrica ? efFicha : efRef,
+            efDia,
           })
         }
       }
       return mapa
-    },
-
-    /**
-     * Tipo de produção define qual métrica é a "principal" na exibição:
-     * fábrica -> Ficha (TR da etapa); demais -> referência individual (TR).
-     * As DUAS continuam sendo calculadas e exibidas separadamente.
-     */
-    tipoProducaoFabrica() {
-      return this.store.pegar_usuario?.tipo_de_producao === 'fabrica'
     },
 
     /**
@@ -1191,11 +1205,10 @@ export default {
 
       for (const grupo of this.funcionariosAgrupadosPorOp) {
         for (const f of grupo.funcionarios) {
-          let total = 0, minutos = 0, pondFicha = 0, pondRef = 0, capacidadeFicha = 0, capacidadeRef = 0
+          let total = 0, minutos = 0, pondUtilizado = 0
 
           for (const linha of f.linhas || []) {
-            const samFicha = this.resolverTempoPadrao(linha)
-            const samRef = this.resolverTempoEfetivoReferencia(f, linha)
+            const samUtilizado = this.resolverTempoUtilizado(f, linha)
 
             for (const hora of horasVisiveis) {
               const reg = linha.registros?.[hora]
@@ -1205,24 +1218,18 @@ export default {
               const min = Number(reg?.tempoProduzido || 60)
               total += qtd
               minutos += min
-              pondFicha += qtd * samFicha
-              pondRef += qtd * samRef
-              if (samFicha) capacidadeFicha += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samFicha })
-              if (samRef) capacidadeRef += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: min, sam: samRef })
+              pondUtilizado += qtd * samUtilizado
             }
           }
 
-          const ef = (pond) => minutos
-            ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: minutos })
+          const efDia = minutos
+            ? calcularEficiencia({ producaoPonderada: pondUtilizado, funcionarios: 1, tempoTrabalhado: minutos })
             : 0
 
           mapa.set(`${f.email}::${grupo.opId || 'sem'}`, {
             total,
             minutos,
-            efFicha: ef(pondFicha),
-            efRef: ef(pondRef),
-            capacidadeFicha: Math.round(capacidadeFicha * 10) / 10,
-            capacidadeRef: Math.round(capacidadeRef * 10) / 10,
+            efDia,
           })
         }
       }
@@ -1235,13 +1242,12 @@ export default {
      * de resumo da barra de horários. Mesma fórmula acumulada.
      */
     resumoPeriodoGeral() {
-      let total = 0, minutos = 0, pondFicha = 0, pondRef = 0
+      let total = 0, minutos = 0, pondUtilizado = 0
 
       for (const grupo of this.funcionariosAgrupadosPorOp) {
         for (const f of grupo.funcionarios) {
           for (const linha of f.linhas || []) {
-            const samFicha = this.resolverTempoPadrao(linha)
-            const samRef = this.resolverTempoEfetivoReferencia(f, linha)
+            const samUtilizado = this.resolverTempoUtilizado(f, linha)
 
             for (const hora of this.horasVisiveis) {
               const reg = linha.registros?.[hora]
@@ -1251,18 +1257,17 @@ export default {
               const min = Number(reg?.tempoProduzido || 60)
               total += qtd
               minutos += min
-              pondFicha += qtd * samFicha
-              pondRef += qtd * samRef
+              pondUtilizado += qtd * samUtilizado
             }
           }
         }
       }
 
-      const ef = (pond) => minutos
-        ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: minutos })
+      const efDia = minutos
+        ? calcularEficiencia({ producaoPonderada: pondUtilizado, funcionarios: 1, tempoTrabalhado: minutos })
         : 0
 
-      return { total, minutos, efFicha: ef(pondFicha), efRef: ef(pondRef) }
+      return { total, minutos, efDia }
     },
 
     /**
@@ -1434,15 +1439,16 @@ export default {
 
     /**
      * TR individual em exibição na linha do funcionário — só quando
-     * existe UMA etapa e o TR individual é DIFERENTE do da ficha
-     * (senão o próprio select de tempo da etapa já mostra o valor).
+     * existe UMA etapa e o Tempo Utilizado (o menor entre Ficha e
+     * referência) é DIFERENTE do da ficha (senão o próprio select de
+     * tempo da etapa já mostra o valor).
      */
     tempoReferenciaUnico(funcionario, grupo) {
       if (!funcionario || !grupo) return null
       const linhasComEtapa = (funcionario.linhas || []).filter(l => l.etapaId)
       if (linhasComEtapa.length !== 1) return null
       const r = this.resumoLinha(linhasComEtapa[0])
-      return r.trPessoaDistinto ? r.samRef : null
+      return !!r.samUtilizado && r.samUtilizado !== r.samFicha ? r.samUtilizado : null
     },
 
     fmtNum(n) {
@@ -1491,37 +1497,41 @@ export default {
       const horasSemProducao = Math.max(this.todasHorasDia.length - horasComProducao.size, 0)
 
       // Produção por hora — consolida todas as etapas do funcionário na
-      // hora com a MESMA fórmula acumulada (Σ qtd×TR ÷ Σ tempo).
+      // hora com a MESMA fórmula acumulada (Σ qtd×TR Utilizado ÷ Σ tempo).
       const horasTabela = this.horasVisiveis.map(hora => {
-        let qtd = 0, min = 0, pondFicha = 0, pondRef = 0, trDistinto = false
+        let qtd = 0, min = 0, pondUtilizado = 0
+        let motivoHora = null, trUtilizadoHora = 0
         for (const linha of linhasComEtapa) {
           const reg = linha.registros?.[hora]
           const q = Number(reg?.quantidade || 0)
           if (!q) continue
-          const samFicha = this.resolverTempoPadrao(linha)
-          const samRef = this.resolverTempoEfetivoReferencia(funcionario, linha)
+          const samUtilizado = this.resolverTempoUtilizado(funcionario, linha)
           qtd += q
           min += Number(reg?.tempoProduzido || 60)
-          pondFicha += q * samFicha
-          pondRef += q * samRef
-          if (samRef && samRef !== samFicha) trDistinto = true
+          pondUtilizado += q * samUtilizado
+          if (!trUtilizadoHora) {
+            trUtilizadoHora = samUtilizado
+            motivoHora = this.motivoTempoUtilizado(funcionario, linha)
+          }
         }
         const ef = (pond) => min
           ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: min })
+          : 0
+        const decidida = etapaUnica
+          ? this.resolverTempoUtilizado(funcionario, etapaUnica)
           : 0
         return {
           hora,
           qtd,
           min,
-          efFicha: ef(pondFicha),
-          efRef: ef(pondRef),
-          trDistinto,
+          efUtilizado: ef(pondUtilizado),
           rotuloTrFicha: etapaUnica && this.resolverTempoPadrao(etapaUnica)
             ? `${this.fmtNum(this.resolverTempoPadrao(etapaUnica))} min`
             : '—',
-          rotuloTrPessoa: etapaUnica && this.resolverTempoEfetivoReferencia(funcionario, etapaUnica)
-            ? `${this.fmtNum(this.resolverTempoEfetivoReferencia(funcionario, etapaUnica))} min`
+          rotuloTrUtilizado: decidida
+            ? `${this.fmtNum(decidida)} min`
             : '—',
+          motivo: motivoHora,
         }
       })
 
@@ -1529,7 +1539,7 @@ export default {
       const etapas = linhasComEtapa.map(linha => {
         const r = this.resumoLinha(linha)
         const samFicha = this.resolverTempoPadrao(linha)
-        const samRef = this.resolverTempoEfetivoReferencia(funcionario, linha)
+        const samUtilizado = this.resolverTempoUtilizado(funcionario, linha)
         return {
           chave: linha.id,
           descricao: linha.descricao || this.buscarEtapa(linha.etapaId, linha.opId)?.descricao || '—',
@@ -1537,8 +1547,7 @@ export default {
           total: r.total,
           minutos: r.minutos,
           rotuloTrFicha: samFicha ? `${this.fmtNum(samFicha)} min` : '—',
-          rotuloTrPessoa: samRef ? `${this.fmtNum(samRef)} min` : '—',
-          trDistinto: !!samRef && samRef !== samFicha,
+          rotuloTrUtilizado: samUtilizado ? `${this.fmtNum(samUtilizado)} min` : '—',
         }
       })
 
@@ -1548,6 +1557,28 @@ export default {
         'efic-baixa': 'detalhe-card--baixa',
       }[this.getEficClass(pct)] || '')
 
+      // Auditoria da decisão de tempo da etapa única — alimenta tanto
+      // a tabela "Tempo utilizado no cálculo" quanto os cards de cima.
+      const resumoEtapaUnica = etapaUnica ? {
+        fichaFmt: this.resolverTempoPadrao(etapaUnica) ? this.fmtNum(this.resolverTempoPadrao(etapaUnica)) + ' min' : '—',
+        temReferencia: !!this.resolverTempoReferencia(funcionario, etapaUnica),
+        referenciaFmt: this.resolverTempoReferencia(funcionario, etapaUnica) ? this.fmtNum(this.resolverTempoReferencia(funcionario, etapaUnica)) + ' min' : '—',
+        padraoFmt: this.resolverTempoPadrao(etapaUnica) ? this.fmtNum(this.resolverTempoPadrao(etapaUnica)) + ' min' : '—',
+        utilizadoFmt: (() => {
+          const t = this.resolverTempoUtilizado(funcionario, etapaUnica)
+          return t ? this.fmtNum(t) + ' min' : '—'
+        })(),
+        motivo: this.motivoTempoUtilizado(funcionario, etapaUnica),
+        efUtilizado: dia.efDia,
+      } : null
+      const tempoSaida = resumoEtapaUnica ? {
+        ...resumoEtapaUnica,
+        efFmt: resumoEtapaUnica.efUtilizado ? resumoEtapaUnica.efUtilizado + '%' : '—',
+      } : {
+        fichaFmt: '—', temReferencia: false, referenciaFmt: '—', padraoFmt: '—',
+        utilizadoFmt: '—', motivo: '—', efFmt: '—',
+      }
+
       const cards = [
         { label: 'Produção total', valor: `${this.fmtNum(dia.total)} peças` },
         { label: 'Horas produtivas', valor: this.fmtHorasRegistradas(dia.minutos) },
@@ -1556,26 +1587,23 @@ export default {
 
       if (etapaUnica) {
         const samF = this.resolverTempoPadrao(etapaUnica)
-        const samR = this.resolverTempoEfetivoReferencia(funcionario, etapaUnica)
+        const samU = this.resolverTempoUtilizado(funcionario, etapaUnica)
         if (samF) cards.push({ label: 'Tempo de referência da ficha', valor: `${this.fmtNum(samF)} min/peça` })
-        if (samR) cards.push({
-          label: 'Tempo de referência Tempo Fábrica',
-          valor: `${this.fmtNum(samR)} min/peça`,
-          titulo: 'Referência individual deste profissional nesta OP/etapa (regra TempoReferencia existente)',
+        if (samU) cards.push({
+          label: 'Tempo utilizado',
+          valor: `${this.fmtNum(samU)} min/peça`,
+          titulo: 'Tempo efetivamente usado no cálculo da eficiência',
         })
       }
 
       cards.push(
-        { label: 'Capacidade pela ficha', valor: `${this.fmtNum(dia.capacidadeFicha)} peças`, titulo: 'Produção esperada usando o TR da ficha técnica' },
-        { label: 'Capacidade pelo Tempo Fábrica', valor: `${this.fmtNum(dia.capacidadeRef)} peças`, titulo: 'Produção esperada usando a referência individual do profissional' },
-        { label: 'Eficiência Ficha (dia)', valor: dia.efFicha ? `${dia.efFicha}%` : '—', classe: classeCard(dia.efFicha), titulo: 'Dia completo · produção × TR da ficha ÷ tempo trabalhado' },
-        { label: 'Eficiência Tempo Fábrica (dia)', valor: dia.efRef ? `${dia.efRef}%` : '—', classe: classeCard(dia.efRef), titulo: 'Dia completo · produção × referência individual ÷ tempo trabalhado' },
+        { label: 'Capacidade pela ficha', valor: `${this.fmtNum(dia.capacidadeFicha)} peças`, titulo: 'Produção esperada usando o Tempo Ficha' },
+        { label: 'Eficiência (dia)', valor: dia.efDia ? `${dia.efDia}%` : '—', classe: classeCard(dia.efDia), titulo: 'Dia completo · produção × tempo utilizado ÷ tempo trabalhado' },
         { label: 'Produção no período', valor: `${this.fmtNum(periodo.total || 0)} peças`, titulo: this.horasVisiveis.length ? `Horas visíveis: ${this.horasVisiveis.join(', ')}` : '' },
-        { label: 'Eficiência Ficha (período)', valor: periodo.efFicha ? `${periodo.efFicha}%` : '—', classe: classeCard(periodo.efFicha), titulo: 'Somente as horas visíveis · TR da ficha' },
-        { label: 'Eficiência Tempo Fábrica (período)', valor: periodo.efRef ? `${periodo.efRef}%` : '—', classe: classeCard(periodo.efRef), titulo: 'Somente as horas visíveis · referência individual do profissional' },
+        { label: 'Eficiência (período)', valor: periodo.efDia ? `${periodo.efDia}%` : '—', classe: classeCard(periodo.efDia), titulo: 'Somente as horas visíveis · tempo utilizado' },
       )
 
-      return { cards, horasTabela, etapas }
+      return { cards, horasTabela, etapas, tempoSaida, etapaUnicaResumo: resumoEtapaUnica }
     },
 
     // ── SELEÇÃO / FILTRO DE HORAS ─────────────────────────
@@ -2103,6 +2131,74 @@ export default {
       }
 
       return resultado
+    },
+
+    /**
+     * ════════════════════════════════════════════════════════════════
+     * TEMPO UTILIZADO NO CÁLCULO DA EFICIÊNCIA — regra central da tela:
+     *
+     *   1. Se Tempo Referência do Profissional > Tempo Ficha → Tempo Ficha
+     *   2. Se Tempo Referência do Profissional < Tempo Ficha → Referência
+     *   3. Iguais (ou sem referência válida)                 → Tempo Ficha
+     *
+     * Ou seja: tempoUtilizado = Math.min(tempoFicha, tempoReferenciaProf)
+     * preservando os tratamentos de valores nulos/inválidos já usados
+     * pelo sistema (resolverSam: referência inválida/zerada cai na ficha).
+     *
+     * Continua respeitando a definição de referência já existente no
+     * projeto: escolha manual do usuário (modoTempo) com fallback para a
+     * regra de data de escolherReferenciaPorData — nada é reimplementado.
+     */
+    tempoReferenciaDisponivel(funcionario, linha) {
+      let textoId = null
+      if (typeof linha?.referenciaSelecionadaId === 'number') {
+        textoId = String(linha.referenciaSelecionadaId)
+      } else if (typeof linha?.referenciaSelecionadaId === 'string' && linha.referenciaSelecionadaId) {
+        textoId = linha.referenciaSelecionadaId
+      }
+      // Escolha manual: referência específica selecionada no seletor da linha.
+      if (linha?.modoTempo === 'referencia' && textoId) {
+        const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
+        const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
+        if (Array.isArray(refs)) {
+          // Comparação por String(): os valores do select chegam como
+          // STRING e r.id do banco é NUMBER — mesma justificativa de
+          // resolverTempoEfetivoReferencia.
+          const ref = refs.find(r => r && String(r.id) === textoId)
+          if (ref) {
+            const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
+            return t > 0 ? t : null
+          }
+        }
+        return null
+      }
+      // Regra padrão do projeto: referência válida para a data consultada.
+      return this.resolverTempoReferencia(funcionario, linha)
+    },
+
+    /** Tempo Utilizado: o menor entre Tempo Ficha e Tempo Referência. */
+    resolverTempoUtilizado(funcionario, linha) {
+      const tempoFicha = this.resolverTempoPadrao(linha)
+      const tempoReferenciaProfissional = this.tempoReferenciaDisponivel(funcionario, linha)
+      return resolverSam({
+        tempoReferencia: tempoUtilizadoDe(tempoFicha, tempoReferenciaProfissional),
+        tempoPadrao: tempoFicha,
+      })
+    },
+
+    /**
+     * Explicação auditável da escolha: qual tempo entrou no cálculo e
+     * por quê. Usado na tabela "Tempo utilizado no cálculo" do painel.
+     */
+    motivoTempoUtilizado(funcionario, linha) {
+      const tempoFicha = this.resolverTempoPadrao(linha)
+      const tempoReferencia = this.tempoReferenciaDisponivel(funcionario, linha)
+
+      if (!(tempoReferencia > 0)) return 'Não há Tempo de Referência para este profissional — usando o Tempo Ficha.'
+      if (!(tempoFicha > 0)) return 'Sem Tempo Ficha válido — usando a Referência do profissional.'
+      if (tempoReferencia > tempoFicha) return 'Tempo de Referência do Profissional é maior que o Tempo Ficha — usando o Tempo Ficha.'
+      if (tempoReferencia < tempoFicha) return 'Tempo de Referência do Profissional é menor que o Tempo Ficha — usando a Referência do Profissional.'
+      return 'Tempos iguais — usando o Tempo Ficha.'
     },
 
     resolverTempoPadrao(linha) {
@@ -5248,7 +5344,32 @@ export default {
   font-weight: 600;
 }
 
-/* ── EFICIÊNCIA DUPLA POR HORA (F = Ficha · TF = Tempo Fábrica) ── */
+/* ── Auditoria do tempo utilizado (tabela "Tempo utilizado no cálculo") ── */
+.detalhe-tabela--tempo td {
+  padding: 3px 6px;
+  font-size: 11.5px;
+  border-bottom: 1px dashed #e5efe7;
+}
+
+.detalhe-causa-label {
+  font-weight: 700;
+  color: #537664;
+  white-space: nowrap;
+}
+
+.detalhe-causa-motivo {
+  font-size: 11px;
+  color: #44646f;
+}
+
+.detalhe-causa-destaque td {
+  background: #f3faf6;
+  font-weight: 700;
+  font-size: 12px;
+  color: #0d6632 !important;
+}
+
+/* ── EFICIÊNCIA POR HORA (oficial, com tempoUtilizado) ── */
 .hora-ef-par {
   display: flex;
   gap: 4px;
@@ -5274,44 +5395,30 @@ export default {
   background: #f8f8f8;
 }
 
-/* ── EFICIÊNCIA DO DIA: Ficha × Tempo Fábrica (alinhadas à esquerda) ── */
-.efic-dia-par {
+/* ── EFICIÊNCIA OFICIAL (única) do dia ── */
+.efic-dia-oficial {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  align-items: stretch;
-}
-
-.efic-dia-item {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #9aa5a1;
-  background: #f4f4f4;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #f7fcf9;
+  border: 1px solid #dceee3;
 }
 
-.efic-dia-item-label {
-  white-space: nowrap;
-}
-
-.efic-dia-item-valor {
+.efic-dia-oficial-label {
+  font-size: 10px;
+  letter-spacing: .08em;
   font-weight: 800;
-  font-size: 12.5px;
-  white-space: nowrap;
+  color: #0d6632;
 }
 
-.efic-item--primario .efic-dia-item-valor {
-  font-size: 13.5px;
-}
-
-.efic-item--secundario {
-  opacity: .78;
+.efic-dia-oficial-valor {
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1.2;
 }
 
 /* ── FAIXA DE EFICIÊNCIA DO PERÍODO na barra de horários ── */
