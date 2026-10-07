@@ -10,11 +10,10 @@ const CORRECAO = {
 };
 
 async function main() {
+  const inicio = new Date('2026-10-07T00:00:00.000Z');
+  const fim = new Date('2026-10-07T23:59:59.999Z');
 
-  const inicio = new Date('2026-10-02T00:00:00.000Z');
-  const fim = new Date('2026-10-03T00:00:00.000Z');
-
-  console.log('Buscando registros de 02/10/2026...');
+  console.log('Buscando registros de 07/10/2026...');
 
   const registros = await prisma.producao.findMany({
     where: {
@@ -64,46 +63,36 @@ async function main() {
 
   console.log('\nIniciando correção...');
 
-  await prisma.$transaction(async (tx) => {
+  // Processa em pequenos lotes (chunks) de 10 registros para evitar timeout da transação
+  const CHUNK_SIZE = 10;
+  for (let i = 0; i < registros.length; i += CHUNK_SIZE) {
+    const chunk = registros.slice(i, i + CHUNK_SIZE);
 
-    // ==========================================
-    // ETAPA 1
-    // Tirar os registros dos horários atuais
-    // para não bater na constraint UNIQUE.
-    // ==========================================
-
-    for (const registro of registros) {
-      await tx.producao.update({
-        where: {
-          id_da_producao: registro.id_da_producao
-        },
+    // ETAPA 1: Torna o horário único por registro (usando o ID no texto)
+    const queriesTemp = chunk.map(r =>
+      prisma.producao.update({
+        where: { id_da_producao: r.id_da_producao },
         data: {
-          hora_registro: `__CORRECAO_${registro.id_da_producao}__`,
-          horaNumero: 10000 + registro.id_da_producao
+          hora_registro: `__TEMP_${r.id_da_producao}__`,
+          horaNumero: 10000 + r.id_da_producao
         }
-      });
-    }
+      })
+    );
+    await prisma.$transaction(queriesTemp);
 
-    // ==========================================
-    // ETAPA 2
-    // Colocar os horários corretos
-    // ==========================================
-
-    for (const registro of registros) {
-
-      const novo = CORRECAO[registro.hora_registro];
-
-      await tx.producao.update({
-        where: {
-          id_da_producao: registro.id_da_producao
-        },
+    // ETAPA 2: Aplica os novos horários finais
+    const queriesFinais = chunk.map(r => {
+      const novo = CORRECAO[r.hora_registro];
+      return prisma.producao.update({
+        where: { id_da_producao: r.id_da_producao },
         data: {
           hora_registro: novo.hora_registro,
           horaNumero: novo.horaNumero
         }
       });
-    }
-  });
+    });
+    await prisma.$transaction(queriesFinais);
+  }
 
   console.log('\n====================================');
   console.log('CORREÇÃO CONCLUÍDA COM SUCESSO');
