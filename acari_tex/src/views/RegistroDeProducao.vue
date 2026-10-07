@@ -94,13 +94,9 @@
               </div>
 
               <!--
-                OPs descobertas a partir dos REGISTROS DE PRODUÇÃO (mesma
-                lista consolidada usada para montar a tabela inferior),
-                que não estão mais entre as OPs configuradas no topo —
-                finalizada, em coleta, ou removida do setup depois de já
-                ter produção lançada. A identificação/dedup é sempre pelo
-                pecaId (ver sincronizarOpsExtras): se a OP já aparece
-                entre as ativas, ela NUNCA entra aqui de novo.
+                OPs descobertas a partir dos REGISTROS DE PRODUÇÃO que não estão
+                mais entre as OPs configuradas no topo. A identificação/dedup é
+                sempre pelo pecaId (ver sincronizarOpsExtras).
               -->
               <div v-for="op in opsExtras" :key="op._uid" class="op-card op-card--historico">
                 <div class="op-card-header">
@@ -208,9 +204,6 @@
             <span class="periodo-resumo-label">
               Período {{ horasVisiveis[0] }} → {{ horasVisiveis[horasVisiveis.length - 1] }}
             </span>
-            <!-- EFICIÊNCIA OFICIAL ÚNICA do período: mesma fórmula acumulada
-                 (Σ peças × tempoUtilizado ÷ Σ tempo) — ver comentário da coluna
-                 "Eficiência do dia" e o método resolverTempoUtilizado. -->
             <span :class="['periodo-chip', getEficClass(resumoPeriodoGeral.efDia)]"
               title="Eficiência oficial do período: Σ (peças × tempo utilizado) ÷ Σ tempo, acumulado nas horas visíveis. O tempo utilizado é o menor entre o Tempo Ficha e o Tempo Referência do profissional.">
               Eficiência {{ resumoPeriodoGeral.efDia }}%
@@ -392,9 +385,8 @@
                             </div>
 
                             <div class="hora-ef-par">
-                              <!-- Eficiência OFICIAL única da hora: produção × tempoUtilizado
-                                   (menor entre Tempo Ficha e Tempo Referência) ÷ tempo da hora. -->
-                              <span v-if="infoHora(linha, hora).capacidade" :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efUtilizado)]"
+                              <span v-if="infoHora(linha, hora).capacidade"
+                                :class="['hora-ef-mini', getEficClass(infoHora(linha, hora).efUtilizado)]"
                                 :title="`Eficiência oficial: TR utilizado ${fmtNum(resumoLinha(linha).samUtilizado)} min · capacidade ${fmtNum(infoHora(linha, hora).capacidade)} pçs neste horário`">
                                 {{ infoHora(linha, hora).efUtilizado ? infoHora(linha, hora).efUtilizado + '%' : '—' }}
                               </span>
@@ -413,20 +405,18 @@
                         <!-- TOTAL da linha (fixo à direita) -->
                         <td class="sticky-r sticky-r-2 sticky-edge-r total-col">{{ resumoLinha(linha).total }}</td>
 
-                        <!-- EFICIÊNCIA DO DIA (fixa à direita; ocupa todas as linhas do funcionário) -->
+                        <!-- EFICIÊNCIA OFICIAL ÚNICA (fixa à direita; ocupa todas as linhas do funcionário) -->
                         <td v-if="idxLinha === 0" class="sticky-r sticky-r-1 efic-dia-col"
                           :rowspan="funcionario.linhas.length">
                           <span v-if="funcionarioAusenteDiaInteiro(funcionario)"
                             class="efic-badge ausencia-tag--dia_inteiro">Ausente</span>
                           <template v-else>
-                            <!-- EFICIÊNCIA OFICIAL ÚNICA: a fórmula continua calcularEficiencia
-                                 (produção × SAM ÷ tempo trabalhado); o que mudou é somente a
-                                 ORIGEM do SAM usado: o menor tempo confiável entre o Tempo Ficha
-                                 e o Tempo Referência do profissional (ver resolverTempoUtilizado). -->
-                            <div class="efic-dia-oficial">
+                            <!-- Card de alta visibilidade. Cor: >75 verde · >60 e ≤75 amarelo · ≤60 vermelho
+                                 (regra SOMENTE visual — ver getEficClass). -->
+                            <div :class="['efic-dia-oficial', getEficClass(resumoFunc(funcionario, grupo).efDia)]">
                               <span class="efic-dia-oficial-label">EFICIÊNCIA</span>
-                              <span :class="['efic-dia-oficial-valor', getEficClass(resumoFunc(funcionario, grupo).efDia)]">
-                                {{ resumoFunc(funcionario, grupo).efDia ? resumoFunc(funcionario, grupo).efDia + '%' : '—' }}
+                              <span class="efic-dia-oficial-valor">
+                                {{ resumoFunc(funcionario, grupo).efDia ? fmtPct(resumoFunc(funcionario, grupo).efDia) : '—' }}
                               </span>
                             </div>
                             <span v-if="resumoFunc(funcionario, grupo).capacidade" class="efic-dia-sub">
@@ -435,124 +425,160 @@
                             </span>
                           </template>
 
-                          <!-- Hierarquia: funcionário → produção → eficiências → detalhamento -->
                           <button class="btn-detalhar"
                             :aria-expanded="!!detalhesAbertos[chaveDetalhes(funcionario, grupo)]"
                             @click="alternarDetalhes(funcionario, grupo)">
-                            {{ detalhesAbertos[chaveDetalhes(funcionario, grupo)] ? '⌃ Ocultar detalhes' : '⌄ Detalhar produção' }}
+                            {{ detalhesAbertos[chaveDetalhes(funcionario, grupo)] ? '⌃ Ocultar detalhes' : '⌄ Ver detalhes' }}
                           </button>
                         </td>
 
                       </tr>
 
-                      <!-- PAINEL EXPANSÍVEL DE DETALHAMENTO (mesma tela, sem modal/página) -->
+                      <!-- PAINEL EXPANSÍVEL "VER DETALHES" (mesma tela, sem modal/rota) -->
                       <tr v-if="detalhesAbertos[chaveDetalhes(funcionario, grupo)]" class="linha-detalhe">
                         <td :colspan="2 + horasVisiveis.length + 2" class="linha-detalhe-td">
                           <div v-for="d in [detalhesVisiveis[chaveDetalhes(funcionario, grupo)]].filter(Boolean)"
-                            :key="d ? 'painel-detalhe' : 'painel-vazio'" class="detalhe-panel">
-                            <div class="detalhe-header">
-                              <span class="detalhe-titulo">Resumo do profissional</span>
-                              <span class="detalhe-contexto">{{ funcionario.nome }} · {{ grupo.label }}</span>
+                            :key="d.id || 'painel-' + chaveDetalhes(funcionario, grupo)" 
+                            class="dp-panel">
+                            <div class="dp-header">
+                              <span class="dp-titulo">Detalhes da produção</span>
+                              <span class="dp-contexto">{{ funcionario.nome }} · {{ grupo.label }}</span>
                             </div>
 
-                            <div class="detalhe-cards">
-                              <div v-for="card in d.cards" :key="card.label" :class="['detalhe-card', card.classe]"
-                                :title="card.titulo">
-                                <span class="detalhe-card-label">{{ card.label }}</span>
-                                <span class="detalhe-card-valor">{{ card.valor }}</span>
-                              </div>
-                            </div>
+                            <p v-if="d.vazio" class="dp-vazio">
+                              Este profissional ainda não tem produção lançada neste módulo no dia selecionado.
+                            </p>
 
-                            <div class="detalhe-colunas">
-                              <!-- Produção por hora (horas visíveis) -->
-                              <div class="detalhe-tabela-wrap">
-                                <div class="detalhe-secao-titulo">Produção por hora</div>
-                                <table class="detalhe-tabela">
-                                  <thead>
-                                    <tr>
-                                      <th>Hora</th>
-                                      <th>Produção</th>
-                                      <th>Tempo</th>
-                                      <th>TR Ficha</th>
-                                      <th>TR Utilizado</th>
-                                      <th>Eficiência</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    <tr v-for="h in d.horasTabela" :key="h.hora"
-                                      :class="{ 'detalhe-linha-ativa': h.qtd > 0 }">
-                                      <td>{{ h.hora }}</td>
-                                      <td>{{ h.qtd || '—' }}</td>
-                                      <td>{{ h.qtd ? h.min + ' min' : '—' }}</td>
-                                      <td>{{ h.rotuloTrFicha }}</td>
-                                      <td>{{ h.rotuloTrUtilizado }}</td>
-                                      <td>
-                                        <span :class="['detalhe-ef-chip', getEficClass(h.efUtilizado)]"
-                                          :title="h.motivo ? 'TR utilizado: ' + h.motivo : ''">
-                                          {{ h.qtd && h.efUtilizado ? h.efUtilizado + '%' : '—' }}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  </tbody>
-                                </table>
+                            <template v-else>
+                              <!-- 1) RESUMO DA PRODUÇÃO -->
+                              <div class="dp-cards">
+                                <div class="dp-card">
+                                  <span class="dp-card-label">Produção</span>
+                                  <span class="dp-card-valor">{{ fmtNum(d.producao) }} peças</span>
+                                </div>
+                                <div class="dp-card">
+                                  <span class="dp-card-label">Tempo trabalhado</span>
+                                  <span class="dp-card-valor">{{ fmtNum(d.minutos) }} min</span>
+                                </div>
+                                <div :class="['dp-card', 'dp-card--ef', d.classeEf]">
+                                  <span class="dp-card-label">Eficiência oficial</span>
+                                  <span class="dp-card-valor">{{ d.efOficial ? fmtPct(d.efOficial) : '—' }}</span>
+                                </div>
+                                <div class="dp-card">
+                                  <span class="dp-card-label">Tempo utilizado</span>
+                                  <span class="dp-card-valor">{{ d.efetivo.disponivel ? fmtTempo(d.efetivo.tempo) + ' min/peça' : '—' }}</span>
+                                </div>
                               </div>
 
-                              <!-- Auditoria da decisão de tempo: qual tempo entrou no cálculo e por quê -->
-                              <div class="detalhe-tabela-wrap">
-                                <div class="detalhe-secao-titulo">Tempo utilizado no cálculo</div>
-                                <table class="detalhe-tabela detalhe-tabela--tempo">
-                                  <tbody>
-                                    <tr>
-                                      <td class="detalhe-causa-label">Tempo Ficha</td>
-                                      <td>{{ d.tempoSaida.fichaFmt }}</td>
-                                    </tr>
-                                    <tr>
-                                      <td class="detalhe-causa-label">Tempo Referência Prof.</td>
-                                      <td>{{ d.tempoSaida.temReferencia ? d.tempoSaida.referenciaFmt : '—' }}</td>
-                                    </tr>
-                                    <tr>
-                                      <td class="detalhe-causa-label">Tempo Padrão</td>
-                                      <td>{{ d.tempoSaida.padraoFmt }}</td>
-                                    </tr>
-                                    <tr class="detalhe-causa-destaque">
-                                      <td class="detalhe-causa-label">Tempo utilizado no cálculo</td>
-                                      <td><strong>{{ d.tempoSaida.utilizadoFmt }}</strong></td>
-                                    </tr>
-                                    <tr>
-                                      <td class="detalhe-causa-label">Critério</td>
-                                      <td class="detalhe-causa-motivo">{{ d.tempoSaida.motivo }}</td>
-                                    </tr>
-                                    <tr>
-                                      <td class="detalhe-causa-label">Eficiência final</td>
-                                      <td>{{ d.tempoSaida.efFmt }}</td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
+                              <div class="dp-grid">
+                                <!-- 2) ANÁLISE DOS TEMPOS -->
+                                <section class="dp-box dp-box--wide">
+                                  <h4 class="dp-box-titulo">Análise dos Tempos</h4>
+                                  <div class="dp-scroll">
+                                    <table class="dp-tabela">
+                                      <thead>
+                                        <tr>
+                                          <th>Referência</th>
+                                          <th>Tempo (min/peça)</th>
+                                          <th>Capacidade teórica</th>
+                                          <th>Eficiência</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        <tr v-for="l in d.analise" :key="l.chave"
+                                          :class="{ 'dp-linha-efetiva': l.destaque, 'dp-linha-indisp': !l.disponivel }">
+                                          <td>{{ l.rotulo }}</td>
+                                          <td>{{ l.disponivel ? fmtTempo(l.tempo) : '—' }}</td>
+                                          <td>{{ l.disponivel ? fmtQtd(l.capacidade) + ' peças' : '—' }}</td>
+                                          <td>{{ l.disponivel ? fmtPct(l.eficiencia) : '—' }}</td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                  <p v-if="d.mesmaOrigemPadraoFicha" class="dp-nota">
+                                    No cadastro atual, Tempo Padrão e Tempo Ficha vêm do mesmo valor da etapa.
+                                  </p>
+                                  <p v-if="d.etapasMultiplas" class="dp-nota">
+                                    Há mais de uma etapa com produção: os tempos exibidos são equivalentes
+                                    (tempo trabalhado ÷ capacidade somada das etapas).
+                                  </p>
+                                  <p v-if="!d.referencia.disponivel" class="dp-nota">
+                                    O Tempo Referência do Profissional não está disponível em todas as etapas
+                                    produzidas, por isso não é comparado.
+                                  </p>
+                                </section>
 
-                              <!-- Produção por etapa (inclui as etapas extras) -->
-                              <div class="detalhe-tabela-wrap">
-                                <div class="detalhe-secao-titulo">Produção por etapa</div>
-                                <table class="detalhe-tabela">
-                                  <thead>
-                                    <tr>
-                                      <th>Etapa</th>
-                                      <th>TR Ficha</th>
-                                      <th>TR Utilizado</th>
-                                      <th>Produção</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    <tr v-for="e in d.etapas" :key="e.chave">
-                                      <td>{{ e.descricao }}<span v-if="e.extra" class="detalhe-etapa-extra"> ↳ extra</span></td>
-                                      <td>{{ e.rotuloTrFicha }}</td>
-                                      <td>{{ e.rotuloTrUtilizado }}</td>
-                                      <td><strong>{{ e.total }}</strong></td>
-                                    </tr>
-                                  </tbody>
-                                </table>
+                                <!-- 3) COMO O TEMPO FOI ESCOLHIDO -->
+                                <section class="dp-box">
+                                  <h4 class="dp-box-titulo">Como o tempo foi escolhido?</h4>
+                                  <ul class="dp-motivos">
+                                    <li v-for="m in d.decisoes" :key="m.chave">
+                                      <strong v-if="d.decisoes.length > 1">{{ m.etapa }}: </strong>{{ m.texto }}
+                                    </li>
+                                  </ul>
+                                </section>
+
+                                <!-- 4) COMPARATIVO DE EFICIÊNCIA -->
+                                <section class="dp-box">
+                                  <h4 class="dp-box-titulo">Comparativo de Eficiência</h4>
+                                  <div class="dp-ef-lista">
+                                    <div v-for="l in d.analise" :key="'ef-' + l.chave"
+                                      :class="['dp-ef-item', l.destaque ? 'dp-ef-item--oficial' : '']">
+                                      <span class="dp-ef-nome">
+                                        {{ l.rotuloCurto }}
+                                        <em v-if="l.destaque" class="dp-tag-oficial">Oficial</em>
+                                      </span>
+                                      <span class="dp-ef-valor">{{ l.disponivel ? fmtPct(l.eficiencia) : '—' }}</span>
+                                    </div>
+                                  </div>
+                                  <p class="dp-nota">
+                                    Apenas a eficiência do Tempo Efetivo é a oficial (a mesma da tabela).
+                                    As demais são comparativos analíticos.
+                                  </p>
+                                </section>
+
+                                <!-- 5) GRÁFICO: COMPARATIVO DE PRODUÇÃO -->
+                                <section class="dp-box dp-box--wide">
+                                  <h4 class="dp-box-titulo">Comparativo de Produção</h4>
+                                  <div class="dp-grafico">
+                                    <canvas :ref="el => registrarCanvas(chaveDetalhes(funcionario, grupo), el)"></canvas>
+                                  </div>
+                                  <ul class="dp-legenda">
+                                    <li v-for="item in d.grafico.itens" :key="item.rotulo">
+                                      <span class="dp-legenda-cor" :style="{ background: item.cor }"></span>
+                                      {{ item.rotulo }}:
+                                      <strong>{{ item.valor === null ? 'indisponível' : fmtQtd(item.valor) + ' peças' }}</strong>
+                                      <em>({{ item.tipo }})</em>
+                                    </li>
+                                  </ul>
+                                </section>
+
+                                <!-- 6) IMPACTO DA REFERÊNCIA DE TEMPO -->
+                                <section class="dp-box dp-box--wide">
+                                  <h4 class="dp-box-titulo">Impacto da Referência de Tempo</h4>
+                                  <template v-if="d.impacto.disponivel">
+                                    <div class="dp-impacto-par">
+                                      <div class="dp-impacto-item">
+                                        <span>Tempo Ficha</span>
+                                        <strong>{{ fmtTempo(d.impacto.tempoFicha) }} min</strong>
+                                      </div>
+                                      <div class="dp-impacto-item">
+                                        <span>Tempo Profissional</span>
+                                        <strong>{{ fmtTempo(d.impacto.tempoRef) }} min</strong>
+                                      </div>
+                                    </div>
+                                    <dl class="dp-impacto-lista">
+                                      <div><dt>Diferença</dt><dd>{{ fmtSinal(d.impacto.difMin, 2) }} min</dd></div>
+                                      <div><dt>Variação</dt><dd>{{ fmtSinal(d.impacto.difPct, 1) }}%</dd></div>
+                                      <div><dt>Impacto na capacidade</dt><dd>{{ fmtSinal(d.impacto.difCap, 1) }} peças teóricas</dd></div>
+                                    </dl>
+                                  </template>
+                                  <p v-else class="dp-nota">
+                                    Sem Tempo Referência do Profissional disponível: não há como comparar com o Tempo Ficha.
+                                  </p>
+                                </section>
                               </div>
-                            </div>
+                            </template>
                           </div>
                         </td>
                       </tr>
@@ -632,6 +658,7 @@ import router from '@/router'
 import Swal from 'sweetalert2'
 import { io } from 'socket.io-client'
 import debounce from 'lodash/debounce'
+import Chart from 'chart.js/auto'
 import { gerarPdfProducao } from '@/utils/Gerarpdfproducao'
 import { exportarMapaProducaoExcel } from '@/utils/functions/ExportarExcelMapaProducao'
 import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
@@ -649,30 +676,19 @@ const CONFIG_PADRAO = {
   tarde: { inicio: '13:30', fim: '17:00' },
 }
 
-// Limiar de eficiência usado como referência de "abaixo da média".
-// É o MESMO limite que já dispara os alertas do monitor de produtividade
-// (useMonitorProdutividade) — nenhuma regra paralela de referência.
+// Limiar usado pelo monitor de produtividade (alertas). NÃO é usado para as
+// cores da eficiência na tela (ver getEficClass).
 const LIMIAR_EFICIENCIA_REFERENCIA = 80
 
 /**
  * ═══ Regra do Tempo Utilizado (função pura) ═══
- *
- *   1. Referência > Ficha  → usa a Ficha  (o TR individual nunca estica
- *                            o tempo além do definido na ficha)
- *   2. Referência < Ficha  → usa a Referência (ritmo individual é melhor)
- *   3. Iguais / inválidos  → usa a Ficha (compatível com o fallback já
- *                            existente em resolverSam)
- *
- * Equivalentemente: Math.min(ficha, referencia) com fallback para a
- * ficha quando não há referência válida. Os cálculos finais da
- * eficiência NÃO são alterados — a fórmula oficial
- * (calcularEficiencia de calculosProducao.js) continua a mesma.
+ * tempoEfetivo = Math.min(tempoFicha, tempoReferenciaProfissional), com
+ * fallback para o que existir quando um dos dois é inválido/zerado.
+ * A fórmula de eficiência (calcularEficiencia) NÃO é alterada.
  */
 function tempoUtilizadoDe(tempoFicha, tempoReferenciaProfissional) {
   const ficha = Number(tempoFicha) || 0
   const ref = Number(tempoReferenciaProfissional) || 0
-  // Validação dos tempos: ficha sempre presente; se a referência é
-  // inválida/zerada, sobra só a ficha — nunca rebaixa o tempo a zero.
   if (!(ref > 0)) return ficha
   if (!(ficha > 0)) return ref
   return Math.min(ficha, ref)
@@ -684,11 +700,7 @@ const RESUMO_FUNC_VAZIO = { total: 0, minutos: 0, capacidade: 0, capacidadeFicha
 const INFO_HORA_VAZIA = { sam: 0, capacidade: 0, ef: 0, efUtilizado: 0, capFicha: 0, minutos: 60 }
 
 // ── PERSISTÊNCIA OFFLINE DE ETAPA SELECIONADA ──────────────────────────
-// Garante que a seleção de etapa nunca dependa de haver produção
-// lançada: é salva localmente no INSTANTE da seleção (IndexedDB, com
-// fallback automático para localStorage caso o navegador não suporte ou
-// bloqueie IndexedDB — ex.: alguns modos privados) e sobrevive a reload
-// de página, fechamento do navegador e queda de conexão.
+// IndexedDB com fallback automático para localStorage.
 const OFFLINE_DB_NAME = 'apontamento-offline'
 const OFFLINE_DB_VERSION = 1
 const OFFLINE_STORE_NAME = 'etapasSelecionadas'
@@ -803,13 +815,8 @@ const etapaOfflineStore = {
 }
 
 // ── PERSISTÊNCIA LOCAL ANTI-PERDA DE PRODUÇÃO (localStorage) ──────────
-// Camada de segurança pedida explicitamente: TODO valor digitado nos
-// campos de quantidade/minutos é gravado IMEDIATAMENTE (a cada tecla,
-// sem debounce) no localStorage, com uma chave única por
-// estabelecimento + data + funcionário + OP + etapa + hora. Isso é
-// independente do salvamento via API (que segue debounce de 500ms) —
-// o objetivo aqui é puramente não perder o valor digitado mesmo que a
-// aba feche, a internet caia, ou o salvamento na API falhe.
+// Todo valor digitado é gravado IMEDIATAMENTE (sem debounce), com chave única
+// por estabelecimento + data + funcionário + OP + etapa + hora.
 const LS_PRODUCAO_PREFIXO = 'apontamento_producao_pendente'
 
 function chaveLocalStorageProducao(estabelecimento, data, funcionarioId, opId, etapaId, hora) {
@@ -898,8 +905,7 @@ export default {
       pecasTodas: [],
       etapas: [],
       etapasMap: {},
-      // Índices O(1) para não repetir flat()+filter() em cada célula da
-      // tabela a cada re-render (ver buscarEtapa/etapasDaOp).
+      // Índices O(1) para não repetir flat()+filter() a cada célula.
       etapasPorId: new Map(),
       etapasPorOp: new Map(),
       configHorarios: this.carregarConfigHorarios(),
@@ -914,29 +920,19 @@ export default {
       },
 
       /**
-       * Painéis de "Detalhar produção" atualmente expandidos, por
-       * funcionário+OP (chave `email::opId`). Somente visualização:
-       * não afeta registros, salvamento nem cálculos.
+       * Painéis "Ver detalhes" expandidos, por funcionário+OP
+       * (chave `email::opId`). Somente visualização.
        */
       detalhesAbertos: {},
 
       // ── Seleção/filtro de horas (somente VISUALIZAÇÃO) ──
-      // Guarda as horas ocultas (e não as visíveis) para que horas novas
-      // criadas pela configuração apareçam automaticamente.
       horasOcultas: this.carregarHorasOcultas(),
       filtroHoras: 'todas', // 'todas' | 'preenchidas' | 'pendentes'
-      horasFiltroSnapshot: null, // lista congelada no clique do filtro
+      horasFiltroSnapshot: null,
 
       /**
-       * Estado de salvamento POR CÉLULA (quantidade+minutos de um
-       * funcionário/OP/etapa/hora específicos). Estrutura pedida:
-       *   saveStatus: {
-       *     [chaveCelula]: { status: 'idle'|'pending'|'saving'|'saved'|'error', lastSavedAt: null|number }
-       *   }
-       * A chave é montada por chaveCelula(funcionarioId, opId, etapaId, hora).
-       * Objeto plano (não Map) de propósito: Vue 3 torna reativa a adição
-       * de novas chaves automaticamente, o que permite usar
-       * this.saveStatus[chave] diretamente no template sem passos extras.
+       * Estado de salvamento POR CÉLULA:
+       *   saveStatus[chave] = { status: 'idle'|'pending'|'saving'|'saved'|'error', lastSavedAt }
        */
       saveStatus: {},
     }
@@ -951,7 +947,7 @@ export default {
       return this.gerarOpcoesHorario(6, 22)
     },
 
-    /** Todas as horas do dia (manhã + tarde das configurações), ordenadas e sem repetir. */
+    /** Todas as horas do dia (manhã + tarde), ordenadas e sem repetir. */
     todasHorasDia() {
       const { manha, tarde } = this.configHorarios
       const set = new Set([
@@ -985,7 +981,7 @@ export default {
       return set
     },
 
-    /** Rótulo usado no PDF/Excel no lugar do antigo turnoAtivo. */
+    /** Rótulo usado no PDF/Excel. */
     rotuloTurno() {
       const v = this.horasVisiveis
       const { manha, tarde } = this.configHorarios
@@ -1096,13 +1092,8 @@ export default {
 
     /**
      * ÚNICO ponto de cálculo da tabela. Por linha (funcionário/OP/etapa)
-     * calcula, uma vez só, o TEMPO UTILIZADO e os dados de cada hora.
-     * Usa SOMENTE calcularCapacidade / calcularEficiencia já existentes.
-     *
-     * Tempo Utilizado (origem do SAM): o MENOR entre o Tempo Ficha e o
-     * Tempo Referência do profissional — o profissional nunca rende menos
-     * que a ficha, e sua referência individual nunca pode esticar o tempo
-     * além do que a ficha define. Sem referência válida, usar a ficha.
+     * calcula o TEMPO UTILIZADO e os dados de cada hora, usando SOMENTE
+     * calcularCapacidade / calcularEficiencia já existentes.
      */
     resumoLinhas() {
       const mapa = new Map()
@@ -1131,8 +1122,7 @@ export default {
             horas[hora] = { sam: samUtilizado, capacidade: cap, ef, capFicha, minutos: min }
             horas[hora].efUtilizado = ef
 
-            // Horas "válidas" = com produção e não bloqueadas por ausência
-            // (mesmo critério já usado em calcularEficienciaLinha*).
+            // Horas "válidas" = com produção e não bloqueadas por ausência.
             if (qtd > 0 && !this.horaBloqueadaPorAusencia(func, hora)) {
               total += qtd
               minutos += min
@@ -1155,8 +1145,8 @@ export default {
 
     /**
      * Consolidação do DIA por funcionário dentro de cada módulo de OP.
-     * Eficiência do dia = Σ produção ponderada ÷ Σ tempo das horas válidas
-     * (equivale a Σ peças ÷ Σ capacidade). NUNCA média de percentuais.
+     * Eficiência do dia = Σ produção ponderada ÷ Σ tempo das horas válidas.
+     * NUNCA média de percentuais. É a EFICIÊNCIA OFICIAL.
      */
     resumoFuncionarioGrupo() {
       const mapa = new Map()
@@ -1175,8 +1165,7 @@ export default {
             pondUtilizado += r.ponderadaUtilizado
             if (linha.etapaId) etapas++
           }
-          // FÓRMULA OFICIAL inalterada — o que mudou é somente o SAM que
-          // entra na produção ponderada (tempoUtilizado, ver resumoLinhas).
+          // FÓRMULA OFICIAL inalterada.
           const efDia = minutos
             ? calcularEficiencia({ producaoPonderada: pondUtilizado, funcionarios: 1, tempoTrabalhado: minutos })
             : 0
@@ -1193,12 +1182,7 @@ export default {
       return mapa
     },
 
-    /**
-     * Consolidação do PERÍODO SELECIONADO (horasVisiveis) por
-     * funcionário dentro de cada módulo de OP. Mesma fórmula acumulada
-     * do dia — Σ peças × TR ÷ Σ tempo — NUNCA média de percentuais.
-     * Apenas leitura: não altera registros nem salvamento.
-     */
+    /** Consolidação do PERÍODO SELECIONADO (horasVisiveis) por funcionário/módulo. */
     resumoPeriodoGrupo() {
       const mapa = new Map()
       const horasVisiveis = this.horasVisiveis
@@ -1236,11 +1220,7 @@ export default {
       return mapa
     },
 
-    /**
-     * Eficiência consolidada do PERÍODO selecionado (horas visíveis)
-     * somando todos os funcionários/etapas da tabela — alimenta a faixa
-     * de resumo da barra de horários. Mesma fórmula acumulada.
-     */
+    /** Eficiência consolidada do PERÍODO (horas visíveis) de todos os funcionários. */
     resumoPeriodoGeral() {
       let total = 0, minutos = 0, pondUtilizado = 0
 
@@ -1271,10 +1251,8 @@ export default {
     },
 
     /**
-     * Dados do painel "Detalhar produção", montados APENAS para os
-     * funcionários atualmente expandidos (ver detalhesAbertos) —
-     * reutiliza resumoLinhas/resumoFuncionarioGrupo/resumoPeriodoGrupo,
-     * sem duplicar nenhuma regra de cálculo.
+     * Dados do painel "Ver detalhes", montados APENAS para os profissionais
+     * atualmente expandidos (ver detalhesAbertos).
      */
     detalhesVisiveis() {
       const mapa = {}
@@ -1287,22 +1265,13 @@ export default {
       return mapa
     },
 
-    /**
-     * Contador global de células com alteração ainda não confirmada pelo
-     * backend (pendente de debounce, em salvamento, ou em erro).
-     * Alimenta o badge do header.
-     */
+    /** Células com alteração ainda não confirmada pelo backend. */
     totalCelulasPendentes() {
       return Object.values(this.saveStatus).filter(
         s => s.status === 'pending' || s.status === 'saving' || s.status === 'error'
       ).length
     },
 
-    /**
-     * Usado para decidir se o listener de beforeunload deve estar ativo
-     * (ver watch abaixo) — "existe algo que, se a aba fechar agora, pode
-     * ser perdido pela API (ainda que o localStorage já tenha uma cópia)?"
-     */
     existemAlteracoesPendentes() {
       return this.totalCelulasPendentes > 0
     },
@@ -1310,11 +1279,6 @@ export default {
 
   watch: {
     dataSelecionada() {
-      // Antes de trocar de dia (o que reconstrói funcionariosDia do
-      // zero), garante que qualquer edição ainda dentro da janela do
-      // debounce seja disparada imediatamente — sem isso, a edição mais
-      // recente poderia ser perdida da tela (ainda ficaria seguro no
-      // localStorage, mas é melhor já tentar salvar antes de trocar).
       this.flushAntesDeTrocarTela()
       // Painéis de detalhamento não fazem sentido para outro dia.
       this.detalhesAbertos = {}
@@ -1322,11 +1286,17 @@ export default {
     },
 
     /**
-     * Liga/desliga o listener de beforeunload dinamicamente, exatamente
-     * como pedido: só fica ativo enquanto houver alguma célula
-     * pendente/salvando/com erro. Assim que tudo é confirmado pelo
-     * backend, o listener é removido e a aba pode ser fechada sem aviso.
+     * Mantém os gráficos em sincronia com os painéis abertos: cria ao abrir,
+     * atualiza quando a produção/tempos mudam, destrói ao fechar.
+     * $nextTick garante que o <canvas> já está no DOM.
      */
+    detalhesVisiveis: {
+      handler() {
+        this.$nextTick(() => this.sincronizarGraficos())
+      },
+      flush: 'post',
+    },
+
     existemAlteracoesPendentes(existemAgora) {
       if (existemAgora) {
         if (!this._beforeUnloadAtivo) {
@@ -1341,17 +1311,17 @@ export default {
   },
 
   created() {
-    // Bookkeeping NÃO reativo de propósito (timers e sets de controle de
-    // fluxo não precisam — e não devem — disparar re-render do Vue).
-    this._debounceTimers = new Map()   // chaveCelula -> timeoutId
-    this._emVoo = new Set()            // chaveCelula com requisição em andamento
-    this._reenviarAposSalvar = new Set() // chaveCelula que mudou de novo enquanto salvava
+    // Bookkeeping NÃO reativo de propósito.
+    this._debounceTimers = new Map()
+    this._emVoo = new Set()
+    this._reenviarAposSalvar = new Set()
     this._beforeUnloadAtivo = false
 
+    // Gráficos (Chart.js) NÃO podem ser reativos: o Proxy do Vue quebra o Chart.
+    this._charts = {}    // chave -> instância Chart
+    this._canvases = {}  // chave -> <canvas> atual
+
     this._onBeforeUnloadHandler = (e) => {
-      // Aviso padrão do navegador — o texto customizado não é mais
-      // respeitado pelos navegadores modernos por segurança, mas
-      // preventDefault + returnValue é o que aciona o diálogo nativo.
       this.flushAntesDeTrocarTela()
       e.preventDefault()
       e.returnValue = ''
@@ -1365,15 +1335,7 @@ export default {
     await this.aguardarConexaoSocket()
     await this.carregarDados()
     await this.buscarMetaDia()
-    // buscarMetaDia() já dispara restaurarEtapasOffline() e
-    // restaurarPendentesLocalStorage() internamente, no momento certo
-    // (depois que funcionariosDia foi reconstruído), e getFaltas()
-    // também — tudo se repete automaticamente a cada troca de data.
 
-    // Sincronização periódica: tenta salvar de novo qualquer célula
-    // pendente/erro mesmo sem nova digitação — cobre o caso da conexão
-    // voltar sem o evento 'online' do navegador disparar de forma
-    // confiável (comum em redes móveis).
     this._intervaloRetentativa = setInterval(() => {
       this.retentarCelulasPendentes()
     }, 20000)
@@ -1381,8 +1343,6 @@ export default {
     this._onOnlineHandler = () => this.retentarCelulasPendentes()
     window.addEventListener('online', this._onOnlineHandler)
 
-    // No celular, trocar de app ou bloquear a tela dispara
-    // visibilitychange de forma bem mais confiável que beforeunload.
     this._onVisibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
         this.flushAntesDeTrocarTela()
@@ -1391,12 +1351,13 @@ export default {
       }
     }
     document.addEventListener('visibilitychange', this._onVisibilityHandler)
-
-    // O listener de beforeunload em si só é registrado quando existem
-    // alterações pendentes — ver watch: existemAlteracoesPendentes.
   },
 
   beforeUnmount() {
+    for (const c of Object.values(this._charts)) c.destroy()
+    this._charts = {}
+    this._canvases = {}
+
     this.flushAntesDeTrocarTela()
 
     if (this._beforeUnloadAtivo) {
@@ -1438,10 +1399,8 @@ export default {
     },
 
     /**
-     * TR individual em exibição na linha do funcionário — só quando
-     * existe UMA etapa e o Tempo Utilizado (o menor entre Ficha e
-     * referência) é DIFERENTE do da ficha (senão o próprio select de
-     * tempo da etapa já mostra o valor).
+     * TR individual em exibição na linha do funcionário — só quando existe UMA
+     * etapa e o Tempo Utilizado difere do da ficha.
      */
     tempoReferenciaUnico(funcionario, grupo) {
       if (!funcionario || !grupo) return null
@@ -1451,8 +1410,31 @@ export default {
       return !!r.samUtilizado && r.samUtilizado !== r.samFicha ? r.samUtilizado : null
     },
 
+    // ── FORMATADORES (somente apresentação: nada é arredondado antes dos cálculos) ──
     fmtNum(n) {
       return Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+    },
+
+    fmtQtd(n) {
+      return Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+    },
+
+    fmtTempo(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—'
+      return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    },
+
+    fmtPct(n) {
+      if (n === null || n === undefined || !isFinite(n)) return '—'
+      return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'
+    },
+
+    /** Número com sinal explícito (+/−) — usado no impacto da referência. */
+    fmtSinal(n, casas = 2) {
+      if (n === null || n === undefined || !isFinite(n)) return '—'
+      const arred = Number(n.toFixed(casas))
+      const sinal = arred > 0 ? '+' : arred < 0 ? '-' : ''
+      return sinal + Math.abs(arred).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas })
     },
 
     fmtHorasRegistradas(min) {
@@ -1461,9 +1443,7 @@ export default {
       return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`
     },
 
-    // ── DETALHAMENTO EXPANSÍVEL DO PROFISSIONAL ───────────
-    // Mesma tela, sem modal e sem nova página: o painel aparece como
-    // uma linha logo abaixo das linhas do funcionário na tabela.
+    // ── "VER DETALHES": PAINEL EXPANSÍVEL ─────────────────
     chaveDetalhes(funcionario, grupo) {
       return `${funcionario.email}::${grupo.opId || 'sem'}`
     },
@@ -1474,136 +1454,264 @@ export default {
     },
 
     /**
-     * Monta os dados do painel do profissional. Reutiliza os resumos
-     * existentes (resumoLinhas/resumoFuncionarioGrupo/resumoPeriodoGrupo)
-     * e as funções oficiais de eficiência/capacidade — nenhuma regra
-     * de cálculo nova é criada aqui.
+     * Monta TODOS os dados do painel de um profissional/módulo.
+     *
+     * Reutiliza: resumoLinhas (produção, minutos, capacidade efetiva),
+     * resumoFuncionarioGrupo (eficiência oficial), calcularCapacidade e
+     * calcularEficiencia (fórmulas oficiais), e os resolvers de tempo já
+     * existentes. Nenhuma regra de cálculo nova.
+     *
+     * Para cada referência (Padrão, Ficha, Referência do Profissional):
+     *   capacidade = Σ por etapa de calcularCapacidade(minutos da etapa, tempo da etapa)
+     *   eficiência = calcularEficiencia(Σ produção×tempo, minutos)
+     *   tempo exibido = minutos ÷ capacidade (com 1 etapa = o tempo da etapa)
+     * Se algum tempo não existe em uma etapa produzida, a referência fica
+     * indisponível (null) — nunca é inventado valor.
      */
     montarDadosDetalhe(funcionario, grupo) {
-      const chave = this.chaveDetalhes(funcionario, grupo)
-      const dia = this.resumoFuncionarioGrupo.get(chave) || RESUMO_FUNC_VAZIO
-      const periodo = this.resumoPeriodoGrupo.get(chave) || {}
+      const chaveFunc = this.chaveDetalhes(funcionario, grupo)
+      const dia = this.resumoFuncionarioGrupo.get(chaveFunc) || RESUMO_FUNC_VAZIO
 
-      const linhasComEtapa = (funcionario.linhas || []).filter(l => l.etapaId)
-      const etapaUnica = linhasComEtapa.length === 1 ? linhasComEtapa[0] : null
-
-      // Horas com produção no dia (deduplicadas entre etapas)
-      const horasComProducao = new Set()
-      for (const linha of linhasComEtapa) {
-        for (const [hora, reg] of Object.entries(linha.registros || {})) {
-          if (Number(reg?.quantidade || 0) > 0) horasComProducao.add(hora)
-        }
+      const acc = {
+        padrao: { pond: 0, cap: 0, ok: true },
+        ficha: { pond: 0, cap: 0, ok: true },
+        referencia: { pond: 0, cap: 0, ok: true },
       }
-      const horasSemProducao = Math.max(this.todasHorasDia.length - horasComProducao.size, 0)
+      let producao = 0, minutos = 0, capEfetiva = 0, linhasComProducao = 0
+      const decisoes = []
 
-      // Produção por hora — consolida todas as etapas do funcionário na
-      // hora com a MESMA fórmula acumulada (Σ qtd×TR Utilizado ÷ Σ tempo).
-      const horasTabela = this.horasVisiveis.map(hora => {
-        let qtd = 0, min = 0, pondUtilizado = 0
-        let motivoHora = null, trUtilizadoHora = 0
-        for (const linha of linhasComEtapa) {
-          const reg = linha.registros?.[hora]
-          const q = Number(reg?.quantidade || 0)
-          if (!q) continue
-          const samUtilizado = this.resolverTempoUtilizado(funcionario, linha)
-          qtd += q
-          min += Number(reg?.tempoProduzido || 60)
-          pondUtilizado += q * samUtilizado
-          if (!trUtilizadoHora) {
-            trUtilizadoHora = samUtilizado
-            motivoHora = this.motivoTempoUtilizado(funcionario, linha)
-          }
-        }
-        const ef = (pond) => min
-          ? calcularEficiencia({ producaoPonderada: pond, funcionarios: 1, tempoTrabalhado: min })
-          : 0
-        const decidida = etapaUnica
-          ? this.resolverTempoUtilizado(funcionario, etapaUnica)
-          : 0
-        return {
-          hora,
-          qtd,
-          min,
-          efUtilizado: ef(pondUtilizado),
-          rotuloTrFicha: etapaUnica && this.resolverTempoPadrao(etapaUnica)
-            ? `${this.fmtNum(this.resolverTempoPadrao(etapaUnica))} min`
-            : '—',
-          rotuloTrUtilizado: decidida
-            ? `${this.fmtNum(decidida)} min`
-            : '—',
-          motivo: motivoHora,
-        }
-      })
-
-      // Produção por etapa (inclui as etapas extras)
-      const etapas = linhasComEtapa.map(linha => {
+      for (const linha of (funcionario.linhas || [])) {
+        if (!linha.etapaId) continue
         const r = this.resumoLinha(linha)
-        const samFicha = this.resolverTempoPadrao(linha)
-        const samUtilizado = this.resolverTempoUtilizado(funcionario, linha)
-        return {
-          chave: linha.id,
-          descricao: linha.descricao || this.buscarEtapa(linha.etapaId, linha.opId)?.descricao || '—',
-          extra: linha.tipo === 'extra',
-          total: r.total,
-          minutos: r.minutos,
-          rotuloTrFicha: samFicha ? `${this.fmtNum(samFicha)} min` : '—',
-          rotuloTrUtilizado: samUtilizado ? `${this.fmtNum(samUtilizado)} min` : '—',
+        if (!(r.total > 0) || !(r.minutos > 0)) continue
+        linhasComProducao++
+
+        producao += r.total
+        minutos += r.minutos
+        capEfetiva += r.capacidade // capacidade com o Tempo Efetivo (oficial)
+
+        const tempos = {
+          padrao: this.resolverTempoPadraoCadastro(linha),
+          ficha: this.resolverTempoPadrao(linha),
+          referencia: this.tempoReferenciaDisponivel(funcionario, linha),
         }
-      })
+        for (const k of Object.keys(acc)) {
+          const t = Number(tempos[k]) || 0
+          if (!(t > 0)) { acc[k].ok = false; continue }
+          acc[k].pond += r.total * t
+          acc[k].cap += calcularCapacidade({ funcionarios: 1, tempoTrabalhado: r.minutos, sam: t })
+        }
 
-      const classeCard = (pct) => ({
-        'efic-alta': 'detalhe-card--alta',
-        'efic-media': 'detalhe-card--media',
-        'efic-baixa': 'detalhe-card--baixa',
-      }[this.getEficClass(pct)] || '')
-
-      // Auditoria da decisão de tempo da etapa única — alimenta tanto
-      // a tabela "Tempo utilizado no cálculo" quanto os cards de cima.
-      const resumoEtapaUnica = etapaUnica ? {
-        fichaFmt: this.resolverTempoPadrao(etapaUnica) ? this.fmtNum(this.resolverTempoPadrao(etapaUnica)) + ' min' : '—',
-        temReferencia: !!this.resolverTempoReferencia(funcionario, etapaUnica),
-        referenciaFmt: this.resolverTempoReferencia(funcionario, etapaUnica) ? this.fmtNum(this.resolverTempoReferencia(funcionario, etapaUnica)) + ' min' : '—',
-        padraoFmt: this.resolverTempoPadrao(etapaUnica) ? this.fmtNum(this.resolverTempoPadrao(etapaUnica)) + ' min' : '—',
-        utilizadoFmt: (() => {
-          const t = this.resolverTempoUtilizado(funcionario, etapaUnica)
-          return t ? this.fmtNum(t) + ' min' : '—'
-        })(),
-        motivo: this.motivoTempoUtilizado(funcionario, etapaUnica),
-        efUtilizado: dia.efDia,
-      } : null
-      const tempoSaida = resumoEtapaUnica ? {
-        ...resumoEtapaUnica,
-        efFmt: resumoEtapaUnica.efUtilizado ? resumoEtapaUnica.efUtilizado + '%' : '—',
-      } : {
-        fichaFmt: '—', temReferencia: false, referenciaFmt: '—', padraoFmt: '—',
-        utilizadoFmt: '—', motivo: '—', efFmt: '—',
-      }
-
-      const cards = [
-        { label: 'Produção total', valor: `${this.fmtNum(dia.total)} peças` },
-        { label: 'Horas produtivas', valor: this.fmtHorasRegistradas(dia.minutos) },
-        { label: 'Horas sem produção', valor: `${horasSemProducao}h`, titulo: 'Horas do dia em que este profissional não lançou produção' },
-      ]
-
-      if (etapaUnica) {
-        const samF = this.resolverTempoPadrao(etapaUnica)
-        const samU = this.resolverTempoUtilizado(funcionario, etapaUnica)
-        if (samF) cards.push({ label: 'Tempo de referência da ficha', valor: `${this.fmtNum(samF)} min/peça` })
-        if (samU) cards.push({
-          label: 'Tempo utilizado',
-          valor: `${this.fmtNum(samU)} min/peça`,
-          titulo: 'Tempo efetivamente usado no cálculo da eficiência',
+        decisoes.push({
+          chave: linha.id,
+          etapa: linha.descricao || this.buscarEtapa(linha.etapaId, linha.opId)?.descricao || 'Etapa',
+          texto: this.decisaoTempoLinha(funcionario, linha).texto,
         })
       }
 
-      cards.push(
-        { label: 'Capacidade pela ficha', valor: `${this.fmtNum(dia.capacidadeFicha)} peças`, titulo: 'Produção esperada usando o Tempo Ficha' },
-        { label: 'Eficiência (dia)', valor: dia.efDia ? `${dia.efDia}%` : '—', classe: classeCard(dia.efDia), titulo: 'Dia completo · produção × tempo utilizado ÷ tempo trabalhado' },
-        { label: 'Produção no período', valor: `${this.fmtNum(periodo.total || 0)} peças`, titulo: this.horasVisiveis.length ? `Horas visíveis: ${this.horasVisiveis.join(', ')}` : '' },
-        { label: 'Eficiência (período)', valor: periodo.efDia ? `${periodo.efDia}%` : '—', classe: classeCard(periodo.efDia), titulo: 'Somente as horas visíveis · tempo utilizado' },
-      )
+      if (!linhasComProducao) return { vazio: true }
 
-      return { cards, horasTabela, etapas, tempoSaida, etapaUnicaResumo: resumoEtapaUnica }
+      const montar = (chave, rotulo, a) => {
+        const ok = a.ok && a.cap > 0
+        return {
+          chave, rotulo, rotuloCurto: rotulo,
+          disponivel: ok,
+          tempo: ok ? minutos / a.cap : null,
+          capacidade: ok ? a.cap : null,
+          eficiencia: ok
+            ? calcularEficiencia({ producaoPonderada: a.pond, funcionarios: 1, tempoTrabalhado: minutos })
+            : null,
+        }
+      }
+
+      const padrao = montar('padrao', 'Tempo Padrão', acc.padrao)
+      const ficha = montar('ficha', 'Tempo Ficha', acc.ficha)
+      const referencia = montar('referencia', 'Tempo Referência do Profissional', acc.referencia)
+      referencia.rotuloCurto = 'Tempo Referência Profissional'
+
+      // Linha OFICIAL: capacidade/tempo vêm do resumoLinhas (Tempo Efetivo =
+      // menor tempo) e a eficiência é EXATAMENTE a do card principal.
+      const efetivo = {
+        chave: 'efetivo',
+        rotulo: 'Tempo Efetivamente Utilizado',
+        rotuloCurto: 'Tempo Efetivo',
+        disponivel: capEfetiva > 0,
+        tempo: capEfetiva > 0 ? minutos / capEfetiva : null,
+        capacidade: capEfetiva > 0 ? capEfetiva : null,
+        eficiencia: dia.efDia,
+        destaque: true,
+      }
+
+      const itens = [
+        { rotulo: 'Tempo Padrão', tipo: 'Capacidade teórica', valor: padrao.capacidade, cor: '#9dc3e6' },
+        { rotulo: 'Tempo Ficha', tipo: 'Capacidade teórica', valor: ficha.capacidade, cor: '#5b9bd5' },
+        { rotulo: 'Tempo Referência Profissional', tipo: 'Capacidade teórica', valor: referencia.capacidade, cor: '#2e75b6' },
+        { rotulo: 'Produção Real', tipo: 'Produção realizada', valor: producao, cor: '#0d6632' },
+      ]
+
+      const impacto = ficha.disponivel && referencia.disponivel
+        ? {
+          disponivel: true,
+          tempoFicha: ficha.tempo,
+          tempoRef: referencia.tempo,
+          difMin: referencia.tempo - ficha.tempo,
+          difPct: ((referencia.tempo - ficha.tempo) / ficha.tempo) * 100,
+          difCap: referencia.capacidade - ficha.capacidade,
+        }
+        : { disponivel: false }
+
+      return {
+        vazio: false,
+        producao,
+        minutos,
+        efOficial: dia.efDia,
+        classeEf: this.getEficClass(dia.efDia),
+        efetivo,
+        analise: [padrao, ficha, referencia, efetivo],
+        referencia,
+        decisoes,
+        etapasMultiplas: linhasComProducao > 1,
+        mesmaOrigemPadraoFicha: padrao.disponivel && ficha.disponivel
+          && Math.abs(padrao.tempo - ficha.tempo) < 1e-9,
+        impacto,
+        grafico: {
+          itens,
+          labels: itens.map(i => [i.rotulo, i.valor === null ? 'indisponível' : i.tipo.toLowerCase()]),
+          valores: itens.map(i => i.valor), // null = barra ausente (nada inventado)
+          cores: itens.map(i => i.cor),
+        },
+      }
+    },
+
+    /** Tempo Padrão do cadastro atual da etapa (fallback: a própria ficha). */
+    resolverTempoPadraoCadastro(linha) {
+      const etapa = this.buscarEtapa(linha?.etapaId, linha?.opId)
+      const t = Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
+      return t > 0 ? t : this.resolverTempoPadrao(linha)
+    },
+
+    /** Decisão (e texto dinâmico) do tempo usado — mesma regra de resolverTempoUtilizado. */
+    decisaoTempoLinha(funcionario, linha) {
+      const ficha = this.resolverTempoPadrao(linha)
+      const ref = this.tempoReferenciaDisponivel(funcionario, linha)
+
+      if (!(ref > 0) && !(ficha > 0)) {
+        return { tipo: 'sem_tempo', texto: 'Não há Tempo Ficha nem Tempo Referência do Profissional válidos.' }
+      }
+      if (!(ref > 0)) {
+        return { tipo: 'ficha', texto: 'O Tempo Ficha foi utilizado porque não existe Tempo Referência do Profissional disponível.' }
+      }
+      if (!(ficha > 0)) {
+        return { tipo: 'referencia', texto: 'O Tempo Referência do Profissional foi utilizado porque não existe Tempo Ficha válido.' }
+      }
+      const nums = `(Ficha ${this.fmtTempo(ficha)} min · Profissional ${this.fmtTempo(ref)} min)`
+      if (ref < ficha) {
+        return { tipo: 'referencia', texto: `O Tempo Referência do Profissional foi utilizado porque é menor que o Tempo Ficha. ${nums}` }
+      }
+      if (ficha < ref) {
+        return { tipo: 'ficha', texto: `O Tempo Ficha foi utilizado porque é menor que o Tempo Referência do Profissional. ${nums}` }
+      }
+      return { tipo: 'igual', texto: `Tempo Ficha e Tempo Referência do Profissional são iguais; o Tempo Ficha foi mantido. ${nums}` }
+    },
+
+    // ── GRÁFICO (Chart.js) ────────────────────────────────
+    /**
+     * Chamado pelo :ref do <canvas> a cada render. Só registra/remove a
+     * referência; criar/destruir gráficos é responsabilidade exclusiva do
+     * sincronizarGraficos (evita destruir/recriar a cada render).
+     */
+    registrarCanvas(chave, el) {
+      if (el) this._canvases[chave] = el
+      else delete this._canvases[chave]
+    },
+
+    sincronizarGraficos() {
+      const dados = this.detalhesVisiveis
+
+      // Destrói o que não está mais aberto, ficou vazio ou perdeu o canvas.
+      for (const chave of Object.keys(this._charts)) {
+        const d = dados[chave]
+        if (!d || d.vazio || !this._canvases[chave]) {
+          this._charts[chave].destroy()
+          delete this._charts[chave]
+        }
+      }
+
+      for (const [chave, d] of Object.entries(dados)) {
+        if (d.vazio) continue
+        const canvas = this._canvases[chave]
+        if (!canvas) continue
+
+        let chart = this._charts[chave]
+        if (chart && chart.canvas !== canvas) { // canvas novo (fechou/reabriu) → recria
+          chart.destroy()
+          delete this._charts[chave]
+          chart = null
+        }
+
+        if (!chart) {
+          this._charts[chave] = this.criarGrafico(canvas, d.grafico)
+        } else {
+          chart.data.labels = [...d.grafico.labels]
+          chart.data.datasets[0].data = [...d.grafico.valores]
+          chart.data.datasets[0].backgroundColor = [...d.grafico.cores]
+          chart.update('none')
+        }
+      }
+    },
+
+    criarGrafico(canvas, g) {
+      // Evita "Canvas is already in use" se sobrou um gráfico nesse canvas.
+      const antigo = Chart.getChart(canvas)
+      if (antigo) antigo.destroy()
+
+      const fmt = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+      const rotulosNasBarras = {
+        id: 'rotulosNasBarras',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart
+          ctx.save()
+          ctx.font = '700 12px sans-serif'
+          ctx.fillStyle = '#052e14'
+          ctx.textBaseline = 'middle'
+          chart.getDatasetMeta(0).data.forEach((barra, i) => {
+            const v = chart.data.datasets[0].data[i]
+            if (v === null || v === undefined) return
+            ctx.fillText(`${fmt(v)} peças`, barra.x + 6, barra.y)
+          })
+          ctx.restore()
+        },
+      }
+
+      return new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: [...g.labels],
+          datasets: [{
+            label: 'Peças',
+            data: [...g.valores],
+            backgroundColor: [...g.cores],
+            borderRadius: 6,
+            maxBarThickness: 34,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 350 },
+          layout: { padding: { right: 90 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: c => ` ${fmt(c.parsed.x)} peças` } },
+          },
+          scales: {
+            x: { beginAtZero: true, title: { display: true, text: 'Peças' } },
+            y: { grid: { display: false } },
+          },
+        },
+        plugins: [rotulosNasBarras],
+      })
     },
 
     // ── SELEÇÃO / FILTRO DE HORAS ─────────────────────────
@@ -1632,7 +1740,6 @@ export default {
       this.persistirHorasOcultas()
     },
 
-    /** Atalhos de conveniência: Manhã/Tarde deixam de ser estrutura e viram só seleção. */
     aplicarAtalhoTurno(turno) {
       let alvo = this.todasHorasDia
       if (turno === 'manha' || turno === 'tarde') {
@@ -1645,11 +1752,6 @@ export default {
       this.definirFiltroHoras('todas')
     },
 
-    /**
-     * O filtro por preenchimento usa um SNAPSHOT tirado no clique. Sem
-     * isso, em "Pendentes" a coluna sumiria debaixo do cursor assim que
-     * o gestor digitasse nela. Clicar no filtro de novo reavalia.
-     */
     definirFiltroHoras(modo) {
       this.filtroHoras = modo
       if (modo === 'todas') {
@@ -1750,7 +1852,6 @@ export default {
     },
 
     ajustarRegistrosParaNovasHoras() {
-      // Antes só cobria o turno ativo; agora garante TODAS as horas do dia.
       for (const funcionario of this.funcionariosDia) {
         for (const linha of funcionario.linhas || []) {
           if (!linha.registros) linha.registros = {}
@@ -1782,8 +1883,6 @@ export default {
           this.buscarMetaDia()
         }
         this._jaConectouUmaVez = true
-        // Reconexão também é um bom gatilho para tentar salvar de novo
-        // qualquer célula pendente, sem esperar o intervalo periódico.
         this.retentarCelulasPendentes()
       })
       socket.on('disconnect', () => { this.socketConectado = false })
@@ -2056,11 +2155,8 @@ export default {
         .map(r => {
           const t = Number(r.tempo_minutos ?? r.tempo_por_peca ?? 0)
           const func = this.funcionarios.find(f => f.email === r.id_funcionario)
-          // Usar r.id (PK do banco) como valor único do option.
-          // ANTIGAMENTE usava r.id_funcionario (email), mas quando um
-          // profissional tinha VÁRIOS tempos de referência para a mesma
-          // etapa/OP, todos os options tinham o mesmo value → o select
-          // não distinguia e o resolver sempre pegava o primeiro.
+          // r.id (PK do banco) como valor único do option: um profissional
+          // pode ter VÁRIOS tempos de referência para a mesma etapa/OP.
           return {
             id: r.id ?? r.id_funcionario,
             funcionarioId: r.id_funcionario,
@@ -2080,8 +2176,7 @@ export default {
         linha.referenciaSelecionadaId = valor
       }
 
-      // Salvar no localStorage para que a escolha sobreviva quando
-      // buscarMetaDia reconstrói as linhas.
+      // Persiste a escolha para sobreviver à reconstrução das linhas.
       const real = funcionario?._funcRef || funcionario
       if (real?.email && linha?.etapaId) {
         const chaveLS = chaveLocalStorageTempoRef(
@@ -2134,20 +2229,8 @@ export default {
     },
 
     /**
-     * ════════════════════════════════════════════════════════════════
-     * TEMPO UTILIZADO NO CÁLCULO DA EFICIÊNCIA — regra central da tela:
-     *
-     *   1. Se Tempo Referência do Profissional > Tempo Ficha → Tempo Ficha
-     *   2. Se Tempo Referência do Profissional < Tempo Ficha → Referência
-     *   3. Iguais (ou sem referência válida)                 → Tempo Ficha
-     *
-     * Ou seja: tempoUtilizado = Math.min(tempoFicha, tempoReferenciaProf)
-     * preservando os tratamentos de valores nulos/inválidos já usados
-     * pelo sistema (resolverSam: referência inválida/zerada cai na ficha).
-     *
-     * Continua respeitando a definição de referência já existente no
-     * projeto: escolha manual do usuário (modoTempo) com fallback para a
-     * regra de data de escolherReferenciaPorData — nada é reimplementado.
+     * Tempo Referência do Profissional disponível para a linha: escolha manual
+     * (modoTempo) com fallback para a regra de data já existente.
      */
     tempoReferenciaDisponivel(funcionario, linha) {
       let textoId = null
@@ -2156,14 +2239,11 @@ export default {
       } else if (typeof linha?.referenciaSelecionadaId === 'string' && linha.referenciaSelecionadaId) {
         textoId = linha.referenciaSelecionadaId
       }
-      // Escolha manual: referência específica selecionada no seletor da linha.
       if (linha?.modoTempo === 'referencia' && textoId) {
         const etapa = this.buscarEtapa(linha.etapaId, linha.opId)
         const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
         if (Array.isArray(refs)) {
-          // Comparação por String(): os valores do select chegam como
-          // STRING e r.id do banco é NUMBER — mesma justificativa de
-          // resolverTempoEfetivoReferencia.
+          // String(): o valor do select é STRING e r.id do banco é NUMBER.
           const ref = refs.find(r => r && String(r.id) === textoId)
           if (ref) {
             const t = Number(ref.tempo_minutos ?? ref.tempo_por_peca ?? 0)
@@ -2172,11 +2252,10 @@ export default {
         }
         return null
       }
-      // Regra padrão do projeto: referência válida para a data consultada.
       return this.resolverTempoReferencia(funcionario, linha)
     },
 
-    /** Tempo Utilizado: o menor entre Tempo Ficha e Tempo Referência. */
+    /** Tempo Utilizado: o MENOR entre Tempo Ficha e Tempo Referência do Profissional. */
     resolverTempoUtilizado(funcionario, linha) {
       const tempoFicha = this.resolverTempoPadrao(linha)
       const tempoReferenciaProfissional = this.tempoReferenciaDisponivel(funcionario, linha)
@@ -2186,19 +2265,9 @@ export default {
       })
     },
 
-    /**
-     * Explicação auditável da escolha: qual tempo entrou no cálculo e
-     * por quê. Usado na tabela "Tempo utilizado no cálculo" do painel.
-     */
+    /** Texto curto do critério (usado em tooltips/auditoria). */
     motivoTempoUtilizado(funcionario, linha) {
-      const tempoFicha = this.resolverTempoPadrao(linha)
-      const tempoReferencia = this.tempoReferenciaDisponivel(funcionario, linha)
-
-      if (!(tempoReferencia > 0)) return 'Não há Tempo de Referência para este profissional — usando o Tempo Ficha.'
-      if (!(tempoFicha > 0)) return 'Sem Tempo Ficha válido — usando a Referência do profissional.'
-      if (tempoReferencia > tempoFicha) return 'Tempo de Referência do Profissional é maior que o Tempo Ficha — usando o Tempo Ficha.'
-      if (tempoReferencia < tempoFicha) return 'Tempo de Referência do Profissional é menor que o Tempo Ficha — usando a Referência do Profissional.'
-      return 'Tempos iguais — usando o Tempo Ficha.'
+      return this.decisaoTempoLinha(funcionario, linha).texto
     },
 
     resolverTempoPadrao(linha) {
@@ -2227,15 +2296,9 @@ export default {
         const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
         let ref = null
         if (Array.isArray(refs)) {
-          // Buscar primeiro pelo ID do registro no banco (r.id).
-          // IMPORTANTE: Usar == em vez de === porque $event.target.value
-          // retorna STRING, mas r.id do banco é NUMBER. Ex: "42" !== 42,
-          // mas "42" == 42. Sem isso, a referência nunca é encontrada e
-          // o sistema cai no tempo da ficha, ignorando a escolha do usuário.
           const refIdBusca = String(linha.referenciaSelecionadaId)
           ref = refs.find(r => r && String(r.id) === refIdBusca)
-          // Fallback: buscar por id_funcionario (compatibilidade com
-          // dados antigos que salvaram o email em referenciaSelecionadaId).
+          // Fallback: dados antigos que salvaram o email em referenciaSelecionadaId.
           if (!ref) ref = refs.find(r => r && r.id_funcionario === linha.referenciaSelecionadaId)
         }
         const t = Number(ref?.tempo_minutos ?? ref?.tempo_por_peca ?? 0)
@@ -2538,7 +2601,7 @@ export default {
       linha.descricao = etapa?.descricao || etapa?.etapa?.descricao || linha.descricao || ''
       linha.opId = linha.opId || etapa?.id_da_op || null
 
-      // 1. Tentar restaurar do localStorage (escolha manual do usuário)
+      // 1. Restaurar do localStorage (escolha manual do usuário)
       const chaveLS = funcionarioReal?.email
         ? chaveLocalStorageTempoRef(
           this.store.pegar_usuario?.cnpj || '', this.dataSelecionada,
@@ -2553,8 +2616,6 @@ export default {
       }
 
       // 2. Auto-detectar: se o profissional tem referência, usar 'referencia'
-      // Buscar o r.id (PK do banco) da referência encontrada para que
-      // o select possa identificar corretamente qual option selecionar.
       const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
       const refEncontrada = escolherReferenciaPorData(refs, {
         funcionarioId: funcionarioReal?.email,
@@ -2562,8 +2623,6 @@ export default {
       })
       if (refEncontrada) {
         linha.modoTempo = 'referencia'
-        // Usar r.id (PK) para que o <select> encontre a option correta.
-        // Fallback para r.id_funcionario (compatibilidade).
         linha.referenciaSelecionadaId = refEncontrada.id ?? (refEncontrada.id_funcionario || null)
       } else {
         linha.modoTempo = 'padrao'
@@ -2715,12 +2774,8 @@ export default {
     },
 
     /**
-     * Decide QUAL eficiência usar para fins de alerta, conforme o tipo de
-     * empresa — sem duplicar nenhuma fórmula: delega 100% para os métodos
-     * que já existem (calcularEficienciaLinhaPadrao / calcularEficienciaLinhaReferencia).
-     *   - "fabrica"        -> sempre Ficha (tempo padrão da etapa).
-     *   - qualquer outro tipo -> Referência do funcionário, com fallback
-     *     automático para o padrão já embutido em resolverTempoEfetivoReferencia.
+     * Decide QUAL eficiência usar para alertas, conforme o tipo de empresa
+     * (delegando 100% para os métodos existentes).
      */
     calcularEficienciaLinhaComRegra(linha, funcionario) {
       const tipoDeProducao = this.store.pegar_usuario?.tipo_de_producao
@@ -2729,10 +2784,6 @@ export default {
         : this.calcularEficienciaLinhaReferencia(funcionario, linha)
     },
 
-    /**
-     * Tempo efetivo (SAM ou Referência, conforme a mesma regra acima) —
-     * usado só para exibir "peças/h esperadas" no alerta.
-     */
     resolverTempoEfetivoComRegra(funcionario, linha) {
       const tipoDeProducao = this.store.pegar_usuario?.tipo_de_producao
       return tipoDeProducao === 'fabrica'
@@ -2740,7 +2791,6 @@ export default {
         : this.resolverTempoEfetivoReferencia(funcionario, linha)
     },
 
-    /** Métricas de peças/hora para o texto do alerta — reaproveita calcularTotalLinha/calcularTempoUtilizadoLinha. */
     calcularPecasPorHoraLinha(linha, funcionario) {
       const tempoEfetivo = this.resolverTempoEfetivoComRegra(funcionario, linha)
       const esperadoPorHora = tempoEfetivo ? Math.round((60 / tempoEfetivo) * 10) / 10 : 0
@@ -2972,28 +3022,28 @@ export default {
 
     // ── UTILITÁRIOS ───────────────────────────────────────
     /**
-     * Regra ÚNICA de cor dos indicadores de eficiência da tela:
-     *   verde  -> dentro/acima da referência (>= LIMIAR_EFICIENCIA_REFERENCIA,
-     *             o mesmo limiar do monitor de produtividade)
-     *   vermelho -> abaixo da referência (destaque discreto)
-     *   neutro  -> sem produção calculada
+     * Cor da eficiência — regra SOMENTE VISUAL, não altera nenhum cálculo:
+     *   > 75%          → verde    (efic-alta)
+     *   > 60% e ≤ 75%  → amarelo  (efic-media)
+     *   ≤ 60%          → vermelho (efic-baixa)
+     *   sem produção   → neutro
      */
     getEficClass(pct) {
-      if (!pct || pct <= 0) return ''
-      return pct >= LIMIAR_EFICIENCIA_REFERENCIA ? 'efic-alta' : 'efic-baixa'
+      const v = Number(pct)
+      if (!v || v <= 0) return ''
+      if (v > 75) return 'efic-alta'
+      if (v > 60) return 'efic-media'
+      return 'efic-baixa'
     },
 
     // ══════════════════════════════════════════════════════════════
-    // SISTEMA DE SALVAMENTO POR CÉLULA (autosave + botão manual +
-    // localStorage anti-perda + indicador visual)
+    // SISTEMA DE SALVAMENTO POR CÉLULA
     // ══════════════════════════════════════════════════════════════
 
-    /** Chave única por funcionário + OP + etapa + hora — identifica "esta célula". */
     chaveCelula(funcionarioId, opId, etapaId, hora) {
       return `${funcionarioId}::${opId || 'sem-op'}::${etapaId}::${hora}`
     },
 
-    /** Lê o status atual da célula (para o :class da bolinha e o botão de salvar). */
     statusCelula(funcionario, linha, hora) {
       if (!linha?.etapaId) return 'idle'
       const real = funcionario._funcRef || funcionario
@@ -3018,19 +3068,14 @@ export default {
 
     definirStatusCelula(chave, status, extra = {}) {
       const atual = this.saveStatus[chave] || { status: 'idle', lastSavedAt: null }
-      // Reatribuição do objeto inteiro (em vez de mutar campo a campo)
-      // garante que o Vue 3 detecte a mudança mesmo em chaves novas.
       this.saveStatus = { ...this.saveStatus, [chave]: { ...atual, status, ...extra } }
     },
 
     /**
-     * Handler do @input dos campos de quantidade e minutos. Roda a CADA
-     * tecla digitada:
-     *   1. marca a célula como 'pending' (bolinha cinza) imediatamente;
-     *   2. grava IMEDIATAMENTE no localStorage (sem debounce nenhum —
-     *      esta é a camada anti-perda; mesmo que a aba feche no
-     *      milissegundo seguinte, o valor já está gravado em disco);
-     *   3. agenda o salvamento de verdade na API com debounce de 500ms.
+     * Handler do @input de quantidade e minutos. A CADA tecla:
+     *   1. marca a célula como 'pending';
+     *   2. grava IMEDIATAMENTE no localStorage (camada anti-perda);
+     *   3. agenda o salvamento na API com debounce de 500ms.
      */
     onDigitarCelula(funcionario, linha, hora) {
       if (!linha?.etapaId) return
@@ -3054,7 +3099,6 @@ export default {
       this.agendarSalvamentoCelula(funcionario, linha, hora)
     },
 
-    /** Debounce de 500ms POR CÉLULA (um timer independente por chave). */
     agendarSalvamentoCelula(funcionario, linha, hora) {
       const real = funcionario._funcRef || funcionario
       const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
@@ -3070,12 +3114,8 @@ export default {
     },
 
     /**
-     * Executa o salvamento de verdade na API (via socket, método já
-     * existente 'salvar-producao' com ack). Evita duas requisições
-     * simultâneas para a MESMA célula: se já existe uma em andamento,
-     * apenas marca que deve reenviar assim que a atual terminar (o
-     * reenvio pega os valores mais recentes, então nenhuma digitação
-     * feita durante o envio é perdida).
+     * Salvamento de verdade (socket 'salvar-producao' com ack). Evita duas
+     * requisições simultâneas para a MESMA célula (reenvia ao terminar).
      */
     async salvarCelula(funcionario, linha, hora) {
       if (!linha?.etapaId) return
@@ -3124,7 +3164,7 @@ export default {
         removerPendenteLocalStorage(chaveLS)
         this.definirStatusCelula(chave, 'saved', { lastSavedAt: Date.now() })
 
-        // ── Monitor de produtividade (Ficha na fábrica, Referência+fallback nos demais) ──
+        // ── Monitor de produtividade ──
         const eficiencia = this.calcularEficienciaLinhaComRegra(linha, real)
         const { esperadoPorHora, registradoPorHora, quantidade, tempoTrabalhado } =
           this.calcularPecasPorHoraLinha(linha, real)
@@ -3145,7 +3185,6 @@ export default {
             : this.resolverTempoEfetivoReferencia(real, linha),
           token: this.store.pegar_token,
         })
-        // Bolinha verde visível por pelo menos 2s, depois some (volta a 'idle').
         setTimeout(() => {
           if (this.saveStatus[chave]?.status === 'saved') {
             this.definirStatusCelula(chave, 'idle')
@@ -3162,7 +3201,6 @@ export default {
       }
     },
 
-    /** Botão "Salvar" manual: cancela o debounce pendente e salva na hora. */
     async salvarCelulaManual(funcionario, linha, hora) {
       const real = funcionario._funcRef || funcionario
       const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
@@ -3174,13 +3212,9 @@ export default {
     },
 
     /**
-     * Restaura, ao carregar a tela (ou trocar de data), qualquer valor
-     * que ficou pendente no localStorage e que o backend não confirmou
-     * — por exemplo, a aba foi fechada com a conexão caída no meio do
-     * debounce. Precisa rodar DEPOIS que funcionariosDia/linhas já
-     * refletem o que veio do servidor (para não sobrescrever a etapa
-     * errada) e depois de restaurarEtapasOffline() (para que a linha já
-     * exista quando a etapa só tinha sido escolhida offline).
+     * Restaura valores pendentes do localStorage ao carregar a tela/trocar de
+     * data. Roda DEPOIS que funcionariosDia reflete o servidor e depois de
+     * restaurarEtapasOffline().
      */
     restaurarPendentesLocalStorage() {
       const estabelecimento = this.store.pegar_usuario?.cnpj || ''
@@ -3213,12 +3247,11 @@ export default {
         const chave = this.chaveCelula(funcionarioId, opId, etapaId, hora)
         this.definirStatusCelula(chave, 'pending')
 
-        // Já tenta salvar de novo agora que a tela está aberta.
         this.agendarSalvamentoCelula(funcionario, linha, hora)
       }
     },
 
-    /** Reenvia toda célula ainda pendente/erro — usado por reconexão, evento 'online', intervalo periódico e visibilitychange. */
+    /** Reenvia toda célula ainda pendente/erro. */
     retentarCelulasPendentes() {
       for (const [chave, info] of Object.entries(this.saveStatus)) {
         if (info.status !== 'pending' && info.status !== 'error') continue
@@ -3239,12 +3272,7 @@ export default {
       }
     },
 
-    /**
-     * Dispara IMEDIATAMENTE (sem esperar o debounce de 500ms) o
-     * salvamento de qualquer célula que ainda tenha um timer agendado —
-     * chamado antes de trocar de data, ao ficar em segundo plano
-     * (visibilitychange) e no beforeunload.
-     */
+    /** Dispara IMEDIATAMENTE o salvamento de células com debounce agendado. */
     flushAntesDeTrocarTela() {
       if (typeof this.salvarMetaDia.flush === 'function') {
         this.salvarMetaDia.flush()
@@ -3394,8 +3422,8 @@ export default {
             this.opsExtras = []
           }
 
-          // Capturar modoTempo/referenciaSelecionadaId de TODAS as linhas
-          // ANTES de inicializarFuncionarios() destruir as linhas antigas.
+          // Captura modoTempo/referenciaSelecionadaId ANTES de
+          // inicializarFuncionarios() destruir as linhas antigas.
           const modoTempoGlobal = new Map()
           for (const func of (this.funcionariosDia || [])) {
             for (const l of (func.linhas || [])) {
@@ -3436,7 +3464,6 @@ export default {
                 linha.tempoPadrao = producao.producao_etapa?.tempo_padrao || 0
                 linha.opId = opId
 
-                // Restaurar modoTempo da linha anterior (capturado ANTES de inicializarFuncionarios)
                 const chaveAntiga = `${funcionario.email}::${etapaId}::${opId || 'sem-op'}`
                 const anterior = modoTempoGlobal.get(chaveAntiga)
                 if (anterior) {
@@ -5539,6 +5566,528 @@ export default {
   .seg-btn {
     flex: 1;
     padding: 0 8px;
+  }
+}
+/* ══════════════════════════════════════════════════════════════════
+   ESTILOS DO CARD DE EFICIÊNCIA + PAINEL "VER DETALHES"
+   Colar DENTRO do <style scoped>, logo ANTES do bloco "/* ── RESPONSIVO"
+   (assim sobrescreve as regras antigas de .efic-dia-oficial).
+   Usa a mesma paleta verde (#0d6632 / #118a43 / #dceee3) da tela.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Card principal de EFICIÊNCIA (coluna da tabela) ─────────────── */
+.efic-dia-oficial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 96px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1.5px solid #dceee3;
+  background: #f7fcf9;
+  color: #648673;
+  text-align: center;
+}
+
+.efic-dia-oficial-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  color: inherit;
+  opacity: .85;
+}
+
+.efic-dia-oficial-valor {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.01em;
+  color: inherit;
+}
+
+/* Cores só visuais: >75 verde · >60 e ≤75 amarelo · ≤60 vermelho */
+.efic-dia-oficial.efic-alta {
+  background: #d4f1df;
+  border-color: #7fcf9e;
+  color: #0c6b34;
+  box-shadow: none;
+}
+
+.efic-dia-oficial.efic-media {
+  background: #fff4cf;
+  border-color: #ecd36a;
+  color: #8a6a00;
+  box-shadow: none;
+}
+
+.efic-dia-oficial.efic-baixa {
+  background: #ffe8e8;
+  border-color: #f0a9a9;
+  color: #b12626;
+  box-shadow: none;
+}
+
+.btn-detalhar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #0d6632;
+  border-color: #0d6632;
+  color: #fff;
+}
+
+.btn-detalhar:hover {
+  background: #118a43;
+  border-color: #118a43;
+}
+
+.btn-detalhar[aria-expanded="true"] {
+  background: #fff;
+  color: #0d6632;
+  border-color: #118a43;
+}
+
+/* ── Linha que contém o painel ───────────────────────────────────── */
+.linha-detalhe-td {
+  padding: 0 !important;
+  background: #f4faf6;
+  border-bottom: 3px solid #118a43;
+}
+
+/* O painel acompanha a largura VISÍVEL da tabela (não a largura total
+   rolável) e fica fixo à esquerda durante a rolagem horizontal. */
+.table-scroll {
+  container-type: inline-size;
+}
+
+.dp-panel {
+  position: sticky;
+  left: 0;
+  width: calc(100vw - 260px);
+  max-width: 100%;
+  padding: 16px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+@supports (width: 100cqw) {
+  .dp-panel {
+    width: 100cqw;
+  }
+}
+
+/* ── Cabeçalho ───────────────────────────────────────────────────── */
+.dp-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #dceee3;
+}
+
+.dp-titulo {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #0d6632;
+}
+
+.dp-contexto {
+  font-size: 12px;
+  font-weight: 600;
+  color: #648673;
+}
+
+.dp-vazio {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff8e1;
+  border: 1px dashed #f0d97a;
+  font-size: 13px;
+  color: #8a6a00;
+}
+
+/* ── Cards de resumo ─────────────────────────────────────────────── */
+.dp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.dp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #dceee3;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .03);
+}
+
+.dp-card-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #648673;
+}
+
+.dp-card-valor {
+  font-size: 22px;
+  font-weight: 800;
+  color: #052e14;
+  line-height: 1.15;
+}
+
+/* Card da eficiência oficial acompanha a cor do card principal */
+.dp-card--ef.efic-alta {
+  background: #d4f1df;
+  border-color: #7fcf9e;
+  box-shadow: none;
+}
+
+.dp-card--ef.efic-media {
+  background: #fff4cf;
+  border-color: #ecd36a;
+  box-shadow: none;
+}
+
+.dp-card--ef.efic-baixa {
+  background: #ffe8e8;
+  border-color: #f0a9a9;
+  box-shadow: none;
+}
+
+.dp-card--ef.efic-alta .dp-card-valor,
+.dp-card--ef.efic-alta .dp-card-label {
+  color: #0c6b34;
+}
+
+.dp-card--ef.efic-media .dp-card-valor,
+.dp-card--ef.efic-media .dp-card-label {
+  color: #8a6a00;
+}
+
+.dp-card--ef.efic-baixa .dp-card-valor,
+.dp-card--ef.efic-baixa .dp-card-label {
+  color: #b12626;
+}
+
+/* ── Grade de seções ─────────────────────────────────────────────── */
+.dp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.dp-box {
+  min-width: 0;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #dceee3;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .03);
+}
+
+.dp-box--wide {
+  grid-column: 1 / -1;
+}
+
+.dp-box-titulo {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #537664;
+}
+
+.dp-nota {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f4faf6;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #648673;
+}
+
+/* ── Análise dos Tempos (tabela) ─────────────────────────────────── */
+.dp-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dp-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dp-tabela th {
+  padding: 8px 12px;
+  background: #f2f8f4;
+  color: #537664;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dp-tabela td {
+  padding: 9px 12px;
+  border-top: 1px solid #eef6f1;
+  color: #052e14;
+  white-space: nowrap;
+}
+
+.dp-tabela th:not(:first-child),
+.dp-tabela td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dp-linha-efetiva td {
+  background: #e7f8ef;
+  color: #0d6632;
+  font-weight: 800;
+  border-top: 2px solid #118a43;
+  border-bottom: 2px solid #118a43;
+}
+
+.dp-linha-efetiva td:first-child {
+  border-left: 4px solid #118a43;
+}
+
+.dp-linha-indisp td {
+  color: #9aa5a1;
+}
+
+/* ── Como o tempo foi escolhido ──────────────────────────────────── */
+.dp-motivos {
+  margin: 0;
+  padding: 10px 14px 10px 30px;
+  border-radius: 10px;
+  background: #f4faf6;
+  border-left: 4px solid #118a43;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #052e14;
+}
+
+.dp-motivos li+li {
+  margin-top: 8px;
+}
+
+/* ── Comparativo de eficiência ───────────────────────────────────── */
+.dp-ef-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-ef-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #f7faf8;
+  font-size: 13px;
+  color: #4c6656;
+}
+
+.dp-ef-valor {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Única eficiência oficial: destacada; as demais são só analíticas */
+.dp-ef-item--oficial {
+  background: #e7f8ef;
+  border: 1.5px solid #118a43;
+  color: #0d6632;
+  font-weight: 800;
+}
+
+.dp-ef-item--oficial .dp-ef-valor {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.dp-tag-oficial {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: #0d6632;
+  color: #fff;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+/* ── Gráfico ─────────────────────────────────────────────────────── */
+.dp-grafico {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  min-width: 0;
+}
+
+.dp-grafico canvas {
+  max-width: 100%;
+}
+
+.dp-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  list-style: none;
+  border-top: 1px dashed #dceee3;
+  font-size: 12px;
+  color: #4c6656;
+}
+
+.dp-legenda strong {
+  color: #052e14;
+}
+
+.dp-legenda em {
+  font-style: normal;
+  color: #93a89c;
+}
+
+.dp-legenda-cor {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 3px;
+  vertical-align: baseline;
+}
+
+/* ── Impacto da referência ───────────────────────────────────────── */
+.dp-impacto-par {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dp-impacto-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f7faf8;
+  border: 1px solid #e3f0e7;
+  font-size: 12px;
+  font-weight: 600;
+  color: #648673;
+}
+
+.dp-impacto-item strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: #052e14;
+}
+
+.dp-impacto-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.dp-impacto-lista>div {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #e7f8ef;
+  border: 1px solid #b7e4c7;
+}
+
+.dp-impacto-lista dt {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #537664;
+}
+
+.dp-impacto-lista dd {
+  margin: 3px 0 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0d6632;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsivo do painel ────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .dp-panel {
+    width: calc(100vw - 32px);
+  }
+
+  .dp-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .efic-dia-oficial {
+    min-width: 84px;
+    padding: 6px 8px;
+  }
+
+  .efic-dia-oficial-valor {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dp-panel {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .dp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dp-card-valor {
+    font-size: 18px;
+  }
+
+  .dp-grafico {
+    height: 260px;
+  }
+
+  .dp-tabela th,
+  .dp-tabela td {
+    padding: 8px;
   }
 }
 </style>
