@@ -659,21 +659,6 @@ export default {
       }
     },
 
-    async getPecasProducao() {
-      try {
-        const { data } = await api.get('/pecas', {
-          headers: { Authorization: this.store.pegar_token }
-        })
-        this.pecas = data.peca.em_progresso
-        this.etapas = data.peca.em_progresso.map(p => p.etapas)
-      } catch (err) {
-        console.error(err)
-        Swal.fire('Erro', 'Erro ao carregar peças.', 'error')
-      } finally {
-        this.loading = false
-      }
-    },
-
     async postProdução() {
       try {
 
@@ -772,7 +757,7 @@ export default {
   mounted() {
     this.verificarAutenticacao()
     this.getFuncionarios()
-    this.getPecasProducao()
+    // this.getPecasProducao()
     this.buscarEquipes()
   },
   components: {

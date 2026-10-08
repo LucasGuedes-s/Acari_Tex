@@ -23,22 +23,34 @@
       </div>
 
       <div v-if="loading" class="hero-metrics skeleton-wrap">
-        <div class="sk sk-featured"></div>
+        <div class="sk sk-featured" v-for="n in (isFabrica ? 3 : 2)" :key="'skf'+n"></div>
         <div class="sk sk-compact" v-for="n in 3" :key="'skc'+n"></div>
       </div>
 
       <div v-else class="hero-metrics">
         <div
-          class="metric-featured solo"
-          :title="isFabrica
-            ? 'Eficiência oficial da turma — escolhida pelo menor tempo entre Ficha e Referência do Profissional'
-            : 'Capacidade total da ficha técnica ÷ tempo trabalhado × 100'"
+          class="metric-featured metric-geral"
+          title="Eficiência Geral (oficial): usa o Tempo Referência do Profissional somente quando ele é menor que o Tempo Ficha; caso contrário, usa o Tempo Padrão da Etapa. Calculada pelo tempo total da turma."
         >
           <span class="mf-label">
-            Eficiência
-            <small class="mf-origem">• {{ rotuloOrigemEficienciaTurma }}</small>
+            Eficiência Geral
+            <em class="tag-oficial">OFICIAL</em>
           </span>
-          <span class="mf-val">{{ formatarEficiencia(eficienciaOficialTurma) }}<small>%</small></span>
+          <span class="mf-val">
+            {{ eficienciaGeralTurma == null ? '—' : formatarEficiencia(eficienciaGeralTurma) }}<small v-if="eficienciaGeralTurma != null">%</small>
+          </span>
+        </div>
+
+        <div class="metric-featured metric-ficha" title="Capacidade total da ficha técnica ÷ tempo trabalhado × 100">
+          <span class="mf-label">Eficiência Ficha</span>
+          <span class="mf-val">{{ formatarEficiencia(eficienciaMediaTurma) }}<small>%</small></span>
+        </div>
+
+        <div v-if="isFabrica" class="metric-featured metric-referencia" title="Capacidade total pelo Tempo Referência do Profissional ÷ tempo trabalhado × 100">
+          <span class="mf-label">Eficiência Referência</span>
+          <span class="mf-val">
+            {{ eficienciaReferenciaTurmaExibida == null ? '—' : formatarEficiencia(eficienciaReferenciaTurmaExibida) }}<small v-if="eficienciaReferenciaTurmaExibida != null">%</small>
+          </span>
         </div>
 
         <div class="metrics-compact">
@@ -59,9 +71,9 @@
         </div>
       </div>
 
-      <!-- Aviso quando alguma referência precisou usar a ficha -->
-      <div v-if="!loading && isFabrica && temFallbackReferencia" class="ref-aviso">
-        Alguns lançamentos não têm tempo de referência cadastrado — nesses casos a eficiência de referência usa o tempo da ficha (marcados com *).
+      <!-- Aviso quando algum profissional não tem Tempo Referência -->
+      <div v-if="!loading && isFabrica && temReferenciaIndisponivel" class="ref-aviso">
+        Alguns profissionais não têm Tempo Referência cadastrado — a Eficiência Referência aparece como “—” e a Eficiência Geral usa o Tempo Padrão da Etapa nesses casos.
       </div>
 
       <div v-if="!loading && insights" class="insights-bar">
@@ -190,11 +202,22 @@
     <div class="filtros-row">
       <input class="search-input" v-model="busca" placeholder="Buscar por nome, e-mail ou etapa…" />
 
-      <select class="filtro-select" v-model="filtroEficiencia" title="Filtrar por faixa de eficiência">
-        <option value="todos">Toda eficiência</option>
-        <option value="acima100">Acima de 100%</option>
-        <option value="entre80100">Entre 80% e 100%</option>
-        <option value="abaixo80">Abaixo de 80%</option>
+      <!-- Três filtros independentes: cada um avalia o PRÓPRIO indicador -->
+      <select class="filtro-select filtro-geral" v-model="filtroEficienciaGeral" title="Filtrar pela Eficiência Geral (oficial)">
+        <option v-for="o in opcoesFaixa" :key="'fg' + o.valor" :value="o.valor">Geral (oficial): {{ o.rotulo }}</option>
+      </select>
+
+      <select class="filtro-select filtro-ficha" v-model="filtroEficienciaFicha" title="Filtrar pela Eficiência Ficha">
+        <option v-for="o in opcoesFaixa" :key="'ff' + o.valor" :value="o.valor">Ficha: {{ o.rotulo }}</option>
+      </select>
+
+      <select
+        v-if="isFabrica"
+        class="filtro-select filtro-referencia"
+        v-model="filtroEficienciaReferencia"
+        title="Filtrar pela Eficiência Referência (exclui quem não tem Tempo Referência)"
+      >
+        <option v-for="o in opcoesFaixa" :key="'fr' + o.valor" :value="o.valor">Referência: {{ o.rotulo }}</option>
       </select>
 
       <select v-if="gruposProducaoPorOp.length > 1" class="filtro-select" v-model="filtroOpId" title="Filtrar por OP">
@@ -203,22 +226,29 @@
       </select>
 
       <select class="filtro-select" v-model="ordenarPor" title="Ordenar a lista">
-        <option value="ranking">Ordenar: Ranking</option>
+        <option value="ranking">Ordenar: Ranking ({{ rotuloModoRanking }})</option>
         <option value="nome">Ordenar: Nome</option>
         <option value="pecas">Ordenar: Peças</option>
+        <option value="geral">Ordenar: Efic. Geral</option>
         <option value="ficha">Ordenar: Efic. Ficha</option>
         <option value="referencia" v-if="isFabrica">Ordenar: Efic. Referência</option>
       </select>
 
-      <div v-if="isFabrica" class="sort-toggle" role="tablist" aria-label="Ordenar por">
+      <div class="sort-toggle" role="tablist" aria-label="Ranking por indicador">
         <button
           class="sort-toggle-btn"
-          :class="{ active: modoOrdenacao === 'ficha' }"
+          :class="{ active: modoRankingEfetivo === 'geral' }"
+          @click="definirModoOrdenacao('geral')"
+        >Ranking Geral</button>
+        <button
+          class="sort-toggle-btn"
+          :class="{ active: modoRankingEfetivo === 'ficha' }"
           @click="definirModoOrdenacao('ficha')"
         >Ranking Ficha</button>
         <button
+          v-if="isFabrica"
           class="sort-toggle-btn"
-          :class="{ active: modoOrdenacao === 'referencia' }"
+          :class="{ active: modoRankingEfetivo === 'referencia' }"
           @click="definirModoOrdenacao('referencia')"
         >Ranking Referência</button>
       </div>
@@ -233,7 +263,12 @@
         <div class="list-header" :class="{ fabrica: isFabrica }">
           <span class="lh-name">Profissional</span>
           <span class="lh-col">Peças</span>
-          <span class="lh-col">Eficiência</span>
+          <span class="lh-col lh-geral">
+            Efic. Geral
+            <em class="tag-oficial">OFICIAL</em>
+          </span>
+          <!-- <span class="lh-col">Efic. Ficha</span>
+          <span v-if="isFabrica" class="lh-col">Efic. Referência</span> -->
         </div>
 
         <div class="list-body">
@@ -253,7 +288,11 @@
             @click="selecionar(func._idx)"
           >
             <div class="lr-name">
-              <span class="lr-pos" :class="{ medal: func._idx < 3 }" :title="'Posição ' + (func._idx + 1) + ' no ranking'">
+              <span
+                class="lr-pos"
+                :class="{ medal: func._idx < 3 }"
+                :title="'Posição ' + (func._idx + 1) + ' no ranking ' + rotuloModoRanking"
+              >
                 {{ rankIcon(func._idx) }}
               </span>
               <div class="lr-avatar-wrap">
@@ -261,8 +300,8 @@
                 <div v-else class="lr-avatar-fb">{{ initials(func.nome) }}</div>
                 <span
                   class="lr-dot"
-                  :class="clsEficPrincipal(eficienciaOficialFuncionario(func))"
-                  :title="legendaEfic(eficienciaOficialFuncionario(func)) + ' — origem: ' + rotuloOrigemOficial(func, true)"
+                  :class="clsEficPrincipal(metricasFuncionario(func).geral)"
+                  :title="legendaEfic(metricasFuncionario(func).geral) + ' (Eficiência Geral)'"
                 ></span>
               </div>
               <div class="lr-info">
@@ -277,30 +316,55 @@
 
             <span class="lr-col mono">{{ calcularTotalFuncionario(func) }}</span>
 
-            <span class="lr-col lr-col-badge">
+            <!-- GERAL (OFICIAL) -->
+            <span class="lr-col lr-col-badge lr-geral">
+              <template v-if="temProducao(func)">
+                <span
+                  class="badge sm"
+                  :class="clsEficPrincipal(metricasFuncionario(func).geral)"
+                  :title="'Eficiência Geral (oficial) — origem: ' + rotuloOrigem(metricasFuncionario(func).origem)"
+                >
+                  {{ fmtPct(metricasFuncionario(func).geral) }}
+                </span>
+                <span class="lr-origem">{{ rotuloOrigem(metricasFuncionario(func).origem, true) }}</span>
+              </template>
+              <span v-else class="mono small">—</span>
+            </span>
+
+            <!-- FICHA -->
+            <!-- <span class="lr-col lr-col-badge lr-ficha">
               <span
                 v-if="temProducao(func)"
                 class="badge sm"
-                :class="clsEficPrincipal(eficienciaOficialFuncionario(func))"
-                :title="'Eficiência oficial — ' + rotuloOrigemOficial(func, true)"
+                :class="clsEficPrincipal(metricasFuncionario(func).ficha)"
+                title="Eficiência Ficha (Tempo Ficha)"
               >
-                {{ eficienciaOficialFuncionario(func) }}%
+                {{ fmtPct(metricasFuncionario(func).ficha) }}
               </span>
               <span v-else class="mono small">—</span>
-              <span
-                v-if="temProducao(func)"
-                class="lr-origem"
-                :title="'Origem da eficiência oficial: ' + rotuloOrigemOficial(func, true)"
-              >
-                {{ rotuloOrigemOficial(func) }}
-              </span>
-            </span>
+            </span> -->
+
+            <!-- REFERÊNCIA -->
+            <!-- <span v-if="isFabrica" class="lr-col lr-col-badge lr-referencia">
+              <template v-if="temProducao(func)">
+                <span
+                  class="badge sm"
+                  :class="clsEficPrincipal(metricasFuncionario(func).referencia)"
+                  :title="metricasFuncionario(func).referencia == null
+                    ? 'Sem Tempo Referência do Profissional disponível'
+                    : 'Eficiência Referência (Tempo Referência do Profissional)'"
+                >
+                  {{ fmtPct(metricasFuncionario(func).referencia) }}
+                </span>
+              </template>
+              <span v-else class="mono small">—</span>
+            </span> -->
 
             <span class="lr-chevron">›</span>
           </div>
 
           <div v-if="!loading && !funcionariosFiltrados.length" class="list-empty">
-            <span v-if="busca || filtroEficiencia !== 'todos' || filtroOpId !== 'todas'">Nenhum resultado para os filtros aplicados</span>
+            <span v-if="busca || filtrosEficienciaAtivos || filtroOpId !== 'todas'">Nenhum resultado para os filtros aplicados</span>
             <span v-else>Sem dados para esta data</span>
           </div>
         </div>
@@ -310,7 +374,7 @@
 
       <!-- PAINEL DETALHE -->
       <transition name="panel-slide">
-        <aside v-if="selecionado !== null && funcSelecionado" class="detail-panel">
+        <aside v-if="selecionado !== null && funcSelecionado && metricasSelecionado" class="detail-panel">
 
           <div class="dp-topbar">
             <span class="dp-topbar-title">Detalhes do profissional</span>
@@ -321,30 +385,68 @@
             <div class="dp-avatar-wrap">
               <img v-if="funcSelecionado.foto" class="dp-avatar" :src="funcSelecionado.foto" :alt="funcSelecionado.nome" @error="onImgError" />
               <div v-else class="dp-avatar-fb">{{ initials(funcSelecionado.nome) }}</div>
-              <span class="dp-dot" :class="clsEficPrincipal(eficienciaOficialSelecionada)"></span>
+              <span class="dp-dot" :class="clsEficPrincipal(metricasSelecionado.geral)"></span>
             </div>
             <div class="dp-profile-info">
               <h3 class="dp-nome">{{ funcSelecionado.nome }}</h3>
-              <p class="dp-email">{{ funcSelecionado.email }} · #{{ selecionado + 1 }} no ranking</p>
+              <p class="dp-email">{{ funcSelecionado.email }} · #{{ selecionado + 1 }} no ranking {{ rotuloModoRanking }}</p>
             </div>
           </div>
 
-          <!-- EFICIÊNCIA OFICIAL (única) + BOTÃO -->
-          <div class="dp-eff-principal">
-            <span class="dp-eff-card-label">
-              Eficiência oficial{{ isFabrica && referenciaEhFallbackFuncionario(funcSelecionado) ? ' *' : '' }}
-            </span>
-            <strong class="dp-eff-principal-val" :class="clsEficPrincipal(eficienciaOficialSelecionada)">
-              {{ formatarEficiencia(eficienciaOficialSelecionada) }}<small>%</small>
-              <em class="dp-eff-origem">• {{ rotuloOrigemOficialSelecionado }}</em>
-            </strong>
-            <div class="dp-eff-bar-track">
-              <div
-                class="dp-eff-bar-fill"
-                :class="clsEficPrincipal(eficienciaOficialSelecionada)"
-                :style="{ width: Math.min(eficienciaOficialSelecionada, 100) + '%' }"
-              ></div>
+          <!-- TRÊS INDICADORES -->
+          <div class="dp-eff-cards tres" :class="{ single: !isFabrica }">
+            <div class="dp-eff-card oficial">
+              <span class="dp-eff-card-label">
+                Eficiência Geral
+                <em class="tag-oficial">OFICIAL</em>
+              </span>
+              <strong class="dp-eff-card-val" :class="clsEficPrincipal(metricasSelecionado.geral)">
+                {{ fmtPct(metricasSelecionado.geral) }}
+              </strong>
+              <div class="dp-eff-bar-track">
+                <div
+                  class="dp-eff-bar-fill"
+                  :class="clsEficPrincipal(metricasSelecionado.geral)"
+                  :style="{ width: larguraBarra(metricasSelecionado.geral) }"
+                ></div>
+              </div>
+              <span class="dp-eff-card-sub">Origem: {{ rotuloOrigem(metricasSelecionado.origem) }}</span>
             </div>
+
+            <div class="dp-eff-card ficha">
+              <span class="dp-eff-card-label">Eficiência Ficha</span>
+              <strong class="dp-eff-card-val" :class="clsEficPrincipal(metricasSelecionado.ficha)">
+                {{ fmtPct(metricasSelecionado.ficha) }}
+              </strong>
+              <div class="dp-eff-bar-track">
+                <div
+                  class="dp-eff-bar-fill"
+                  :class="clsEficPrincipal(metricasSelecionado.ficha)"
+                  :style="{ width: larguraBarra(metricasSelecionado.ficha) }"
+                ></div>
+              </div>
+              <span class="dp-eff-card-sub">Tempo Ficha</span>
+            </div>
+
+            <div v-if="isFabrica" class="dp-eff-card referencia">
+              <span class="dp-eff-card-label">Eficiência Referência</span>
+              <strong class="dp-eff-card-val" :class="clsEficPrincipal(metricasSelecionado.referencia)">
+                {{ fmtPct(metricasSelecionado.referencia) }}
+              </strong>
+              <div class="dp-eff-bar-track">
+                <div
+                  class="dp-eff-bar-fill"
+                  :class="clsEficPrincipal(metricasSelecionado.referencia)"
+                  :style="{ width: larguraBarra(metricasSelecionado.referencia) }"
+                ></div>
+              </div>
+              <span class="dp-eff-card-sub">
+                {{ metricasSelecionado.referencia == null ? 'Sem Tempo Referência disponível' : 'Tempo Referência do Profissional' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="dp-eff-acoes">
             <button type="button" class="btn-detalhes" @click="mostrarDetalhesAnalise = !mostrarDetalhesAnalise">
               {{ mostrarDetalhesAnalise ? 'Ocultar detalhes' : 'Ver detalhes' }}
             </button>
@@ -364,18 +466,18 @@
                   <span class="an-card-label">Tempo trabalhado</span>
                   <strong class="an-card-val">{{ formatarDecimal(analiseDetalhe.tempoTrabalhado) }} <small>min</small></strong>
                 </div>
-                <div class="an-card">
-                  <span class="an-card-label">Eficiência oficial</span>
-                  <strong class="an-card-val" :class="clsEficPrincipal(analiseDetalhe.eficienciaOficial)">
-                    {{ formatarEficiencia(analiseDetalhe.eficienciaOficial) }}<small>%</small>
+                <div class="an-card an-card-oficial">
+                  <span class="an-card-label">Eficiência Geral <em class="tag-oficial">OFICIAL</em></span>
+                  <strong class="an-card-val" :class="clsEficPrincipal(analiseDetalhe.geral.eficiencia)">
+                    {{ fmtPct(analiseDetalhe.geral.eficiencia) }}
                   </strong>
-                  <span class="an-card-sub">{{ analiseDetalhe.origemOficialRotulo }}</span>
+                  <span class="an-card-sub">{{ rotuloOrigem(analiseDetalhe.origem) }}</span>
                 </div>
                 <div class="an-card">
                   <span class="an-card-label">Tempo utilizado</span>
                   <strong class="an-card-val">
-                    {{ analiseDetalhe.tempoEfetivo == null ? '—' : formatarDecimal(analiseDetalhe.tempoEfetivo) }}
-                    <small>min/peça</small>
+                    {{ fmtTempo(analiseDetalhe.geral.tempo) }}
+                    <small v-if="analiseDetalhe.geral.tempo != null">min/peça</small>
                   </strong>
                 </div>
               </div>
@@ -400,20 +502,53 @@
                       :key="r.chave"
                       :class="{ 'an-destaque': r.destaque, 'an-indisp': r.tempo == null }"
                     >
-                      <td>{{ r.rotulo }}<em v-if="r.destaque" class="an-tag">OFICIAL</em></td>
+                      <td>
+                        {{ r.rotulo }}
+                        <em v-if="r.destaque" class="an-tag">OFICIAL</em>
+                        <small class="an-cenario">{{ r.cenario }}</small>
+                      </td>
                       <td class="num">{{ r.tempo == null ? 'indisponível' : formatarDecimal(r.tempo) + ' min' }}</td>
                       <td class="num">{{ r.capacidade == null ? '—' : fmtPecas(r.capacidade) + ' peças' }}</td>
-                      <td class="num">{{ r.eficiencia == null ? '—' : formatarEficiencia(r.eficiencia) + '%' }}</td>
+                      <td class="num">{{ fmtPct(r.eficiencia) }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              <h4 class="an-titulo">Como o tempo foi escolhido?</h4>
+              <h4 class="an-titulo">Como o tempo foi escolhido? (Eficiência Geral — Oficial)</h4>
               <div class="an-explica">
                 <p>{{ analiseDetalhe.explicacao }}</p>
-                <p v-if="analiseDetalhe.avisoDivergencia" class="an-aviso">{{ analiseDetalhe.avisoDivergencia }}</p>
+                <p v-if="analiseDetalhe.aviso" class="an-aviso">{{ analiseDetalhe.aviso }}</p>
               </div>
+
+              <ul v-if="analiseDetalhe.escolhas.length > 1" class="an-etapas">
+                <li v-for="l in analiseDetalhe.escolhas" :key="l.id" class="an-etapa-item">
+                  <div class="an-etapa-top">
+                    <span class="an-etapa-nome">{{ l.etapa }} <small class="small">· {{ l.quantidade }} peças</small></span>
+                    <span class="an-etapa-origem" :class="l.origem || 'indisp'">{{ rotuloOrigem(l.origem, true) }}</span>
+                  </div>
+                  <div class="an-etapa-tempos mono small">
+                    Padrão {{ fmtTempo(l.tPadrao) }} · Ficha {{ fmtTempo(l.tFicha) }}<template v-if="isFabrica"> · Ref. {{ fmtTempo(l.tRef) }}</template> · Usado {{ fmtTempo(l.tUsado) }}
+                  </div>
+                  <div class="an-etapa-motivo small">{{ l.motivo }}</div>
+                </li>
+              </ul>
+
+              <h4 class="an-titulo">Eficiência Ficha</h4>
+              <ul class="an-lista">
+                <li><span>Tempo Ficha</span><strong>{{ fmtMin(analiseDetalhe.ficha.tempo) }}</strong></li>
+                <li><span>Eficiência Ficha</span><strong>{{ fmtPct(analiseDetalhe.ficha.eficiencia) }}</strong></li>
+                <li><span>Capacidade teórica</span><strong>{{ analiseDetalhe.ficha.capacidade == null ? '—' : fmtPecas(analiseDetalhe.ficha.capacidade) + ' peças' }}</strong></li>
+              </ul>
+
+              <template v-if="isFabrica && analiseDetalhe.referenciaProf">
+                <h4 class="an-titulo">Eficiência Referência</h4>
+                <ul class="an-lista">
+                  <li><span>Tempo Referência do Profissional</span><strong>{{ fmtMin(analiseDetalhe.referenciaProf.tempo) }}</strong></li>
+                  <li><span>Eficiência Referência</span><strong>{{ fmtPct(analiseDetalhe.referenciaProf.eficiencia) }}</strong></li>
+                  <li><span>Capacidade teórica</span><strong>{{ analiseDetalhe.referenciaProf.capacidade == null ? '—' : fmtPecas(analiseDetalhe.referenciaProf.capacidade) + ' peças' }}</strong></li>
+                </ul>
+              </template>
 
               <h4 class="an-titulo">Comparativo de Eficiência</h4>
               <ul class="an-lista">
@@ -426,14 +561,15 @@
                     {{ r.rotulo }}
                     <em v-if="r.destaque" class="an-tag">OFICIAL</em>
                   </span>
-                  <strong>{{ r.eficiencia == null ? '—' : formatarEficiencia(r.eficiencia) + '%' }}</strong>
+                  <strong>{{ fmtPct(r.eficiencia) }}</strong>
                 </li>
               </ul>
-              <p class="an-nota">As demais linhas são apenas referências comparativas.</p>
+              <p class="an-nota">A Eficiência Geral (Tempo Efetivo) é a oficial. Tempo Padrão, Ficha e Referência são cenários comparativos independentes.</p>
 
               <h4 class="an-titulo">Comparativo de Produção</h4>
               <div class="an-legenda">
                 <span class="an-leg teorica">Capacidade teórica</span>
+                <span class="an-leg oficial">Capacidade — Geral (oficial)</span>
                 <span class="an-leg real">Produção real</span>
               </div>
               <div class="an-chart">
@@ -478,8 +614,11 @@
             </div>
             <div class="dp-mini-stat" v-if="isFabrica">
               <span class="dp-stat-label">Diferença Ref. × Ficha</span>
-              <span class="dp-stat-val" :class="calcularDiferencaEficiencia(funcSelecionado) >= 0 ? 'verde' : 'vermelho'">
-                {{ calcularDiferencaEficiencia(funcSelecionado) > 0 ? '+' : '' }}{{ formatarEficiencia(calcularDiferencaEficiencia(funcSelecionado)) }}%
+              <span
+                class="dp-stat-val"
+                :class="diferencaSelecionada == null ? '' : (diferencaSelecionada >= 0 ? 'verde' : 'vermelho')"
+              >
+                {{ fmtDif(diferencaSelecionada) }}
               </span>
             </div>
           </div>
@@ -493,11 +632,11 @@
               </div>
               <div class="dp-auditoria-item">
                 <span class="dp-auditoria-label" title="Tempo padrão da ficha técnica">Tempo da Ficha</span>
-                <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoFicha }} min</span>
+                <span class="dp-auditoria-val">{{ fmtTempoTotal(totaisFuncionarioSelecionado.tempoFicha) }}</span>
               </div>
               <div v-if="isFabrica" class="dp-auditoria-item">
                 <span class="dp-auditoria-label" title="Tempo específico do profissional, quando cadastrado">Tempo de Referência</span>
-                <span class="dp-auditoria-val">{{ totaisFuncionarioSelecionado.tempoReferencia }} min</span>
+                <span class="dp-auditoria-val">{{ fmtTempoTotal(totaisFuncionarioSelecionado.tempoReferencia) }}</span>
               </div>
             </div>
             <details class="dp-auditoria-formula-wrap">
@@ -505,6 +644,10 @@
               <div class="dp-auditoria-formula">
                 <div><strong>Eficiência Ficha:</strong> {{ totaisFuncionarioSelecionado.formulaFicha }}</div>
                 <div v-if="isFabrica"><strong>Eficiência Referência:</strong> {{ totaisFuncionarioSelecionado.formulaReferencia }}</div>
+                <div>
+                  <strong>Eficiência Geral (oficial):</strong>
+                  {{ metricasSelecionado.totais.usado == null ? 'indisponível' : formatarDecimal(metricasSelecionado.totais.usado) + ' ÷ ' + totaisFuncionarioSelecionado.tempoRegistrado + ' × 100' }}
+                </div>
               </div>
             </details>
 
@@ -521,7 +664,7 @@
                     ({{ formatarOrigem(ref.origem) }})
                   </span>
                 </span>
-                <span class="dp-ref-valor dp-ref-sem" v-else>— (ficha)</span>
+                <span class="dp-ref-valor dp-ref-sem" v-else>— (indisponível)</span>
               </div>
             </div>
           </div>
@@ -672,7 +815,6 @@ import {
   calcularEficienciaRegistroReferencia,
   calcularEficienciaFuncionarioPadrao,
   calcularEficienciaFuncionarioReferencia,
-  calcularEficienciaFuncionarioPorModo,
   calcularTotaisFuncionarioDia,
   horaBloqueadaPorAusencia,
   agruparProducaoPorOp,
@@ -685,6 +827,7 @@ const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] 
 
 const LOCAL_STORAGE_MINUTOS_KEY = 'apontamento-minutos-turno'
 const LS_TEMPO_REF_PREFIXO = 'apontamento_tempo_referencia_escolhido'
+const LS_MODO_RANKING = 'painel-modo-ordenacao'
 
 function chaveLocalStorageTempoRef(estabelecimento, data, funcionarioId, opId, etapaId) {
   return `${LS_TEMPO_REF_PREFIXO}::${estabelecimento}::${data}::${funcionarioId}::${opId || 'sem-op'}::${etapaId}`
@@ -701,10 +844,24 @@ function lerTempoRefLocalStorage(chaveLS) {
 
 // Um número só é "utilizável" como eficiência/tempo de referência se for
 // finito e maior que zero. Qualquer outra coisa (NaN, undefined, 0, null)
-// significa que a resolução da referência falhou e precisamos do fallback.
+// significa que a resolução falhou — e NÃO deve ser substituída em silêncio.
 const valido = (n) => Number.isFinite(Number(n)) && Number(n) > 0
+const numValido = (n) => (valido(n) ? Number(n) : null)
+const arred2 = (n) => Math.round(n * 100) / 100
+
+// Acumuladores de (peças × tempo por peça). `totalAcc` devolve o tempo total
+// em minutos, ou null se QUALQUER etapa com produção não tiver o tempo
+// (nada de valor inventado para completar).
+const novoAcc = () => ({ q: 0, qOk: 0, s: 0 })
+const somarAcc = (a, q, t) => {
+  a.q += q
+  if (t != null) { a.qOk += q; a.s += q * t }
+}
+const totalAcc = (a) => (a.q > 0 && a.qOk === a.q ? a.s : null)
 
 const esperar = (ms) => new Promise(r => setTimeout(r, ms))
+
+const COR_GRAFICO = { teorica: '#9db8b0', oficial: '#2563eb', real: '#16a34a' }
 
 export default {
   name: 'PainelProfissionais',
@@ -728,7 +885,17 @@ export default {
       abaAtiva: 'Etapas',
       tabs: ['Etapas', 'Por hora'],
 
-      filtroEficiencia: 'todos',
+      // Três filtros de eficiência INDEPENDENTES (cada um avalia o seu indicador)
+      filtroEficienciaGeral: 'todos',
+      filtroEficienciaFicha: 'todos',
+      filtroEficienciaReferencia: 'todos',
+      opcoesFaixa: [
+        { valor: 'todos', rotulo: 'todas' },
+        { valor: 'acima100', rotulo: 'acima de 100%' },
+        { valor: 'entre80100', rotulo: 'entre 80% e 100%' },
+        { valor: 'abaixo80', rotulo: 'abaixo de 80%' },
+      ],
+
       filtroOpId: 'todas',
       ordenarPor: 'ranking',
       mostrarInsights: false,
@@ -776,10 +943,42 @@ export default {
       return [...horasSet].sort((a, b) => horaParaMinutos(a) - horaParaMinutos(b))
     },
 
+    // ── MÉTRICAS (FONTE ÚNICA DOS TRÊS INDICADORES) ───────
+    // Para cada profissional: { geral, ficha, referencia, origem, ... }.
+    // Lista, filtros, ranking, ordenação e detalhamento leem SEMPRE daqui.
+    mapaMetricas() {
+      const mapa = new Map()
+      for (const f of this.funcionariosDia || []) {
+        mapa.set(f.email, this.calcularMetricasFuncionario(f))
+      }
+      return mapa
+    },
+
+    // 'referencia' só existe em estabelecimento de fábrica.
+    modoRankingEfetivo() {
+      const m = this.modoOrdenacao
+      if (m === 'referencia' && !this.isFabrica) return 'geral'
+      return ['geral', 'ficha', 'referencia'].includes(m) ? m : 'geral'
+    },
+
+    rotuloModoRanking() {
+      return { geral: 'Geral', ficha: 'Ficha', referencia: 'Referência' }[this.modoRankingEfetivo]
+    },
+
+    // O ranking (posição/medalha) segue o indicador selecionado no toggle.
     funcionariosOrdenados() {
+      const modo = this.modoRankingEfetivo
       return [...this.funcionariosDia]
-        .sort((a, b) => this.calcularEficienciaOrdenacao(b) - this.calcularEficienciaOrdenacao(a))
+        .sort((a, b) => this.valorMetrica(b, modo) - this.valorMetrica(a, modo))
         .map((f, i) => ({ ...f, _idx: i }))
+    },
+
+    filtrosEficienciaAtivos() {
+      return (
+        this.filtroEficienciaGeral !== 'todos' ||
+        this.filtroEficienciaFicha !== 'todos' ||
+        (this.isFabrica && this.filtroEficienciaReferencia !== 'todos')
+      )
     },
 
     funcionariosFiltrados() {
@@ -798,13 +997,14 @@ export default {
         lista = lista.filter(f => (f.linhas || []).some(l => l.opId === this.filtroOpId))
       }
 
-      if (this.filtroEficiencia !== 'todos') {
+      // Cada filtro olha para a SUA métrica (propriedade distinta).
+      if (this.filtrosEficienciaAtivos) {
         lista = lista.filter(f => {
           if (!this.temProducao(f)) return false
-          const efic = this.eficienciaOficialFuncionario(f)
-          if (this.filtroEficiencia === 'acima100') return efic >= 100
-          if (this.filtroEficiencia === 'entre80100') return efic >= 80 && efic < 100
-          if (this.filtroEficiencia === 'abaixo80') return efic < 80
+          const m = this.metricasFuncionario(f)
+          if (!this.passaFaixaEficiencia(m.geral, this.filtroEficienciaGeral)) return false
+          if (!this.passaFaixaEficiencia(m.ficha, this.filtroEficienciaFicha)) return false
+          if (this.isFabrica && !this.passaFaixaEficiencia(m.referencia, this.filtroEficienciaReferencia)) return false
           return true
         })
       }
@@ -813,8 +1013,9 @@ export default {
         lista = [...lista].sort((a, b) => {
           if (this.ordenarPor === 'nome') return (a.nome || '').localeCompare(b.nome || '')
           if (this.ordenarPor === 'pecas') return this.calcularTotalFuncionario(b) - this.calcularTotalFuncionario(a)
-          if (this.ordenarPor === 'ficha') return this.calcularEficienciaFuncionario(b) - this.calcularEficienciaFuncionario(a)
-          if (this.ordenarPor === 'referencia') return this.calcularEficienciaReferenciaFuncionario(b) - this.calcularEficienciaReferenciaFuncionario(a)
+          if (this.ordenarPor === 'geral') return this.valorMetrica(b, 'geral') - this.valorMetrica(a, 'geral')
+          if (this.ordenarPor === 'ficha') return this.valorMetrica(b, 'ficha') - this.valorMetrica(a, 'ficha')
+          if (this.ordenarPor === 'referencia') return this.valorMetrica(b, 'referencia') - this.valorMetrica(a, 'referencia')
           return 0
         })
       }
@@ -826,21 +1027,19 @@ export default {
       return this.selecionado !== null ? this.funcionariosOrdenados[this.selecionado] : null
     },
 
-    // Auditoria do funcionário selecionado. Se o módulo compartilhado
-    // devolver tempo de referência vazio/zero, usa o tempo da ficha e
-    // deixa a fórmula explícita sobre isso.
+    metricasSelecionado() {
+      return this.funcSelecionado ? this.metricasFuncionario(this.funcSelecionado) : null
+    },
+
+    diferencaSelecionada() {
+      return this.funcSelecionado ? this.calcularDiferencaEficiencia(this.funcSelecionado) : null
+    },
+
+    // Auditoria do funcionário selecionado (valores oficiais do módulo
+    // compartilhado, sem substituir a referência pela ficha).
     totaisFuncionarioSelecionado() {
       if (!this.funcSelecionado) return null
-      const t = calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.filtro?.data)
-      if (!t) return null
-      if (this.isFabrica && !valido(t.tempoReferencia) && valido(t.tempoFicha)) {
-        return {
-          ...t,
-          tempoReferencia: t.tempoFicha,
-          formulaReferencia: `${t.tempoFicha} ÷ ${t.tempoRegistrado} × 100 (sem tempo de referência — usando ficha)`,
-        }
-      }
-      return t
+      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.filtro?.data) || null
     },
 
     funcionariosComProducao() {
@@ -854,33 +1053,27 @@ export default {
       return this.eficienciaMediaPonderadaOpsReferencia
     },
 
-    // ── EFICIÊNCIA OFICIAL DA TURMA (UMA SÓ) ──────────────
-    // Mesma regra do profissional: a origem é decidida pelo MENOR tempo
-    // total (Ficha × Referência), nunca pela maior eficiência.
-    tempoFichaTurma() {
-      return this.gruposProducaoPorOp.reduce((s, g) => s + Number(g.tempoPadraoTotal || 0), 0)
+    // ── TURMA ─────────────────────────────────────────────
+    // Geral da turma: tempo total escolhido (por profissional/etapa) ÷ tempo
+    // total registrado × 100. Só entram profissionais com Geral disponível.
+    eficienciaGeralTurma() {
+      let usado = 0
+      let registrado = 0
+      for (const f of this.funcionariosComProducao) {
+        const m = this.metricasFuncionario(f)
+        if (m.totais.usado != null && valido(m.tempoRegistrado)) {
+          usado += m.totais.usado
+          registrado += m.tempoRegistrado
+        }
+      }
+      return registrado > 0 ? arred2((usado / registrado) * 100) : null
     },
 
-    tempoReferenciaTurma() {
-      return this.gruposProducaoPorOp.reduce((s, g) => s + Number(g.tempoReferenciaTotal || 0), 0)
-    },
-
-    origemEficienciaTurma() {
-      if (!this.isFabrica) return 'ficha'
-      const tf = this.tempoFichaTurma
-      const tr = this.tempoReferenciaTurma
-      if (!valido(tf) || !valido(tr)) return 'ficha'
-      return tr < tf ? 'referencia' : 'ficha'
-    },
-
-    eficienciaOficialTurma() {
-      return this.origemEficienciaTurma === 'referencia'
-        ? this.eficienciaMediaTurmaReferencia
-        : this.eficienciaMediaTurma
-    },
-
-    rotuloOrigemEficienciaTurma() {
-      return this.origemEficienciaTurma === 'referencia' ? 'Referência' : 'Ficha'
+    // A média de referência da turma só é exibida se existir Tempo Referência
+    // real em ao menos um profissional (sem mascarar a ficha como referência).
+    eficienciaReferenciaTurmaExibida() {
+      const algumaReferencia = this.funcionariosComProducao.some(f => this.metricasFuncionario(f).referencia != null)
+      return algumaReferencia ? this.eficienciaMediaTurmaReferencia : null
     },
 
     gruposOpBrutos() {
@@ -933,7 +1126,7 @@ export default {
 
     // A média de referência é a do módulo compartilhado; se ela falhar,
     // usa a média simples dos valores já exibidos nos cards (mesma fórmula
-    // mostrada na tela), então topo e resumo nunca ficam vazios.
+    // mostrada na tela), então o resumo por OP nunca fica vazio.
     eficienciaMediaPonderadaOpsReferencia() {
       const v = calcularEficienciaMediaPonderadaOps(this.gruposOpBrutos, true)
       if (valido(v)) return v
@@ -942,8 +1135,8 @@ export default {
       return lista.reduce((s, g) => s + Number(g.eficienciaReferencia || 0), 0) / lista.length
     },
 
-    temFallbackReferencia() {
-      return this.funcionariosComProducao.some(f => this.referenciaEhFallbackFuncionario(f))
+    temReferenciaIndisponivel() {
+      return this.funcionariosComProducao.some(f => this.referenciaIndisponivelFuncionario(f))
     },
 
     totalPecasGeral() {
@@ -962,18 +1155,17 @@ export default {
       let maiorDiferenca = null
 
       for (const f of comProducao) {
-        const efFicha = this.calcularEficienciaFuncionario(f)
-        const efRef = this.isFabrica ? this.calcularEficienciaReferenciaFuncionario(f) : efFicha
+        const m = this.metricasFuncionario(f)
         const producao = this.calcularTotalFinalizadoFuncionario(f)
-        const diferenca = efRef - efFicha
 
-        if (this.isFabrica && (!melhorReferencia || efRef > melhorReferencia.valor)) {
-          melhorReferencia = { nome: f.nome, valor: efRef }
+        if (this.isFabrica && m.referencia != null && (!melhorReferencia || m.referencia > melhorReferencia.valor)) {
+          melhorReferencia = { nome: f.nome, valor: m.referencia }
         }
         if (!maiorProducao || producao > maiorProducao.valor) {
           maiorProducao = { nome: f.nome, valor: producao }
         }
-        if (this.isFabrica && diferenca > 0 && (!maiorDiferenca || diferenca > maiorDiferenca.valor)) {
+        const diferenca = this.calcularDiferencaEficiencia(f)
+        if (this.isFabrica && diferenca != null && diferenca > 0 && (!maiorDiferenca || diferenca > maiorDiferenca.valor)) {
           maiorDiferenca = { nome: f.nome, valor: diferenca }
         }
       }
@@ -981,149 +1173,81 @@ export default {
       return { melhorReferencia, maiorProducao, maiorDiferenca }
     },
 
-    // ── EFICIÊNCIA OFICIAL (UMA SÓ POR PROFISSIONAL) ─────
-    // Fonte única da escolha. A regra é sempre a já definida no sistema:
-    //   tempoEfetivo = Math.min(tempoFicha, tempoReferencia)
-    // Ou seja: o oficial é o MENOR tempo — nunca a maior eficiência.
-    // Reutiliza calcularTotaisFuncionarioDia (nenhuma fórmula nova).
-    mapaEscolhaOficial() {
-      const mapa = new Map()
-      for (const f of this.funcionariosDia || []) {
-        mapa.set(f.email, this.calcularEscolhaOficial(f))
-      }
-      return mapa
-    },
-
-    eficienciaOficialSelecionada() {
-      return this.eficienciaOficialFuncionario(this.funcSelecionado)
-    },
-
-    origemOficialSelecionada() {
-      return this.funcSelecionado ? this.origemEficienciaOficial(this.funcSelecionado) : 'ficha'
-    },
-
-    rotuloOrigemOficialSelecionado() {
-      return this.rotuloOrigemOficial(this.funcSelecionado, true)
-    },
-
-    // Detalhamento do profissional selecionado. Só LÊ dados e funções
-    // oficiais; a eficiência oficial nunca é recalculada aqui.
+    // ── DETALHAMENTO DO PROFISSIONAL SELECIONADO ──────────
+    // Só LÊ as métricas e funções oficiais; nada é recalculado por fora.
     analiseDetalhe() {
       const func = this.funcSelecionado
-      const tot = this.totaisFuncionarioSelecionado
-      if (!func || !tot) return null
+      const m = this.metricasSelecionado
+      if (!func || !m || !m.producao) return null
 
-      const tempoTrab = Number(tot.tempoRegistrado)
+      const tempoTrab = m.tempoRegistrado
       if (!valido(tempoTrab)) return null
+      const producao = m.producao
+      const t = m.totais
 
-      const mk = () => ({ q: 0, qOk: 0, s: 0 })
-      const add = (a, q, t) => {
-        a.q += q
-        if (valido(t)) { a.qOk += q; a.s += q * Number(t) }
+      // tempo por peça = tempo total ÷ peças (média ponderada pelas etapas)
+      const porPeca = (total) => (total == null ? null : total / producao)
+      // capacidade teórica = tempoTrabalhado ÷ tempoPorPeça (sem arredondar antes)
+      const capDe = (tempoPeca) => (tempoPeca == null ? null : tempoTrab / tempoPeca)
+      // eficiência comparativa (mesma base da oficial): tempo total ÷ trabalhado × 100
+      const eficDe = (total) => (total == null ? null : (total / tempoTrab) * 100)
+
+      const tPadrao = porPeca(t.padrao)
+      const tFicha = porPeca(t.ficha)
+      const tRef = this.isFabrica ? porPeca(t.ref) : null
+      const tUsado = porPeca(t.usado)
+
+      const linhaPadrao = {
+        chave: 'padrao', rotulo: 'Tempo Padrão da Etapa', cenario: 'comparativo',
+        tempo: tPadrao, capacidade: capDe(tPadrao), eficiencia: eficDe(t.padrao), destaque: false,
       }
-      const acc = { padrao: mk(), ficha: mk(), ref: mk(), efetivo: mk() }
-
-      let producao = 0
-      let linhasComProducao = 0
-      for (const linha of func.linhas || []) {
-        const q = calcularTotalLinha(linha, func)
-        if (!q) continue
-        producao += q
-        linhasComProducao++
-
-        add(acc.padrao, q, linha.tempoPadrao)
-        const tFichaLinha = resolverTempoPadrao(linha, this.etapasPorId)
-        add(acc.ficha, q, tFichaLinha)
-
-        if (this.isFabrica) {
-          const r = resolverTempoReferenciaComOrigem(func, linha, this.etapasPorId, null, this.filtro?.data)
-          add(acc.ref, q, this.extrairTempoRef(r))
-          add(acc.efetivo, q, this.tempoEfetivoLinha(linha))
-        } else {
-          add(acc.efetivo, q, tFichaLinha)
-        }
+      const linhaFicha = {
+        chave: 'ficha', rotulo: 'Tempo Ficha', cenario: 'Eficiência Ficha',
+        tempo: tFicha, capacidade: capDe(tFicha), eficiencia: m.ficha, destaque: false,
       }
-      if (!producao) return null
-
-      // ── TOTAIS POR CENÁRIO (min) ──────────────────────────
-      // `total()` devolve a soma de (peças × tempo) em MINUTOS — a mesma
-      // base da eficiência oficial — e null se faltar tempo em alguma etapa.
-      // A eficiência oficial (escolhida pelo MENOR tempo) vem do mapa único;
-      // os totais dela são preferidos para lista e detalhamento mostrarem
-      // sempre os mesmos números.
-      const total = (a) => (a.q > 0 && a.qOk === a.q ? a.s : null)
-      const escolha = this.escolhaOficial(func) || {}
-      const tPadrao = total(acc.padrao)
-      const tFicha = escolha.tempoFicha ?? total(acc.ficha)
-      const tRef = this.isFabrica ? (escolha.tempoReferencia ?? total(acc.ref)) : null
-      const tEfetivo = total(acc.efetivo)
-      const eficienciaOficial = this.eficienciaOficialSelecionada
-      const origemOficial = this.origemOficialSelecionada
-
-      // Capacidade teórica = tempoTrabalhado ÷ tempo por peça
-      // (equivalente: tempoTrabalhado × produção ÷ tempo total).
-      const cap = (t) => (t == null || !producao ? null : (tempoTrab * producao) / t)
-      // Eficiência do cenário = tempo total ÷ tempoTrabalhado × 100
-      const efic = (t) => (t == null ? null : Math.round((t / tempoTrab) * 100))
-
-      const referencias = [
-        { chave: 'padrao', rotulo: 'Tempo Padrão', tempo: tPadrao, capacidade: cap(tPadrao), eficiencia: efic(tPadrao), destaque: false },
-        {
-          chave: 'ficha', rotulo: 'Tempo Ficha',
-          tempo: tFicha, capacidade: cap(tFicha),
-          eficiencia: origemOficial === 'ficha' ? eficienciaOficial : efic(tFicha),
-          destaque: origemOficial === 'ficha',
-        },
-      ]
-      if (this.isFabrica) {
-        referencias.push({
-          chave: 'ref', rotulo: 'Tempo Referência Profissional',
-          tempo: tRef, capacidade: cap(tRef),
-          eficiencia: origemOficial === 'referencia' ? eficienciaOficial : efic(tRef),
-          destaque: origemOficial === 'referencia',
-        })
+      const linhaRef = this.isFabrica
+        ? {
+            chave: 'ref', rotulo: 'Tempo Referência Profissional', cenario: 'Eficiência Referência',
+            tempo: tRef, capacidade: capDe(tRef), eficiencia: m.referencia, destaque: false,
+          }
+        : null
+      const linhaGeral = {
+        chave: 'efetivo', rotulo: 'Tempo Efetivamente Utilizado', cenario: 'Eficiência Geral — oficial',
+        tempo: tUsado, capacidade: capDe(tUsado), eficiencia: m.geral, destaque: true,
       }
 
-      // Tempo efetivamente utilizado = tempo do cenário OFICIAL, por peça.
-      const tempoTotalOficial = origemOficial === 'referencia' ? tRef : tFicha
-      const tempoEfetivo = tempoTotalOficial != null && producao ? tempoTotalOficial / producao : null
+      const referencias = [linhaPadrao, linhaFicha]
+      if (linhaRef) referencias.push(linhaRef)
+      referencias.push(linhaGeral)
 
-      // Explicação dinâmica — sempre com os MESMOS valores da escolha.
-      const f2 = (n) => this.formatarDecimal(n)
+      // Explicação dinâmica (baseada nas escolhas reais por etapa)
+      const escolhas = m.linhas
+      const nRef = escolhas.filter(l => l.origem === 'referencia').length
+      const nPad = escolhas.filter(l => l.origem === 'padrao').length
+      const nSem = escolhas.filter(l => l.origem === null).length
       let explicacao
-      if (!this.isFabrica) {
-        explicacao = 'O Tempo Ficha foi utilizado porque este estabelecimento não trabalha com Tempo Referência do Profissional.'
-      } else if (tFicha == null && tRef == null) {
-        explicacao = 'Nenhum tempo completo (Ficha ou Referência do Profissional) está disponível para todas as etapas desta produção.'
-      } else if (tRef == null) {
-        explicacao = 'O Tempo Ficha foi utilizado porque não existe Tempo Referência do Profissional disponível.'
-      } else if (tFicha == null) {
-        explicacao = 'O Tempo Referência do Profissional foi utilizado porque o Tempo Ficha não está disponível.'
-      } else if (tRef < tFicha) {
-        explicacao = `O Tempo Referência do Profissional (${f2(tRef)} min) foi utilizado porque é menor que o Tempo Ficha (${f2(tFicha)} min).`
-      } else if (tFicha < tRef) {
-        explicacao = `O Tempo Ficha (${f2(tFicha)} min) foi utilizado porque é menor que o Tempo Referência do Profissional (${f2(tRef)} min).`
+      if (!escolhas.length) {
+        explicacao = 'Dados insuficientes para determinar o cenário da Eficiência Geral.'
+      } else if (escolhas.length === 1) {
+        explicacao = escolhas[0].motivo
       } else {
-        explicacao = `Tempo Ficha e Tempo Referência do Profissional são iguais (${f2(tFicha)} min).`
+        const partes = []
+        if (nRef) partes.push(`${nRef} etapa(s) usaram o Tempo Referência do Profissional (por ser menor que o Tempo Ficha)`)
+        if (nPad) partes.push(`${nPad} etapa(s) usaram o Tempo Padrão da Etapa`)
+        if (nSem) partes.push(`${nSem} etapa(s) não tinham tempo disponível`)
+        explicacao = `A Eficiência Geral escolhe o tempo etapa a etapa: ${partes.join('; ')}. O motivo de cada etapa está detalhado abaixo.`
       }
 
-      // Confere o tempo efetivo resolvido linha a linha contra a regra do
-      // menor tempo, sem alterar o valor oficial.
-      const mesmoValor = (a, b) => Math.round(a * 100) === Math.round(b * 100)
-      let avisoDivergencia = null
-      if (this.isFabrica && tFicha != null && tRef != null && tEfetivo != null) {
-        const menor = Math.min(tFicha, tRef)
-        if (!mesmoValor(tEfetivo, menor)) {
-          avisoDivergencia =
-            `Atenção: o tempo efetivo resolvido linha a linha (${f2(tEfetivo)} min) difere do menor entre Ficha e Referência (${f2(menor)} min). ` +
-            'A eficiência oficial desta tela segue o menor tempo.'
-        }
+      let aviso = null
+      if (m.geral == null) {
+        aviso = 'Há etapas com produção sem tempo disponível; a Eficiência Geral ficou indisponível em vez de usar um valor inventado.'
       }
 
+      // Impacto Ficha × Referência (só com os dois tempos completos)
       let impacto = null
       if (this.isFabrica && tFicha != null && tRef != null) {
-        const capFicha = cap(tFicha)
-        const capRef = cap(tRef)
+        const capFicha = capDe(tFicha)
+        const capRef = capDe(tRef)
         impacto = {
           tempoFicha: tFicha,
           tempoRef: tRef,
@@ -1136,25 +1260,27 @@ export default {
       }
 
       const grafico = [
-        { chave: 'g-padrao', rotulo: 'Tempo Padrão (capacidade)', valor: cap(tPadrao), tipo: 'teorica' },
-        { chave: 'g-ficha', rotulo: 'Tempo Ficha (capacidade)', valor: cap(tFicha), tipo: 'teorica' },
+        { chave: 'g-padrao', rotulo: 'Tempo Padrão da Etapa (capacidade)', valor: linhaPadrao.capacidade, tipo: 'teorica' },
+        { chave: 'g-ficha', rotulo: 'Tempo Ficha (capacidade)', valor: linhaFicha.capacidade, tipo: 'teorica' },
       ]
-      if (this.isFabrica) {
-        grafico.push({ chave: 'g-ref', rotulo: 'Tempo Referência (capacidade)', valor: cap(tRef), tipo: 'teorica' })
+      if (linhaRef) {
+        grafico.push({ chave: 'g-ref', rotulo: 'Tempo Referência (capacidade)', valor: linhaRef.capacidade, tipo: 'teorica' })
       }
+      grafico.push({ chave: 'g-geral', rotulo: 'Tempo Efetivo — Geral oficial (capacidade)', valor: linhaGeral.capacidade, tipo: 'oficial' })
       grafico.push({ chave: 'g-real', rotulo: 'Produção real', valor: producao, tipo: 'real' })
 
       return {
         producao,
         tempoTrabalhado: tempoTrab,
-        eficienciaOficial,
-        origemOficial,
-        origemOficialRotulo: origemOficial === 'referencia' ? 'Referência Profissional' : 'Ficha',
-        tempoEfetivo,
-        multiplasEtapas: linhasComProducao > 1,
+        origem: m.origem,
+        geral: linhaGeral,
+        ficha: linhaFicha,
+        referenciaProf: linhaRef,
+        multiplasEtapas: escolhas.length > 1,
         referencias,
+        escolhas,
         explicacao,
-        avisoDivergencia,
+        aviso,
         impacto,
         grafico,
       }
@@ -1207,24 +1333,168 @@ export default {
       return minutosDisponiveisDia(dataFiltro)
     },
 
-    // ── ORDENAÇÃO ─────────────────────────────────────────
-    calcularEficienciaOrdenacao(func) {
-      const modo = this.isFabrica ? this.modoOrdenacao : 'ficha'
-      const v = calcularEficienciaFuncionarioPorModo(func, this.etapasPorId, modo, null, this.filtro?.data)
-      if (modo === 'referencia' && !valido(v)) return this.calcularEficienciaFuncionario(func)
-      return v
+    // ── MÉTRICAS: FICHA / REFERÊNCIA / GERAL (OFICIAL) ────
+    // Tempo Padrão da Etapa  = linha.tempoPadrao (tempo da etapa)
+    // Tempo Ficha            = resolverTempoPadrao(...)  (o mesmo que a Eficiência Ficha usa)
+    // Tempo Referência Prof. = resolverTempoReferenciaComOrigem(...)
+    //
+    // Regra da Eficiência Geral, decidida POR ETAPA e pelo valor dos TEMPOS:
+    //   usarReferencia = tempoRef != null && tempoFicha != null && tempoRef < tempoFicha
+    //   tempoEfetivo   = usarReferencia ? tempoRef : tempoPadraoEtapa
+    resolverTempoOficialLinha(func, linha, quantidade) {
+      const tFicha = numValido(resolverTempoPadrao(linha, this.etapasPorId))
+      // fallback existente: sem tempo na etapa, usa o tempo resolvido da ficha
+      const tPadrao = numValido(linha.tempoPadrao) ?? tFicha
+      const tRef = this.isFabrica
+        ? this.extrairTempoRef(resolverTempoReferenciaComOrigem(func, linha, this.etapasPorId, null, this.filtro?.data))
+        : null
+
+      const usarReferencia = tRef != null && tFicha != null && tRef < tFicha
+      const tUsado = usarReferencia ? tRef : tPadrao
+      const origem = tUsado == null ? null : (usarReferencia ? 'referencia' : 'padrao')
+
+      return {
+        id: linha.id,
+        etapa: linha.descricao || linha.etapaId || '—',
+        quantidade,
+        tPadrao,
+        tFicha,
+        tRef,
+        tUsado,
+        origem,
+        motivo: this.motivoEscolhaOficial({ tPadrao, tFicha, tRef, origem }),
+      }
     },
 
+    motivoEscolhaOficial({ tPadrao, tFicha, tRef, origem }) {
+      const f2 = (n) => this.formatarDecimal(n)
+      if (origem === 'referencia') {
+        return `A Eficiência Geral utiliza o Tempo Referência do Profissional (${f2(tRef)} min), pois esse tempo é menor que o Tempo Ficha (${f2(tFicha)} min).`
+      }
+      if (origem === null) {
+        return 'Dados insuficientes: não há Tempo Padrão da Etapa nem Tempo Ficha disponíveis, então a Eficiência Geral não pôde ser determinada para esta etapa.'
+      }
+      if (tRef == null) {
+        return `A Eficiência Geral utiliza o Tempo Padrão da Etapa (${f2(tPadrao)} min) porque não existe Tempo Referência do Profissional disponível.`
+      }
+      if (tFicha == null) {
+        return `A Eficiência Geral utiliza o Tempo Padrão da Etapa (${f2(tPadrao)} min) porque não há Tempo Ficha para comparar com o Tempo Referência do Profissional (${f2(tRef)} min).`
+      }
+      return `A Eficiência Geral utiliza o Tempo Padrão da Etapa (${f2(tPadrao)} min), pois o Tempo Referência do Profissional (${f2(tRef)} min) não é menor que o Tempo Ficha (${f2(tFicha)} min).`
+    },
+
+    calcularMetricasFuncionario(func) {
+      const data = this.filtro?.data
+      const producao = this.calcularTotalFuncionario(func)
+      const totaisVazios = { padrao: null, ficha: null, ref: null, usado: null }
+
+      if (!producao) {
+        return {
+          producao: 0, tempoRegistrado: 0,
+          geral: 0, ficha: 0, referencia: null,
+          origem: null, linhas: [], totais: totaisVazios,
+        }
+      }
+
+      // FICHA — função oficial, independente da Geral.
+      const fichaBruta = Number(calcularEficienciaFuncionarioPadrao(func, this.etapasPorId, null, data))
+      const ficha = Number.isFinite(fichaBruta) ? fichaBruta : null
+
+      // REFERÊNCIA — função oficial; se não houver Tempo Referência válido,
+      // fica null (exibido como "—"), sem usar a ficha no lugar.
+      let referencia = null
+      if (this.isFabrica) {
+        const r = Number(calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, data))
+        referencia = valido(r) ? r : null
+      }
+
+      // GERAL (OFICIAL) — escolha por etapa e soma de (peças × tempo escolhido).
+      const tot = calcularTotaisFuncionarioDia(func, this.etapasPorId, null, data)
+      const tempoRegistradoBruto = Number(tot?.tempoRegistrado)
+      const tempoRegistrado = valido(tempoRegistradoBruto) ? tempoRegistradoBruto : 0
+
+      const acc = { padrao: novoAcc(), ficha: novoAcc(), ref: novoAcc(), usado: novoAcc() }
+      const linhas = []
+      for (const linha of func.linhas || []) {
+        const q = calcularTotalLinha(linha, func)
+        if (!q) continue
+        const info = this.resolverTempoOficialLinha(func, linha, q)
+        linhas.push(info)
+        somarAcc(acc.padrao, q, info.tPadrao)
+        somarAcc(acc.ficha, q, info.tFicha)
+        somarAcc(acc.ref, q, info.tRef)
+        somarAcc(acc.usado, q, info.tUsado)
+      }
+
+      const totais = {
+        padrao: totalAcc(acc.padrao),
+        ficha: totalAcc(acc.ficha),
+        ref: this.isFabrica ? totalAcc(acc.ref) : null,
+        usado: totalAcc(acc.usado),
+      }
+
+      const geral =
+        tempoRegistrado > 0 && totais.usado != null
+          ? arred2((totais.usado / tempoRegistrado) * 100)
+          : null
+
+      const nRef = linhas.filter(l => l.origem === 'referencia').length
+      const nPad = linhas.filter(l => l.origem === 'padrao').length
+      const origem = nRef && nPad ? 'misto' : nRef ? 'referencia' : nPad ? 'padrao' : null
+
+      return { producao, tempoRegistrado, geral, ficha, referencia, origem, linhas, totais }
+    },
+
+    metricasFuncionario(func) {
+      return (
+        this.mapaMetricas.get(func?.email) || {
+          producao: 0, tempoRegistrado: 0,
+          geral: null, ficha: null, referencia: null,
+          origem: null, linhas: [],
+          totais: { padrao: null, ficha: null, ref: null, usado: null },
+        }
+      )
+    },
+
+    // Valor numérico para ordenar; indisponível vai para o fim da lista.
+    valorMetrica(func, modo) {
+      const v = this.metricasFuncionario(func)[modo]
+      return v == null ? -1 : v
+    },
+
+    passaFaixaEficiencia(valor, faixa) {
+      if (faixa === 'todos') return true
+      if (valor == null) return false
+      if (faixa === 'acima100') return valor >= 100
+      if (faixa === 'entre80100') return valor >= 80 && valor < 100
+      if (faixa === 'abaixo80') return valor < 80
+      return true
+    },
+
+    referenciaIndisponivelFuncionario(func) {
+      return this.isFabrica && this.temProducao(func) && this.metricasFuncionario(func).referencia == null
+    },
+
+    // Diferença Referência − Ficha; null se algum dos dois não existir.
+    calcularDiferencaEficiencia(func) {
+      if (!this.isFabrica) return null
+      const m = this.metricasFuncionario(func)
+      if (m.referencia == null || m.ficha == null) return null
+      return Math.round((m.referencia - m.ficha) * 100) / 100
+    },
+
+    // ── ORDENAÇÃO ─────────────────────────────────────────
     definirModoOrdenacao(modo) {
       this.modoOrdenacao = modo
-      try { localStorage.setItem('painel-modo-ordenacao', modo) } catch { /* ignora */ }
+      try { localStorage.setItem(LS_MODO_RANKING, modo) } catch { /* ignora */ }
     },
 
     carregarModoOrdenacao() {
       try {
-        return localStorage.getItem('painel-modo-ordenacao') === 'referencia' ? 'referencia' : 'ficha'
+        const salvo = localStorage.getItem(LS_MODO_RANKING)
+        return salvo === 'referencia' || salvo === 'ficha' ? salvo : 'geral'
       } catch {
-        return 'ficha'
+        return 'geral'
       }
     },
 
@@ -1520,26 +1790,7 @@ export default {
       return this.calcularTotalFuncionario(func) > 0
     },
 
-    // ── EFICIÊNCIA ────────────────────────────────────────
-    calcularEficienciaFuncionario(func) {
-      return calcularEficienciaFuncionarioPadrao(func, this.etapasPorId, null, this.filtro?.data)
-    },
-
-    // Referência do funcionário: se o módulo compartilhado não conseguir
-    // resolver (devolve 0/NaN com produção existente), usa a ficha em vez
-    // de sumir ou mostrar 0%. `referenciaEhFallbackFuncionario` informa isso.
-    calcularEficienciaReferenciaFuncionario(func) {
-      const ref = calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, this.filtro?.data)
-      if (valido(ref)) return ref
-      return this.temProducao(func) ? this.calcularEficienciaFuncionario(func) : 0
-    },
-
-    referenciaEhFallbackFuncionario(func) {
-      if (!this.temProducao(func)) return false
-      const ref = calcularEficienciaFuncionarioReferencia(func, this.etapasPorId, null, this.filtro?.data)
-      return !valido(ref) && valido(this.calcularEficienciaFuncionario(func))
-    },
-
+    // ── EFICIÊNCIA POR ETAPA (aba "Etapas") ───────────────
     calcularEficienciaLinha(linha) {
       return calcularEficienciaLinhaPadrao(linha, this.funcSelecionado, this.etapasPorId)
     },
@@ -1558,48 +1809,6 @@ export default {
     tempoEfetivoLinha(linha) {
       const t = resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
       return valido(t) ? t : Number(linha.tempoPadrao || 0)
-    },
-
-    calcularDiferencaEficiencia(func) {
-      if (!this.isFabrica) return 0
-      return Math.round((this.calcularEficienciaReferenciaFuncionario(func) - this.calcularEficienciaFuncionario(func)) * 100) / 100
-    },
-
-    // ── EFICIÊNCIA OFICIAL (UMA SÓ POR PROFISSIONAL) ──────
-    // Regra única, já definida no sistema:
-    //   tempoEfetivo = Math.min(tempoFicha, tempoReferencia)
-    // A origem é decidida SOMENTE pelo menor tempo — nunca pela maior
-    // eficiência — e a eficiência oficial é a do cenário escolhido.
-    // Reutiliza calcularTotaisFuncionarioDia (fonte única das fórmulas).
-    calcularEscolhaOficial(func) {
-      const t = calcularTotaisFuncionarioDia(func, this.etapasPorId, null, this.filtro?.data)
-      const tempoFicha = t && valido(t.tempoFicha) ? Number(t.tempoFicha) : null
-      const tempoReferencia = t && valido(t.tempoReferencia) ? Number(t.tempoReferencia) : null
-      const referenciaMenor =
-        this.isFabrica && tempoFicha != null && tempoReferencia != null && tempoReferencia < tempoFicha
-      const origem = referenciaMenor ? 'referencia' : 'ficha'
-      const eficiencia = t ? (referenciaMenor ? t.eficienciaReferencia : t.eficienciaFicha) : 0
-      return { origem, eficiencia, tempoFicha, tempoReferencia }
-    },
-
-    escolhaOficial(func) {
-      if (!func) return null
-      return this.mapaEscolhaOficial.get(func.email) ?? this.calcularEscolhaOficial(func)
-    },
-
-    origemEficienciaOficial(func) {
-      return this.escolhaOficial(func)?.origem || 'ficha'
-    },
-
-    eficienciaOficialFuncionario(func) {
-      return this.escolhaOficial(func)?.eficiencia || 0
-    },
-
-    // Rótulo da origem exibido junto da eficiência oficial.
-    // `longo` = versão por extenso, usada em tooltips e no detalhamento.
-    rotuloOrigemOficial(func, longo = false) {
-      if (this.origemEficienciaOficial(func) !== 'referencia') return 'Ficha'
-      return longo ? 'Referência Profissional' : 'Referência'
     },
 
     // ── POR HORA ──────────────────────────────────────────
@@ -1658,6 +1867,7 @@ export default {
     },
 
     // ── HELPERS DE UI ─────────────────────────────────────
+    // Faixas legadas (OPs, etapas, por hora): >= 90 verde · >= 60 amarelo.
     clsEfic(pct) {
       const n = parseFloat(pct)
       if (n >= 90) return 'verde'
@@ -1665,9 +1875,19 @@ export default {
       return 'vermelho'
     },
 
-    // Mesmas faixas de cor da eficiência oficial (clsEficPrincipal):
-    // > 75 verde · > 60 amarelo · <= 60 vermelho.
+    // Faixas das TRÊS eficiências (só visuais): > 75 verde · > 60 amarelo · <= 60 vermelho.
+    // Calculada individualmente para cada valor; indisponível fica neutro.
+    clsEficPrincipal(pct) {
+      if (pct === null || pct === undefined) return 'neutro'
+      const n = parseFloat(pct)
+      if (isNaN(n)) return 'neutro'
+      if (n > 75) return 'verde'
+      if (n > 60) return 'amarelo'
+      return 'vermelho'
+    },
+
     legendaEfic(pct) {
+      if (pct === null || pct === undefined) return 'Eficiência indisponível'
       const n = parseFloat(pct)
       if (n > 75) return 'Eficiência dentro da meta'
       if (n > 60) return 'Eficiência próxima da meta'
@@ -1696,6 +1916,14 @@ export default {
       return origens[origem] || origem || 'desconhecida'
     },
 
+    // Origem do tempo da Eficiência Geral. `curto` para a coluna da lista.
+    rotuloOrigem(origem, curto = false) {
+      if (origem === 'referencia') return curto ? 'Referência' : 'Referência Profissional'
+      if (origem === 'padrao') return curto ? 'Padrão da Etapa' : 'Tempo Padrão da Etapa'
+      if (origem === 'misto') return curto ? 'Misto' : 'Misto (varia por etapa)'
+      return curto ? '—' : 'Indisponível'
+    },
+
     obterOrigemRefLinha(linha) {
       if (!this.funcSelecionado || !this.isFabrica) return null
       const { origem } = resolverTempoReferenciaComOrigem(
@@ -1716,21 +1944,36 @@ export default {
 
     onImgError(e) { e.target.style.display = 'none' },
 
-    // ── DETALHAMENTO / GRÁFICO ────────────────────────────
-    // Faixas só visuais: >75 verde, >60 amarelo, <=60 vermelho.
-    clsEficPrincipal(pct) {
-      const n = parseFloat(pct)
-      if (n > 75) return 'verde'
-      if (n > 60) return 'amarelo'
-      return 'vermelho'
-    },
-
     // Tolerante ao formato de retorno de resolverTempoReferenciaComOrigem.
     extrairTempoRef(r) {
       if (r == null) return null
-      if (typeof r === 'number') return valido(r) ? r : null
-      const t = r.tempoRef ?? r.tempo ?? r.tempoReferencia ?? r.valor
-      return valido(t) ? Number(t) : null
+      if (typeof r === 'number') return numValido(r)
+      return numValido(r.tempoRef ?? r.tempo ?? r.tempoReferencia ?? r.valor)
+    },
+
+    fmtPct(v) {
+      return v === null || v === undefined || isNaN(Number(v)) ? '—' : this.formatarEficiencia(v) + '%'
+    },
+
+    larguraBarra(v) {
+      return v === null || v === undefined || isNaN(Number(v)) ? '0%' : Math.min(Number(v), 100) + '%'
+    },
+
+    fmtTempo(v) {
+      return v === null || v === undefined ? '—' : this.formatarDecimal(v)
+    },
+
+    fmtMin(v) {
+      return v === null || v === undefined ? 'indisponível' : this.formatarDecimal(v) + ' min'
+    },
+
+    // Totais vindos do módulo compartilhado: sem valor válido = indisponível.
+    fmtTempoTotal(v) {
+      return valido(v) ? v + ' min' : 'indisponível'
+    },
+
+    fmtDif(v) {
+      return v === null || v === undefined ? '—' : this.fmtSinal(v, 2) + '%'
     },
 
     fmtPecas(n) {
@@ -1744,6 +1987,7 @@ export default {
       return Number(n) > 0 ? '+' + v : v
     },
 
+    // ── GRÁFICO ───────────────────────────────────────────
     destruirGrafico() {
       if (this._chart) {
         this._chart.destroy()
@@ -1772,7 +2016,7 @@ export default {
           labels: itens.map(g => g.rotulo),
           datasets: [{
             data: itens.map(g => g.valor),
-            backgroundColor: itens.map(g => (g.tipo === 'real' ? '#16a34a' : '#9db8b0')),
+            backgroundColor: itens.map(g => COR_GRAFICO[g.tipo] || COR_GRAFICO.teorica),
             borderRadius: 4,
           }],
         },
@@ -2337,7 +2581,6 @@ export default {
 
 .list-header {
   display: grid;
-  grid-template-columns: 1fr 72px 110px 18px;
   align-items: center;
   padding: 8px 24px;
   border-bottom: 1px solid var(--line);
@@ -3068,5 +3311,217 @@ export default {
   .search-input { width: 100%; }
   .list-header, .list-row { padding: 8px 16px; }
   .resumo-medias { grid-template-columns: 1fr; }
+}
+/* ═══════════════════════════════════════════════════════════
+   ACRÉSCIMOS — três indicadores (Geral OFICIAL · Ficha · Referência)
+   Colar no FINAL do <style scoped> (depois dos @media existentes),
+   pois alguns blocos sobrescrevem regras anteriores.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Selo OFICIAL (reutilizado em hero, lista, painel e tabelas) ── */
+.tag-oficial {
+  display: inline-block;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  line-height: 1.4;
+  color: #fff;
+  background: var(--g600);
+  border-radius: var(--rp);
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ── Estado neutro (indisponível) ── */
+.badge.neutro { background: var(--surf); color: var(--ink3); border: 1px solid var(--line); }
+.lr-dot.neutro,
+.dp-dot.neutro { background: var(--line); }
+.dp-eff-bar-fill.neutro { background: var(--line); }
+.dp-eff-card-val.neutro,
+.an-card-val.neutro { color: var(--ink3); }
+
+/* ══════════════ HERO: três cards de eficiência ══════════════ */
+.hero-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.hero-metrics .metrics-compact { grid-column: 1 / -1; }
+
+.skeleton-wrap { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.sk-featured { grid-column: span 1; }
+
+/* Geral = destaque; Ficha e Referência = secundárias, claramente distintas */
+.metric-geral {
+  background: var(--g800);
+  box-shadow: 0 0 0 2px var(--g600) inset;
+}
+.metric-geral .tag-oficial { background: var(--g200); color: var(--g900); }
+
+.metric-ficha,
+.metric-referencia {
+  background: var(--surf);
+  border: 1px solid var(--line);
+}
+.metric-ficha .mf-label,
+.metric-referencia .mf-label { color: var(--ink3); }
+.metric-ficha .mf-val,
+.metric-referencia .mf-val { color: var(--ink); }
+
+
+.lh-col { padding-left: 6px; }
+
+.lh-geral { color: var(--g700); }
+
+.lr-geral,
+.lr-ficha,
+.lr-referencia { padding-left: 6px; }
+
+/* Coluna oficial com leve realce, sem competir com as outras */
+.lr-geral {
+  align-self: stretch;
+  justify-content: center;
+  border-radius: var(--rs);
+  padding: 4px 8px;
+}
+.list-row.selected .lr-geral { background: var(--g100); }
+
+/* ══════════════ PAINEL: três cards de eficiência ══════════════ */
+.dp-eff-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 14px 18px 8px;
+}
+.dp-eff-cards.single { grid-template-columns: repeat(2, 1fr); }
+
+.dp-eff-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  background: var(--surf);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 12px 14px;
+}
+.dp-eff-card.oficial {
+  background: var(--g50);
+  border-color: var(--g600);
+  box-shadow: 0 0 0 1px var(--g600) inset;
+}
+
+.dp-eff-card-val {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+}
+.dp-eff-card-val.verde    { color: var(--g700); }
+.dp-eff-card-val.amarelo  { color: var(--a600); }
+.dp-eff-card-val.vermelho { color: var(--r600); }
+
+.dp-eff-card-sub {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink3);
+  line-height: 1.3;
+}
+
+.dp-eff-acoes {
+  padding: 4px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ══════════════ DETALHAMENTO ══════════════ */
+.an-card-oficial {
+  border-color: var(--g600);
+  background: var(--g50);
+}
+
+.an-cenario {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--ink3);
+  margin-top: 1px;
+}
+.an-tabela tr.an-destaque .an-cenario { color: var(--g700); }
+
+/* Escolha do tempo, etapa por etapa */
+.an-etapas {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.an-etapa-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--rc);
+  padding: 10px 12px;
+}
+.an-etapa-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.an-etapa-nome {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.an-etapa-origem {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-radius: var(--rp);
+  padding: 2px 8px;
+  background: var(--line);
+  color: var(--ink3);
+}
+.an-etapa-origem.referencia { background: var(--g100); color: var(--g800); }
+.an-etapa-origem.padrao     { background: var(--a100); color: var(--a700); }
+.an-etapa-origem.indisp     { background: var(--r100); color: var(--r700); }
+
+.an-etapa-tempos { color: var(--ink2); }
+.an-etapa-motivo { line-height: 1.4; }
+
+/* Lista do comparativo de produção: capacidade da Geral oficial */
+.an-lista li.oficial { background: #eff6ff; }
+.an-lista li.oficial strong { color: #2563eb; }
+
+/* Legenda do gráfico */
+.an-legenda { flex-wrap: wrap; }
+.an-leg.oficial::before { background: #2563eb; }
+
+/* ══════════════ RESPONSIVO (acréscimos) ══════════════ */
+@media (max-width: 900px) {
+  .dp-eff-cards { grid-template-columns: repeat(3, 1fr); }
+  .hero-metrics .metric-featured { grid-column: auto; }
+  .hero-metrics .metrics-compact { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .dp-eff-cards,
+  .dp-eff-cards.single { grid-template-columns: 1fr; }
+
+  .lr-origem { display: none; }
+  .lr-geral { padding: 2px 4px; }
 }
 </style>
