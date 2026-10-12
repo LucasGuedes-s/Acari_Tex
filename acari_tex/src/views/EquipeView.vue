@@ -645,9 +645,13 @@ export default {
     async getFuncionarios() {
       if (!(await this.validarToken())) return
       try {
+        console.time('Carregando funcionários...')
+
         const { data } = await api.get('/Funcionarios', {
           headers: { Authorization: this.store.pegar_token }
         })
+        console.timeEnd('Carregando funcionários...')
+        console.log('Funcionários recebidos:', data.funcionarios)
         this.funcionarios = (data.funcionarios || []).map(u => ({
           ...u,
           email: u.email ? String(u.email).toLowerCase().trim() : '',
@@ -656,6 +660,8 @@ export default {
       } catch (err) {
         console.error(err)
         Swal.fire('Erro', 'Erro ao carregar funcionários.', 'error')
+      } finally {
+        this.loading = false
       }
     },
 
@@ -726,6 +732,8 @@ export default {
         const { data } = await api.get('/equipes', {
           headers: { Authorization: this.store.pegar_token }
         })
+        
+        console.log('Equipes recebidas:', data.equipes)
         this.equipesDisponiveis = (data.equipes || []).map(e => this.normalizeEquipe(e))
         this.updateSelectedEquipeEmails(this.equipe)
       } catch (err) {
@@ -758,7 +766,7 @@ export default {
     this.verificarAutenticacao()
     this.getFuncionarios()
     // this.getPecasProducao()
-    this.buscarEquipes()
+    //this.buscarEquipes()
   },
   components: {
     SidebarNav,

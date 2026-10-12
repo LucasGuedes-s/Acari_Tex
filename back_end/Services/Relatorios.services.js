@@ -1,5 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
-prisma = new PrismaClient()
+// Cliente compartilhado: um único pool de conexões (ver config/prisma.js).
+// Nota: antes aqui `prisma` era atribuído sem `const` (variável global).
+const prisma = require('../config/prisma');
 
 function dateOnlyToUTC(dateStr) {
   // dateStr: YYYY-MM-DD

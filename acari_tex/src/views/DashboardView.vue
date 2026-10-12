@@ -180,6 +180,7 @@ import api from '@/Axios';
 import router from '@/router';
 import { gerarPdfOPs } from '@/utils/functions/PDFDashboard';
 import ProducaoDia from '@/components/ProducaoDia.vue';
+import { compartilhar, invalidar, chaveGet, agrupar, isCancelado } from '@/utils/requestControl';
 
 export default {
   name: 'DashboardHome',
@@ -231,6 +232,13 @@ export default {
       },
       datasFiltro: [],
       intercorrencias: [],
+      // Saídas de processarDados(). Declaradas em data para serem REATIVAS:
+      // antes eram propriedades novas em `this` (não reativas) e só apareciam
+      // nos gráficos porque o loading piscava e forçava novo render.
+      porClassificacao: null,
+      porNotas: null,
+      linhaTemporal: null,
+      porFuncionario: null,
       filtro: this.formatarDataLocal(),
       loading: true,
       modalImprodutivoAberto: false,
@@ -255,14 +263,18 @@ export default {
 
   mounted() {
     this.verificarAutenticacao();
-    this.producaoPecas();
-    this.fetchData();
-    this.getIntercorrencias();
-    this.iniciarSocket();
     this.gerarDatasFiltro();
+    this.iniciarSocket();
+    // As três consultas são independentes entre si → rodam em paralelo.
+    this.carregarSecoes({ inicial: true });
   },
 
   beforeUnmount() {
+    // Remove SOMENTE o handler desta instância: o objeto socket é compartilhado
+    // (cache do socket.io-client) com outros componentes da aplicação.
+    if (this.socket && this._aoAtualizar) {
+      this.socket.off(`nova_atualizacao_${this.cnpjSocket}`, this._aoAtualizar);
+    }
     if (this.socket) this.socket.disconnect();
   },
 
@@ -304,20 +316,51 @@ export default {
       this.socket = io('https://acari-tex.onrender.com');
 
       const cnpj = this.store.pegar_usuario?.cnpj || 'desconhecido';
+      this.cnpjSocket = cnpj;
 
-      this.socket.on(`nova_atualizacao_${cnpj}`, () => {
-        this.fetchData();
-        this.producaoPecas();
-        this.getIntercorrencias();
-        Swal.fire({
-          toast: true,
-          position: 'top-end',
-          icon: 'success',
-          title: 'Gráficos atualizados, nova produção registrada',
-          showConfirmButton: false,
-          timer: 8000,
-          timerProgressBar: true,
-        });
+      // Evita handlers duplicados a cada montagem da tela (cada visita à tela
+      // somava um novo listener → o dobro de requisições por evento).
+      if (this._aoAtualizar) this.socket.off(`nova_atualizacao_${cnpj}`, this._aoAtualizar);
+
+      // Rajada de eventos Socket.IO próximos vira UMA única atualização
+      // das três seções (antes: 3 chamadas por evento, sem limite).
+      this._aoAtualizar = agrupar(() => this.atualizarAposEvento(), 700);
+      this.socket.on(`nova_atualizacao_${cnpj}`, this._aoAtualizar);
+
+      // A tela pode ter sido desmontada (disconnect) e remontada: garante conexão.
+      if (!this.socket.connected) this.socket.connect();
+    },
+
+    // Atualização em tempo real. Invalida as requisições em andamento (foram
+    // disparadas ANTES do evento, então já estão velhas) e recarrega as seções.
+    atualizarAposEvento() {
+      invalidar(chaveGet('/pecas'));
+      invalidar(chaveGet('/intercorrencias'));
+      invalidar(chaveGet('/producao/equipe', { filtro: this.filtro }));
+
+      this.carregarSecoes();
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Gráficos atualizados, nova produção registrada',
+        showConfirmButton: false,
+        timer: 8000,
+        timerProgressBar: true,
+      });
+    },
+
+    // Dispara as três consultas da tela em paralelo (independentes). O loading
+    // da tela inteira só é usado no PRIMEIRO carregamento: antes, cada atualização
+    // ligava/desligava o v-if e desmontava ConteinersDashboard, ProducaoDia e
+    // gráficos — cada remontagem re disparava as requisições deles (ciclo de
+    // carregamento repetido).
+    carregarSecoes({ inicial = false } = {}) {
+      if (inicial) this.loading = true;
+      const pendentes = [this.fetchData(), this.producaoPecas(), this.getIntercorrencias()];
+      return Promise.allSettled(pendentes).then(() => {
+        if (inicial) this.loading = false;
       });
     },
     verificarAutenticacao() {
@@ -415,6 +458,8 @@ export default {
       this.producaoPecas();
     },
     abrirModalImprodutivo() {
+      // Abrir o modal não altera dado nenhum: antes aqui eram recarregadas as
+      // três seções (/pecas, /producao/equipe, /intercorrencias) a cada clique.
       this.modalImprodutivoAberto = true;
       this.formIntercorrencia = {
         descricao: '',
@@ -422,9 +467,6 @@ export default {
         data_ocorrencia: '',
         notas: '',
       };
-      this.producaoPecas();
-      this.fetchData();
-      this.getIntercorrencias();
     },
     fecharModalImprodutivo() {
       this.modalImprodutivoAberto = false;
@@ -491,45 +533,59 @@ export default {
 
         Swal.fire('Sucesso', 'Intercorrência registrada com sucesso!', 'success');
         this.fecharModalImprodutivo();
+        // Atualiza APENAS a seção afetada (não recarrega peças/produção).
+        invalidar(chaveGet('/intercorrencias'));
+        this.getIntercorrencias();
       } catch (err) {
         this.fecharModalImprodutivo();
         console.error('Erro ao salvar intercorrência:', err);
         Swal.fire('Erro', 'Ocorreu um erro ao registrar a intercorrência.', 'error');
       }
     },
+    // GET /pecas — mesma URL/parâmetros usados por <ProducaoDia> (índice de
+    // etapas): os dois componentes compartilham UMA única requisição em andamento.
     async fetchData() {
-      this.loading = true;
+      const chave = chaveGet('/pecas');
+      const seq = (this._seqPecas = (this._seqPecas || 0) + 1);
       try {
-        const token = this.store.pegar_token;
-        const response = await api.get('/pecas', {
-          headers: { Authorization: token },
-        });
+        const response = await compartilhar(chave, () =>
+          api.get('/pecas', {
+            headers: { Authorization: this.store.pegar_token },
+          })
+        );
+        if (seq !== this._seqPecas) return; // resposta antiga: ignora
         this.pecas = response.data.peca;
         //console.log('Peças carregadas:', this.pecas);
       } catch (err) {
+        if (isCancelado(err) || seq !== this._seqPecas) return;
         console.error('Erro ao buscar peças:', err);
       }
-      this.loading = false;
     },
 
+    // GET /producao/equipe — a chave inclui o filtro: filtros diferentes geram
+    // consultas diferentes; idênticas são compartilhadas. A resposta antiga nunca
+    // sobrescreve a nova (seq) e a consulta anterior é cancelada (AbortController).
     async producaoPecas() {
-      this.loading = true;
-      
+      const chave = chaveGet('/producao/equipe', { filtro: this.filtro });
+      const seq = (this._seqProducao = (this._seqProducao || 0) + 1);
       try {
-        console.log('Buscando produção da equipe com filtro:', this.filtro);
-        const token = this.store.pegar_token;
-        const res = await api.get('/producao/equipe', {
-          headers: { Authorization: token },
-          params: { filtro: this.filtro },
-        }); 
-        console.log(res.data);
+        const res = await compartilhar(chave, () => {
+          // Filtro mudou: aborta a requisição anterior, que ficou obsoleta.
+          if (this._abortProducao) this._abortProducao.abort();
+          this._abortProducao = new AbortController();
+          return api.get('/producao/equipe', {
+            headers: { Authorization: this.store.pegar_token },
+            params: { filtro: this.filtro },
+            signal: this._abortProducao.signal,
+          });
+        });
+        if (seq !== this._seqProducao) return; // resposta antiga: ignora
         this.producao = res.data;
-       
       } catch (err) {
+        if (isCancelado(err) || seq !== this._seqProducao) return;
         console.error('Erro ao buscar produção:', err);
         this.producao = { producaoDia: { funcionarios: [] } };
       }
-      this.loading = false;
     },
     async adicionarMeta() {
       // 1️⃣ Montar lista de OPs disponíveis
@@ -597,6 +653,9 @@ export default {
 
         Swal.fire('Sucesso', 'Meta adicionada com sucesso!', 'success');
 
+        // O POST invalidou os dados: não reaproveita requisições em andamento.
+        invalidar(chaveGet('/pecas'));
+        invalidar(chaveGet('/producao/equipe', { filtro: this.filtro }));
         this.fetchData();
         this.producaoPecas();
 
@@ -606,15 +665,20 @@ export default {
       }
     },
     async getIntercorrencias() {
+      const chave = chaveGet('/intercorrencias');
+      const seq = (this._seqIntercorrencias = (this._seqIntercorrencias || 0) + 1);
       try {
-        const token = this.store.pegar_token;
-        const response = await api.get('/intercorrencias', {
-          headers: { Authorization: token },
-        });
+        const response = await compartilhar(chave, () =>
+          api.get('/intercorrencias', {
+            headers: { Authorization: this.store.pegar_token },
+          })
+        );
+        if (seq !== this._seqIntercorrencias) return; // resposta antiga: ignora
         this.intercorrencias = response.data.intercorrencias;
         this.processarDados();
         //console.log('Intercorrências carregadas:', this.intercorrencias);
       } catch (err) {
+        if (isCancelado(err) || seq !== this._seqIntercorrencias) return [];
         console.error('Erro ao buscar intercorrências:', err);
         return [];
       }

@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Cliente compartilhado: um único pool de conexões (ver config/prisma.js).
+const prisma = require('../config/prisma');
 const tz = require('date-fns-tz');
 
 function getData() {
@@ -316,18 +316,33 @@ async function postProducaoPecaLote(req, res) {
 async function getPecasOP(req) {
   const cnpj = req.cnpj;
 
+    // OTIMIZAÇÃO MEDIDA (payload 4,9 MB → bem menor; 9 consultas → 7):
+  // os consumidores de /pecas (DashboardView, ProducaoDia, RegistroDeProducao
+  // e o PDF do dashboard em utils/functions/PDFDashboard.js) usam apenas
+  // cnpj/nome/peca_final do estabelecimento, os campos abaixo de producao_peca
+  // e id_da_funcao/descricao/tempo_padrao da etapa. `select` evita trazer
+  // colunas e objetos repetidos em cada uma das 156 OPs (uma cópia do
+  // Estabelecimento inteiro por OP antes).
   const pecasOp = await prisma.pecasOP.findMany({
     where: {
       id_Estabelecimento: cnpj,
     },
     include: {
-      Estabelecimento: true,
+      Estabelecimento: {
+        select: {
+          cnpj: true,
+          nome: true,
+          peca_final: true,
+        },
+      },
       producao_peca: {
-        include: {
+        select: {
+          quantidade_pecas: true,
+          data_inicio: true,
+          hora_registro: true,
           producao_funcionario: {
             select: {
               nome: true,
-              email: true,
             },
           },
           producao_etapa: {
@@ -339,7 +354,13 @@ async function getPecasOP(req) {
       },
       etapas: {
         include: {
-          etapa: true,
+          etapa: {
+            select: {
+              id_da_funcao: true,
+              descricao: true,
+              tempo_padrao: true,
+            },
+          },
         },
       },
     },
@@ -354,18 +375,25 @@ async function getPecasOP(req) {
     };
   }
 
-  // Busca todos os tempos de referência do estabelecimento
+  // Busca todos os tempos de referência do estabelecimento.
+  // OTIMIZAÇÃO MEDIDA: o include de `usuario` custava uma query extra de ~1 s
+  // (usuarios.nome/email) e NENHUM consumidor de /pecas lê esse objeto — o
+  // nome do profissional vem de `funcionarios` (meta-dia) em
+  // producaoCompartilhada/RegistroDeProducao. `select` também descarta colunas
+  // pesadas/longas (observacoes etc.) que ninguém usa nesta rota.
   const temposReferencia = await prisma.tempoReferencia.findMany({
     where: {
       estabelecimentoCnpj: cnpj,
     },
-    include: {
-      usuario: {
-        select: {
-          nome: true,
-          email: true,
-        },
-      },
+    select: {
+      id: true,
+      id_funcionario: true,
+      id_da_funcao: true,
+      tempo_minutos: true,
+      tempo_por_peca: true,
+      data_medicao: true,
+      criadoEm: true,
+      opId: true,
     },
   })
 
@@ -1727,10 +1755,19 @@ async function getProducaoTodasPecas(req, res) {
 
   const etapaFinal = estabelecimento?.peca_final;
 
-  // 1️⃣ Buscar todas as produções do estabelecimento
+  // 1️⃣ Buscar as produções do estabelecimento.
+  // Janela opcional `?dias=N` (otimização para o dashboard, que exibe apenas
+  // os últimos 30 dias): sem o parâmetro o comportamento é o de antes
+  // (histórico completo), preservando os demais consumidores da rota.
+  const dias = Number(req.query && req.query.dias);
+  const janelaData = Number.isFinite(dias) && dias > 0
+    ? { gte: new Date(Date.now() - dias * 24 * 60 * 60 * 1000) }
+    : undefined;
+
   const producoes = await prisma.producao.findMany({
     where: {
-      id_Estabelecimento: cnpjEstabelecimento
+      id_Estabelecimento: cnpjEstabelecimento,
+      ...(janelaData ? { data_inicio: janelaData } : {}),
     },
     select: {
       quantidade_pecas: true,
@@ -1746,23 +1783,39 @@ async function getProducaoTodasPecas(req, res) {
   });
 
   if (!producoes || producoes.length === 0) {
-    return res.json([]);
+    // Correção de bug: `res` não existe aqui (o controlador chama a função só
+    // com `req`) — o antigo `res.json([])` derrubava a rota com 500 para um
+    // estabelecimento ainda sem produções.
+    return {};
   }
 
-  // 2️⃣ Buscar UMA meta por OP
-  const metas = await prisma.pecasEtapas.findMany({
+  // 2️⃣ Metas por OP — SOMENTE as OPs deste estabelecimento.
+  // Antes: findMany com `distinct: ["id_da_op"]` SEM ordenação — no MySQL a
+  // linha representative é ARBITRÁRIA (a OP 127 tem etapas com metas 2776 e
+  // 1388, e o valor exibido mudava entre execuções). Também varria as
+  // pecasEtapas de TODOS os estabelecimentos (leitura cross-tenant).
+  // Agora: uma única query simples e a escolha DETERMINÍSTICA em JS — a
+  // primeira linha de cada OP (menor id), que é o valor que a tela mostrava
+  // no plano de consulta usual.
+  const linhasMeta = await prisma.pecasEtapas.findMany({
+    where: {
+      peca_op: { id_Estabelecimento: cnpjEstabelecimento }
+    },
     select: {
+      id: true,
       id_da_op: true,
       quantidade_meta: true
     },
-    distinct: ["id_da_op"]
+    orderBy: { id: 'asc' }
   });
 
   // 3️⃣ Criar mapa: OP → Meta
   const metasPorOP = {};
-  metas.forEach(m => {
-    metasPorOP[m.id_da_op] = m.quantidade_meta ?? 0;
-  });
+  for (const linha of linhasMeta) {
+    if (metasPorOP[linha.id_da_op] === undefined) {
+      metasPorOP[linha.id_da_op] = linha.quantidade_meta ?? 0;
+    }
+  }
 
   // 4️⃣ Agrupar produções por peça
   const agrupado = {};

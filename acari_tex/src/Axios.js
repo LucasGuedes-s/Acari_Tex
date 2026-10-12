@@ -31,6 +31,12 @@ api.interceptors.response.use(
 
   async (error) => {
 
+    // Cancelamentos feitos pelo próprio frontend (respostas obsoletas)
+    // não são erro de rede: não tenta outro backend nem mostra toast.
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      return Promise.reject(error);
+    }
+
     if (!error.response) {
       // tenta próximo backend
       if (currentBaseURLIndex < BASE_URLS.length - 1) {

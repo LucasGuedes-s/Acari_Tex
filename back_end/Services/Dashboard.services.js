@@ -1,15 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Cliente compartilhado: um único pool de conexões (ver config/prisma.js).
+const prisma = require('../config/prisma');
 
 async function getNotificacoes(req) {
   const cnpj = req.user.cnpj;
-
-  // 1️⃣ Busca notificações não lidas
-  const notificacoes = await prisma.notificacoes.findMany({
-    where: { lida: false, estabelecimentoCnpj: cnpj },
-    orderBy: { criadaEm: 'desc' },
-    take: 50
-  });
 
   // 2️⃣ Define hoje, ontem e amanhã (com fuso de São Paulo)
   const agora = new Date();
@@ -24,30 +17,60 @@ async function getNotificacoes(req) {
   const ontem = new Date(hoje);
   ontem.setDate(ontem.getDate() - 1);
 
-  // 3️⃣ Produção do dia atual (somente "Revisão Final")
-  const producaoHoje = await prisma.producao.aggregate({
-    _sum: { quantidade_pecas: true },
-    where: {
-      id_Estabelecimento: cnpj,
-      data_inicio: { gte: hoje, lt: amanha },
-      producao_etapa: { descricao: "Revisão Final" }
-    }
+  // 1️⃣ OTIMIZAÇÃO MEDIDA: os 3 agregados abaixo filtravam por
+  // `producao_etapa.descricao` (JOIN em Etapa + varredura das ~12 mil linhas
+  // de Producao do estabelecimento em CADA consulta — ~900 ms cada, medido).
+  // Com os ids das etapas "Revisão Final" buscados uma única vez, o filtro
+  // passa a usar o índice existente em Producao.id_da_funcao. Resultado
+  // idêntico: o JOIN original também só casava a etapa da própria linha.
+  const etapasFinais = await prisma.etapa.findMany({
+    where: { descricao: 'Revisão Final' },
+    select: { id_da_funcao: true },
   });
+  const idsEtapasFinais = etapasFinais.map(e => e.id_da_funcao);
+
+  // 1️⃣+3️⃣+4️⃣+5️⃣ Consultas independentes → paralelas (antes: sequenciais;
+  // cada ida ao Aiven cobra ~300 ms só de rede).
+  const [notificacoes, producaoHoje, topFuncionarioHoje, producaoOntem] = await Promise.all([
+    // 1️⃣ Busca notificações não lidas
+    prisma.notificacoes.findMany({
+      where: { lida: false, estabelecimentoCnpj: cnpj },
+      orderBy: { criadaEm: 'desc' },
+      take: 50
+    }),
+    // 3️⃣ Produção do dia atual (somente "Revisão Final")
+    prisma.producao.aggregate({
+      _sum: { quantidade_pecas: true },
+      where: {
+        id_Estabelecimento: cnpj,
+        data_inicio: { gte: hoje, lt: amanha },
+        id_da_funcao: { in: idsEtapasFinais }
+      }
+    }),
+    // 4️⃣ Melhor funcionário do dia (somente "Revisão Final")
+    prisma.producao.groupBy({
+      by: ['id_funcionario'],
+      _sum: { quantidade_pecas: true },
+      where: {
+        id_Estabelecimento: cnpj,
+        data_inicio: { gte: hoje, lt: amanha },
+        id_da_funcao: { in: idsEtapasFinais }
+      },
+      orderBy: { _sum: { quantidade_pecas: 'desc' } },
+      take: 1
+    }),
+    // 5️⃣ Produção do dia anterior (somente "Revisão Final")
+    prisma.producao.aggregate({
+      _sum: { quantidade_pecas: true },
+      where: {
+        id_Estabelecimento: cnpj,
+        data_inicio: { gte: ontem, lt: hoje },
+        id_da_funcao: { in: idsEtapasFinais }
+      }
+    }),
+  ]);
 
   const qtdHoje = producaoHoje._sum.quantidade_pecas || 0;
-
-  // 4️⃣ Melhor funcionário do dia (somente "Revisão Final")
-  const topFuncionarioHoje = await prisma.producao.groupBy({
-    by: ['id_funcionario'],
-    _sum: { quantidade_pecas: true },
-    where: {
-      id_Estabelecimento: cnpj,
-      data_inicio: { gte: hoje, lt: amanha },
-      producao_etapa: { descricao: "Revisão Final" }
-    },
-    orderBy: { _sum: { quantidade_pecas: 'desc' } },
-    take: 1
-  });
 
   let melhorFuncionario = null;
 
@@ -69,16 +92,6 @@ async function getNotificacoes(req) {
       };
     }
   }
-
-  // 5️⃣ Produção do dia anterior (somente "Revisão Final")
-  const producaoOntem = await prisma.producao.aggregate({
-    _sum: { quantidade_pecas: true },
-    where: {
-      id_Estabelecimento: cnpj,
-      data_inicio: { gte: ontem, lt: hoje },
-      producao_etapa: { descricao: "Revisão Final" }
-    }
-  });
 
   const qtdOntem = producaoOntem._sum.quantidade_pecas || 0;
   const qtdParaAlcancarOntem = Math.max(qtdOntem - qtdHoje, 0);

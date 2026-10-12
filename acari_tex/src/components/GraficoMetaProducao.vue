@@ -28,9 +28,10 @@
 </template>
 
 <script>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Chart from 'chart.js/auto'
 import api from '@/Axios'
+import { compartilhar, chaveGet } from '@/utils/requestControl'
 import { useAuthStore } from '@/store/store'
 
 /**
@@ -62,7 +63,9 @@ export default {
     filtro: { type: String, default: '' },
   },
 
-  setup(props) {
+  // A prop `filtro` é mantida para a API do componente (o pai a envia), mas não
+  // dispara requisição: o endpoint consultado não recebe a data como parâmetro.
+  setup() {
     const chartCanvas = ref(null)
     const chartInstance = ref(null)
     const temDados = ref(false)
@@ -105,9 +108,17 @@ export default {
 
       try {
         const token = useAuthStore().pegar_token
-        const res = await api.get('/producao/estabelecimento', {
-          headers: { Authorization: `${token}` }
-        })
+        // Requisição idêntica em andamento (mesma URL/parâmetros) é compartilhada.
+        // `dias=30` usa a janela opcional do backend (este gráfico mostra só os
+        // últimos 30 dias): para o estabelecimento principal o payload cai de
+        // ~1,05 MB / 12.426 linhas para ~4.300 linhas. Sem o parâmetro o backend
+        // mantém o histórico completo (compatível com os demais consumidores).
+        const res = await compartilhar(chaveGet('/producao/estabelecimento', { dias: 30 }), () =>
+          api.get('/producao/estabelecimento', {
+            headers: { Authorization: `${token}` },
+            params: { dias: 30 }
+          })
+        )
 
         const producoes = res.data.producao || {}
         const pecas = Object.values(producoes)
@@ -383,7 +394,9 @@ export default {
       }
     }
 
-    watch(() => props.filtro, atualizarGrafico)
+    // O endpoint /producao/estabelecimento NÃO recebe o filtro como parâmetro,
+    // então trocar a data não muda o resultado: antes, cada mudança de filtro
+    // re disparava este GET idêntico (chamada redundante).
     onMounted(atualizarGrafico)
     onBeforeUnmount(destruirGrafico)
 

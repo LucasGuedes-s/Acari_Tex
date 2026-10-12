@@ -78,6 +78,7 @@
 <script>
 import { useAuthStore } from "@/store/store"
 import api from "@/Axios"
+import { compartilhar, chaveGet } from "@/utils/requestControl"
 import Swal from "sweetalert2"
 import Chart from "chart.js/auto"
 
@@ -109,10 +110,18 @@ export default {
         const store = useAuthStore()
         const token = store.pegar_token
 
-        const response = await api.get("/notificacoes", {
-          headers: { Authorization: token }
-        })
+        // Consulta idêntica em andamento é compartilhada (nunca disparada 2x)
+        // e uma resposta antiga nunca sobrescreve a mais nova (seq).
+        const chave = chaveGet("/notificacoes")
+        const seq = (this._seqNotificacoes = (this._seqNotificacoes || 0) + 1)
 
+        const response = await compartilhar(chave, () =>
+          api.get("/notificacoes", {
+            headers: { Authorization: token }
+          })
+        )
+
+        if (seq !== this._seqNotificacoes) return // resposta antiga: ignora
         this.notificacoes = response.data.notificacoes || []
 
       } catch (error) {
@@ -165,10 +174,16 @@ export default {
         const store = useAuthStore()
         const token = store.pegar_token
 
-        const response = await api.get("/producao/resumo", {
-          headers: { Authorization: token }
-        })
+        const chave = chaveGet("/producao/resumo")
+        const seq = (this._seqResumo = (this._seqResumo || 0) + 1)
 
+        const response = await compartilhar(chave, () =>
+          api.get("/producao/resumo", {
+            headers: { Authorization: token }
+          })
+        )
+
+        if (seq !== this._seqResumo) return // resposta antiga: ignora
         this.resumoProducao = response.data
         console.log("Resumo produção:", this.resumoProducao)
         await this.$nextTick()
@@ -301,6 +316,7 @@ export default {
 
   mounted() {
 
+    // As duas consultas são independentes entre si → rodam em paralelo.
     this.carregarNotificacoes()
     this.carregarResumoProducao()
 

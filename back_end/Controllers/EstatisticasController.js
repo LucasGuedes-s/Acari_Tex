@@ -1,4 +1,9 @@
 const estatisticas = require('../Services/Estatisticas.services');
+// Cliente compartilhado: antes este arquivo usava sem saber a variável GLOBAL
+// `prisma` criada sem `const` em Relatorios.services.js — qualquer mudança ali
+// quebraria os alertas de produtividade em silêncio (ReferenceError engolido
+// pelo .catch de PecasOpController).
+const prisma = require('../config/prisma');
 async function estatisticasEquipe(req, usuario, res) {
   try {
     const resultado = await estatisticas.analisarProducaoFuncionarioDia(req, usuario);

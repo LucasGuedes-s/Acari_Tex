@@ -799,6 +799,7 @@
 import { io } from 'socket.io-client'
 import { useAuthStore } from '@/store/store'
 import api from '@/Axios'
+import { compartilhar, chaveGet } from '@/utils/requestControl'
 import debounce from 'lodash/debounce'
 import Chart from 'chart.js/auto'
 import {
@@ -1312,6 +1313,8 @@ export default {
     await this.garantirEtapas()
     await this.buscarMetaDia()
 
+    // Retentativa a cada 30s: se a busca anterior ainda estiver em andamento,
+    // buscarMetaDia compartilha a mesma promise (nada é disparado 2x).
     this._intervaloRetentativa = setInterval(() => {
       if (socket.connected) this.buscarMetaDia()
     }, 30000)
@@ -1320,8 +1323,12 @@ export default {
   beforeUnmount() {
     this.destruirGrafico()
     clearInterval(this._intervaloRetentativa)
-    socket.off()
-    socket.disconnect()
+    // Remove SOMENTE os handlers desta instância. Antes havia socket.off() +
+    // socket.disconnect(): isso apagava os listeners e derrubava a conexão
+    // compartilhada com a DashboardView, quebrando o tempo real da tela pai
+    // toda vez que o v-if deste componente desmontasse.
+    this.removerHandlersSocket()
+    this._metaEmAndamento = null
   },
 
   methods: {
@@ -1503,28 +1510,49 @@ export default {
     },
 
     // ── SOCKET ────────────────────────────────────────────
+    // O socket é compartilhado com outros componentes (cache do socket.io-client),
+    // então cada handler é nomeado e apenas ele é removido — nunca um socket.off()
+    // genérico, que apagaria os listeners das demais telas.
     iniciarSocket() {
-      socket.off('connect')
-      socket.off('disconnect')
+      this.removerHandlersSocket()
 
       const cnpj = this.store.pegar_usuario?.cnpj
-      if (cnpj) socket.off(`nova_atualizacao_${cnpj}`)
 
-      socket.on('connect', () => {
+      this._aoConectar = () => {
         this.socketConectado = true
-        if (this._jaConectouUmaVez) this.buscarMetaDia()
+        // Reconexão: eventos podem ter sido perdidos → força uma busca nova.
+        if (this._jaConectouUmaVez) this.buscarMetaDia({ forcar: true })
         this._jaConectouUmaVez = true
-      })
-      socket.on('disconnect', () => { this.socketConectado = false })
+      }
+      this._aoDesconectar = () => { this.socketConectado = false }
 
-      if (cnpj) socket.on(`nova_atualizacao_${cnpj}`, () => this.onAtualizacaoRemota())
+      socket.on('connect', this._aoConectar)
+      socket.on('disconnect', this._aoDesconectar)
+      if (cnpj) {
+        this._eventoAtualizacao = `nova_atualizacao_${cnpj}`
+        this._aoAtualizar = () => this.onAtualizacaoRemota()
+        socket.on(this._eventoAtualizacao, this._aoAtualizar)
+      }
 
       if (!socket.connected) socket.connect()
       else this.socketConectado = true
     },
 
+    removerHandlersSocket() {
+      if (this._aoConectar) socket.off('connect', this._aoConectar)
+      if (this._aoDesconectar) socket.off('disconnect', this._aoDesconectar)
+      if (this._aoAtualizar && this._eventoAtualizacao) {
+        socket.off(this._eventoAtualizacao, this._aoAtualizar)
+      }
+      this._aoConectar = null
+      this._aoDesconectar = null
+      this._aoAtualizar = null
+    },
+
+    // Rajada de eventos Socket.IO vira UMA busca (debounce agrupa), e `forcar`
+    // descarta uma busca em andamento — ela é anterior ao evento.
     onAtualizacaoRemota: debounce(function () {
-      this.buscarMetaDia()
+      this.buscarMetaDia({ forcar: true })
     }, 800),
 
     aguardarConexaoSocket(timeoutMs = 5000) {
@@ -1578,9 +1606,13 @@ export default {
     async carregarPecas() {
       for (let tentativa = 1; tentativa <= 3; tentativa++) {
         try {
-          const res = await api.get('/pecas', {
-            headers: { Authorization: this.store.pegar_token },
-          })
+          // Mesma URL/parâmetros do GET /pecas da DashboardView: se ela já
+          // estiver buscando, compartilhamos a MESMA requisição em andamento.
+          const res = await compartilhar(chaveGet('/pecas'), () =>
+            api.get('/pecas', {
+              headers: { Authorization: this.store.pegar_token },
+            })
+          )
 
           const grupos = res.data?.peca || {}
           const todas = []
@@ -1625,7 +1657,32 @@ export default {
     },
 
     // ── BUSCAR META ───────────────────────────────────────
-    async buscarMetaDia() {
+    // Ponto único de entrada da busca. Várias origens disparam a mesma consulta
+    // quase ao mesmo tempo (mounted, watch do filtro, intervalo de 30s, reconnect
+    // e eventos Socket.IO): com os MESMOS parâmetros todas compartilham a mesma
+    // promise; parâmetros diferentes (filtro trocou) liberam uma nova consulta.
+    buscarMetaDia({ forcar = false } = {}) {
+      const chave = `meta-dia|${this.store.pegar_usuario?.cnpj || ''}|${JSON.stringify(this.filtro ?? null)}`
+      const atual = this._metaEmAndamento
+
+      if (atual && atual.chave === chave && !atual.obsoleta && !forcar) {
+        return atual.promessa
+      }
+      // A anterior (outro filtro, ou anterior ao evento de socket) não pode ser
+      // reaproveitada: marcada como obsoleta, a próxima chamada busca de novo.
+      if (atual) atual.obsoleta = true
+
+      const entrada = { chave, obsoleta: false, promessa: null }
+      entrada.promessa = this.executarBuscaMetaDia().finally(() => {
+        if (this._metaEmAndamento === entrada) this._metaEmAndamento = null
+      })
+      this._metaEmAndamento = entrada
+      return entrada.promessa
+    },
+
+    // Corpo da busca. O guarda `ultimaBuscaId` garante que a resposta de um
+    // filtro antigo nunca sobrescreva a do filtro mais recente.
+    async executarBuscaMetaDia() {
       await this.aguardarConexaoSocket()
       // Nunca calcula eficiência sem o índice de etapas.
       await this.garantirEtapas()
