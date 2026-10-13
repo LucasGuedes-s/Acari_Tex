@@ -657,6 +657,7 @@ export default {
           email: u.email ? String(u.email).toLowerCase().trim() : '',
           ultimaProducao: u.producao_funcionario?.[0] || null
         }))
+        this.loading = false
       } catch (err) {
         console.error(err)
         Swal.fire('Erro', 'Erro ao carregar funcionários.', 'error')
