@@ -3118,6 +3118,48 @@ export default {
      * requisições simultâneas para a MESMA célula (reenvia ao terminar).
      */
     async salvarCelula(funcionario, linha, hora) {
+
+      const agora = new Date();
+      const horaAtual = agora.getHours();
+      
+      
+      // Converte a hora atual em minutos totais para facilitar a comparação (opcional, ou compara string/número)
+      // Supondo que o parâmetro 'hora' venha no formato "HH:MM" ou seja um número/objeto. 
+      // Vamos assumir que 'hora' seja uma string "HH:MM" vinda da célula/input.
+      
+      // Separando a hora que está sendo registrada
+      const [horaRegistro] = hora.split(':').map(Number);
+      
+      // Definindo o limite entre manhã e tarde (Ex: 12:00)
+      // Se a hora do registro for da manhã (< 12) e a hora atual for tarde (>= 12)
+      const ehRegistroManha = horaRegistro < 12;
+      const ehMomentoTarde = horaAtual >= 12;
+
+      const ehRegistroTarde = horaRegistro >= 12;
+      const ehMomentoManha = horaAtual < 12;
+
+      // Condição 1: Está registrando para de MANHÃ, mas já é TARDE na vida real
+      if (ehRegistroManha && ehMomentoTarde) {
+          Swal.fire({
+              icon: 'warning',
+              title: 'Atenção!',
+              text: 'Você está registrando um horário da manhã, mas o período atual já é a tarde.',
+              confirmButtonText: 'Ok'
+          });
+          return; // Para a execução se necessário
+      }
+
+      // Condição 2: Está registrando para de TARDE, mas ainda é MANHÃ na vida real
+      if (ehRegistroTarde && ehMomentoManha) {
+          Swal.fire({
+              icon: 'warning',
+              title: 'Atenção!',
+              text: 'Você está registrando um horário da tarde, mas ainda estamos no período da manhã.',
+              confirmButtonText: 'Ok'
+          });
+          return; // Para a execução se necessário
+      }
+
       if (!linha?.etapaId) return
       const real = funcionario._funcRef || funcionario
       const chave = this.chaveCelula(real.email, linha.opId, linha.etapaId, hora)
@@ -3148,9 +3190,7 @@ export default {
         if (!socket.connected) {
           throw new Error('Sem conexão com o servidor no momento.')
         }
-        console.log('Enviando para o backend o registro de célula', payload)
         const resposta = await this.emitirComAck('salvar-producao', payload, 8000)
-        console.log('Resposta do backend ao salvar célula', resposta)
         if (!resposta || resposta.sucesso === false) {
           throw new Error(resposta?.mensagem || 'Servidor recusou o registro.')
         }
