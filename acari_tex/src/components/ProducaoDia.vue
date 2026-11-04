@@ -58,9 +58,9 @@
             <span class="mc-label">Peças entregues</span>
             <span class="mc-val">{{ totalPecasGeral }}</span>
           </div>
-          <div class="metric-chip">
+          <div class="metric-chip" title="Somente profissionais com produção registrada na data selecionada">
             <span class="mc-label">Funcionários</span>
-            <span class="mc-val">{{ funcionariosOrdenados.length }}</span>
+            <span class="mc-val">{{ funcionariosComProducao.length }}</span>
           </div>
           <div class="metric-chip" v-if="opsAtivas.length">
             <span class="mc-label">Peça do dia</span>
@@ -868,7 +868,9 @@ export default {
   name: 'PainelProfissionais',
 
   props: {
-    filtro: { type: Object, default: () => ({}) },
+    // O Dashboard envia a data como string ("2026-10-12"); consumidores internos
+    // também aceitam o objeto { data }. Aceitamos os dois formatos.
+    filtro: { type: [String, Object], default: '' },
   },
 
   setup() {
@@ -916,8 +918,21 @@ export default {
   },
 
   computed: {
+    // ── DATA SELECIONADA ────────────────────────────────
+    // O prop `filtro` chega do Dashboard como string ("2026-10-12"), mas os
+    // consumidores internos também aceitam o objeto { data }. Normalizando em
+    // um único ponto, TODOS os cálculos e consultas desta tela (minutos
+    // disponíveis do dia, escolha do Tempo Referência por data, restauração
+    // das escolhas salvas) usam a data realmente selecionada — antes,
+    // `this.filtro?.data` era undefined quando o prop era string e a data era
+    // ignorada (caía em "hoje"/registro mais recente).
+    dataSelecionada() {
+      if (typeof this.filtro === 'string') return this.filtro || null
+      return this.filtro?.data ?? null
+    },
+
     tempoDisponivelDia() {
-      return this.obterMinutosTrabalhoDia(this.filtro?.data)
+      return this.obterMinutosTrabalhoDia(this.dataSelecionada)
     },
 
     // ── TIPO DE PRODUÇÃO ──────────────────────────────────
@@ -1040,7 +1055,7 @@ export default {
     // compartilhado, sem substituir a referência pela ficha).
     totaisFuncionarioSelecionado() {
       if (!this.funcSelecionado) return null
-      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.filtro?.data) || null
+      return calcularTotaisFuncionarioDia(this.funcSelecionado, this.etapasPorId, null, this.dataSelecionada) || null
     },
 
     funcionariosComProducao() {
@@ -1078,7 +1093,7 @@ export default {
     },
 
     gruposOpBrutos() {
-      return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId, this.filtro?.data).filter(g => g.producao > 0)
+      return agruparProducaoPorOp(this.funcionariosDia, this.etapasPorId, this.dataSelecionada).filter(g => g.producao > 0)
     },
 
     etapasDistintasPorOp() {
@@ -1172,6 +1187,29 @@ export default {
       }
 
       return { melhorReferencia, maiorProducao, maiorDiferenca }
+    },
+
+    // ── RESUMO COMPARTILHADO COM O DASHBOARD ─────────────
+    // Enviado ao pai (DashboardView) de forma reativa para alimentar os
+    // gráficos de meta SEM nova requisição: usa as mesmas fontes oficiais
+    // deste componente (metas reais das OPs do dia + peças finalizadas).
+    resumoDiaProducao() {
+      const meta = (this.opsAtivas || []).reduce(
+        (soma, op) => soma + (Number(op.metaDia) || 0),
+        0
+      )
+      return {
+        data: this.dataSelecionada,
+        meta,
+        producao: this.totalPecasGeral,
+        profissionais: this.funcionariosComProducao.length,
+        ops: (this.gruposProducaoPorOp || []).map(op => ({
+          opId: op.opId,
+          nome: op.nome,
+          meta: op.metaConfigurada,
+          producao: op.producao,
+        })),
+      }
     },
 
     // ── DETALHAMENTO DO PROFISSIONAL SELECIONADO ──────────
@@ -1289,6 +1327,14 @@ export default {
   },
 
   watch: {
+    // Compartilha o resumo do dia com o Dashboard (gráficos de meta):
+    // dispara sempre que os dados do dia mudam, sem requisição adicional.
+    resumoDiaProducao: {
+      deep: true,
+      handler(novo) {
+        this.$emit('resumo-dia', novo)
+      },
+    },
     filtro: {
       deep: true,
       handler() {
@@ -1323,6 +1369,8 @@ export default {
   beforeUnmount() {
     this.destruirGrafico()
     clearInterval(this._intervaloRetentativa)
+    // Informa o pai que o resumo do dia não está mais disponível.
+    this.$emit('resumo-dia', null)
     // Remove SOMENTE os handlers desta instância. Antes havia socket.off() +
     // socket.disconnect(): isso apagava os listeners e derrubava a conexão
     // compartilhada com a DashboardView, quebrando o tempo real da tela pai
@@ -1353,7 +1401,7 @@ export default {
       // fallback existente: sem tempo na etapa, usa o tempo resolvido da ficha
       const tPadrao = numValido(linha.tempoPadrao) ?? tFicha
       const tRef = this.isFabrica
-        ? this.extrairTempoRef(resolverTempoReferenciaComOrigem(func, linha, this.etapasPorId, null, this.filtro?.data))
+        ? this.extrairTempoRef(resolverTempoReferenciaComOrigem(func, linha, this.etapasPorId, null, this.dataSelecionada))
         : null
 
       const usarReferencia = tRef != null && tFicha != null && tRef < tFicha
@@ -1391,7 +1439,7 @@ export default {
     },
 
     calcularMetricasFuncionario(func) {
-      const data = this.filtro?.data
+      const data = this.dataSelecionada
       const producao = this.calcularTotalFuncionario(func)
       const totaisVazios = { padrao: null, ficha: null, ref: null, usado: null }
 
@@ -1696,7 +1744,7 @@ export default {
       try {
         const response = await this.emitirComAck('buscar-meta-dia', {
           estabelecimento: this.filtro.estabelecimento ?? this.store.pegar_usuario.cnpj,
-          data: dataDaRequisicao,
+          data: this.dataSelecionada,
         })
         if (buscaId !== this.ultimaBuscaId) return
         this.carregandoMeta = false
@@ -1809,7 +1857,7 @@ export default {
 
     restaurarModoTempoReferencia(funcionarios) {
       const estabelecimento = this.store.pegar_usuario?.cnpj || ''
-      const data = this.filtro?.data
+      const data = this.dataSelecionada
       if (!estabelecimento || !data) return
 
       for (const func of funcionarios || []) {
@@ -1853,18 +1901,18 @@ export default {
     },
 
     calcularEficienciaReferenciaLinha(linha) {
-      const ref = calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      const ref = calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.dataSelecionada)
       return valido(ref) ? ref : this.calcularEficienciaLinha(linha)
     },
 
     referenciaEhFallbackLinha(linha) {
       if (!this.isFabrica || !this.funcSelecionado) return false
-      const ref = calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      const ref = calcularEficienciaLinhaReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.dataSelecionada)
       return !valido(ref) && valido(this.calcularEficienciaLinha(linha))
     },
 
     tempoEfetivoLinha(linha) {
-      const t = resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data)
+      const t = resolverTempoEfetivoReferencia(this.funcSelecionado, linha, this.etapasPorId, null, this.dataSelecionada)
       return valido(t) ? t : Number(linha.tempoPadrao || 0)
     },
 
@@ -1887,11 +1935,11 @@ export default {
           if (!reg || !reg.quantidade || !reg.tempoProduzido) continue
 
           const tempoPadrao = resolverTempoPadrao(linha, this.etapasPorId)
-          let tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId, null, this.filtro?.data)
+          let tempoEfetivo = resolverTempoEfetivoReferencia(func, linha, this.etapasPorId, null, this.dataSelecionada)
           if (!valido(tempoEfetivo)) tempoEfetivo = tempoPadrao
 
           const eficiencia = calcularEficienciaRegistroPadrao(reg.quantidade, reg.tempoProduzido, linha, this.etapasPorId)
-          let eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId, null, this.filtro?.data)
+          let eficienciaReferencia = calcularEficienciaRegistroReferencia(reg.quantidade, reg.tempoProduzido, linha, func, this.etapasPorId, null, this.dataSelecionada)
           if (!valido(eficienciaReferencia)) eficienciaReferencia = eficiencia
 
           etapas.push({
@@ -1984,7 +2032,7 @@ export default {
     obterOrigemRefLinha(linha) {
       if (!this.funcSelecionado || !this.isFabrica) return null
       const { origem } = resolverTempoReferenciaComOrigem(
-        this.funcSelecionado, linha, this.etapasPorId, null, this.filtro?.data
+        this.funcSelecionado, linha, this.etapasPorId, null, this.dataSelecionada
       ) || {}
       return origem || null
     },

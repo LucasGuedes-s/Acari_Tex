@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const ControllerOp = require('../Controllers/PecasOpController')
+const PdfImportController = require('../Controllers/PdfImportController')
 const jwtMiddleware = require('../middlewares/auth')
 //const permissao = require('../Services/permissoes.services.js')
 
 router.post('/adicionar/peca', [jwtMiddleware], ControllerOp.postOP);
+// Importar OP por PDF: apenas ANALISA o documento e devolve os dados
+// extraídos para conferência. A OP só é criada em /adicionar/peca.
+router.post('/pecas/importar/pdf', [jwtMiddleware, PdfImportController.receberPdf], PdfImportController.postImportarPdf);
 router.post('/duplicar/op/:id', [jwtMiddleware], ControllerOp.duplicarOPController);
 router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);

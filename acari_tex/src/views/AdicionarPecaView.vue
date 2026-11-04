@@ -43,10 +43,16 @@
                 <h2 class="card-title">Informações Básicas</h2>
                 <p class="card-subtitle">Dados gerais da peça a ser cadastrada</p>
               </div>
-              <button class="planilha-btn" @click="cadastrarPecaPorPlanilha">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-                Cadastrar por planilha
-              </button>
+              <div class="header-actions">
+                <button class="planilha-btn" @click="cadastrarPecaPorPlanilha">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                  Cadastrar por planilha
+                </button>
+                <button class="pdf-btn" @click="abrirImportacaoPdf">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Cadastrar OP por PDF
+                </button>
+              </div>
             </div>
 
             <div class="form-grid">
@@ -266,6 +272,119 @@
           </div>
         </transition>
 
+        <!-- ───────── MODAL: Cadastrar OP por PDF ───────── -->
+        <div v-if="mostrarImportacaoPdf" class="pdf-overlay" @click.self="cancelarImportacaoPdf">
+          <div class="pdf-modal">
+            <div class="pdf-modal-header">
+              <div class="card-icon-wrap">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <div>
+                <h3 class="pdf-modal-title">Cadastrar OP por PDF</h3>
+                <p class="pdf-modal-subtitle">Importe os dados do documento para conferência antes do cadastro</p>
+              </div>
+              <button class="pdf-modal-close" @click="cancelarImportacaoPdf" aria-label="Fechar">✕</button>
+            </div>
+
+            <!-- Seleção do arquivo -->
+            <template v-if="!pdfResultado">
+              <div class="pdf-drop">
+                <input ref="pdfInput" class="pdf-input" type="file" accept=".pdf,application/pdf" @change="onArquivoPdfSelecionado" />
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p class="pdf-drop-texto">Clique para escolher um PDF</p>
+                <p class="pdf-drop-dica">Do computador, celular ou tablet — arquivo .pdf de até 8 MB</p>
+              </div>
+
+              <div v-if="pdfArquivo" class="pdf-arquivo">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span class="pdf-arquivo-nome">{{ pdfArquivo.name }}</span>
+                <span class="pdf-arquivo-tamanho">{{ formatarTamanho(pdfArquivo.size) }}</span>
+              </div>
+
+              <p v-if="pdfErro" class="pdf-erro">{{ pdfErro }}</p>
+
+              <div class="pdf-actions">
+                <button class="btn-back" @click="cancelarImportacaoPdf">Cancelar</button>
+                <button class="btn-next" :disabled="!pdfArquivo || pdfProcessando" @click="processarPdf">
+                  <span v-if="pdfProcessando" class="pdf-spinner"></span>
+                  {{ pdfProcessando ? "Extraindo dados..." : "Processar PDF" }}
+                </button>
+              </div>
+            </template>
+
+            <!-- Conferência dos dados extraídos -->
+            <template v-else>
+              <div v-if="pdfResultado.avisos && pdfResultado.avisos.length" class="pdf-avisos">
+                <div v-for="(aviso, i) in pdfResultado.avisos" :key="i" class="pdf-aviso">⚠ {{ aviso }}</div>
+              </div>
+
+              <div v-if="pdfResultado.informacoes.numero_op || pdfResultado.informacoes.referencia" class="pdf-infos">
+                <span v-if="pdfResultado.informacoes.numero_op" class="pdf-info-chip">OP nº {{ pdfResultado.informacoes.numero_op }}</span>
+                <span v-if="pdfResultado.informacoes.referencia" class="pdf-info-chip">Referência: {{ pdfResultado.informacoes.referencia }}</span>
+                <span class="pdf-info-chip muted">{{ pdfResultado.arquivo.nome }}</span>
+              </div>
+
+              <div class="form-grid pdf-grid">
+                <div class="field full">
+                  <label>Descrição da peça <span v-if="campoNaoIdentificado('descricao')" class="badge-nao">não identificado</span></label>
+                  <div class="input-wrap"><input v-model="pdfForm.descricao" type="text" placeholder="Ex: Camiseta manga curta" /></div>
+                </div>
+
+                <div class="field">
+                  <label>Quantidade <span v-if="campoNaoIdentificado('quantidade_pecas')" class="badge-nao">não identificado</span></label>
+                  <div class="input-wrap"><input v-model="pdfForm.quantidade_pecas" type="number" min="1" placeholder="Ex: 500" /></div>
+                </div>
+
+                <div class="field">
+                  <label>Valor da peça (R$) <span v-if="campoNaoIdentificado('valor_peca')" class="badge-nao">não identificado</span></label>
+                  <div class="input-wrap"><input v-model="pdfForm.valor_peca" type="number" min="0" step="0.01" placeholder="4,00" /></div>
+                </div>
+
+                <div class="field">
+                  <label>Data de entrega <span v-if="campoNaoIdentificado('data_entrega')" class="badge-nao">não identificado</span></label>
+                  <div class="input-wrap"><input v-model="pdfForm.data_entrega" type="date" /></div>
+                </div>
+
+                <div class="field">
+                  <label>Pedido por <span v-if="campoNaoIdentificado('pedido_por')" class="badge-nao">não identificado</span></label>
+                  <div class="input-wrap"><input v-model="pdfForm.pedido_por" type="text" placeholder="Ex: Guararapes" /></div>
+                </div>
+
+                <div class="field">
+                  <label>Tempo padrão (min) <span v-if="campoNaoIdentificado('tempo_padrao')" class="badge-nao">não identificado</span></label>
+                  <div class="input-wrap"><input v-model="pdfForm.tempo_padrao" type="number" min="0" step="0.5" placeholder="Ex: 5" /></div>
+                </div>
+
+                <div class="field full">
+                  <label>Observações <span v-if="campoNaoIdentificado('observacoes')" class="badge-nao">não identificado</span></label>
+                  <textarea v-model="pdfForm.observacoes" class="pdf-textarea" rows="2" placeholder="Observações encontradas no documento"></textarea>
+                </div>
+              </div>
+
+              <div class="pdf-etapas">
+                <div class="pdf-etapas-label">Etapas identificadas no documento</div>
+                <div v-if="pdfForm.etapas.length" class="pdf-etapas-chips">
+                  <span v-for="(nome, i) in pdfForm.etapas" :key="nome" class="pdf-etapa-chip">
+                    {{ nome }}
+                    <button type="button" @click="removerEtapaImportada(i)">✕</button>
+                  </span>
+                </div>
+                <p v-else class="pdf-etapas-vazio">Nenhuma etapa identificada — você poderá selecioná-las na próxima etapa.</p>
+                <p v-if="pdfResultado.etapasNaoReconhecidas && pdfResultado.etapasNaoReconhecidas.length" class="pdf-nao-reconhecidas">
+                  Não correspondem às etapas cadastradas: {{ pdfResultado.etapasNaoReconhecidas.join(", ") }}. Confirme as etapas manualmente na próxima etapa.
+                </p>
+              </div>
+
+              <p v-if="pdfErro" class="pdf-erro">{{ pdfErro }}</p>
+
+              <div class="pdf-actions">
+                <button class="btn-back" @click="reiniciarImportacaoPdf">Selecionar outro arquivo</button>
+                <button class="btn-success" :disabled="pdfProcessando" @click="confirmarImportacaoPdf">Usar dados extraídos</button>
+              </div>
+            </template>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>
@@ -306,12 +425,28 @@ export default {
         producao: [],
         valor_peca: null,
         tempo_padrao: null,
+        notas: "",
       },
       locaisPredefinidos: [],
       draggedItem: null,
       draggedIndex: null,
       targetIndex: null,
       novaEtapa: "",
+      mostrarImportacaoPdf: false,
+      pdfArquivo: null,
+      pdfProcessando: false,
+      pdfErro: "",
+      pdfResultado: null,
+      pdfForm: {
+        descricao: "",
+        quantidade_pecas: "",
+        valor_peca: "",
+        data_entrega: "",
+        pedido_por: "",
+        tempo_padrao: "",
+        observacoes: "",
+        etapas: [],
+      },
       loading: false,
       insightIA: null,
     };
@@ -362,6 +497,12 @@ export default {
           value: p.producao.length ? p.producao.join(" → ") : "",
           full: true,
         },
+        {
+          icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`,
+          label: "Observações",
+          value: p.notas,
+          full: true,
+        },
       ];
     },
   },
@@ -383,6 +524,7 @@ export default {
         producao: [],
         valor_peca: null,
         tempo_padrao: null,
+        notas: "",
       };
       this.novaEtapa = "";
     },
@@ -458,6 +600,168 @@ export default {
       }
     },
 
+    // ───── Importar OP por PDF ─────
+
+    abrirImportacaoPdf() {
+      this.limparImportacaoPdf();
+      this.mostrarImportacaoPdf = true;
+    },
+
+    limparImportacaoPdf() {
+      this.pdfArquivo = null;
+      this.pdfResultado = null;
+      this.pdfProcessando = false;
+      this.pdfErro = "";
+      this.pdfForm = {
+        descricao: "",
+        quantidade_pecas: "",
+        valor_peca: "",
+        data_entrega: "",
+        pedido_por: "",
+        tempo_padrao: "",
+        observacoes: "",
+        etapas: [],
+      };
+      if (this.$refs.pdfInput) this.$refs.pdfInput.value = "";
+    },
+
+    cancelarImportacaoPdf() {
+      this.mostrarImportacaoPdf = false;
+      this.limparImportacaoPdf();
+    },
+
+    reiniciarImportacaoPdf() {
+      this.limparImportacaoPdf();
+    },
+
+    onArquivoPdfSelecionado(event) {
+      const arquivo = event.target.files && event.target.files[0];
+      this.pdfErro = "";
+      this.pdfArquivo = null;
+      if (!arquivo) return;
+
+      const extensao = (arquivo.name || "").split(".").pop().toLowerCase();
+      const tipoOk = arquivo.type === "application/pdf" || extensao === "pdf";
+      if (!tipoOk) {
+        this.pdfErro = "Selecione um arquivo no formato PDF.";
+        return;
+      }
+      if (arquivo.size > 8 * 1024 * 1024) {
+        this.pdfErro = "O arquivo excede o limite de 8 MB.";
+        return;
+      }
+      this.pdfArquivo = arquivo;
+    },
+
+    formatarTamanho(bytes) {
+      if (!bytes) return "";
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    },
+
+    campoNaoIdentificado(campo) {
+      return Boolean(
+        this.pdfResultado &&
+          this.pdfResultado.camposNaoEncontrados &&
+          this.pdfResultado.camposNaoEncontrados.includes(campo)
+      );
+    },
+
+    removerEtapaImportada(index) {
+      this.pdfForm.etapas.splice(index, 1);
+    },
+
+    async processarPdf() {
+      if (!this.pdfArquivo) {
+        this.pdfErro = "Selecione um arquivo PDF.";
+        return;
+      }
+      this.pdfErro = "";
+      this.pdfProcessando = true;
+
+      try {
+        const token = this.store.pegar_token;
+        const formData = new FormData();
+        formData.append("arquivo", this.pdfArquivo);
+
+        const response = await api.post("/pecas/importar/pdf", formData, {
+          headers: { Authorization: `${token}`, "Content-Type": "multipart/form-data" },
+          timeout: 60000,
+        });
+
+        const dados = response.data;
+        this.pdfResultado = dados;
+        this.pdfForm = {
+          descricao: dados.campos.descricao || "",
+          quantidade_pecas: dados.campos.quantidade_pecas ?? "",
+          valor_peca: dados.campos.valor_peca ?? "",
+          data_entrega: dados.campos.data_entrega || "",
+          pedido_por: dados.campos.pedido_por || "",
+          tempo_padrao: dados.campos.tempo_padrao ?? "",
+          observacoes: dados.campos.observacoes || "",
+          etapas: (dados.etapas || []).map((e) => e.descricao),
+        };
+      } catch (error) {
+        const data = error.response && error.response.data;
+        this.pdfErro = (data && data.erro) || "Não foi possível processar o PDF.";
+        this.pdfResultado = null;
+      } finally {
+        this.pdfProcessando = false;
+      }
+    },
+
+    confirmarImportacaoPdf() {
+      const f = this.pdfForm;
+      this.pdfErro = "";
+
+      const descricao = String(f.descricao || "").trim();
+      if (!descricao) {
+        this.pdfErro = "Informe a descrição da peça antes de confirmar.";
+        return;
+      }
+
+      const quantidade = String(f.quantidade_pecas).trim();
+      if (!/^\d+$/.test(quantidade) || Number(quantidade) <= 0) {
+        this.pdfErro = "Informe uma quantidade de peças válida (número inteiro maior que zero).";
+        return;
+      }
+
+      if (String(f.valor_peca).trim() !== "" && (isNaN(Number(f.valor_peca)) || Number(f.valor_peca) < 0)) {
+        this.pdfErro = "Valor da peça inválido.";
+        return;
+      }
+
+      if (String(f.tempo_padrao).trim() !== "" && (isNaN(Number(f.tempo_padrao)) || Number(f.tempo_padrao) <= 0)) {
+        this.pdfErro = "Tempo padrão inválido.";
+        return;
+      }
+
+      this.novaPeca = {
+        descricao,
+        quantidade_pecas: Number(quantidade),
+        pedido_por: String(f.pedido_por || "").trim(),
+        data_entrega: f.data_entrega || null,
+        producao: [...f.etapas],
+        valor_peca: String(f.valor_peca).trim() === "" ? null : Number(f.valor_peca),
+        tempo_padrao: String(f.tempo_padrao).trim() === "" ? null : Number(f.tempo_padrao),
+        notas: String(f.observacoes || "").trim(),
+      };
+
+      this.mostrarImportacaoPdf = false;
+      this.limparImportacaoPdf();
+      this.etapa = 1;
+
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "Dados importados do PDF",
+        showConfirmButton: false,
+        timer: 2500,
+      });
+    },
+
     async getEtpas() {
       const token = this.store.pegar_token;
       const etapas = await api.get("/etapas/estabelecimento", {
@@ -499,6 +803,7 @@ export default {
               etapas: this.novaPeca.producao,
               tempo_padrao: this.novaPeca.tempo_padrao,
               valor_peca: this.novaPeca.valor_peca,
+              notas: this.novaPeca.notas,
             },
           },
           { headers: { Authorization: `${token}` } }
@@ -1137,6 +1442,292 @@ label {
   background: #0a4d26;
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(14, 102, 50, 0.38);
+}
+
+/* ── Importar OP por PDF ── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.header-actions .planilha-btn { margin-left: 0; }
+
+.pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border: 1.5px solid #0e6632;
+  background: #0e6632;
+  color: #fff;
+  border-radius: 10px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.pdf-btn:hover { background: #0a4d26; }
+
+.pdf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(5, 46, 20, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.pdf-modal {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 1.5rem 1.75rem 1.75rem;
+  box-shadow: 0 20px 60px rgba(5, 46, 20, 0.35);
+  animation: pdfModalIn 0.22s ease;
+}
+
+@keyframes pdfModalIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pdf-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(10, 80, 40, 0.12);
+}
+
+.pdf-modal-title {
+  font-family: "Syne", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #052e14;
+  margin: 0;
+}
+
+.pdf-modal-subtitle { font-size: 12px; color: #4a7a5c; margin: 2px 0 0; }
+
+.pdf-modal-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: #eef6f1;
+  color: #0e6632;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.pdf-modal-close:hover { background: #d0edda; }
+
+.pdf-drop {
+  position: relative;
+  border: 1.5px dashed rgba(14, 102, 50, 0.5);
+  background: #f4faf6;
+  border-radius: 14px;
+  padding: 1.75rem 1rem;
+  text-align: center;
+  color: #0e6632;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.pdf-drop:hover { background: #eef6f1; border-color: #0e6632; }
+
+.pdf-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pdf-drop-texto {
+  margin: 0.5rem 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0a3d20;
+}
+
+.pdf-drop-dica { margin: 0.25rem 0 0; font-size: 12px; color: #7aaa8c; }
+
+.pdf-arquivo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0.85rem;
+  background: #eef6f1;
+  border: 1px solid rgba(10, 80, 40, 0.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #0e6632;
+}
+
+.pdf-arquivo-nome { font-size: 13px; font-weight: 500; color: #0f1f16; word-break: break-all; }
+.pdf-arquivo-tamanho { margin-left: auto; font-size: 12px; color: #4a7a5c; white-space: nowrap; }
+
+.pdf-erro {
+  margin-top: 0.85rem;
+  font-size: 13px;
+  color: #a4222c;
+  background: #fdecec;
+  border: 1px solid #f3c2c6;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.pdf-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 1.5rem;
+}
+
+.pdf-avisos { display: flex; flex-direction: column; gap: 6px; margin-bottom: 1rem; }
+
+.pdf-aviso {
+  font-size: 12.5px;
+  color: #7a5b06;
+  background: #fff7e0;
+  border: 1px solid #f0ddab;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.pdf-infos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+
+.pdf-info-chip {
+  font-size: 12px;
+  font-weight: 500;
+  background: #d0edda;
+  color: #0a3d20;
+  border-radius: 100px;
+  padding: 5px 12px;
+}
+
+.pdf-info-chip.muted { background: #eef6f1; color: #4a7a5c; border: 1px solid rgba(10, 80, 40, 0.15); }
+
+.badge-nao {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a5a00;
+  background: #fff1cc;
+  border: 1px solid #efd794;
+  border-radius: 100px;
+  padding: 2px 8px;
+  margin-left: 6px;
+}
+
+.pdf-grid .input-wrap input { padding-left: 14px; }
+
+.pdf-textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  background: #eef6f1;
+  border: 1.5px solid rgba(10, 80, 40, 0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  color: #0f1f16;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pdf-textarea:focus {
+  border-color: #1a8a46;
+  box-shadow: 0 0 0 3px rgba(26, 138, 70, 0.14);
+  background: #fff;
+}
+
+.pdf-etapas {
+  background: #eef6f1;
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  margin-top: 1rem;
+}
+
+.pdf-etapas-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4a7a5c;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.pdf-etapas-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.pdf-etapa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #0e6632;
+  color: #fff;
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.pdf-etapa-chip button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.pdf-etapas-vazio { font-size: 13px; color: #7aaa8c; font-style: italic; margin: 0; }
+
+.pdf-nao-reconhecidas { font-size: 12.5px; color: #7a5b06; margin: 0.6rem 0 0; }
+
+.pdf-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pdfSpin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes pdfSpin { to { transform: rotate(360deg); } }
+
+.btn-next[disabled],.btn-success[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* ── Transition ── */

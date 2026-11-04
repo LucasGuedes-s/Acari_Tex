@@ -44,7 +44,9 @@ async function postPecaOP(req, user) {
       quantidade_pecas: req.peca.quantidade_pecas || null,
       pedido_por: req.peca.pedido_por || null,
       data_do_pedido: new Date().toISOString(),
-      data_de_entrega: req.peca.data_de_entrega || null,
+      // o frontend envia "data_entrega"; mantemos "data_de_entrega" por compatibilidade
+      data_de_entrega: req.peca.data_de_entrega || req.peca.data_entrega || null,
+      notas: req.peca.notas || null,
       valor_peca: parseFloat(req.peca.valor_peca) || null,
       tempo_padrao: parseFloat(req.peca.tempo_padrao) || null,
       Estabelecimento: {
