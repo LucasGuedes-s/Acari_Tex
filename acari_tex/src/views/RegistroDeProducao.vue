@@ -366,18 +366,21 @@
                               <span v-if="statusCelula(funcionario, linha, hora) !== 'idle'" class="save-dot"
                                 :class="'save-dot--' + statusCelula(funcionario, linha, hora)"
                                 :title="tituloStatusCelula(funcionario, linha, hora)"></span>
-                              <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
-                                inputmode="numeric" placeholder="0" :aria-label="`Quantidade produzida às ${hora}`"
-                                :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
-                                @input="onDigitarCelula(funcionario, linha, hora)" />
+                              <!-- Quantidade -->
+                                <input v-model.number="linha.registros[hora].quantidade" type="number" min="0"
+                                  inputmode="numeric" placeholder="0" :aria-label="`Quantidade produzida às ${hora}`"
+                                  :class="['hora-input', linha.registros[hora].quantidade > 0 ? 'tem-producao' : '']"
+                                  @input="onDigitarQuantidade(funcionario, linha, hora)" />
                             </div>
 
                             <div class="hora-meta">
-                              <label class="tempo-wrap" title="Minutos disponíveis nesta hora">
-                                <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
-                                  max="60" class="min-input" @input="onDigitarCelula(funcionario, linha, hora)" />
-                                <span class="min-label">min</span>
-                              </label>
+                                <!-- Minutos -->
+                                <label class="tempo-wrap" title="Minutos desta etapa nesta hora (a soma das etapas não pode passar de 60)">
+                                  <input v-model.number="linha.registros[hora].tempoProduzido" type="number" min="1"
+                                    max="60" class="min-input" @input="onDigitarMinutos(funcionario, linha, hora)" />
+                                  <span class="min-label">min</span>
+                                </label>
+                               
                               <span v-if="infoHora(linha, hora).sam" class="hora-tr"
                                 :title="`Tempo utilizado no cálculo por peça — o menor entre o Tempo Ficha e o Tempo Referência do profissional`">
                                 TR {{ fmtNum(infoHora(linha, hora).sam) }}
@@ -650,6 +653,7 @@
   </div>
 </template>
 <script>
+
 import SidebarNav from '@/components/Sidebar.vue'
 import carregandoTela from '@/components/carregandoTela.vue'
 import { useAuthStore } from '@/store/store'
@@ -664,7 +668,7 @@ import { exportarMapaProducaoExcel } from '@/utils/functions/ExportarExcelMapaPr
 import { useMonitorProdutividade } from '@/composables/useMonitorProdutividade'
 import { calcularEficiencia, calcularCapacidade, resolverSam } from '@/utils/calculosProducao'
 import { escolherReferenciaPorData, tempoDaReferencia } from '@/utils/tempoReferencia'
-
+const MINUTOS_MAX_HORA = 60
 //const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 const socket = io('https://acari-tex.onrender.com', { transports: ['websocket'] })
 
@@ -3071,12 +3075,142 @@ export default {
       this.saveStatus = { ...this.saveStatus, [chave]: { ...atual, status, ...extra } }
     },
 
-    /**
-     * Handler do @input de quantidade e minutos. A CADA tecla:
-     *   1. marca a célula como 'pending';
-     *   2. grava IMEDIATAMENTE no localStorage (camada anti-perda);
-     *   3. agenda o salvamento na API com debounce de 500ms.
-     */
+    // ══════════════════════════════════════════════════════════════
+
+/** Linhas do funcionário com produção lançada naquela hora (e etapa definida). */
+linhasAtivasNaHora(real, hora) {
+  return (real?.linhas || []).filter(
+    l => l.etapaId && Number(l.registros?.[hora]?.quantidade) > 0
+  )
+},
+
+minutosUsadosNaHora(real, hora, exceto = null) {
+  return this.linhasAtivasNaHora(real, hora)
+    .filter(l => l !== exceto)
+    .reduce((s, l) => s + (Number(l.registros[hora].tempoProduzido) || 60), 0)
+},
+
+/** Divide `total` minutos entre `linhas` (resto distribuído de 1 em 1 nas primeiras). */
+distribuirMinutos(linhas, total, hora) {
+  const n = linhas.length
+  if (!n) return
+  const base = Math.floor(total / n)
+  const resto = total % n
+  linhas.forEach((l, i) => {
+    l.registros[hora].tempoProduzido = Math.max(base + (i < resto ? 1 : 0), 1)
+  })
+},
+/**
+ * Reajusta os minutos da hora para que a soma nunca passe de 60.
+ * - Linha SEM quantidade volta ao padrão (60 min, sem marca de manual).
+ * - 1 linha com quantidade: 60 min (a menos que você tenha digitado manualmente).
+ * - 2+ linhas com quantidade: divide automaticamente.
+ * Retorna as linhas cujo tempo mudou.
+ */
+ajustarMinutosHora(real, hora, { forcarIgual = false } = {}) {
+  const MAX = MINUTOS_MAX_HORA
+  const todas = (real?.linhas || []).filter(l => l.registros?.[hora])
+  const ativas = this.linhasAtivasNaHora(real, hora)
+  const inativas = todas.filter(l => !ativas.includes(l))
+
+  const antes = new Map(todas.map(l => [l, l.registros[hora].tempoProduzido]))
+
+  // 1) Linhas sem quantidade voltam ao padrão de 60 min
+  for (const l of inativas) {
+    l.registros[hora].tempoProduzido = MAX
+    l.registros[hora].minutosManual = false
+  }
+
+  // 2) Linhas com quantidade
+  if (ativas.length) {
+    if (forcarIgual) {
+      ativas.forEach(l => { l.registros[hora].minutosManual = false })
+      this.distribuirMinutos(ativas, MAX, hora)
+    } else if (ativas.length === 1) {
+      const reg = ativas[0].registros[hora]
+      if (!reg.minutosManual) reg.tempoProduzido = MAX
+    } else {
+      const manuais = ativas.filter(l => l.registros[hora].minutosManual)
+      const autos = ativas.filter(l => !l.registros[hora].minutosManual)
+      const restante = MAX - manuais.reduce(
+        (s, l) => s + (Number(l.registros[hora].tempoProduzido) || 0), 0
+      )
+
+      if (autos.length && restante >= autos.length) {
+        this.distribuirMinutos(autos, restante, hora)
+      } else if (!autos.length && restante >= 0) {
+        // só manuais e dentro do limite: nada a fazer
+      } else {
+        // impossível respeitar os valores manuais: divide igualmente
+        ativas.forEach(l => { l.registros[hora].minutosManual = false })
+        this.distribuirMinutos(ativas, MAX, hora)
+      }
+    }
+  }
+
+  return todas.filter(l => antes.get(l) !== l.registros[hora].tempoProduzido)
+},
+
+/** Salva (localStorage + debounce) as demais linhas que tiveram os minutos alterados. */
+notificarLinhasAlteradas(real, hora, alteradas, linhaOrigem) {
+  for (const l of alteradas) {
+    if (l === linhaOrigem) continue // a origem é salva pelo handler que chamou
+    this.onDigitarCelula(real, l, hora)
+  }
+},
+
+/** @input da QUANTIDADE: redistribui os minutos automaticamente e salva. */
+onDigitarQuantidade(funcionario, linha, hora) {
+  const real = funcionario._funcRef || funcionario
+  const alteradas = this.ajustarMinutosHora(real, hora)
+  this.notificarLinhasAlteradas(real, hora, alteradas, linha)
+  this.onDigitarCelula(funcionario, linha, hora)
+},
+
+/** @input dos MINUTOS: valida o limite de 60 min somando as outras etapas. */
+onDigitarMinutos(funcionario, linha, hora) {
+  const real = funcionario._funcRef || funcionario
+  const reg = linha.registros?.[hora]
+  if (!reg) return
+
+  const valor = Number(reg.tempoProduzido)
+  if (!(valor > 0)) { // campo vazio/zerado: o cálculo já assume 60
+    this.onDigitarCelula(funcionario, linha, hora)
+    return
+  }
+
+  const MAX = MINUTOS_MAX_HORA
+  const temProducao = Number(reg.quantidade) > 0
+  const outros = temProducao ? this.minutosUsadosNaHora(real, hora, linha) : 0
+  const teto = MAX - outros
+
+  if (valor > teto) {
+    const nome = real.nome || real.email
+    Swal.fire({
+      icon: 'warning',
+      title: 'Limite de 60 minutos por hora',
+      text: outros > 0
+        ? `${nome} já tem ${outros} min lançados em outras etapas às ${hora}. A soma das etapas não pode passar de 60 min.`
+        : `Uma hora tem no máximo 60 minutos (${nome}, ${hora}).`,
+      confirmButtonText: 'Entendi',
+    })
+
+    if (teto >= 1) {
+      reg.tempoProduzido = teto
+      reg.minutosManual = true
+      this.onDigitarCelula(funcionario, linha, hora)
+    } else {
+      // outras etapas já consomem os 60 min: divide igualmente entre todas
+      const alteradas = this.ajustarMinutosHora(real, hora, { forcarIgual: true })
+      this.notificarLinhasAlteradas(real, hora, alteradas, linha)
+      this.onDigitarCelula(funcionario, linha, hora)
+    }
+    return
+  }
+
+  reg.minutosManual = true
+  this.onDigitarCelula(funcionario, linha, hora)
+},
     onDigitarCelula(funcionario, linha, hora) {
       if (!linha?.etapaId) return
       const real = funcionario._funcRef || funcionario
