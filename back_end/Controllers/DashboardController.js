@@ -1,4 +1,5 @@
 const Empresa = require('../Services/Dashboard.services');
+const dashboardProducaoService = require('../Services/dashboardProducaoService');
 
 async function getNotificacoes(req, res, next){
     try {
@@ -83,9 +84,41 @@ async function getEmpresa(req, res, next){
         next(err);
     }
 }
+/**
+ * GET /dashboard/producao-evolucao
+ * Evolução diária (tempo padrão, tempo de referência e tempo efetivado) para
+ * o gráfico do Dashboard. O estabelecimento vem SEMPRE de req.user.cnpj.
+ */
+async function getProducaoEvolucao(req, res, next) {
+    try {
+        const cnpj = req.user?.cnpj;
+
+        if (!cnpj) {
+            return res.status(400).json({ mensagem: 'Estabelecimento não identificado no token.' });
+        }
+
+        const validacao = dashboardProducaoService.validarParametros(req.query);
+
+        if (!validacao.ok) {
+            return res.status(validacao.status).json({ mensagem: validacao.message });
+        }
+
+        const dados = await dashboardProducaoService.obterEvolucaoProducao(cnpj, validacao.params);
+
+        return res.status(200).json(dados);
+    } catch (err) {
+        const status = err.statusCode || 500;
+        if (status >= 500) console.error('Erro ao obter evolução da produção:', err);
+        return res.status(status).json({
+            mensagem: err.message || 'Erro ao obter evolução da produção.',
+        });
+    }
+}
+
 module.exports = { 
     postAlertaProdutividade,
     getNotificacoes,
     putNotificacaoLida,
-    getEmpresa
+    getEmpresa,
+    getProducaoEvolucao
 };

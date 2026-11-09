@@ -1,5 +1,9 @@
 // src/utils/producaoCompartilhada.js
-import { calcularEficiencia, resolverSam } from '@/utils/calculosProducao'
+import {
+  calcularEficiencia,
+  calcularEficienciaExata,
+  resolverSam,
+} from '@/utils/calculosProducao'
 import { escolherReferenciaPorData } from '@/utils/tempoReferencia'
 
 // ── HORA ──────────────────────────────────────────────
@@ -15,10 +19,16 @@ export function minutosParaHora(minutos) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+/**
+ * Mesma definição da tela de apontamento: gera as horas cheias a partir do
+ * início e INCLUI a hora final (ex.: 08:00→11:30 = 08,09,10,11:30).
+ * As chaves de `registros` da tela seguem exatamente esta sequência.
+ */
 export function gerarSequenciaHoras(inicio, fim) {
+  if (!inicio) return []
   const inicioMin = horaParaMinutos(inicio)
   const fimMin = horaParaMinutos(fim)
-  if (!inicio || !fim || fimMin <= inicioMin) return []
+  if (!fim || fimMin <= inicioMin) return [inicio]
 
   const sequencia = []
   let atual = inicioMin
@@ -26,31 +36,25 @@ export function gerarSequenciaHoras(inicio, fim) {
     sequencia.push(minutosParaHora(atual))
     atual += 60
   }
+  sequencia.push(fim)
   return sequencia
 }
 
-// ── TEMPO UTILIZADO REAL (RELÓGIO), SEM SOMAR ETAPAS ──────
-export function calcularTempoUtilizadoPorIntervalo(entradas, tempoMaximoDia = null) {
-  if (!Array.isArray(entradas) || !entradas.length) return 0
-
-  let inicioMin = Infinity
-  let fimMin = -Infinity
-
-  for (const entrada of entradas) {
-    if (!entrada?.hora) continue
-    const inicioSlot = horaParaMinutos(entrada.hora)
-    const fimSlot = inicioSlot + Number(entrada.tempoProduzido || 60)
-    if (inicioSlot < inicioMin) inicioMin = inicioSlot
-    if (fimSlot > fimMin) fimMin = fimSlot
-  }
-
-  if (!isFinite(inicioMin) || !isFinite(fimMin)) return 0
-
-  const bruto = Math.max(0, fimMin - inicioMin)
-  return tempoMaximoDia != null ? Math.min(bruto, tempoMaximoDia) : bruto
+// ── TEMPO TRABALHADO = SOMA DOS MINUTOS REGISTRADOS ───────
+// Cada funcionário tem no máximo 60 min por hora (regra da tela), então
+// somar os minutos é o tempo real trabalhado: não conta almoço nem
+// buracos entre lançamentos e multiplica corretamente por pessoa.
+export function somarMinutosRegistrados(entradas) {
+  if (!Array.isArray(entradas)) return 0
+  return entradas.reduce((s, e) => s + (Number(e?.tempoProduzido) || 0), 0)
 }
 
-// ── MINUTOS DISPONÍVEIS DO DIA (regra por dia da semana) ──
+/** @deprecated Mantida só por compatibilidade de import: agora SOMA os minutos. */
+export function calcularTempoUtilizadoPorIntervalo(entradas) {
+  return somarMinutosRegistrados(entradas)
+}
+
+// ── MINUTOS DISPONÍVEIS DO DIA ────────────────────────
 function parseDataLocal(data) {
   if (data instanceof Date) return new Date(data.getTime())
   if (typeof data === 'string') {
@@ -65,26 +69,48 @@ function parseDataLocal(data) {
   return new Date()
 }
 
-export function minutosDisponiveisDia(data) {
+/**
+ * Minutos disponíveis no dia.
+ * - Com `janelas` ({ manha:{inicio,fim}, tarde:{inicio,fim} }) usa a MESMA
+ *   regra da tela: nº de slots das janelas × 60.
+ * - Sem `janelas`, usa a regra legada por dia da semana (seg–qui 540,
+ *   sex 480, fim de semana 0). Não use este valor como TETO do tempo
+ *   trabalhado: hora extra no fim de semana é válida.
+ */
+export function minutosDisponiveisDia(data, janelas = null) {
+  if (janelas?.manha && janelas?.tarde) {
+    const qtd =
+      gerarSequenciaHoras(janelas.manha.inicio, janelas.manha.fim).length +
+      gerarSequenciaHoras(janelas.tarde.inicio, janelas.tarde.fim).length
+    return qtd * 60
+  }
   const d = parseDataLocal(data)
   d.setHours(0, 0, 0, 0)
-  const diaSemana = d.getDay() // 0 = domingo … 6 = sábado
-
-  if (diaSemana >= 1 && diaSemana <= 4) return 540 // segunda a quinta
-  if (diaSemana === 5) return 480 // sexta
-  return 0 // sábado e domingo
+  const diaSemana = d.getDay()
+  if (diaSemana >= 1 && diaSemana <= 4) return 540
+  if (diaSemana === 5) return 480
+  return 0
 }
 
-// ── ETAPA FINAL ───────────────────────────────────────
+// ── ETAPA FINAL (fonte única; a tela também deve importar esta) ──
+function normalizarTexto(txt) {
+  return String(txt || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 export function isEtapaFinal(linha) {
   if (!linha?.descricao) return false
-  const d = linha.descricao.toLowerCase()
-  if (d.includes('revisão intermediaria') || d.includes('revisao intermediaria')) return false
+  const d = normalizarTexto(linha.descricao) // sem acentos
+  if (d.includes('revisao intermediaria')) return false
   return (
-    d.includes('final') || d.includes('revisão final') || d.includes('revisao final') ||
-    d.includes('revisão') || d.includes('revisao') ||
-    d.includes('acabamento') || d.includes('qualidade') ||
-    d.includes('revisar peça pronta') || d.includes('expedição') || d.includes('expedicao')
+    d.includes('final') ||
+    d.includes('revisao') ||
+    d.includes('acabamento') ||
+    d.includes('qualidade') ||
+    d.includes('revisar peca pronta') ||
+    d.includes('expedicao')
   )
 }
 
@@ -99,64 +125,38 @@ export function buscarEtapa(etapasPorId, etapaId, opId = null) {
   return candidatas[0] || null
 }
 
-export function resolverTempoPadrao(linha) {
-  // O tempo padrão usado aqui é o da ETAPA (producao_etapa.tempo_padrao),
-  // capturado no momento do lançamento e guardado em `linha.tempoPadrao`.
-  // O tempo padrão da PEÇA (peca.tempo_padrao) fica isolado em
-  // `linha.tempoPadraoPeca` e NUNCA é lido aqui.
-  return Number(linha?.tempoPadrao || 0)
+/**
+ * Tempo Ficha da ETAPA (producao_etapa.tempo_padrao), guardado em
+ * `linha.tempoPadrao`. Se a linha ainda não tiver, cai para o cadastro da
+ * etapa (mesmo comportamento da tela). O tempo da PEÇA nunca é lido aqui.
+ */
+export function resolverTempoPadrao(linha, etapasPorId = null) {
+  if (linha?.tempoPadrao) return Number(linha.tempoPadrao)
+  const etapa = buscarEtapa(etapasPorId, linha?.etapaId, linha?.opId)
+  return Number(etapa?.tempo_padrao ?? etapa?.etapa?.tempo_padrao ?? 0)
 }
 
 // ══════════════════════════════════════════════════════════════
 // RESOLUÇÃO DO TEMPO DE REFERÊNCIA — FONTE ÚNICA
 // ══════════════════════════════════════════════════════════════
-//
-// Esta é a ÚNICA função que decide qual TempoReferencia é usado em
-// qualquer lugar do sistema (cálculo de eficiência, totais, médias,
-// cards, gráficos, ranking, exportação para Excel, exibição na tela).
-// Nenhuma outra função deve reimplementar essa busca — todas as demais
-// (inclusive `resolverTempoReferencia`, mantida por compatibilidade)
-// delegam para cá. A escolha entre vários registros do MESMO
-// profissional (um por data) é feita por `escolherReferenciaPorData`,
-// de @/utils/tempoReferencia — a mesma função usada pelo Registro de
-// Produção — para que os dois telas nunca divirjam.
-//
 // ORDEM DE PRIORIDADE:
-//   1. Override manual do usuário (dropdown do Registro de Produção)
-//      → origem: 'manual'
-//   2. TempoReferencia do PROFISSIONAL para a OP/etapa atual, escolhido
-//      por data (ver escolherReferenciaPorData): registro exatamente na
-//      data consultada tem prioridade; senão o mais recente anterior.
-//      → origem: 'peca'  (profissional + OP)
-//   3. TempoReferencia do PROFISSIONAL para a MESMA ETAPA em qualquer
-//      outra OP, com a mesma regra de prioridade por data.
-//      → origem: 'ultimo_registrado' (profissional + etapa)
-//   4. Nenhum encontrado → usa o Tempo Padrão da Ficha.
-//      → origem: null
-//
+//   1. Override manual (dropdown) .......................... origem 'manual'
+//   2. Referência do PROFISSIONAL na OP/etapa, por data .... origem 'peca'
+//   3. Referência do PROFISSIONAL na mesma etapa (outra OP)  origem 'ultimo_registrado'
+//   4. Nenhuma → null (o SAM cai para o Tempo Ficha)
 // NUNCA usa o tempo de outro profissional.
+//
+// O SAM final é sempre resolverSam(): o MENOR entre ficha e referência.
 
 function extrairTempoRef(ref) {
   return Number(ref?.tempo_minutos ?? ref?.tempo_por_peca ?? 0)
 }
 
 /**
- * Resolve o tempo de referência do funcionário retornando também a
- * ORIGEM e o registro utilizado. Esta é a função central: qualquer
- * outro ponto do sistema (cálculo, exibição, exportação) deve ler o
- * valor a partir daqui — nunca reimplementar a busca.
- *
- * @param {string|null} dataConsulta - data (YYYY-MM-DD ou compatível)
- *   selecionada na tela; decide qual registro histórico do profissional
- *   é usado quando há mais de um. Se omitida, usa o mais recente.
- *
  * @returns {{ tempo: number|null, origem: string|null, registroId: string|number|null, nomeFunc: string|null }}
  */
 export function resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId, overrides = null, dataConsulta = null) {
-  // 1. Override manual (dropdown) — PRIORIDADE ABSOLUTA
-  if (dataConsulta === undefined) {
-    console.warn('resolverTempoReferenciaComOrigem chamada sem dataConsulta — verifique o call site.')
-  }
+  // 1. Override manual — prioridade absoluta
   const modoTempo = overrides?.modoTempo || linha?.modoTempo
   const refId = overrides?.referenciaSelecionadaId || linha?.referenciaSelecionadaId
 
@@ -164,9 +164,7 @@ export function resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId
     const etapa = buscarEtapa(etapasPorId, linha?.etapaId, linha?.opId)
     const refs = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
     if (Array.isArray(refs)) {
-      const refIdBusca = String(refId)
-      // String() porque $event.target.value retorna STRING, mas r.id do
-      // banco é NUMBER.
+      const refIdBusca = String(refId) // value do select é string; r.id é number
       let ref = refs.find(r => r && String(r.id) === refIdBusca)
       if (!ref) ref = refs.find(r => r && r.id_funcionario === refId)
       if (ref) {
@@ -178,8 +176,7 @@ export function resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId
     }
   }
 
-  // 2. TempoReferencia do PROFISSIONAL + OP/ETAPA atual — escolhido por
-  //    data (exata > mais recente anterior > sem data > futura mais próxima).
+  // 2. Profissional + OP/etapa atual, escolhido por data
   const etapa = buscarEtapa(etapasPorId, linha?.etapaId, linha?.opId)
   const refsDaEtapaOp = etapa?.tempo_referencia || etapa?.etapa?.tempo_referencia || []
   if (Array.isArray(refsDaEtapaOp) && funcionario?.email) {
@@ -195,9 +192,7 @@ export function resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId
     }
   }
 
-  // 3. TempoReferencia do PROFISSIONAL para a MESMA ETAPA em qualquer
-  //    outra OP — reúne todos os candidatos de todas as OPs da etapa e
-  //    aplica a MESMA regra de prioridade por data sobre o conjunto todo.
+  // 3. Profissional + mesma etapa em qualquer outra OP
   if (funcionario?.email && linha?.etapaId && etapasPorId) {
     const candidatasEtapa = etapasPorId.get(linha.etapaId) || []
     const todosOsRefsDaEtapa = []
@@ -209,68 +204,48 @@ export function resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId
       funcionarioId: funcionario.email,
       dataConsulta,
     })
-    //console.log('Escolhido para etapa (qualquer OP):', escolhido, 'para funcionário:', funcionario?.email, 'na data:', dataConsulta)
     if (escolhido) {
       const t = extrairTempoRef(escolhido)
       if (t > 0) {
         return { tempo: t, origem: 'ultimo_registrado', registroId: escolhido.id ?? null, nomeFunc: funcionario?.nome || null }
       }
     }
-    
   }
 
-  // 4. Sem referência → usa tempo padrão da ficha
+  // 4. Sem referência
   return { tempo: null, origem: null, registroId: null, nomeFunc: null }
 }
 
-/**
- * Mantida por compatibilidade de nome — delega 100% para
- * `resolverTempoReferenciaComOrigem`, garantindo que o valor usado no
- * CÁLCULO seja sempre idêntico ao valor mostrado na INTERFACE. Não
- * existe mais nenhuma lógica duplicada entre exibição e cálculo.
- *
- * @returns {number|null} Tempo de referência em minutos ou null
- */
+/** @returns {number|null} */
 export function resolverTempoReferencia(funcionario, linha, etapasPorId, overrides = null, dataConsulta = null) {
   return resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId, overrides, dataConsulta).tempo
 }
 
-/**
- * Variante com assinatura por objeto nomeado, útil para chamadas
- * externas (ex.: relatórios/exportação) que preferem passar os ids
- * diretamente em vez de montar os objetos `funcionario`/`linha`.
- *
- * @returns {{ valor: number|null, origem: string|null, registroId: string|number|null }}
- */
 export function resolverTempoReferenciaCentral({ funcionario, linha, etapasPorId, overrides = null, dataConsulta = null } = {}) {
   const r = resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId, overrides, dataConsulta)
   return { valor: r.tempo, origem: r.origem, registroId: r.registroId, nomeFunc: r.nomeFunc }
 }
 
 /**
- * Resolve o tempo efetivo (referência ou ficha) considerando overrides.
+ * SAM efetivo da linha = MENOR entre Tempo Ficha e Tempo Referência
+ * (mesma regra da tela, via resolverSam).
  */
 export function resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, overrides = null, dataConsulta = null) {
   const tempoReferencia = resolverTempoReferencia(funcionario, linha, etapasPorId, overrides, dataConsulta)
   return resolverSam({ tempoReferencia, tempoPadrao: resolverTempoPadrao(linha, etapasPorId) })
 }
 
-/**
- * Retorna detalhes completos do tempo de referência para CADA linha
- * de produção de um profissional. Útil para exibição/transparência.
- */
 export function obterDetalhesTempoReferenciaFuncionario(funcionario, etapasPorId, dataConsulta = null) {
   const resultado = []
   for (const linha of funcionario?.linhas || []) {
     if (!linha?.opId) continue
     const { tempo: tempoRef, origem } = resolverTempoReferenciaComOrigem(funcionario, linha, etapasPorId, null, dataConsulta)
-    const tempoFicha = resolverTempoPadrao(linha)
     resultado.push({
       etapa: linha.descricao || linha.etapaId || '—',
       opId: linha.opId,
       tempoRef,
       origem,
-      tempoFicha,
+      tempoFicha: resolverTempoPadrao(linha, etapasPorId),
     })
   }
   return resultado
@@ -282,9 +257,7 @@ function obterLinhasRepresentativasPorOp(linhas) {
 
   for (const linha of linhas) {
     if (!linha?.opId) continue
-    if (!linhasPorOp.has(linha.opId)) {
-      linhasPorOp.set(linha.opId, [])
-    }
+    if (!linhasPorOp.has(linha.opId)) linhasPorOp.set(linha.opId, [])
     linhasPorOp.get(linha.opId).push(linha)
   }
 
@@ -356,26 +329,47 @@ export function funcionarioAusenteDiaInteiro(funcionario) {
   return funcionario?.ausencia?.tipo === 'dia_inteiro'
 }
 
-export function calcularMinutosAusenciaFuncionario(funcionario, tempoDisponivelDia) {
+/**
+ * Minutos de ausência. Com `janelas` ({manha,tarde}) a ausência é limitada
+ * às janelas de trabalho (um período 12:00–13:00 de almoço não é descontado),
+ * igual à tela. Sem `janelas`, usa o comportamento antigo.
+ */
+export function calcularMinutosAusenciaFuncionario(funcionario, tempoDisponivelDia, janelas = null) {
   const ausencia = funcionario?.ausencia
   if (!ausencia) return 0
   if (ausencia.tipo === 'dia_inteiro') return tempoDisponivelDia
 
   if (ausencia.tipo === 'parcial' && Array.isArray(ausencia.periodos)) {
+    const faixas = janelas?.manha && janelas?.tarde
+      ? [
+        [horaParaMinutos(janelas.manha.inicio), horaParaMinutos(janelas.manha.fim)],
+        [horaParaMinutos(janelas.tarde.inicio), horaParaMinutos(janelas.tarde.fim)],
+      ]
+      : null
+
     let total = 0
     for (const periodo of ausencia.periodos) {
       if (!periodo?.inicio || !periodo?.fim) continue
-      const ini = horaParaMinutos(periodo.inicio)
-      const fim = horaParaMinutos(periodo.fim)
-      if (fim > ini) total += (fim - ini)
+      const pIni = horaParaMinutos(periodo.inicio)
+      const pFim = horaParaMinutos(periodo.fim)
+
+      if (faixas) {
+        for (const [jIni, jFim] of faixas) {
+          const ini = Math.max(pIni, jIni)
+          const fim = Math.min(pFim, jFim)
+          if (fim > ini) total += fim - ini
+        }
+      } else if (pFim > pIni) {
+        total += pFim - pIni
+      }
     }
     return Math.min(total, tempoDisponivelDia)
   }
   return 0
 }
 
-export function calcularMinutosDisponiveisFuncionario(funcionario, tempoDisponivelDia) {
-  const ausente = calcularMinutosAusenciaFuncionario(funcionario, tempoDisponivelDia)
+export function calcularMinutosDisponiveisFuncionario(funcionario, tempoDisponivelDia, janelas = null) {
+  const ausente = calcularMinutosAusenciaFuncionario(funcionario, tempoDisponivelDia, janelas)
   return Math.max((tempoDisponivelDia || 0) - ausente, 0)
 }
 
@@ -467,9 +461,8 @@ export function calcularEficienciaRegistroReferencia(quantidade, tempoProduzido,
 // EFICIÊNCIA POR FUNCIONÁRIO × OP
 // ══════════════════════════════════════════════════════════════
 export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data = null, overrides = null) {
-  const tempoMaximoDia = data != null ? minutosDisponiveisDia(data) : 540
-  // `data` também é a dataConsulta: é a data selecionada na tela, usada
-  // para escolher qual registro histórico de Tempo de Referência vale.
+  // `data` = data selecionada na tela; decide qual registro histórico de
+  // Tempo de Referência vale. NÃO limita mais o tempo trabalhado.
   const dataConsulta = data
 
   const linhasRepresentativas = obterLinhasRepresentativasPorOp(funcionario?.linhas || [])
@@ -482,9 +475,9 @@ export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data =
     let quantidadeProduzida = 0
     let tempoNecessarioFicha = 0
     let tempoNecessarioReferencia = 0
+    let tempoProduzido = 0
     const horariosSet = new Set()
     const etapasSet = new Set()
-    const entradasParaTempo = []
 
     for (const [hora, reg] of Object.entries(linha.registros || {})) {
       if (horaBloqueadaPorAusencia(funcionario, hora)) continue
@@ -493,12 +486,10 @@ export function agruparProducaoFuncionarioPorOp(funcionario, etapasPorId, data =
       quantidadeProduzida += reg.quantidade
       tempoNecessarioFicha += reg.quantidade * samFicha
       tempoNecessarioReferencia += reg.quantidade * samReferencia
+      tempoProduzido += Number(reg.tempoProduzido)
       horariosSet.add(hora)
       etapasSet.add(linha.descricao || linha.etapaId || '—')
-      entradasParaTempo.push({ hora, tempoProduzido: reg.tempoProduzido })
     }
-
-    const tempoProduzido = calcularTempoUtilizadoPorIntervalo(entradasParaTempo, tempoMaximoDia)
 
     if (tempoProduzido > 0) {
       grupos.push({
@@ -588,8 +579,6 @@ export function calcularTotaisFuncionarioDia(funcionario, etapasPorId, overrides
   const eficienciaFicha = calcularEficiencia({ producaoPonderada: tempoFicha, funcionarios: 1, tempoTrabalhado: tempoRegistrado })
   const eficienciaReferencia = calcularEficiencia({ producaoPonderada: tempoReferencia, funcionarios: 1, tempoTrabalhado: tempoRegistrado })
 
-  const resumoRef = [...temposRefDistintos.values()]
-
   return {
     quantidade,
     tempoRegistrado,
@@ -598,7 +587,7 @@ export function calcularTotaisFuncionarioDia(funcionario, etapasPorId, overrides
     eficienciaFicha,
     eficienciaReferencia,
     detalhesReferencia,
-    resumoRef,
+    resumoRef: [...temposRefDistintos.values()],
     formulaFicha: `${tempoFicha} ÷ ${tempoRegistrado} × 100 = ${eficienciaFicha}%`,
     formulaReferencia: `${tempoReferencia} ÷ ${tempoRegistrado} × 100 = ${eficienciaReferencia}%`,
   }
@@ -649,19 +638,12 @@ export function detalharEficienciaPorFuncionarioEOp(funcionariosDia, etapasPorId
 }
 
 // ══════════════════════════════════════════════════════════════
-// EFICIÊNCIA DA TURMA
-// ══════════════════════════════════════════════════════════════
-export function calcularEficienciaGeralTurma(funcionariosDia, etapasPorId, referencia = false, data = null) {
-  const gruposOp = agruparProducaoPorOp(funcionariosDia, etapasPorId, data).filter(g => g.producao > 0)
-  return calcularEficienciaMediaPonderadaOps(gruposOp, referencia)
-}
-
-// ══════════════════════════════════════════════════════════════
 // EFICIÊNCIA DA TURMA — MULTI-OP (CONSOLIDAÇÃO)
 // ══════════════════════════════════════════════════════════════
+// tempoTrabalhadoRegistrado = Σ dos minutos de TODOS os participantes
+// (pessoas × tempo). Assim a eficiência não é inflada quando várias
+// pessoas trabalham ao mesmo tempo.
 export function agruparProducaoPorOp(funcionariosDia, etapasPorId, data = null) {
-  const tempoMaximoDia = data != null ? minutosDisponiveisDia(data) : 540
-  // `data` também serve como dataConsulta na resolução de referência.
   const dataConsulta = data
 
   const participantesPorOp = obterParticipantesRepresentativosGlobalPorOp(funcionariosDia)
@@ -677,8 +659,6 @@ export function agruparProducaoPorOp(funcionariosDia, etapasPorId, data = null) 
       tempoTrabalhadoRegistrado: 0,
     }
 
-    const entradasParaTempo = []
-
     for (const { funcionario, linha } of participantes) {
       const samFicha = resolverTempoPadrao(linha, etapasPorId)
       const samReferencia = resolverTempoEfetivoReferencia(funcionario, linha, etapasPorId, null, dataConsulta)
@@ -691,11 +671,9 @@ export function agruparProducaoPorOp(funcionariosDia, etapasPorId, data = null) 
         grupo.producao += reg.quantidade
         grupo.tempoProduzidoFicha += reg.quantidade * samFicha
         grupo.tempoProduzidoReferencia += reg.quantidade * samReferencia
-        entradasParaTempo.push({ hora, tempoProduzido: reg.tempoProduzido })
+        grupo.tempoTrabalhadoRegistrado += Number(reg.tempoProduzido)
       }
     }
-
-    grupo.tempoTrabalhadoRegistrado = calcularTempoUtilizadoPorIntervalo(entradasParaTempo, tempoMaximoDia)
 
     gruposMap.set(opId, grupo)
   }
@@ -727,17 +705,23 @@ export function calcularEficienciaOpAgrupadaReferencia(grupoOp) {
   })
 }
 
-// ══════════════════════════════════════════════════════════════
-// EFICIÊNCIA EXATA (SEM ARREDONDAMENTO) — PARA CÁLCULO DE MÉDIAS
-// ══════════════════════════════════════════════════════════════
+// ── EFICIÊNCIA EXATA (SEM ARREDONDAMENTO) ─────────────
 export function calcularEficienciaOpExata(grupoOp) {
   if (!grupoOp?.tempoTrabalhadoRegistrado) return 0
-  return (grupoOp.tempoProduzidoFicha / grupoOp.tempoTrabalhadoRegistrado) * 100
+  return calcularEficienciaExata({
+    producaoPonderada: grupoOp.tempoProduzidoFicha,
+    funcionarios: 1,
+    tempoTrabalhado: grupoOp.tempoTrabalhadoRegistrado,
+  })
 }
 
 export function calcularEficienciaOpReferenciaExata(grupoOp) {
   if (!grupoOp?.tempoTrabalhadoRegistrado) return 0
-  return (grupoOp.tempoProduzidoReferencia / grupoOp.tempoTrabalhadoRegistrado) * 100
+  return calcularEficienciaExata({
+    producaoPonderada: grupoOp.tempoProduzidoReferencia,
+    funcionarios: 1,
+    tempoTrabalhado: grupoOp.tempoTrabalhadoRegistrado,
+  })
 }
 
 export function resumoConsolidadoOp(grupoOp) {
@@ -753,22 +737,26 @@ export function resumoConsolidadoOp(grupoOp) {
   }
 }
 
+/**
+ * Agora REALMENTE ponderada: Σ (peças × SAM) ÷ Σ tempo trabalhado de todas
+ * as OPs. Uma OP com 10 min deixa de pesar o mesmo que uma de 500 min.
+ */
 export function calcularEficienciaMediaPonderadaOps(gruposOp, referencia = false) {
   if (!gruposOp?.length) return 0
 
-  const eficiencias = gruposOp
-    .filter(grupo => grupo?.tempoTrabalhadoRegistrado > 0)
-    .map(grupo => referencia
-      ? calcularEficienciaOpReferenciaExata(grupo)
-      : calcularEficienciaOpExata(grupo))
-
-  if (!eficiencias.length) return 0
-  const soma = eficiencias.reduce((s, e) => s + e, 0)
-  return Math.round((soma / eficiencias.length) * 100) / 100
+  let ponderado = 0
+  let tempo = 0
+  for (const g of gruposOp) {
+    if (!(g?.tempoTrabalhadoRegistrado > 0)) continue
+    ponderado += referencia ? g.tempoProduzidoReferencia : g.tempoProduzidoFicha
+    tempo += g.tempoTrabalhadoRegistrado
+  }
+  if (!tempo) return 0
+  return Math.round(calcularEficienciaExata({ producaoPonderada: ponderado, funcionarios: 1, tempoTrabalhado: tempo }) * 100) / 100
 }
 
 // ══════════════════════════════════════════════════════════════
-// EFICIÊNCIA GERAL DA TURMA — FÓRMULA CORRETA
+// EFICIÊNCIA GERAL DA TURMA — FÓRMULA ÚNICA
 // ══════════════════════════════════════════════════════════════
 export function calcularResumoEficienciaGeral(funcionariosDia, etapasPorId, data = null) {
   const gruposOp = agruparProducaoPorOp(funcionariosDia, etapasPorId, data)
@@ -805,6 +793,12 @@ export function calcularResumoEficienciaGeral(funcionariosDia, etapasPorId, data
     formulaReferencia: `${capacidadeReferenciaTotal} ÷ ${tempoProduzidoTotal} × 100 = ${eficienciaReferencia}%`,
     opsConsideradas: gruposOp.length,
   }
+}
+
+/** Delega para calcularResumoEficienciaGeral: um único número para a turma. */
+export function calcularEficienciaGeralTurma(funcionariosDia, etapasPorId, referencia = false, data = null) {
+  const r = calcularResumoEficienciaGeral(funcionariosDia, etapasPorId, data)
+  return referencia ? r.eficienciaReferencia : r.eficienciaFicha
 }
 
 // ══════════════════════════════════════════════════════════════

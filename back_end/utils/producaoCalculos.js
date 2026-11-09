@@ -19,6 +19,15 @@
  *       2. Tempo de Referência do profissional + etapa (qualquer OP);
  *       3. Tempo Padrão da etapa (padrao_ficha).
  *
+ *     TEMPO UTILIZADO (opção `usarMenorTempo`):
+ *       quando habilitado (relatórios de produção), o tempo aplicado é o
+ *       MENOR entre o Tempo Padrão válido da etapa e o Tempo de Referência
+ *       válido resolvido acima. Casos de ausência:
+ *         - só referência válida  → referência;
+ *         - só padrão válido      → padrão;
+ *         - nenhum dos dois       → 0 (nunca inventa valor).
+ *       Ver `selecionarTempoUtilizado` (fonte única da comparação).
+ *
  *     A referência é escolhida pela DATA DA PRODUÇÃO:
  *       1. exatamente na data;
  *       2. anterior mais recente;
@@ -163,6 +172,102 @@ function tempoDaReferencia(ref) {
   const valor = ref?.tempo_minutos ?? ref?.tempo_por_peca ?? 0
   const numero = Number(valor)
   return Number.isFinite(numero) && numero > 0 ? numero : 0
+}
+
+/**
+ * Normaliza um tempo para a comparação: número finito e > 0, senão 0.
+ * Ausência NUNCA é tratada como zero "válido" — vira 0 apenas para
+ * sinalizar indisponibilidade (ver `selecionarTempoUtilizado`).
+ */
+function tempoValido(valor) {
+  const numero = Number(valor)
+  return Number.isFinite(numero) && numero > 0 ? numero : 0
+}
+
+/**
+ * Origens possíveis do tempo utilizado (auditoria).
+ */
+const ORIGENS_TEMPO_UTILIZADO = Object.freeze({
+  REFERENCIA_MENOR: 'referencia_menor',
+  PADRAO_MENOR: 'padrao_menor',
+  IGUAIS: 'iguais',
+  SOMENTE_REFERENCIA: 'somente_referencia',
+  SOMENTE_PADRAO: 'somente_padrao',
+  INDISPONIVEL: 'indisponivel',
+})
+
+/**
+ * FONTE ÚNICA da comparação Tempo Padrão × Tempo de Referência.
+ *
+ * Regra: usar sempre o MENOR tempo válido entre os dois.
+ *
+ *   referência < padrão  → referência   ('referencia_menor')
+ *   referência > padrão  → padrão       ('padrao_menor')
+ *   referência = padrão  → mesmo valor  ('iguais')
+ *   sem referência       → padrão       ('somente_padrao')
+ *   sem padrão           → referência   ('somente_referencia')
+ *   sem nenhum           → 0            ('indisponivel')
+ *
+ * Tempos ausentes/ inválidos (null, '', NaN, <= 0) são considerados
+ * indisponíveis — nunca zero como substituto de um tempo real.
+ *
+ * @returns {{ tempo: number, origem: string, tempoPadrao: number, tempoReferencia: number }}
+ */
+function selecionarTempoUtilizado({ tempoPadrao, tempoReferencia } = {}) {
+  const padrao = tempoValido(tempoPadrao)
+  const referencia = tempoValido(tempoReferencia)
+
+  if (padrao > 0 && referencia > 0) {
+    if (referencia < padrao) {
+      return {
+        tempo: referencia,
+        origem: ORIGENS_TEMPO_UTILIZADO.REFERENCIA_MENOR,
+        tempoPadrao: padrao,
+        tempoReferencia: referencia,
+      }
+    }
+
+    if (padrao < referencia) {
+      return {
+        tempo: padrao,
+        origem: ORIGENS_TEMPO_UTILIZADO.PADRAO_MENOR,
+        tempoPadrao: padrao,
+        tempoReferencia: referencia,
+      }
+    }
+
+    return {
+      tempo: padrao,
+      origem: ORIGENS_TEMPO_UTILIZADO.IGUAIS,
+      tempoPadrao: padrao,
+      tempoReferencia: referencia,
+    }
+  }
+
+  if (referencia > 0) {
+    return {
+      tempo: referencia,
+      origem: ORIGENS_TEMPO_UTILIZADO.SOMENTE_REFERENCIA,
+      tempoPadrao: 0,
+      tempoReferencia: referencia,
+    }
+  }
+
+  if (padrao > 0) {
+    return {
+      tempo: padrao,
+      origem: ORIGENS_TEMPO_UTILIZADO.SOMENTE_PADRAO,
+      tempoPadrao: padrao,
+      tempoReferencia: 0,
+    }
+  }
+
+  return {
+    tempo: 0,
+    origem: ORIGENS_TEMPO_UTILIZADO.INDISPONIVEL,
+    tempoPadrao: 0,
+    tempoReferencia: 0,
+  }
 }
 
 /**
@@ -324,6 +429,43 @@ function calcularEficiencia({
 }
 
 /**
+ * Os TRÊS critérios de eficiência + o indicador geral de um agrupamento.
+ *
+ * Cada critério é calculado de forma INDEPENDENTE a partir dos totais
+ * acumulados do agrupamento (tempo ponderado ÷ tempo trabalhado), nunca a
+ * partir do resultado de outro critério e nunca pela média das percentagens.
+ *
+ *   eficienciaTempoPadrao     = Σ(qtd × Tempo Padrão)   × 100 ÷ tempo trabalhado
+ *   eficienciaTempoReferencia = Σ(qtd × Tempo de Referência válido) × 100 ÷ tempo trabalhado
+ *   eficienciaTempoAplicado   = Σ(qtd × Tempo Aplicado) × 100 ÷ tempo trabalhado
+ *   eficienciaGeral           = consolidado do Tempo Aplicado (NÃO é uma
+ *                               quarta metodologia de escolha de tempo)
+ *
+ * O denominador é sempre o mesmo (tempo efetivamente trabalhado do
+ * agrupamento), então os três indicadores são diretamente comparáveis.
+ * Lançamentos sem Tempo de Referência válido não são substituídos pelo
+ * Tempo Padrão no critério de referência: contribuem com 0 (nada inventado).
+ */
+function montarEficienciasPorCriterio({
+  tempoPadrao = 0,
+  tempoReferencia = 0,
+  tempoAplicado = 0,
+  tempoTrabalhado = 0,
+} = {}) {
+  const eficienciaTempoPadrao = calcularEficiencia({ producaoPonderada: tempoPadrao, tempoTrabalhado })
+  const eficienciaTempoReferencia = calcularEficiencia({ producaoPonderada: tempoReferencia, tempoTrabalhado })
+  const eficienciaTempoAplicado = calcularEficiencia({ producaoPonderada: tempoAplicado, tempoTrabalhado })
+
+  return {
+    eficienciaTempoPadrao,
+    eficienciaTempoReferencia,
+    eficienciaTempoAplicado,
+    // Indicador consolidado das produções do agrupamento no período.
+    eficienciaGeral: eficienciaTempoAplicado,
+  }
+}
+
+/**
  * Capacidade = (Funcionários × Tempo Trabalhado) ÷ SAM (floor).
  */
 function calcularCapacidade({ tempoTrabalhado = 0, sam = 0, funcionarios = 1 } = {}) {
@@ -432,9 +574,30 @@ function escolherReferenciaPorData(refs, dataConsulta) {
 
 /**
  * Monta o resultado padronizado da resolução do SAM.
+ *
+ * `usarMenorTempo` (usado pelos relatórios de produção) aplica a regra do
+ * menor tempo válido entre Tempo Padrão e Tempo de Referência — ver
+ * `selecionarTempoUtilizado`. Sem a opção, preserva o comportamento
+ * histórico (referência quando existir; senão padrão).
  */
-function montarResultadoSAM(ref, origem, tempoPadrao) {
+function montarResultadoSAM(ref, origem, tempoPadrao, { usarMenorTempo = false } = {}) {
   const tempoReferencia = tempoDaReferencia(ref)
+
+  if (usarMenorTempo) {
+    const selecao = selecionarTempoUtilizado({ tempoPadrao, tempoReferencia })
+    const temReferencia = tempoReferencia > 0
+
+    return {
+      tempo: selecao.tempo,
+      origem: temReferencia ? origem : 'padrao_ficha',
+      origemTempoUtilizado: selecao.origem,
+      tempoPadrao: selecao.tempoPadrao,
+      tempoReferencia: selecao.tempoReferencia,
+      referenciaId: temReferencia ? ref?.id ?? null : null,
+      dataReferencia: temReferencia ? extrairDataReferencia(ref) : null,
+      opId: temReferencia ? ref?.opId ?? null : null,
+    }
+  }
 
   if (tempoReferencia > 0) {
     return {
@@ -472,8 +635,17 @@ function montarResultadoSAM(ref, origem, tempoPadrao) {
  * @param {number|null} params.idOp      OP do lançamento
  * @param {string} params.dataProducao   YYYY-MM-DD do lançamento
  * @param {number} params.tempoPadrao    Tempo padrão da etapa
+ * @param {boolean} [params.usarMenorTempo] Menor tempo válido (padrão × referência)
  */
-function resolverSAMPorProducao({ refs, funcionarioEmail, idOp, dataProducao, tempoPadrao }) {
+function resolverSAMPorProducao({
+  refs,
+  funcionarioEmail,
+  idOp,
+  dataProducao,
+  tempoPadrao,
+  usarMenorTempo = false,
+}) {
+  const montar = (ref, origem) => montarResultadoSAM(ref, origem, tempoPadrao, { usarMenorTempo })
   const lista = Array.isArray(refs) ? refs : []
   const email = funcionarioEmail == null ? '' : String(funcionarioEmail)
 
@@ -489,7 +661,7 @@ function resolverSAMPorProducao({ refs, funcionarioEmail, idOp, dataProducao, te
     const refsDaOP = doFuncionario.filter(ref => ref.opId != null && Number(ref.opId) === opIdNumero)
     if (refsDaOP.length) {
       const refOP = escolherReferenciaPorData(refsDaOP, dataProducao)
-      if (refOP) return montarResultadoSAM(refOP, 'peca', tempoPadrao)
+      if (refOP) return montar(refOP, 'peca')
     }
   }
 
@@ -497,11 +669,11 @@ function resolverSAMPorProducao({ refs, funcionarioEmail, idOp, dataProducao, te
   const refsGerais = doFuncionario.filter(ref => ref.opId == null)
   if (refsGerais.length) {
     const refGeral = escolherReferenciaPorData(refsGerais, dataProducao)
-    if (refGeral) return montarResultadoSAM(refGeral, 'ultimo_registrado', tempoPadrao)
+    if (refGeral) return montar(refGeral, 'ultimo_registrado')
   }
 
   // 3. Fallback: Tempo Padrão da ficha/etapa.
-  return montarResultadoSAM(null, 'padrao_ficha', tempoPadrao)
+  return montar(null, 'padrao_ficha')
 }
 
 /**
@@ -644,6 +816,9 @@ function montarEtapasFinaisPorOp({ opsComEtapas, pecaFinalConfigurada }) {
  * @param {Map}    [opcoes.etapasFinaisPorOp]  Map<id_da_op, Set<id_da_funcao>>
  * @param {Map}    [opcoes.metasPorDia]        Map<YYYY-MM-DD, Map<id_da_op, meta>>
  * @param {boolean} [opcoes.incluirDetalhes]   Gera a lista auditável de lançamentos
+ * @param {boolean} [opcoes.usarMenorTempo]    Usa o MENOR tempo válido entre
+ *                                             Tempo Padrão e Tempo Referência
+ *                                             (relatórios de produção)
  */
 function analisarLancamentos(
   producoesValidas,
@@ -653,6 +828,7 @@ function analisarLancamentos(
     etapasFinaisPorOp = new Map(),
     metasPorDia = new Map(),
     incluirDetalhes = false,
+    usarMenorTempo = false,
   } = {}
 ) {
   const diasMap = new Map()
@@ -670,6 +846,26 @@ function analisarLancamentos(
 
   let registros = 0
   let registrosIgnorados = 0
+
+  // Tempo ponderado apenas pelo Tempo de Referência VÁLIDO (sem fallback
+  // para o Tempo Padrão) — base do indicador "Eficiência — Tempo de
+  // Referência". Lançamentos sem referência válida não entram no numerador.
+  let tempoReferenciaPuroTotal = 0
+
+  // Quantidade apontada que POSSUI Tempo de Referência válido. Serve apenas
+  // para medir a cobertura da referência (sinalizar ausência de dados no
+  // dashboard) — não altera nenhum cálculo existente.
+  let quantidadeComReferenciaTotal = 0
+
+  // Contagem por origem do tempo utilizado (auditoria do relatório).
+  const origensTempoUtilizado = {
+    referencia_menor: 0,
+    padrao_menor: 0,
+    iguais: 0,
+    somente_referencia: 0,
+    somente_padrao: 0,
+    indisponivel: 0,
+  }
 
   // Saldo líquido (positivos − estornos) por lançamento-chave.
   // Usado para zerar a produção concluída quando tudo foi estornado.
@@ -718,11 +914,19 @@ function analisarLancamentos(
           quantidade,
           tempoFicha: 0,
           tempoReferencia: 0,
+          tempoReferenciaPuro: 0,
           tempoFabrica: 0,
           tempoTrabalhado: 0,
           eficiencia: 0,
+          eficienciaTempoPadrao: 0,
+          eficienciaTempoReferencia: 0,
+          eficienciaTempoAplicado: 0,
           sam: 0,
+          tempoPadraoUnitario: 0,
+          tempoReferenciaUnitario: 0,
+          tempoUtilizadoUnitario: 0,
           origemTempo: 'estorno',
+          origemTempoUtilizado: 'estorno',
           referenciaId: null,
           etapaFinal: false,
           saldoLiquido,
@@ -742,11 +946,23 @@ function analisarLancamentos(
       idOp,
       dataProducao: diaStr,
       tempoPadrao: etapaTempoPadrao,
+      usarMenorTempo,
     })
     const sam = Number(samRes?.tempo) || 0
 
+    // Auditoria da escolha do tempo (unidade: minutos/peça).
+    const tempoPadraoUnitario = tempoValido(etapaTempoPadrao)
+    const tempoReferenciaUnitario = tempoValido(samRes?.tempoReferencia)
+    const origemTempoUtilizado = samRes?.origemTempoUtilizado || null
+    if (origemTempoUtilizado && origensTempoUtilizado[origemTempoUtilizado] != null) {
+      origensTempoUtilizado[origemTempoUtilizado]++
+    }
+
     const tempoFicha = quantidade * etapaTempoPadrao
     const tempoReferencia = quantidade * sam
+    // Critério exclusivo de referência: só conta quando a referência existe.
+    const tempoReferenciaPuro = quantidade * tempoReferenciaUnitario
+    const quantidadeComReferencia = tempoReferenciaUnitario > 0 ? quantidade : 0
 
     // ── Produção concluída: etapa final da OP + saldo líquido ──
     const idsEtapasFinais = etapasFinaisPorOp.get(idOp)
@@ -759,6 +975,8 @@ function analisarLancamentos(
     tempoTrabalhadoTotal += tempoProduzido
     tempoFichaTotal += tempoFicha
     tempoReferenciaTotal += tempoReferencia
+    tempoReferenciaPuroTotal += tempoReferenciaPuro
+    quantidadeComReferenciaTotal += quantidadeComReferencia
     registros++
 
     // ── Por dia ──
@@ -771,6 +989,8 @@ function analisarLancamentos(
         tempoTrabalhado: 0,
         tempoFicha: 0,
         tempoReferencia: 0,
+        tempoReferenciaPuro: 0,
+        quantidadeComReferencia: 0,
         funcionariosSet: new Set(),
         registros: 0,
       })
@@ -782,6 +1002,8 @@ function analisarLancamentos(
     dia.tempoTrabalhado += tempoProduzido
     dia.tempoFicha += tempoFicha
     dia.tempoReferencia += tempoReferencia
+    dia.tempoReferenciaPuro += tempoReferenciaPuro
+    dia.quantidadeComReferencia += quantidadeComReferencia
     dia.funcionariosSet.add(funcEmail)
     dia.registros++
 
@@ -796,6 +1018,7 @@ function analisarLancamentos(
         tempoTrabalhado: 0,
         tempoFicha: 0,
         tempoReferencia: 0,
+        tempoReferenciaPuro: 0,
         diasTrabalhadosSet: new Set(),
         opsIdsSet: new Set(),
         etapasIdsSet: new Set(),
@@ -808,6 +1031,7 @@ function analisarLancamentos(
     func.tempoTrabalhado += tempoProduzido
     func.tempoFicha += tempoFicha
     func.tempoReferencia += tempoReferencia
+    func.tempoReferenciaPuro += tempoReferenciaPuro
     func.diasTrabalhadosSet.add(diaStr)
     func.opsIdsSet.add(idOp)
     func.etapasIdsSet.add(etapaId)
@@ -825,6 +1049,7 @@ function analisarLancamentos(
         tempoTrabalhado: 0,
         tempoFicha: 0,
         tempoReferencia: 0,
+        tempoReferenciaPuro: 0,
         funcionariosSet: new Set(),
         etapasSet: new Set(),
         registros: 0,
@@ -838,6 +1063,7 @@ function analisarLancamentos(
     opCons.tempoTrabalhado += tempoProduzido
     opCons.tempoFicha += tempoFicha
     opCons.tempoReferencia += tempoReferencia
+    opCons.tempoReferenciaPuro += tempoReferenciaPuro
     opCons.funcionariosSet.add(funcEmail)
     opCons.etapasSet.add(etapaId)
     opCons.registros++
@@ -859,6 +1085,7 @@ function analisarLancamentos(
         tempoTrabalhado: 0,
         tempoFicha: 0,
         tempoReferencia: 0,
+        tempoReferenciaPuro: 0,
         funcionariosSet: new Set(),
         opsSet: new Set(),
         registros: 0,
@@ -872,6 +1099,7 @@ function analisarLancamentos(
     etapaC.tempoTrabalhado += tempoProduzido
     etapaC.tempoFicha += tempoFicha
     etapaC.tempoReferencia += tempoReferencia
+    etapaC.tempoReferenciaPuro += tempoReferenciaPuro
     etapaC.funcionariosSet.add(funcEmail)
     etapaC.opsSet.add(idOp)
     etapaC.registros++
@@ -892,11 +1120,22 @@ function analisarLancamentos(
         quantidade,
         tempoFicha: round2(tempoFicha),
         tempoReferencia: round2(tempoReferencia),
+        tempoReferenciaPuro: round2(tempoReferenciaPuro),
         tempoFabrica: round2(tempoReferencia),
         tempoTrabalhado: tempoProduzido,
         eficiencia: calcularEficiencia({ producaoPonderada: tempoReferencia, tempoTrabalhado: tempoProduzido }),
+        ...montarEficienciasPorCriterio({
+          tempoPadrao: tempoFicha,
+          tempoReferencia: tempoReferenciaPuro,
+          tempoAplicado: tempoReferencia,
+          tempoTrabalhado: tempoProduzido,
+        }),
         sam: round2(sam),
+        tempoPadraoUnitario: round2(tempoPadraoUnitario),
+        tempoReferenciaUnitario: round2(tempoReferenciaUnitario),
+        tempoUtilizadoUnitario: round2(sam),
         origemTempo: samRes?.origem || 'padrao_ficha',
+        origemTempoUtilizado,
         referenciaId: samRes?.referenciaId ?? null,
         etapaFinal: ehEtapaFinalDaOp,
         saldoLiquido,
@@ -919,8 +1158,16 @@ function analisarLancamentos(
       tempoTrabalhado: round2(d.tempoTrabalhado),
       tempoFicha: round2(d.tempoFicha),
       tempoReferencia: round2(d.tempoReferencia),
+      tempoReferenciaPuro: round2(d.tempoReferenciaPuro),
+      quantidadeComReferencia: d.quantidadeComReferencia,
       eficiencia: calcularEficiencia({ producaoPonderada: d.tempoReferencia, tempoTrabalhado: d.tempoTrabalhado }),
       eficienciaFicha: calcularEficiencia({ producaoPonderada: d.tempoFicha, tempoTrabalhado: d.tempoTrabalhado }),
+      ...montarEficienciasPorCriterio({
+        tempoPadrao: d.tempoFicha,
+        tempoReferencia: d.tempoReferenciaPuro,
+        tempoAplicado: d.tempoReferencia,
+        tempoTrabalhado: d.tempoTrabalhado,
+      }),
       tempoMedioPorPeca: d.producao > 0 ? round2(d.tempoTrabalhado / d.producao) : 0,
       tempoReferenciaMedio: d.producao > 0 ? round2(d.tempoReferencia / d.producao) : 0,
     }))
@@ -937,9 +1184,16 @@ function analisarLancamentos(
       tempoTrabalhado: round2(f.tempoTrabalhado),
       tempoFicha: round2(f.tempoFicha),
       tempoReferencia: round2(f.tempoReferencia),
+      tempoReferenciaPuro: round2(f.tempoReferenciaPuro),
       eficiencia: calcularEficiencia({ producaoPonderada: f.tempoReferencia, tempoTrabalhado: f.tempoTrabalhado }),
       eficienciaReferencia: calcularEficiencia({ producaoPonderada: f.tempoReferencia, tempoTrabalhado: f.tempoTrabalhado }),
       eficienciaFicha: calcularEficiencia({ producaoPonderada: f.tempoFicha, tempoTrabalhado: f.tempoTrabalhado }),
+      ...montarEficienciasPorCriterio({
+        tempoPadrao: f.tempoFicha,
+        tempoReferencia: f.tempoReferenciaPuro,
+        tempoAplicado: f.tempoReferencia,
+        tempoTrabalhado: f.tempoTrabalhado,
+      }),
       diasTrabalhados: f.diasTrabalhadosSet.size,
       opsTrabalhadas: f.opsIdsSet.size,
       etapasTrabalhadas: f.etapasIdsSet.size,
@@ -968,11 +1222,18 @@ function analisarLancamentos(
         tempoTrabalhado: round2(o.tempoTrabalhado),
         tempoFicha: round2(o.tempoFicha),
         tempoReferencia: round2(o.tempoReferencia),
+        tempoReferenciaPuro: round2(o.tempoReferenciaPuro),
         tempoReferenciaMedio: round2(samMedio),
         tempoMedioPorPeca: o.producaoRegistrada > 0 ? round2(o.tempoTrabalhado / o.producaoRegistrada) : 0,
         capacidade: calcularCapacidade({ tempoTrabalhado: o.tempoTrabalhado, sam: samMedio }),
         eficiencia: calcularEficiencia({ producaoPonderada: o.tempoReferencia, tempoTrabalhado: o.tempoTrabalhado }),
         eficienciaFicha: calcularEficiencia({ producaoPonderada: o.tempoFicha, tempoTrabalhado: o.tempoTrabalhado }),
+        ...montarEficienciasPorCriterio({
+          tempoPadrao: o.tempoFicha,
+          tempoReferencia: o.tempoReferenciaPuro,
+          tempoAplicado: o.tempoReferencia,
+          tempoTrabalhado: o.tempoTrabalhado,
+        }),
         registros: o.registros,
         primeiraData: o.primeiraData,
         ultimaData: o.ultimaData,
@@ -1001,11 +1262,18 @@ function analisarLancamentos(
         tempoTrabalhado: round2(e.tempoTrabalhado),
         tempoFicha: round2(e.tempoFicha),
         tempoReferencia: round2(e.tempoReferencia),
+        tempoReferenciaPuro: round2(e.tempoReferenciaPuro),
         tempoReferenciaMedio: round2(samMedio),
         trVariavel: e.samSet.size > 1,
         origemTempoReferencia,
         eficiencia: calcularEficiencia({ producaoPonderada: e.tempoReferencia, tempoTrabalhado: e.tempoTrabalhado }),
         eficienciaFicha: calcularEficiencia({ producaoPonderada: e.tempoFicha, tempoTrabalhado: e.tempoTrabalhado }),
+        ...montarEficienciasPorCriterio({
+          tempoPadrao: e.tempoFicha,
+          tempoReferencia: e.tempoReferenciaPuro,
+          tempoAplicado: e.tempoReferencia,
+          tempoTrabalhado: e.tempoTrabalhado,
+        }),
         registros: e.registros,
       }
     })
@@ -1025,8 +1293,16 @@ function analisarLancamentos(
     tempoTrabalhado: round2(tempoTrabalhadoTotal),
     tempoFicha: round2(tempoFichaTotal),
     tempoReferencia: round2(tempoReferenciaTotal),
+    tempoReferenciaPuro: round2(tempoReferenciaPuroTotal),
+    quantidadeComReferencia: quantidadeComReferenciaTotal,
     eficiencia: calcularEficiencia({ producaoPonderada: tempoReferenciaTotal, tempoTrabalhado: tempoTrabalhadoTotal }),
     eficienciaFicha: calcularEficiencia({ producaoPonderada: tempoFichaTotal, tempoTrabalhado: tempoTrabalhadoTotal }),
+    ...montarEficienciasPorCriterio({
+      tempoPadrao: tempoFichaTotal,
+      tempoReferencia: tempoReferenciaPuroTotal,
+      tempoAplicado: tempoReferenciaTotal,
+      tempoTrabalhado: tempoTrabalhadoTotal,
+    }),
     tempoMedioPorPeca: producaoRegistradaTotal > 0 ? round2(tempoTrabalhadoTotal / producaoRegistradaTotal) : 0,
     tempoReferenciaMedio: producaoRegistradaTotal > 0 ? round2(tempoReferenciaTotal / producaoRegistradaTotal) : 0,
     profissionais: funcionariosMap.size,
@@ -1036,6 +1312,10 @@ function analisarLancamentos(
     diasConProducaoConcluida: porDia.filter(d => d.producaoConcluida > 0).length,
     registros,
     registrosIgnorados,
+    origensTempoUtilizado,
+    regraTempoUtilizado: usarMenorTempo
+      ? 'menor_tempo_valido'
+      : 'referencia_quando_existir',
   }
 
   return { resumo, porDia, funcionarios, ops, porEtapa, detalhes }
@@ -1058,6 +1338,9 @@ module.exports = {
   normalizarDataReferencia,
   extrairDataReferencia,
   tempoDaReferencia,
+  tempoValido,
+  ORIGENS_TEMPO_UTILIZADO,
+  selecionarTempoUtilizado,
   parseDataUTC,
   dataISOValida,
   rangeConsulta,
@@ -1069,8 +1352,8 @@ module.exports = {
   // Fórmulas oficiais
   round2,
   calcularEficiencia,
-  calcularCapacidade,
-  tempoTrabalhadoDoLancamento,
+  montarEficienciasPorCriterio,
+  calcularCapacidade,  tempoTrabalhadoDoLancamento,
 
   // SAM / Tempo Referência
   valorRecenciaRef,

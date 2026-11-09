@@ -95,6 +95,8 @@
 
             <GraficoMetaProducao :filtro="filtro" class="mb-4" />
 
+            <GraficoEvolucaoProducao ref="evolucaoProducao" class="mb-4" />
+
             <!-- <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" /> -->
             <!-- <GraficoEtapas class="mb-4" /> -->
@@ -166,6 +168,7 @@ import SidebarNav from '@/components/Sidebar.vue';
 //import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 // import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
 import GraficoMetaProducao from '@/components/GraficoMetaProducao.vue';
+import GraficoEvolucaoProducao from '@/components/GraficoEvolucaoProducao.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
 //import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
 // import GraficoEtapas from '@/components/GraficoEtapas.vue';
@@ -193,6 +196,7 @@ export default {
     // ProducaoPorPeca,
     // GraficoProducaoPecas,
     GraficoMetaProducao,
+    GraficoEvolucaoProducao,
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
@@ -339,6 +343,10 @@ export default {
       invalidar(chaveGet('/producao/equipe', { filtro: this.filtro }));
 
       this.carregarSecoes();
+
+      // O gráfico de evolução tem o próprio período (7/15/30/personalizado):
+      // recarrega mantendo a seleção do usuário.
+      this.$refs.evolucaoProducao?.recarregar();
 
       Swal.fire({
         toast: true,

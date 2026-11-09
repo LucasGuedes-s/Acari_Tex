@@ -2,6 +2,7 @@ const pecas = require('../Services/OP.services');
 const { gerarPdfPeca } = require('../utils/PdfPeca');
 const Estatisticas = require('../Controllers/EstatisticasController');
 const meta = require('../Services/metaDia.service')
+const slidesProducao = require('../Services/slidesProducaoService')
 async function postOP(req, res, next){  
     try {
         const novaPeca = await pecas.postPecaOP(req.body, req.user);
@@ -297,6 +298,36 @@ async function cronoanalise(req, res, next) {
         next(err);
     }
 }
+/**
+ * GET /producao/painel
+ * Painel (TV) de produção do dia, nos mesmos números dos relatórios.
+ * Query: data (YYYY-MM-DD, padrão hoje em São Paulo).
+ */
+async function getPainelProducao(req, res) {
+    try {
+        const cnpj = req.user?.cnpj;
+
+        if (!cnpj) {
+            return res.status(400).json({ mensagem: 'Estabelecimento não identificado no token.' });
+        }
+
+        const validacao = slidesProducao.validarData(req.query?.data);
+
+        if (!validacao.ok) {
+            return res.status(validacao.status).json({ mensagem: validacao.message });
+        }
+
+        const dados = await slidesProducao.obterPainelProducao(cnpj, { data: validacao.data });
+
+        return res.status(200).json(dados);
+    } catch (err) {
+        const status = err.statusCode || 500;
+        if (status >= 500) console.error('Erro ao obter painel de produção:', err);
+        return res.status(status).json({
+            mensagem: err.message || 'Erro ao obter painel de produção.',
+        });
+    }
+}
 async function updateEtapa(req, res, next) {
     try {
         const etapaAtualizada = await pecas.updateEtapa(req);
@@ -336,5 +367,6 @@ module.exports = {
     getMetaDiaria,
     cronoanalise,
     getMetaProducao,
+    getPainelProducao,
     updateEtapa
 };

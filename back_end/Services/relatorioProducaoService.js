@@ -23,9 +23,24 @@
  *   seção "Produção por Etapa". Estornos (quantidade < 0) são preservados
  *   e podem zerar a produção concluída via saldo por chave.
  *
+ * TEMPO UTILIZADO (regra dos relatórios):
+ *   SEMPRE o menor tempo válido entre o Tempo Padrão da etapa e o Tempo de
+ *   Referência do profissional (resolvido pela data da produção). Sem
+ *   referência válida → padrão; sem padrão válido → referência; sem
+ *   nenhum → 0 (nunca inventa valor). Fonte única: `selecionarTempoUtilizado`
+ *   em utils/producaoCalculos.js.
+ *
  * EFICIÊNCIA:
- *   Eficiência (%) = Σ(Quantidade × SAM) × 100 ÷ (Funcionários × Tempo Trabalhado)
+ *   Eficiência (%) = Σ(Quantidade × Tempo Utilizado) × 100 ÷ (Funcionários × Tempo Trabalhado)
  *   Lançamentos com quantidade <= 0 não entram; tempo_produzido ausente → 60 min.
+ *
+ * TRÊS CRITÉRIOS + GERAL (calculados de forma independente, por TOTAIS):
+ *   eficienciaTempoPadrao     → Σ(qtd × Tempo Padrão)
+ *   eficienciaTempoReferencia → Σ(qtd × Tempo de Referência válido)
+ *   eficienciaTempoAplicado   → Σ(qtd × Tempo Aplicado)
+ *   eficienciaGeral           → consolidado do Tempo Aplicado no agrupamento
+ *                               (não é uma 4ª metodologia nem média de %).
+ *   Ver `montarEficienciasPorCriterio` em utils/producaoCalculos.js.
  */
 
 const { PrismaClient } = require('@prisma/client')
@@ -45,6 +60,7 @@ const {
   // Fórmulas / regras
   round2,
   calcularEficiencia,
+  montarEficienciasPorCriterio,
   resolverSAMPorProducao,
   agruparReferenciasPorEtapa,
   removerProducoesDuplicadas,
@@ -385,6 +401,9 @@ async function calcularRelatorio(cnpj, periodo, { incluirDetalhes = false } = {}
     etapasFinaisPorOp,
     metasPorDia,
     incluirDetalhes,
+    // Relatórios: SEMPRE o menor tempo válido entre Tempo Padrão e
+    // Tempo de Referência (regra única em utils/producaoCalculos.js).
+    usarMenorTempo: true,
   })
 
   debugLog(
@@ -401,80 +420,100 @@ async function calcularRelatorio(cnpj, periodo, { incluirDetalhes = false } = {}
 }
 
 /**
- * Perfil por profissional (produção por dia e por OP) derivado dos detalhes
- * auditáveis — sem consultas extras ao banco.
+ * Perfil por profissional (produção por dia, OP e etapa) derivado dos
+ * detalhes auditáveis — sem consultas extras ao banco.
+ *
+ * Cada agrupamento (profissional, dia, OP, etapa) recebe os TRÊS critérios de
+ * eficiência e o indicador geral, sempre calculados a partir dos TOTAIS
+ * acumulados daquele agrupamento — nunca pela média das percentagens de
+ * subgrupos.
  */
 function montarPerfilPorProfissional(detalhes) {
   const perfil = new Map()
+
+  const novoAcumulador = extra => ({
+    ...extra,
+    producao: 0,
+    tempoTrabalhado: 0,
+    tempoFicha: 0,
+    tempoReferenciaPuro: 0,
+    tempoReferencia: 0,
+  })
+
+  const acumular = (alvo, d) => {
+    alvo.producao += d.quantidade
+    alvo.tempoTrabalhado += d.tempoTrabalhado
+    alvo.tempoFicha += d.tempoFicha || 0
+    alvo.tempoReferenciaPuro += d.tempoReferenciaPuro || 0
+    alvo.tempoReferencia += d.tempoReferencia
+  }
+
+  // Totais brutos → eficiências (inteiras) → tempos arredondados.
+  const finalizar = (alvo, extra = {}) => ({
+    ...extra,
+    producao: alvo.producao,
+    tempoTrabalhado: round2(alvo.tempoTrabalhado),
+    tempoFicha: round2(alvo.tempoFicha),
+    tempoReferenciaPuro: round2(alvo.tempoReferenciaPuro),
+    tempoReferencia: round2(alvo.tempoReferencia),
+    eficiencia: calcularEficiencia({
+      producaoPonderada: alvo.tempoReferencia,
+      tempoTrabalhado: alvo.tempoTrabalhado,
+    }),
+    ...montarEficienciasPorCriterio({
+      tempoPadrao: alvo.tempoFicha,
+      tempoReferencia: alvo.tempoReferenciaPuro,
+      tempoAplicado: alvo.tempoReferencia,
+      tempoTrabalhado: alvo.tempoTrabalhado,
+    }),
+  })
 
   for (const d of detalhes) {
     if (!d.calculado) continue
 
     if (!perfil.has(d.funcionarioEmail)) {
-      perfil.set(d.funcionarioEmail, {
-        email: d.funcionarioEmail,
-        nome: d.profissional,
-        producao: 0,
-        tempoTrabalhado: 0,
-        tempoReferencia: 0,
-        dias: new Map(),
-        ops: new Map(),
-        etapas: new Set(),
-      })
+      perfil.set(
+        d.funcionarioEmail,
+        novoAcumulador({
+          email: d.funcionarioEmail,
+          nome: d.profissional,
+          dias: new Map(),
+          ops: new Map(),
+          porEtapa: new Map(),
+          etapas: new Set(),
+        })
+      )
     }
 
     const p = perfil.get(d.funcionarioEmail)
-    p.producao += d.quantidade
-    p.tempoTrabalhado += d.tempoTrabalhado
-    p.tempoReferencia += d.tempoReferencia
+    acumular(p, d)
     p.etapas.add(d.etapa)
 
-    if (!p.dias.has(d.data)) {
-      p.dias.set(d.data, { data: d.data, producao: 0, tempoTrabalhado: 0, tempoReferencia: 0 })
-    }
-    const diaP = p.dias.get(d.data)
-    diaP.producao += d.quantidade
-    diaP.tempoTrabalhado += d.tempoTrabalhado
-    diaP.tempoReferencia += d.tempoReferencia
+    if (!p.dias.has(d.data)) p.dias.set(d.data, novoAcumulador({ data: d.data }))
+    acumular(p.dias.get(d.data), d)
 
-    if (!p.ops.has(d.op)) {
-      p.ops.set(d.op, { idOp: d.op, producao: 0, tempoTrabalhado: 0, tempoReferencia: 0 })
-    }
-    const opP = p.ops.get(d.op)
-    opP.producao += d.quantidade
-    opP.tempoTrabalhado += d.tempoTrabalhado
-    opP.tempoReferencia += d.tempoReferencia
+    if (!p.ops.has(d.op)) p.ops.set(d.op, novoAcumulador({ idOp: d.op }))
+    acumular(p.ops.get(d.op), d)
+
+    if (!p.porEtapa.has(d.etapa)) p.porEtapa.set(d.etapa, novoAcumulador({ etapa: d.etapa }))
+    acumular(p.porEtapa.get(d.etapa), d)
   }
 
   return [...perfil.values()]
     .map(p => ({
-      email: p.email,
-      nome: p.nome,
-      producao: p.producao,
-      tempoTrabalhado: round2(p.tempoTrabalhado),
-      tempoReferencia: round2(p.tempoReferencia),
-      eficiencia: calcularEficiencia({ producaoPonderada: p.tempoReferencia, tempoTrabalhado: p.tempoTrabalhado }),
+      ...finalizar(p, { email: p.email, nome: p.nome }),
       etapas: [...p.etapas],
       porDia: [...p.dias.values()]
         .sort((a, b) => a.data.localeCompare(b.data))
-        .map(d => ({
-          data: d.data,
-          producao: d.producao,
-          tempoTrabalhado: round2(d.tempoTrabalhado),
-          tempoReferencia: round2(d.tempoReferencia),
-          eficiencia: calcularEficiencia({ producaoPonderada: d.tempoReferencia, tempoTrabalhado: d.tempoTrabalhado }),
-        })),
+        .map(d => finalizar(d, { data: d.data })),
       porOP: [...p.ops.values()]
         .sort((a, b) => b.producao - a.producao)
-        .map(o => ({
-          idOp: o.idOp,
-          producao: o.producao,
-          tempoTrabalhado: round2(o.tempoTrabalhado),
-          tempoReferencia: round2(o.tempoReferencia),
-          eficiencia: calcularEficiencia({ producaoPonderada: o.tempoReferencia, tempoTrabalhado: o.tempoTrabalhado }),
-        })),
+        .map(o => finalizar(o, { idOp: o.idOp })),
+      porEtapa: [...p.porEtapa.values()]
+        .sort((a, b) => b.producao - a.producao || String(a.etapa).localeCompare(String(b.etapa)))
+        .map(e => finalizar(e, { etapa: e.etapa })),
     }))
-    .sort((a, b) => b.producao - a.producao || a.nome.localeCompare(b.nome))
+    .sort((a, b) => b.producao - a.producao || String(a.nome).localeCompare(String(b.nome)))
 }
 
 /**
@@ -516,17 +555,34 @@ async function gerarRelatorioCompleto(cnpj, params) {
       tempoTrabalhado: resumo.tempoTrabalhado,
       tempoFicha: resumo.tempoFicha,
       tempoReferencia: resumo.tempoReferencia,
+      tempoReferenciaPuro: resumo.tempoReferenciaPuro,
       tempoFabrica: resumo.tempoReferencia,
       eficiencia: resumo.eficiencia,
       eficienciaFicha: resumo.eficienciaFicha,
+      // Três critérios de tempo, calculados de forma independente:
+      eficienciaTempoPadrao: resumo.eficienciaTempoPadrao,
+      eficienciaTempoReferencia: resumo.eficienciaTempoReferencia,
+      eficienciaTempoAplicado: resumo.eficienciaTempoAplicado,
+      // Indicador consolidado (Tempo Aplicado) — não é uma 4ª metodologia.
+      eficienciaGeral: resumo.eficienciaGeral,
       tempoMedioPorPeca: resumo.tempoMedioPorPeca,
       tempoReferenciaMedio: resumo.tempoReferenciaMedio,
       registros: resumo.registros,
       registrosIgnorados: resumo.registrosIgnorados,
       duplicadosRemovidos,
+      origensTempoUtilizado: resumo.origensTempoUtilizado,
+      regraTempoUtilizado: resumo.regraTempoUtilizado,
       formula: {
         eficiencia: FORMULA_EFICIENCIA,
-        sam: 'SAM = Tempo de Referência do profissional para a OP/etapa; sem referência, o último valor registrado da etapa; sem nenhum, o Tempo Padrão da etapa (Tempo Fábrica).',
+        eficienciaTempoPadrao:
+          'Σ(Quantidade × Tempo Padrão da etapa) × 100 ÷ (Funcionários × Tempo Trabalhado).',
+        eficienciaTempoReferencia:
+          'Σ(Quantidade × Tempo de Referência válido do profissional) × 100 ÷ (Funcionários × Tempo Trabalhado); lançamentos sem referência válida não são substituídos pelo Tempo Padrão (contribuem com 0).',
+        eficienciaTempoAplicado:
+          'Σ(Quantidade × Tempo Aplicado) × 100 ÷ (Funcionários × Tempo Trabalhado), com Tempo Aplicado = menor tempo válido entre Padrão e Referência.',
+        eficienciaGeral:
+          'Consolidado do critério Tempo Aplicado sobre todos os lançamentos do agrupamento — calculado por totais, nunca pela média das percentagens.',
+        sam: 'Tempo utilizado = MENOR valor válido entre o Tempo de Referência do profissional (OP/etapa, depois etapa) e o Tempo Padrão da etapa. Sem referência válida, usa o Tempo Padrão; sem padrão válido, usa a referência; sem nenhum, não há tempo aplicável (0).',
         producaoConcluida:
           'Produção concluída considera somente a etapa final do fluxo de cada OP; etapas intermediárias aparecem em producaoRegistrada e porEtapa.',
       },
@@ -583,6 +639,9 @@ async function gerarRelatorioProducao(cnpj, params) {
     metaTotal: resumo.metaTotal,
     eficienciaGeral: resumo.eficiencia,
     eficienciaGeralFicha: resumo.eficienciaFicha,
+    eficienciaGeralTempoPadrao: resumo.eficienciaTempoPadrao,
+    eficienciaGeralTempoReferencia: resumo.eficienciaTempoReferencia,
+    eficienciaGeralTempoAplicado: resumo.eficienciaTempoAplicado,
     funcionariosAtivos,
     funcionariosComProducao: funcionarios.length,
     opsCount: ops.length,
@@ -605,6 +664,10 @@ async function gerarRelatorioProducao(cnpj, params) {
       producaoConcluida: f.producaoConcluida,
       eficienciaFicha: f.eficienciaFicha,
       eficienciaReferencia: f.eficienciaReferencia,
+      eficienciaTempoPadrao: f.eficienciaTempoPadrao,
+      eficienciaTempoReferencia: f.eficienciaTempoReferencia,
+      eficienciaTempoAplicado: f.eficienciaTempoAplicado,
+      eficienciaGeral: f.eficienciaGeral,
       diasTrabalhados: f.diasTrabalhados,
     })),
 
@@ -632,6 +695,10 @@ async function gerarRelatorioProducao(cnpj, params) {
       producaoRegistrada: o.producaoRegistrada,
       metaTotal: o.metaTotal,
       eficiencia: o.eficiencia,
+      eficienciaTempoPadrao: o.eficienciaTempoPadrao,
+      eficienciaTempoReferencia: o.eficienciaTempoReferencia,
+      eficienciaTempoAplicado: o.eficienciaTempoAplicado,
+      eficienciaGeral: o.eficienciaGeral,
       funcionarios: o.profissionais,
     })),
 
@@ -639,6 +706,10 @@ async function gerarRelatorioProducao(cnpj, params) {
       descricao: e.descricao,
       producao: e.producaoRegistrada,
       eficiencia: e.eficiencia,
+      eficienciaTempoPadrao: e.eficienciaTempoPadrao,
+      eficienciaTempoReferencia: e.eficienciaTempoReferencia,
+      eficienciaTempoAplicado: e.eficienciaTempoAplicado,
+      eficienciaGeral: e.eficienciaGeral,
     })),
   }
 
@@ -805,14 +876,20 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
     // quebra em mais de uma linha.
     const larguraTextoCaixa = LARGURA_UTIL - 14
     const notaSam =
-      'SAM = Tempo de Referência do funcionário para a OP/etapa; sem referência, o último valor registrado da etapa; sem nenhum, o Tempo Padrão da Ficha Técnica (Tempo Fábrica).'
+      'Tempo utilizado = menor valor válido entre o Tempo de Referência do funcionário (OP/etapa, depois etapa) e o Tempo Padrão da etapa; sem referência válida vale o Tempo Padrão, sem padrão válido vale a referência.'
     const notaEtapaFinal =
       'Produção concluída considera somente a etapa final do fluxo de cada OP; etapas intermediárias aparecem apenas em "Produção por Etapa".'
+    // Deixa explícito o que cada percentual do relatório significa — evita
+    // apresentar números sem identificar o critério de tempo utilizado.
+    const notaCriterios =
+      'Indicadores: TEMPO PADRÃO considera só o Tempo Padrão da etapa; TEMPO REFERÊNCIA considera só o Tempo de Referência válido do profissional (sem substituir pelo padrão); TEMPO APLICADO usa o menor tempo válido entre os dois; EFICIÊNCIA GERAL é o consolidado do Tempo Aplicado de todas as produções do agrupamento, calculado por totais (nunca pela média das percentagens).'
 
     const alturaFormula = medirAlturaTexto(FORMULA_EFICIENCIA, larguraTextoCaixa, 8.5, 'Helvetica-Bold')
     const alturaNotaSam = medirAlturaTexto(notaSam, larguraTextoCaixa, 7.5)
+    const alturaNotaCriterios = medirAlturaTexto(notaCriterios, larguraTextoCaixa, 7.5)
     const alturaNotaEtapaFinal = medirAlturaTexto(notaEtapaFinal, larguraTextoCaixa, 7.5)
-    const alturaCaixa = 8 + alturaFormula + 5 + alturaNotaSam + 4 + alturaNotaEtapaFinal + 8
+    const alturaCaixa =
+      8 + alturaFormula + 5 + alturaNotaSam + 4 + alturaNotaCriterios + 4 + alturaNotaEtapaFinal + 8
 
     doc.rect(45, yAtual, LARGURA_UTIL, alturaCaixa).fill(COR.fundoCard)
     doc.rect(45, yAtual, LARGURA_UTIL, alturaCaixa).lineWidth(0.5).stroke(COR.linha)
@@ -826,6 +903,9 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
     doc.fontSize(7.5).font('Helvetica').fillColor(COR.textoSuave)
     doc.text(notaSam, 52, yCaixa, { width: larguraTextoCaixa })
     yCaixa += alturaNotaSam + 4
+
+    doc.text(notaCriterios, 52, yCaixa, { width: larguraTextoCaixa })
+    yCaixa += alturaNotaCriterios + 4
 
     doc.text(notaEtapaFinal, 52, yCaixa, { width: larguraTextoCaixa })
 
@@ -845,7 +925,10 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
       { label: 'PRODUÇÃO CONCLUÍDA', valor: fmtQtd(dados.producaoTotal), cor: COR.texto },
       { label: 'PRODUÇÃO REGISTRADA', valor: fmtQtd(dados.producaoRegistradaTotal), cor: COR.textoSuave },
       { label: 'META TOTAL', valor: fmtQtd(dados.metaTotal), cor: COR.texto },
-      { label: 'EFICIÊNCIA', valor: fmtPct(dados.eficienciaGeral), cor: corEficiencia(dados.eficienciaGeral) },
+      { label: 'EFIC. TEMPO PADRÃO', valor: fmtPct(dados.eficienciaGeralTempoPadrao), cor: corEficiencia(dados.eficienciaGeralTempoPadrao) },
+      { label: 'EFIC. TEMPO REFERÊNCIA', valor: fmtPct(dados.eficienciaGeralTempoReferencia), cor: corEficiencia(dados.eficienciaGeralTempoReferencia) },
+      { label: 'EFIC. TEMPO APLICADO', valor: fmtPct(dados.eficienciaGeralTempoAplicado), cor: corEficiencia(dados.eficienciaGeralTempoAplicado) },
+      { label: 'EFICIÊNCIA GERAL', valor: fmtPct(dados.eficienciaGeral), cor: corEficiencia(dados.eficienciaGeral) },
       { label: 'FUNCIONÁRIOS', valor: `${dados.funcionariosComProducao}/${dados.funcionariosAtivos}`, cor: COR.texto },
       { label: 'OPs', valor: String(dados.opsCount), cor: COR.texto },
       { label: 'DIAS TRABALHADOS', valor: String(dados.diasTrabalhados), cor: COR.texto },
@@ -889,13 +972,15 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
     yAtual += 18
 
     const colunasDiario = escalarColunas([
-      { header: 'Data', width: 55, align: 'left' },
-      { header: 'Dia', width: 45, align: 'left' },
-      { header: 'Concluídas', width: 58, align: 'right' },
-      { header: 'Apontadas', width: 58, align: 'right' },
-      { header: 'Meta', width: 50, align: 'right' },
-      { header: 'Eficiência', width: 60, align: 'right' },
-      { header: 'Funcionários', width: 55, align: 'right' },
+      { header: 'Data', width: 46, align: 'left' },
+      { header: 'Dia', width: 34, align: 'left' },
+      { header: 'Concluídas', width: 44, align: 'right' },
+      { header: 'Apontadas', width: 44, align: 'right' },
+      { header: 'Meta', width: 34, align: 'right' },
+      { header: 'Padrão', width: 46, align: 'right' },
+      { header: 'Ref.', width: 44, align: 'right' },
+      { header: 'Aplic.', width: 44, align: 'right' },
+      { header: 'Funcionários', width: 44, align: 'right' },
     ])
 
     // Reserva cabeçalho + 2 linhas: evita cabeçalho órfão no fim da página.
@@ -919,7 +1004,9 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         { texto: fmtQtd(dia.producaoConcluida), align: 'right' },
         { texto: fmtQtd(dia.producao), align: 'right', cor: COR.textoSuave },
         { texto: dia.meta > 0 ? fmtQtd(dia.meta) : '—', align: 'right' },
-        { texto: dia.producao > 0 ? fmtPct(dia.eficiencia) : '—', align: 'right', cor: dia.producao > 0 ? corEficiencia(dia.eficiencia) : COR.textoSuave },
+        { texto: dia.producao > 0 ? fmtPct(dia.eficienciaTempoPadrao) : '—', align: 'right', cor: dia.producao > 0 ? corEficiencia(dia.eficienciaTempoPadrao) : COR.textoSuave },
+        { texto: dia.producao > 0 ? fmtPct(dia.eficienciaTempoReferencia) : '—', align: 'right', cor: dia.producao > 0 ? corEficiencia(dia.eficienciaTempoReferencia) : COR.textoSuave },
+        { texto: dia.producao > 0 ? fmtPct(dia.eficienciaTempoAplicado) : '—', align: 'right', cor: dia.producao > 0 ? corEficiencia(dia.eficienciaTempoAplicado) : COR.textoSuave },
         { texto: String(dia.funcionarios), align: 'right' },
       ]
 
@@ -940,13 +1027,15 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
       yAtual += 18
 
       const colunasRanking = escalarColunas([
-        { header: 'Pos.', width: 30, align: 'center' },
-        { header: 'Funcionário', width: 110, align: 'left' },
-        { header: 'Concluídas', width: 55, align: 'right' },
-        { header: 'Apontadas', width: 55, align: 'right' },
-        { header: 'Efic. Ficha', width: 55, align: 'right' },
-        { header: 'Efic. Ref.', width: 55, align: 'right' },
-        { header: 'Dias', width: 30, align: 'right' },
+        { header: 'Pos.', width: 26, align: 'center' },
+        { header: 'Funcionário', width: 92, align: 'left' },
+        { header: 'Concluídas', width: 42, align: 'right' },
+        { header: 'Apontadas', width: 42, align: 'right' },
+        { header: 'Padrão', width: 42, align: 'right' },
+        { header: 'Ref.', width: 40, align: 'right' },
+        { header: 'Aplic.', width: 42, align: 'right' },
+        { header: 'Geral', width: 40, align: 'right' },
+        { header: 'Dias', width: 24, align: 'right' },
       ])
 
       verificarPagina(44)
@@ -969,8 +1058,10 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
           { texto: func.nome || func.email, align: 'left' },
           { texto: fmtQtd(func.producaoConcluida), align: 'right' },
           { texto: fmtQtd(func.producao), align: 'right', cor: COR.textoSuave },
-          { texto: func.producao > 0 ? fmtPct(func.eficienciaFicha) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaFicha) : COR.textoSuave },
-          { texto: func.producao > 0 ? fmtPct(func.eficienciaReferencia) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaReferencia) : COR.textoSuave },
+          { texto: func.producao > 0 ? fmtPct(func.eficienciaTempoPadrao) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaTempoPadrao) : COR.textoSuave },
+          { texto: func.producao > 0 ? fmtPct(func.eficienciaTempoReferencia) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaTempoReferencia) : COR.textoSuave },
+          { texto: func.producao > 0 ? fmtPct(func.eficienciaTempoAplicado) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaTempoAplicado) : COR.textoSuave },
+          { texto: func.producao > 0 ? fmtPct(func.eficienciaGeral) : '—', align: 'right', cor: func.producao > 0 ? corEficiencia(func.eficienciaGeral) : COR.textoSuave },
           { texto: String(func.diasTrabalhados), align: 'right' },
         ]
 
@@ -992,13 +1083,15 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
       yAtual += 18
 
       const colunasOp = escalarColunas([
-        { header: 'OP', width: 40, align: 'center' },
-        { header: 'Descrição', width: 100, align: 'left' },
-        { header: 'Concluídas', width: 55, align: 'right' },
-        { header: 'Apontadas', width: 55, align: 'right' },
-        { header: 'Meta', width: 50, align: 'right' },
-        { header: 'Eficiência', width: 60, align: 'right' },
-        { header: 'Funcionários', width: 50, align: 'right' },
+        { header: 'OP', width: 34, align: 'center' },
+        { header: 'Descrição', width: 74, align: 'left' },
+        { header: 'Concluídas', width: 42, align: 'right' },
+        { header: 'Apontadas', width: 42, align: 'right' },
+        { header: 'Meta', width: 34, align: 'right' },
+        { header: 'Padrão', width: 42, align: 'right' },
+        { header: 'Ref.', width: 40, align: 'right' },
+        { header: 'Aplic.', width: 42, align: 'right' },
+        { header: 'Funcionários', width: 42, align: 'right' },
       ])
 
       verificarPagina(44)
@@ -1017,7 +1110,9 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
           { texto: fmtQtd(op.producao), align: 'right' },
           { texto: fmtQtd(op.producaoRegistrada), align: 'right', cor: COR.textoSuave },
           { texto: op.metaTotal > 0 ? fmtQtd(op.metaTotal) : '—', align: 'right' },
-          { texto: op.producao > 0 ? fmtPct(op.eficiencia) : '—', align: 'right', cor: op.producao > 0 ? corEficiencia(op.eficiencia) : COR.textoSuave },
+          { texto: op.producao > 0 ? fmtPct(op.eficienciaTempoPadrao) : '—', align: 'right', cor: op.producao > 0 ? corEficiencia(op.eficienciaTempoPadrao) : COR.textoSuave },
+          { texto: op.producao > 0 ? fmtPct(op.eficienciaTempoReferencia) : '—', align: 'right', cor: op.producao > 0 ? corEficiencia(op.eficienciaTempoReferencia) : COR.textoSuave },
+          { texto: op.producao > 0 ? fmtPct(op.eficienciaTempoAplicado) : '—', align: 'right', cor: op.producao > 0 ? corEficiencia(op.eficienciaTempoAplicado) : COR.textoSuave },
           { texto: String(op.funcionarios), align: 'right' },
         ]
 
@@ -1046,9 +1141,11 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
       yAtual += medirAlturaTexto(notaEtapas, LARGURA_UTIL - 10, 7.5) + 6
 
       const colunasEtapa = escalarColunas([
-        { header: 'Etapa', width: 150, align: 'left' },
-        { header: 'Produção', width: 60, align: 'right' },
-        { header: 'Eficiência', width: 70, align: 'right' },
+        { header: 'Etapa', width: 130, align: 'left' },
+        { header: 'Produção', width: 50, align: 'right' },
+        { header: 'Padrão', width: 52, align: 'right' },
+        { header: 'Ref.', width: 48, align: 'right' },
+        { header: 'Aplic.', width: 52, align: 'right' },
       ])
 
       verificarPagina(44)
@@ -1064,7 +1161,9 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         const linha = [
           { texto: etapa.descricao || '—', align: 'left' },
           { texto: fmtQtd(etapa.producao), align: 'right' },
-          { texto: etapa.producao > 0 ? fmtPct(etapa.eficiencia) : '—', align: 'right', cor: etapa.producao > 0 ? corEficiencia(etapa.eficiencia) : COR.textoSuave },
+          { texto: etapa.producao > 0 ? fmtPct(etapa.eficienciaTempoPadrao) : '—', align: 'right', cor: etapa.producao > 0 ? corEficiencia(etapa.eficienciaTempoPadrao) : COR.textoSuave },
+          { texto: etapa.producao > 0 ? fmtPct(etapa.eficienciaTempoReferencia) : '—', align: 'right', cor: etapa.producao > 0 ? corEficiencia(etapa.eficienciaTempoReferencia) : COR.textoSuave },
+          { texto: etapa.producao > 0 ? fmtPct(etapa.eficienciaTempoAplicado) : '—', align: 'right', cor: etapa.producao > 0 ? corEficiencia(etapa.eficienciaTempoAplicado) : COR.textoSuave },
         ]
 
         yAtual = desenharLinhaTabela(colunasEtapa, linha, yAtual, fillColor)
@@ -1093,7 +1192,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         campos: [
           { label: 'Data', valor: `${diaNum}/${String(mes).padStart(2, '0')} (${nomeDia})` },
           { label: 'Concluídas', valor: fmtQtd(dados.melhorDia.producaoConcluida) },
-          { label: 'Eficiência', valor: fmtPct(dados.melhorDia.eficiencia), cor: corEficiencia(dados.melhorDia.eficiencia) },
+          { label: 'Efic. Tempo Aplicado', valor: fmtPct(dados.melhorDia.eficienciaTempoAplicado), cor: corEficiencia(dados.melhorDia.eficienciaTempoAplicado) },
         ],
       })
     }
@@ -1106,7 +1205,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         campos: [
           { label: 'Data', valor: `${diaNum}/${String(mes).padStart(2, '0')} (${nomeDia})` },
           { label: 'Concluídas', valor: fmtQtd(dados.piorDia.producaoConcluida) },
-          { label: 'Eficiência', valor: fmtPct(dados.piorDia.eficiencia), cor: corEficiencia(dados.piorDia.eficiencia) },
+          { label: 'Efic. Tempo Aplicado', valor: fmtPct(dados.piorDia.eficienciaTempoAplicado), cor: corEficiencia(dados.piorDia.eficienciaTempoAplicado) },
         ],
       })
     }
@@ -1117,7 +1216,7 @@ function gerarPDF(dados, periodoLabel, tipoLabel, nomeEstabelecimento) {
         campos: [
           { label: 'Nome', valor: dados.melhorFuncionario.nome },
           { label: 'Concluídas', valor: fmtQtd(dados.melhorFuncionario.producaoConcluida) },
-          { label: 'Eficiência', valor: fmtPct(dados.melhorFuncionario.eficienciaReferencia), cor: corEficiencia(dados.melhorFuncionario.eficienciaReferencia) },
+          { label: 'Eficiência Geral', valor: fmtPct(dados.melhorFuncionario.eficienciaGeral), cor: corEficiencia(dados.melhorFuncionario.eficienciaGeral) },
         ],
       })
     }
@@ -1254,5 +1353,6 @@ module.exports = {
       idOp: idDaOp,
       dataProducao: null,
       tempoPadrao: tempoPadraoEtapa,
+      usarMenorTempo: true,
     }).tempo,
 }

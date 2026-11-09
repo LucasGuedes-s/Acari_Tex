@@ -13,6 +13,8 @@ router.post('/duplicar/op/:id', [jwtMiddleware], ControllerOp.duplicarOPControll
 router.get('/pecas', [jwtMiddleware], ControllerOp.getOPs);
 router.get('/producao', [jwtMiddleware], ControllerOp.getProducao);
 router.get('/producao/equipe', [jwtMiddleware],  ControllerOp.getProducaoEquipe);
+// Painel (TV) da fábrica: produção do dia com a consolidação oficial dos relatórios.
+router.get('/producao/painel', [jwtMiddleware],  ControllerOp.getPainelProducao);
 router.get('/producao/pecas', [jwtMiddleware],  ControllerOp.getProducaoPorPeca);
 router.post('/producao/lote', [jwtMiddleware],  ControllerOp.postProducaoPecaLote);
 router.get('/producao/estabelecimento', [jwtMiddleware],  ControllerOp.getProducaoEstabelecimento);
