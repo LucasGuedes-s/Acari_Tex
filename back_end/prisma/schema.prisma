@@ -37,6 +37,9 @@ model Usuarios {
   alocacaoProducaoDia  AlocacaoProducaoDia[]
   Estabelecimento      Estabelecimento      @relation(fields: [estabelecimentoCnpj], references: [cnpj])
   cycleCountSessions   CycleCountSession[]
+  superAdmin           Boolean              @default(false)
+  ultimoLoginEm        DateTime?
+  criadoEm             DateTime             @default(now())
 
   @@index([estabelecimentoCnpj], map: "Usuarios_estabelecimentoCnpj_fkey")
 }
@@ -63,6 +66,7 @@ model Estabelecimento {
   tarefas           Tarefas[]
   usuarios          Usuarios[]
   cycleCountSessions CycleCountSession[]
+  criadoEm          DateTime         @default(now())
 }
 
 model PecasOP {

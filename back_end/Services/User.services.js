@@ -32,11 +32,16 @@ async function loginUser(user) {
         email: usuario.email, 
         nome: usuario.nome,
         permissoes: usuario.permissoes,
-        foto: usuario.foto
+        foto: usuario.foto,
+        superAdmin: usuario.superAdmin
     }
     if (senhavalida) {
         const token = jwt.sign(dados_usuario, config.jwtSecret, {
             expiresIn: 86400 // 24 hours
+        });
+        await prisma.Usuarios.update({ 
+          where: { email: usuario.email }, 
+          data: { ultimoLoginEm: new Date() } 
         });
         return {token: token, dados_usuario}
     } else {
@@ -78,7 +83,7 @@ async function criarTempoReferencia(req) {
   }
 }
 async function SolicitacaoalterarSenha(req) {
-  const email = req
+  const email = req.body.email;
    const usuario = await prisma.Usuarios.findFirst({ //A função findFirst faz uma busca na tabela usuários do banco de dados pelo email digitado pelo usuário 
         where: {
             email

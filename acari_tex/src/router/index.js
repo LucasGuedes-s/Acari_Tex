@@ -257,8 +257,27 @@ const routes = [
     meta: {
       title: 'Linha Tex'
     }
+  },
+  {
+    path: '/admin',
+    name: 'admin',
+    // route level code-splitting
+    // this generates a separate chunk (about.[hash].js) for this route
+    // which is lazy-loaded when the route is visited.
+    component: () => import(/* webpackChunkName: "admin" */ '../views/AdminView.vue'),
+    meta: {
+      title: 'Linha Tex',
+      requiresSuperAdmin: true
+    },
   }
 ]
+
+router.beforeEach((to) => {
+  if (!to.meta.requiresSuperAdmin) return true;
+  let u = null;
+  try { u = JSON.parse(localStorage.getItem('usuario')); } catch {}
+  return u?.superAdmin ? true : '/nao-autorizado';
+});
 
 const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),

@@ -15,6 +15,7 @@ async function login(req, res, next){
                 nome: login.dados_usuario.nome,
                 email: login.dados_usuario.email,
                 foto: login.dados_usuario.foto,
+                superAdmin: login.dados_usuario.superAdmin,
             } 
         });
         res.end()

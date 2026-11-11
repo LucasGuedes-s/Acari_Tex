@@ -97,6 +97,13 @@
               <span>Configurações</span>
             </router-link>
           </div>
+
+          <div class="list-group-item" v-if="usuario.superAdmin" @click="toggleSidebar">
+            <router-link to="/admin" class="d-flex align-items-center text-reset" exact-active-class="ativo">
+              <i class="bi bi-gear icon"></i>
+              <span>Controle Interno</span>
+            </router-link>
+          </div>
         </div>
       </div>
 
