@@ -272,16 +272,20 @@ const routes = [
   }
 ]
 
-router.beforeEach((to) => {
-  if (!to.meta.requiresSuperAdmin) return true;
-  let u = null;
-  try { u = JSON.parse(localStorage.getItem('usuario')); } catch {}
-  return u?.superAdmin ? true : '/nao-autorizado';
-});
-
 const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),
   routes
 })
+
+router.beforeEach((to) => {
+  if (!to.meta.requiresSuperAdmin) return true;
+  let u = null;
+  try { 
+    u = JSON.parse(localStorage.getItem('usuario')); 
+  } catch (e) {
+    u = null; // localStorage vazio ou JSON inválido: trata como não autorizado
+  }
+  return u?.superAdmin ? true : '/nao-autorizado';
+});
 
 export default router
