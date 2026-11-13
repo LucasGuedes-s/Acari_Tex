@@ -93,9 +93,9 @@
             <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               class="mb-4" />
 
-            <GraficoMetaProducao :filtro="filtro" class="mb-4" />
+            <!-- <GraficoMetaProducao :filtro="filtro" class="mb-4" />
 
-            <GraficoEvolucaoProducao ref="evolucaoProducao" class="mb-4" />
+            <GraficoEvolucaoProducao ref="evolucaoProducao" class="mb-4" /> -->
 
             <!-- <GraficoProducaoTotal :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
               :producaoDados="producao" class="mb-4" /> -->
@@ -167,8 +167,8 @@ import SidebarNav from '@/components/Sidebar.vue';
 //import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
 //import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
 // import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
-import GraficoMetaProducao from '@/components/GraficoMetaProducao.vue';
-import GraficoEvolucaoProducao from '@/components/GraficoEvolucaoProducao.vue';
+// import GraficoMetaProducao from '@/components/GraficoMetaProducao.vue';
+// import GraficoEvolucaoProducao from '@/components/GraficoEvolucaoProducao.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
 //import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
 // import GraficoEtapas from '@/components/GraficoEtapas.vue';
@@ -195,8 +195,8 @@ export default {
     // GraficoProducaoIndividual,
     // ProducaoPorPeca,
     // GraficoProducaoPecas,
-    GraficoMetaProducao,
-    GraficoEvolucaoProducao,
+    // GraficoMetaProducao,
+    // GraficoEvolucaoProducao,
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
