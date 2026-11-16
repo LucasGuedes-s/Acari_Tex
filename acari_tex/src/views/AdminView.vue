@@ -11,6 +11,9 @@
       </div>
 
       <div class="header-acoes">
+        <button class="btn btn-sec" :disabled="carregando" @click="carregar(true)">
+          {{ carregando ? "Atualizando..." : "Atualizar" }}
+        </button>
         <button class="btn-principal" @click="abrirCadastro">
           + Novo estabelecimento
         </button>
@@ -40,14 +43,6 @@
         <div>
           <span>Eficiência média</span>
           <strong>{{ eficienciaMedia }}</strong>
-        </div>
-      </div>
-
-      <div class="indicador-card">
-        <div class="indicador-icone roxo">✓</div>
-        <div>
-          <span>Estabelecimentos ativos</span>
-          <strong>{{ estabelecimentosAtivos }}</strong>
         </div>
       </div>
     </section>
@@ -195,135 +190,220 @@
     <!-- Modal de cadastro do estabelecimento -->
     <div
       v-if="modalEstabelecimento"
-      class="modal-overlay"
+      class="admin-modal-overlay"
       @click.self="fecharModais"
     >
-      <div class="modal">
-        <div class="modal-header">
-          <div>
-            <h2>Novo estabelecimento</h2>
-            <p>Etapa 1 de 2 — Dados da fábrica</p>
-          </div>
-          <button class="fechar" @click="fecharModais">×</button>
+      <form class="admin-modal" @submit.prevent="salvarEstabelecimento">
+        <h2>Novo estabelecimento</h2>
+        <p class="admin-modal-sub">
+          Cadastre a fábrica e o primeiro usuário, que será o administrador dela.
+        </p>
+ 
+        <h3>Dados do estabelecimento</h3>
+        <div class="grade">
+          <label class="rotulo">
+            CNPJ *
+            <input
+              class="campo"
+              :value="formEstab.cnpj"
+              inputmode="numeric"
+              placeholder="00.000.000/0000-00"
+              required
+              @input="formEstab.cnpj = mascararCnpj($event.target.value)"
+            />
+          </label>
+          <label class="rotulo">
+            Nome *
+            <input v-model="formEstab.nome" class="campo" maxlength="120" required />
+          </label>
+          <label class="rotulo">
+            Telefone
+            <input v-model="formEstab.telefone" class="campo" maxlength="30" />
+          </label>
+          <label class="rotulo">
+            Endereço
+            <input v-model="formEstab.endereco" class="campo" maxlength="255" />
+          </label>
         </div>
-
-        <form @submit.prevent="cadastrarEstabelecimento">
-          <label>Nome do estabelecimento *</label>
-          <input
-            v-model="formEstabelecimento.nome"
-            required
-            placeholder="Ex.: Confecções Acari"
-          />
-
-          <label>CNPJ *</label>
-          <input
-            v-model="formEstabelecimento.cnpj"
-            required
-            placeholder="00.000.000/0000-00"
-          />
-
-          <label>Telefone</label>
-          <input
-            v-model="formEstabelecimento.telefone"
-            placeholder="(00) 00000-0000"
-          />
-
-          <label>Endereço</label>
-          <input
-            v-model="formEstabelecimento.endereco"
-            placeholder="Endereço do estabelecimento"
-          />
-
-          <div class="modal-acoes">
-            <button type="button" class="btn-cancelar" @click="fecharModais">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-principal" :disabled="salvando">
-              {{ salvando ? "Salvando..." : "Salvar e cadastrar funcionário →" }}
-            </button>
-          </div>
-        </form>
-      </div>
+ 
+        <h3>Primeiro usuário (administrador)</h3>
+        <div class="grade">
+          <label class="rotulo">
+            Nome *
+            <input v-model="formEstab.gestor.nome" class="campo" maxlength="120" required />
+          </label>
+          <label class="rotulo">
+            E-mail *
+            <input
+              v-model="formEstab.gestor.email"
+              class="campo"
+              type="email"
+              maxlength="191"
+              autocomplete="off"
+              required
+            />
+          </label>
+          <label class="rotulo">
+            Idade *
+            <input
+              v-model.number="formEstab.gestor.idade"
+              class="campo"
+              type="number"
+              min="14"
+              max="100"
+              required
+            />
+          </label>
+          <label class="rotulo">
+            Telefone
+            <input v-model="formEstab.gestor.telefone" class="campo" maxlength="30" />
+          </label>
+        </div>
+        <div class="linha-senha">
+          <label class="rotulo flex-1">
+            Senha inicial * (mínimo 8 caracteres)
+            <input
+              v-model="formEstab.gestor.senha"
+              class="campo"
+              :type="mostrarSenha ? 'text' : 'password'"
+              minlength="8"
+              maxlength="72"
+              autocomplete="new-password"
+              required
+            />
+          </label>
+          <button type="button" class="btn btn-sec" @click="mostrarSenha = !mostrarSenha">
+            {{ mostrarSenha ? "Ocultar" : "Mostrar" }}
+          </button>
+          <button type="button" class="btn btn-sec" @click="gerarSenha(formEstab.gestor)">
+            Gerar senha
+          </button>
+        </div>
+ 
+        <p v-if="erroForm" class="aviso aviso-erro">{{ erroForm }}</p>
+ 
+        <div class="admin-modal-acoes">
+          <button type="button" class="btn btn-sec" :disabled="salvando" @click="fecharModal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-pri" :disabled="salvando">
+            {{ salvando ? "Salvando..." : "Criar estabelecimento" }}
+          </button>
+        </div>
+      </form>
     </div>
 
     <!-- Modal de cadastro do primeiro funcionário -->
     <div
       v-if="modalFuncionario"
-      class="modal-overlay"
+      class="admin-modal-overlay"
       @click.self="fecharModais"
     >
-      <div class="modal">
-        <div class="modal-header">
-          <div>
-            <h2>Novo funcionário</h2>
-            <p>Etapa 2 de 2 — Usuário inicial do estabelecimento</p>
-          </div>
-          <button class="fechar" @click="fecharModais">×</button>
+        <form class="" @submit.prevent="salvarFuncionario">
+        <h2>Novo funcionário</h2>
+        <p class="admin-modal-sub">Adicione uma pessoa a um estabelecimento já cadastrado.</p>
+ 
+        <label class="rotulo">
+          Estabelecimento *
+          <select v-model="formFunc.cnpj" class="campo" required>
+            <option value="" disabled>Selecione...</option>
+            <option v-for="e in estabelecimentos" :key="e.cnpj" :value="e.cnpj">
+              {{ e.nome }} — {{ e.cnpj }}
+            </option>
+          </select>
+        </label>
+ 
+        <div class="grade">
+          <label class="rotulo">
+            Nome *
+            <input v-model="formFunc.nome" class="campo" maxlength="120" required />
+          </label>
+          <label class="rotulo">
+            E-mail *
+            <input
+              v-model="formFunc.email"
+              class="campo"
+              type="email"
+              maxlength="191"
+              autocomplete="off"
+              required
+            />
+          </label>
+          <label class="rotulo">
+            Idade *
+            <input
+              v-model.number="formFunc.idade"
+              class="campo"
+              type="number"
+              min="14"
+              max="100"
+              required
+            />
+          </label>
+          <label class="rotulo">
+            Telefone
+            <input v-model="formFunc.telefone" class="campo" maxlength="30" />
+          </label>
+          <label class="rotulo">
+            Perfil de acesso *
+            <select v-model="formFunc.perfil" class="campo">
+              <option value="profissional">Profissional (operação)</option>
+              <option value="gestor">Gestor (administra a fábrica)</option>
+            </select>
+          </label>
+          <label class="rotulo">
+            Função
+            <input
+              v-model="formFunc.funcoes"
+              class="campo"
+              maxlength="80"
+              :placeholder="formFunc.perfil === 'gestor' ? 'Administrador' : 'Profissional'"
+            />
+          </label>
         </div>
-
-        <div class="empresa-selecionada">
-          <span>Estabelecimento vinculado</span>
-          <strong>{{ estabelecimentoSelecionado?.nome }}</strong>
+ 
+        <div class="linha-senha">
+          <label class="rotulo flex-1">
+            Senha inicial * (mínimo 8 caracteres)
+            <input
+              v-model="formFunc.senha"
+              class="campo"
+              :type="mostrarSenha ? 'text' : 'password'"
+              minlength="8"
+              maxlength="72"
+              autocomplete="new-password"
+              required
+            />
+          </label>
+          <button type="button" class="btn btn-sec" @click="mostrarSenha = !mostrarSenha">
+            {{ mostrarSenha ? "Ocultar" : "Mostrar" }}
+          </button>
+          <button type="button" class="btn btn-sec" @click="gerarSenha(formFunc)">
+            Gerar senha
+          </button>
         </div>
-
-        <form @submit.prevent="cadastrarFuncionario">
-          <label>Nome completo *</label>
-          <input
-            v-model="formFuncionario.nome"
-            required
-            placeholder="Nome do funcionário"
-          />
-
-          <label>E-mail *</label>
-          <input
-            v-model="formFuncionario.email"
-            type="email"
-            required
-            placeholder="funcionario@empresa.com"
-          />
-
-          <label>CPF</label>
-          <input
-            v-model="formFuncionario.cpf"
-            placeholder="000.000.000-00"
-          />
-
-          <label>Cargo *</label>
-          <input
-            v-model="formFuncionario.cargo"
-            required
-            placeholder="Ex.: Gerente de produção"
-          />
-
-          <label>Senha inicial *</label>
-          <input
-            v-model="formFuncionario.senha"
-            type="password"
-            required
-            minlength="8"
-            placeholder="Mínimo de 8 caracteres"
-          />
-
-          <div class="modal-acoes">
-            <button type="button" class="btn-cancelar" @click="fecharModais">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-principal" :disabled="salvando">
-              {{ salvando ? "Salvando..." : "Concluir cadastro" }}
-            </button>
-          </div>
-        </form>
-      </div>
+ 
+        <p v-if="erroForm" class="aviso aviso-erro">{{ erroForm }}</p>
+ 
+        <div class="admin-modal-acoes">
+          <button type="button" class="btn btn-sec" :disabled="salvando" @click="fecharModal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-pri" :disabled="salvando">
+            {{ salvando ? "Salvando..." : "Criar funcionário" }}
+          </button>
+        </div>
+      </form>
     </div>
 
     <!-- Modal de detalhes -->
     <div
       v-if="modalDetalhes"
-      class="modal-overlay"
+      class="admin-modal-overlay"
       @click.self="fecharModais"
     >
-      <div class="modal">
-        <div class="modal-header">
+      <div class="admin-modal">
+        <div class="admin-modal-header">
           <div>
             <h2>{{ estabelecimentoSelecionado?.nome }}</h2>
             <p>Informações do estabelecimento</p>
@@ -362,7 +442,7 @@
           </div>
         </div>
 
-        <div class="modal-acoes">
+        <div class="admin-modal-acoes">
           <button class="btn-cancelar" @click="fecharModais">Fechar</button>
           <button
             class="btn-principal"
@@ -370,6 +450,30 @@
           >
             + Adicionar funcionário
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ░░░ Modal: credenciais criadas ░░░ -->
+    <div v-if="modal === 'sucesso' && credenciais" class="overlay" @click.self="fecharModal">
+      <div class="admin-modal admin-modal-peq">
+        <h2>{{ credenciais.titulo }}</h2>
+        <p class="admin-modal-sub">
+          Anote ou copie as credenciais agora: a senha <strong>não será exibida novamente</strong>.
+          Oriente a pessoa a trocar a senha no primeiro acesso.
+        </p>
+ 
+        <div class="credenciais">
+          <div><span class="sub">Estabelecimento</span><br />{{ credenciais.estabelecimento }}</div>
+          <div><span class="sub">E-mail</span><br />{{ credenciais.email }}</div>
+          <div><span class="sub">Senha inicial</span><br /><code>{{ credenciais.senha }}</code></div>
+        </div>
+ 
+        <p v-if="copiado" class="aviso aviso-ok">Copiado para a área de transferência.</p>
+ 
+        <div class="admin-modal-acoes">
+          <button class="btn btn-sec" @click="copiarCredenciais">Copiar e-mail e senha</button>
+          <button class="btn btn-pri" @click="fecharModal">Concluir</button>
         </div>
       </div>
     </div>
@@ -387,110 +491,111 @@ export default {
   data() {
     return {
       usuario: null,
-
       estabelecimentos: [],
       pesquisa: "",
       filtroEficiencia: "",
-
       carregando: false,
       carregandoLista: false,
       salvando: false,
-
       erroLista: "",
-
+      erroForm: "",
       estado: "",
       mensagem: "Aguardando...",
-
       modalEstabelecimento: false,
       modalFuncionario: false,
       modalDetalhes: false,
-
+      modal: "",
+      credenciais: null,
+      copiado: false,
+      mostrarSenha: false,
       estabelecimentoSelecionado: null,
 
-      formEstabelecimento: {
+      formEstab: {
         nome: "",
         cnpj: "",
         telefone: "",
         endereco: "",
+        criarEtapasPadrao: false,
+        gestor: {
+          nome: "",
+          email: "",
+          idade: null,
+          telefone: "",
+          senha: "",
+        },
       },
 
-      formFuncionario: {
+      formFunc: {
+        cnpj: "",
         nome: "",
         email: "",
-        cpf: "",
-        cargo: "",
+        idade: null,
+        telefone: "",
+        perfil: "profissional",
+        funcoes: "",
         senha: "",
       },
     };
   },
 
-  
-computed: {
-  estabelecimentosFiltrados() {
-    return this.estabelecimentos.filter((e) => {
-      const termo = this.pesquisa.toLowerCase().trim();
+  computed: {
+    estabelecimentosFiltrados() {
+      return this.estabelecimentos.filter((e) => {
+        const termo = this.pesquisa.toLowerCase().trim();
+        const correspondePesquisa =
+          !termo ||
+          e.nome?.toLowerCase().includes(termo) ||
+          e.cnpj?.toLowerCase().includes(termo);
 
-      // Filtro por nome ou CNPJ
-      const correspondePesquisa =
-        !termo ||
-        e.nome?.toLowerCase().includes(termo) ||
-        e.cnpj?.toLowerCase().includes(termo);
+        let correspondeEficiencia = true;
+        if (this.filtroEficiencia === "alta") {
+          correspondeEficiencia =
+            e.eficiencia_atual !== null && e.eficiencia_atual >= 80;
+        } else if (this.filtroEficiencia === "media") {
+          correspondeEficiencia =
+            e.eficiencia_atual !== null &&
+            e.eficiencia_atual >= 50 &&
+            e.eficiencia_atual < 80;
+        } else if (this.filtroEficiencia === "baixa") {
+          correspondeEficiencia =
+            e.eficiencia_atual !== null && e.eficiencia_atual < 50;
+        } else if (this.filtroEficiencia === "sem-dados") {
+          correspondeEficiencia = e.eficiencia_atual === null;
+        }
 
-      // Filtro por eficiência
-      let correspondeEficiencia = true;
+        return correspondePesquisa && correspondeEficiencia;
+      });
+    },
 
-      if (this.filtroEficiencia === "alta") {
-        correspondeEficiencia =
-          e.eficiencia_atual !== null && e.eficiencia_atual >= 80;
-      } else if (this.filtroEficiencia === "media") {
-        correspondeEficiencia =
-          e.eficiencia_atual !== null &&
-          e.eficiencia_atual >= 50 &&
-          e.eficiencia_atual < 80;
-      } else if (this.filtroEficiencia === "baixa") {
-        correspondeEficiencia =
-          e.eficiencia_atual !== null && e.eficiencia_atual < 50;
-      } else if (this.filtroEficiencia === "sem-dados") {
-        correspondeEficiencia = e.eficiencia_atual === null;
-      }
-
-      return (
-        correspondePesquisa &&
-        correspondeEficiencia
+    totalFuncionarios() {
+      return this.estabelecimentos.reduce(
+        (total, e) => total + (Number(e.quantidade_funcionarios) || 0),
+        0
       );
-    });
+    },
+
+    eficienciaMedia() {
+      const comDados = this.estabelecimentos.filter(
+        (e) => e.eficiencia_atual !== null
+      );
+      if (!comDados.length) return "Sem dados";
+
+      const media =
+        comDados.reduce((total, e) => total + e.eficiencia_atual, 0) /
+        comDados.length;
+
+      return `${media.toFixed(1)}%`;
+    },
   },
-
-  totalFuncionarios() {
-    return this.estabelecimentos.reduce(
-      (total, e) => total + (Number(e.quantidade_funcionarios) || 0),
-      0
-    );
-  },
-
-  estabelecimentosAtivos() {
-    return this.estabelecimentos.filter((e) => e.ativo).length;
-  },
-
-  eficienciaMedia() {
-    const comDados = this.estabelecimentos.filter(
-      (e) => e.eficiencia_atual !== null
-    );
-
-    if (!comDados.length) return "Sem dados";
-
-    const media =
-      comDados.reduce((total, e) => total + e.eficiencia_atual, 0) /
-      comDados.length;
-
-    return `${media.toFixed(1)}%`;
-  },
-},
-
 
   mounted() {
     const authStore = useAuthStore();
     this.usuario = authStore.pegar_usuario;
+
+    if (!authStore.pegar_token) {
+      this.erroLista = "Sua sessão expirou. Entre novamente para continuar.";
+      return;
+    }
 
     this.testarPing();
     this.carregarEstabelecimentos();
@@ -498,14 +603,17 @@ computed: {
 
   methods: {
     headersAuth() {
-      const authStore = useAuthStore();
-
+      const token = useAuthStore().pegar_token;
+      if (!token) return {};
       return {
-        Authorization: authStore.pegar_token,
+        Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
       };
     },
 
-    // Busca os estabelecimentos
+    async carregar() {
+      await this.carregarEstabelecimentos();
+    },
+
     async carregarEstabelecimentos() {
       this.carregandoLista = true;
       this.erroLista = "";
@@ -520,9 +628,7 @@ computed: {
           : response.data.estabelecimentos || [];
 
         this.estabelecimentos = dados.map((e) => {
-          const eficiencia =
-            e.eficiencia_atual ?? e.eficiencia ?? null;
-
+          const eficiencia = e.eficiencia_atual ?? e.eficiencia ?? null;
           return {
             ...e,
             quantidade_funcionarios: Number(
@@ -530,6 +636,11 @@ computed: {
               e.total_funcionarios ??
               e.funcionarios?.length ??
               0
+            ),
+            funcionarios_ativos: Number(
+              e.funcionarios_ativos ?? e.funcionarios?.filter(
+                (f) => f.status !== "inativo"
+              ).length ?? 0
             ),
             eficiencia_atual:
               eficiencia !== null && Number.isFinite(Number(eficiencia))
@@ -539,7 +650,6 @@ computed: {
         });
       } catch (error) {
         console.error("Erro ao buscar estabelecimentos:", error);
-
         this.erroLista =
           error.response?.data?.message ||
           "Não foi possível carregar os estabelecimentos.";
@@ -554,106 +664,141 @@ computed: {
     },
 
     abrirCadastro() {
-      this.formEstabelecimento = {
+      this.erroForm = "";
+      this.formEstab = {
         nome: "",
         cnpj: "",
         telefone: "",
         endereco: "",
+        criarEtapasPadrao: false,
+        gestor: {
+          nome: "",
+          email: "",
+          idade: null,
+          telefone: "",
+          senha: "",
+        },
       };
-
       this.modalEstabelecimento = true;
     },
 
-    // Cadastra o estabelecimento e abre a segunda etapa
-    async cadastrarEstabelecimento() {
+    async salvarEstabelecimento() {
       this.salvando = true;
+      this.erroForm = "";
 
       try {
-        const response = await api.post(
+        const respostaEstabelecimento = await api.post(
           "/admin/estabelecimentos",
-          this.formEstabelecimento,
+          {
+            nome: this.formEstab.nome,
+            cnpj: this.formEstab.cnpj,
+            telefone: this.formEstab.telefone,
+            endereco: this.formEstab.endereco,
+          },
           { headers: this.headersAuth() }
         );
 
-        const estabelecimento = response.data.estabelecimento || response.data;
+        const estabelecimento =
+          respostaEstabelecimento.data.estabelecimento ||
+          respostaEstabelecimento.data;
 
-        if (!estabelecimento.cnpj) {
-          throw new Error(
-            "O servidor não retornou o CNPJ do estabelecimento cadastrado."
-          );
+        if (!estabelecimento?.cnpj) {
+          throw new Error("O servidor não retornou o CNPJ cadastrado.");
         }
+
+        // O backend possui uma rota separada para cadastrar o primeiro usuário.
+        this.formFunc = {
+          cnpj: estabelecimento.cnpj,
+          nome: this.formEstab.gestor.nome,
+          email: this.formEstab.gestor.email,
+          idade: this.formEstab.gestor.idade,
+          telefone: this.formEstab.gestor.telefone,
+          perfil: "gestor",
+          funcoes: "Administrador",
+          senha: this.formEstab.gestor.senha,
+        };
 
         this.estabelecimentoSelecionado = estabelecimento;
         this.modalEstabelecimento = false;
         this.modalFuncionario = true;
 
-        this.formFuncionario = {
-          nome: "",
-          email: "",
-          cpf: "",
-          cargo: "",
-          senha: "",
-        };
+        await this.salvarFuncionario(true);
       } catch (error) {
         console.error("Erro ao cadastrar estabelecimento:", error);
-
-        alert(
+        this.erroForm =
           error.response?.data?.message ||
           error.message ||
-          "Não foi possível cadastrar o estabelecimento."
-        );
+          "Não foi possível cadastrar o estabelecimento.";
       } finally {
         this.salvando = false;
       }
     },
 
-    // Cadastro do funcionário vinculado ao estabelecimento
-    async cadastrarFuncionario() {
-        this.salvando = true;
+    async salvarFuncionario(primeiroUsuario = false) {
+      primeiroUsuario = primeiroUsuario === true;
+      this.salvando = true;
+      this.erroForm = "";
 
-        try {
-            await api.post(
-            "/admin/funcionarios",
-            {
-                nome: this.formFuncionario.nome,
-                email: this.formFuncionario.email,
-                cpf: this.formFuncionario.cpf,
-                funcao: this.formFuncionario.cargo,
-                senha: this.formFuncionario.senha,
-                cnpj: this.estabelecimentoSelecionado.cnpj
-            },
-            { headers: this.headersAuth() }
-            );
+      try {
+        await api.post(
+          "/admin/funcionarios",
+          {
+            cnpj: this.formFunc.cnpj,
+            nome: this.formFunc.nome,
+            email: this.formFunc.email,
+            idade: Number(this.formFunc.idade),
+            telefone: this.formFunc.telefone,
+            funcao: this.formFunc.funcoes || (
+              this.formFunc.perfil === "gestor" ? "Administrador" : "Profissional"
+            ),
+            funcoes: this.formFunc.funcoes || (
+              this.formFunc.perfil === "gestor" ? "Administrador" : "Profissional"
+            ),
+            perfil: this.formFunc.perfil,
+            senha: this.formFunc.senha,
+          },
+          { headers: this.headersAuth() }
+        );
 
-            alert("Estabelecimento e funcionário cadastrados com sucesso!");
+        const estabelecimento = this.estabelecimentos.find(
+          (e) => e.cnpj === this.formFunc.cnpj
+        ) || this.estabelecimentoSelecionado;
 
-            this.fecharModais();
-            await this.carregarEstabelecimentos();
-
-        } catch (error) {
-            console.error("Erro ao cadastrar funcionário:", error);
-
-            alert(
-            error.response?.data?.message ||
-            "O estabelecimento foi cadastrado, mas não foi possível cadastrar o funcionário."
-            );
-        } finally {
-            this.salvando = false;
-        }
+        this.modalFuncionario = false;
+        this.credenciais = {
+          titulo: primeiroUsuario ? "Estabelecimento criado!" : "Funcionário cadastrado!",
+          estabelecimento: estabelecimento?.nome || this.formFunc.cnpj,
+          email: this.formFunc.email,
+          senha: this.formFunc.senha,
+        };
+        this.modal = "sucesso";
+        this.copiado = false;
+        await this.carregarEstabelecimentos();
+      } catch (error) {
+        console.error("Erro ao cadastrar funcionário:", error);
+        this.erroForm =
+          error.response?.data?.message ||
+          (primeiroUsuario
+            ? "O estabelecimento foi criado, mas não foi possível cadastrar o administrador."
+            : "Não foi possível cadastrar o funcionário.");
+      } finally {
+        this.salvando = false;
+      }
     },
 
-    // Cadastro de funcionário em estabelecimento já existente
     abrirCadastroFuncionario(estabelecimento) {
       this.estabelecimentoSelecionado = estabelecimento;
-
-      this.formFuncionario = {
+      this.erroForm = "";
+      this.formFunc = {
+        cnpj: estabelecimento.cnpj,
         nome: "",
         email: "",
-        cpf: "",
-        cargo: "",
+        idade: null,
+        telefone: "",
+        perfil: "profissional",
+        funcoes: "",
         senha: "",
       };
-
       this.modalDetalhes = false;
       this.modalFuncionario = true;
     },
@@ -667,7 +812,52 @@ computed: {
       this.modalEstabelecimento = false;
       this.modalFuncionario = false;
       this.modalDetalhes = false;
+      this.erroForm = "";
       this.estabelecimentoSelecionado = null;
+    },
+
+    fecharModal() {
+      this.modal = "";
+      this.credenciais = null;
+      this.copiado = false;
+      this.fecharModais();
+    },
+
+    mascararCnpj(valor) {
+      const numeros = String(valor || "").replace(/\D/g, "").slice(0, 14);
+      return numeros
+        .replace(/^(\d{2})(\d)/, "$1.$2")
+        .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+        .replace(/\.(\d{3})(\d)/, ".$1/$2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    },
+
+    gerarSenha(formulario) {
+      const caracteres =
+        "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+      let senha = "";
+      for (let i = 0; i < 14; i++) {
+        senha += caracteres.charAt(
+          Math.floor(Math.random() * caracteres.length)
+        );
+      }
+      formulario.senha = senha;
+    },
+
+    async copiarCredenciais() {
+      if (!this.credenciais) return;
+      const texto =
+        `Estabelecimento: ${this.credenciais.estabelecimento}\n` +
+        `E-mail: ${this.credenciais.email}\n` +
+        `Senha inicial: ${this.credenciais.senha}`;
+
+      try {
+        await navigator.clipboard.writeText(texto);
+        this.copiado = true;
+      } catch (error) {
+        console.error("Não foi possível copiar as credenciais:", error);
+        this.erroForm = "Não foi possível copiar. Copie os dados manualmente.";
+      }
     },
 
     async testarPing() {
@@ -679,18 +869,13 @@ computed: {
         const response = await api.get("/admin/ping", {
           headers: this.headersAuth(),
         });
-
         this.estado = "ok";
         this.mensagem = `Conectado (${response.status})`;
       } catch (error) {
         this.estado = "erro";
-
         const status = error.response?.status;
-
         this.mensagem = status
-          ? `Erro ${status}: ${
-              error.response?.data?.message || "sem mensagem"
-            }`
+          ? `Erro ${status}: ${error.response?.data?.message || "sem mensagem"}`
           : "Sem resposta do servidor";
       } finally {
         this.carregando = false;
@@ -800,7 +985,7 @@ button:disabled {
 
 .indicadores {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 18px;
   margin-bottom: 25px;
 }
@@ -1085,7 +1270,7 @@ td {
 
 /* Modais */
 
-.modal-overlay {
+.admin-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -1096,7 +1281,7 @@ td {
   padding: 20px;
 }
 
-.modal {
+.admin-modal {
   width: 100%;
   max-width: 520px;
   max-height: 90vh;
@@ -1107,20 +1292,20 @@ td {
   box-shadow: 0 10px 40px #00000030;
 }
 
-.modal-header {
+.admin-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 22px;
 }
 
-.modal-header h2 {
+.admin-modal-header h2 {
   color: #145a32;
   font-size: 21px;
   margin: 0;
 }
 
-.modal-header p {
+.admin-modal-header p {
   color: #888;
   font-size: 12px;
   margin-top: 7px;
@@ -1133,19 +1318,19 @@ td {
   color: #777;
 }
 
-.modal form {
+.admin-modal form {
   display: flex;
   flex-direction: column;
 }
 
-.modal label {
+.admin-modal label {
   color: #444;
   font-size: 13px;
   font-weight: 600;
   margin: 12px 0 7px;
 }
 
-.modal input {
+.admin-modal input {
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 12px;
@@ -1153,11 +1338,11 @@ td {
   font-family: inherit;
 }
 
-.modal input:focus {
+.admin-modal input:focus {
   border-color: #145a32;
 }
 
-.modal-acoes {
+.admin-modal-acoes {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -1255,11 +1440,11 @@ td {
     flex-direction: column;
   }
 
-  .modal-acoes {
+  .admin-modal-acoes {
     flex-direction: column-reverse;
   }
 
-  .modal-acoes button {
+  .admin-modal-acoes button {
     width: 100%;
   }
 }
