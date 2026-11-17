@@ -14,9 +14,9 @@ datasource db {
 
 model Usuarios {
   nome                 String
-  email                String               @id
+  email                String                @id
   senha                String
-  foto                 String               @db.VarChar(2048)
+  foto                 String                @db.VarChar(2048)
   idade                Int
   funcoes              String?
   identidade           String?
@@ -25,7 +25,7 @@ model Usuarios {
   pis                  String?
   pix                  String?
   notas                String?
-  status               String?              @default("ativo")
+  status               String?               @default("ativo")
   estabelecimentoCnpj  String
   salario              Float?
   telefone             String?
@@ -35,42 +35,42 @@ model Usuarios {
   producao_funcionario Producao[]
   tempo_referencia     TempoReferencia[]
   alocacaoProducaoDia  AlocacaoProducaoDia[]
-  Estabelecimento      Estabelecimento      @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  Estabelecimento      Estabelecimento       @relation(fields: [estabelecimentoCnpj], references: [cnpj])
   cycleCountSessions   CycleCountSession[]
-  superAdmin           Boolean              @default(false)
+  superAdmin           Boolean               @default(false)
   ultimoLoginEm        DateTime?
-  criadoEm             DateTime             @default(now())
+  criadoEm             DateTime              @default(now())
 
   @@index([estabelecimentoCnpj], map: "Usuarios_estabelecimentoCnpj_fkey")
 }
 
 model Estabelecimento {
-  cnpj              String            @id
-  nome              String?
-  endereco          String?
-  telefone          String?
-  tempo_de_producao Int?              @default(480)
-  logo              String?           @db.VarChar(2048)
-  peca_final        String?
-  tipo_de_producao  String?          @default("padrao")
-  chatIAResultados  ChatIAResultado[]
-  eficiencia_turma  EficienciaTurma?
-  EquipesGrupos     EquipesGrupos[]
-  Etapas            Etapa[]
-  Financeiro        Financeiro[]
-  GrupoEtapas       GrupoEtapas[]
-  Intercorrencias   Intercorrencias[]
-  notificacoes      Notificacoes[]
-  PecasOP           PecasOP[]
-  Producao          Producao[]
-  tarefas           Tarefas[]
-  usuarios          Usuarios[]
+  cnpj               String              @id
+  nome               String?
+  endereco           String?
+  telefone           String?
+  tempo_de_producao  Int?                @default(480)
+  logo               String?             @db.VarChar(2048)
+  peca_final         String?
+  tipo_de_producao   String?             @default("padrao")
+  chatIAResultados   ChatIAResultado[]
+  eficiencia_turma   EficienciaTurma?
+  EquipesGrupos      EquipesGrupos[]
+  Etapas             Etapa[]
+  Financeiro         Financeiro[]
+  GrupoEtapas        GrupoEtapas[]
+  Intercorrencias    Intercorrencias[]
+  notificacoes       Notificacoes[]
+  PecasOP            PecasOP[]
+  Producao           Producao[]
+  tarefas            Tarefas[]
+  usuarios           Usuarios[]
   cycleCountSessions CycleCountSession[]
-  criadoEm          DateTime         @default(now())
+  criadoEm           DateTime            @default(now())
 }
 
 model PecasOP {
-  id_da_op            Int             @id @default(autoincrement())
+  id_da_op            Int                   @id @default(autoincrement())
   id_Estabelecimento  String
   status              String?
   descricao           String?
@@ -85,10 +85,10 @@ model PecasOP {
   local_armazenamento String?
   metaDiaPeca         MetaDiaPeca[]
   etapas              PecasEtapas[]
-  Estabelecimento     Estabelecimento @relation(fields: [id_Estabelecimento], references: [cnpj])
+  Estabelecimento     Estabelecimento       @relation(fields: [id_Estabelecimento], references: [cnpj])
   producao_peca       Producao[]
-  alocacaoProducaoDia   AlocacaoProducaoDia[]
-  cycleCountSessions    CycleCountSession[]
+  alocacaoProducaoDia AlocacaoProducaoDia[]
+  cycleCountSessions  CycleCountSession[]
 
   @@index([id_Estabelecimento], map: "PecasOP_id_Estabelecimento_fkey")
 }
@@ -106,19 +106,20 @@ model EficienciaTurma {
 }
 
 model Etapa {
-  id_da_funcao       Int                  @id @default(autoincrement())
-  descricao          String
-  tempo_padrao       Float?
-  id_Estabelecimento String?
-  grupoEtapaId       Int?
-  grupoEtapa         GrupoEtapas?         @relation(fields: [grupoEtapaId], references: [id])
-  Estabelecimento    Estabelecimento?     @relation(fields: [id_Estabelecimento], references: [cnpj])
-  meta_diaria        MetaDiaFuncionario[]
-  pecas              PecasEtapas[]
-  producao_etapa     Producao[]
-  tempo_referencia   TempoReferencia[]
-  alocacaoProducaoDia  AlocacaoProducaoDia[]
-  cycleCountSessions   CycleCountSession[]
+  id_da_funcao        Int                   @id @default(autoincrement())
+  descricao           String
+  tempo_padrao        Float?
+  id_Estabelecimento  String?
+  grupoEtapaId        Int?
+  grupoEtapa          GrupoEtapas?          @relation(fields: [grupoEtapaId], references: [id])
+  Estabelecimento     Estabelecimento?      @relation(fields: [id_Estabelecimento], references: [cnpj])
+  meta_diaria         MetaDiaFuncionario[]
+  pecas               PecasEtapas[]
+  producao_etapa      Producao[]
+  tempo_referencia    TempoReferencia[]
+  alocacaoProducaoDia AlocacaoProducaoDia[]
+  cycleCountSessions  CycleCountSession[]
+
   @@index([grupoEtapaId], map: "Etapa_grupoEtapaId_fkey")
   @@index([id_Estabelecimento], map: "Etapa_id_Estabelecimento_fkey")
 }
@@ -146,16 +147,17 @@ model PecasEtapas {
   @@unique([id_da_op, id_da_funcao])
   @@index([id_da_funcao], map: "PecasEtapas_id_da_funcao_fkey")
 }
+
 model Faltas {
-  id                  Int      @id @default(autoincrement())
-  funcionarioId       String?
-  data                DateTime?
-  estabelecimento     String?
-  usuarioResponsavel  String?
-  tipo                String?
-  horarioInicial      String?
-  horarioFinal        String?
-  observacao          String?
+  id                 Int       @id @default(autoincrement())
+  funcionarioId      String?
+  data               DateTime?
+  estabelecimento    String?
+  usuarioResponsavel String?
+  tipo               String?
+  horarioInicial     String?
+  horarioFinal       String?
+  observacao         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -211,29 +213,31 @@ model EquipesGrupos {
 
   @@index([estabelecimentoCnpj], map: "EquipesGrupos_estabelecimentoCnpj_fkey")
 }
+
 model AlocacaoProducaoDia {
   id Int @id @default(autoincrement())
 
-  estabelecimentoCnpj String
-  data DateTime
-  modoTempo              String  @default("padrao")
+  estabelecimentoCnpj     String
+  data                    DateTime
+  modoTempo               String   @default("padrao")
   referenciaSelecionadaId Int?
 
   id_da_op Int
-  op PecasOP @relation(fields: [id_da_op], references: [id_da_op])
+  op       PecasOP @relation(fields: [id_da_op], references: [id_da_op])
 
   funcionarioEmail String
-  funcionario Usuarios @relation(fields: [funcionarioEmail], references: [email])
+  funcionario      Usuarios @relation(fields: [funcionarioEmail], references: [email])
 
   etapaId Int?
-  etapa Etapa? @relation(fields: [etapaId], references: [id_da_funcao])
+  etapa   Etapa? @relation(fields: [etapaId], references: [id_da_funcao])
 
   quantidadePlanejada Int?
-  status String @default("ativa")
+  status              String @default("ativa")
 
   @@index([data, id_da_op])
   @@index([funcionarioEmail])
 }
+
 model EquipesUsuarios {
   id           Int           @id @default(autoincrement())
   usuarioEmail String
@@ -373,23 +377,23 @@ model Financeiro {
 }
 
 model CycleCountSession {
-  id                   Int              @id @default(autoincrement())
-  sessionId            String           @unique
-  stationId            String
-  estabelecimentoCnpj  String
-  operatorId           String
-  opId                 Int
-  operationId          Int?
-  startedAt            DateTime         @default(now())
-  endedAt              DateTime?
-  status               String           @default("active")
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  estabelecimento      Estabelecimento  @relation(fields: [estabelecimentoCnpj], references: [cnpj])
-  operator             Usuarios         @relation(fields: [operatorId], references: [email])
-  op                   PecasOP          @relation(fields: [opId], references: [id_da_op])
-  operation            Etapa?           @relation(fields: [operationId], references: [id_da_funcao])
-  events               CycleCountEvent[]
+  id                  Int               @id @default(autoincrement())
+  sessionId           String            @unique
+  stationId           String
+  estabelecimentoCnpj String
+  operatorId          String
+  opId                Int
+  operationId         Int?
+  startedAt           DateTime          @default(now())
+  endedAt             DateTime?
+  status              String            @default("active")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  estabelecimento     Estabelecimento   @relation(fields: [estabelecimentoCnpj], references: [cnpj])
+  operator            Usuarios          @relation(fields: [operatorId], references: [email])
+  op                  PecasOP           @relation(fields: [opId], references: [id_da_op])
+  operation           Etapa?            @relation(fields: [operationId], references: [id_da_funcao])
+  events              CycleCountEvent[]
 
   @@index([estabelecimentoCnpj])
   @@index([operatorId])
@@ -398,29 +402,29 @@ model CycleCountSession {
 }
 
 model CycleCountEvent {
-  id                   Int               @id @default(autoincrement())
-  eventId              String            @unique
-  sessionId            String?
-  stationId            String?
-  operatorId           String?
-  opId                 Int?
-  operation            String?
-  cycleId              Int?
-  state                String
-  cycleCompleted       Boolean           @default(false)
-  startedAt            DateTime?
-  endedAt              DateTime?
-  confidence           Float?
-  durationS            Float?
-  sewingTimeS          Float?
-  source               String            @default("cyclecount")
-  rawPayload           Json?
-  productionId         Int?              @unique
-  createdAt            DateTime          @default(now())
-  processedAt          DateTime?
-  session              CycleCountSession? @relation(fields: [sessionId], references: [sessionId])
-  production           Producao?         @relation("cycleCountEvent")
-  adjustments          CycleCountAdjustment[]
+  id             Int                    @id @default(autoincrement())
+  eventId        String                 @unique
+  sessionId      String?
+  stationId      String?
+  operatorId     String?
+  opId           Int?
+  operation      String?
+  cycleId        Int?
+  state          String
+  cycleCompleted Boolean                @default(false)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  confidence     Float?
+  durationS      Float?
+  sewingTimeS    Float?
+  source         String                 @default("cyclecount")
+  rawPayload     Json?
+  productionId   Int?                   @unique
+  createdAt      DateTime               @default(now())
+  processedAt    DateTime?
+  session        CycleCountSession?     @relation(fields: [sessionId], references: [sessionId])
+  production     Producao?              @relation("cycleCountEvent")
+  adjustments    CycleCountAdjustment[]
 
   @@index([sessionId])
   @@index([operatorId])
@@ -429,13 +433,13 @@ model CycleCountEvent {
 }
 
 model CycleCountAdjustment {
-  id                   Int               @id @default(autoincrement())
-  cycleCountEventId    Int
-  delta                Int
-  reason               String?
-  user                 String?
-  createdAt            DateTime          @default(now())
-  cycleCountEvent      CycleCountEvent   @relation(fields: [cycleCountEventId], references: [id])
+  id                Int             @id @default(autoincrement())
+  cycleCountEventId Int
+  delta             Int
+  reason            String?
+  user              String?
+  createdAt         DateTime        @default(now())
+  cycleCountEvent   CycleCountEvent @relation(fields: [cycleCountEventId], references: [id])
 
   @@unique([cycleCountEventId])
   @@index([cycleCountEventId])

@@ -1,14 +1,21 @@
 
 <template>
-  <div class="admin-wrapper">
-    <!-- Cabeçalho -->
-    <header class="pagina-header">
-      <div>
-        <h1 class="titulo">Controle Interno</h1>
-        <p class="subtitulo">
-          Gerencie os estabelecimentos e acompanhe o desempenho da plataforma.
-        </p>
-      </div>
+    <div>
+        <div>
+            <SidebarNav style="z-index: 1" />
+        </div>
+
+        <carregandoTela v-if="carregando" />
+
+        <main v-else class="content-wrapper flex-grow-1">
+            <div class="container-fluid my-4 mt-md-4 mt-3">
+            <header class="pagina-header">
+            <div>
+                <h1 class="titulo">Controle Interno</h1>
+                <p class="subtitulo">
+                    Gerencie os estabelecimentos e acompanhe o desempenho da plataforma.
+                </p>
+            </div>
 
       <div class="header-acoes">
         <button class="btn btn-sec" :disabled="carregando" @click="carregar(true)">
@@ -299,7 +306,7 @@
       class="admin-modal-overlay"
       @click.self="fecharModais"
     >
-        <form class="" @submit.prevent="salvarFuncionario">
+        <form class="admin-modal" @submit.prevent="salvarFuncionario">
         <h2>Novo funcionário</h2>
         <p class="admin-modal-sub">Adicione uma pessoa a um estabelecimento já cadastrado.</p>
  
@@ -455,7 +462,7 @@
     </div>
 
     <!-- ░░░ Modal: credenciais criadas ░░░ -->
-    <div v-if="modal === 'sucesso' && credenciais" class="overlay" @click.self="fecharModal">
+    <div v-if="modal === 'sucesso' && credenciais" class="admin-overlay" @click.self="fecharModal">
       <div class="admin-modal admin-modal-peq">
         <h2>{{ credenciais.titulo }}</h2>
         <p class="admin-modal-sub">
@@ -474,19 +481,27 @@
         <div class="admin-modal-acoes">
           <button class="btn btn-sec" @click="copiarCredenciais">Copiar e-mail e senha</button>
           <button class="btn btn-pri" @click="fecharModal">Concluir</button>
-        </div>
-      </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
-
-  </div>
 </template>
 
 <script>
-import api from "@/Axios";
-import { useAuthStore } from "@/store/store.js";
+import SidebarNav from '@/components/Sidebar.vue';
+import { useAuthStore } from '@/store/store';
+import api from '@/Axios';
+import carregandoTela from '@/components/carregandoTela.vue';
 
 export default {
   name: "AdminView",
+
+  components: {
+    SidebarNav,
+    carregandoTela,
+  },
 
   data() {
     return {
@@ -886,11 +901,23 @@ export default {
 </script>
 
 <style scoped>
-.admin-wrapper {
+.content-wrapper {
+  flex-grow: 1;
+  padding-left: 200px;
+  width: 100%;
   min-height: 100vh;
-  padding: 35px 4%;
-  background: #f5f7f6;
-  color: #26372e;
+}
+
+@media (max-width: 768px) {
+  .content-wrapper {
+    padding-left: 0;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .content-wrapper {
+    padding-left: 0;
+  }
 }
 
 .pagina-header {
@@ -1268,119 +1295,193 @@ td {
   color: #b3261e;
 }
 
-/* Modais */
-
-.admin-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: #00000070;
+.admin-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* Modais */
+
+.admin-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 200px;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+
+  background: rgba(0, 0, 0, 0.55);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 20px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .admin-modal-overlay {
+    left: 0;
+  }
 }
 
 .admin-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   width: 100%;
-  max-width: 520px;
+  max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  background: white;
-  padding: 27px;
+  box-sizing: border-box;
+  background: #fff;
+  padding: 30px;
   border-radius: 16px;
-  box-shadow: 0 10px 40px #00000030;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  color: #26372e;
+  margin: auto;
+  flex-shrink: 0;
 }
 
-.admin-modal-header {
+/* Títulos centralizados */
+
+.admin-modal h2 {
+  width: 100%;
+  margin: 0;
+  color: #145a32;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.admin-modal h3 {
+  width: 100%;
+  margin: 12px 0 2px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #e8eee9;
+  color: #145a32;
+  font-size: 15px;
+  text-align: left;
+}
+
+.admin-modal-sub {
+  margin: 0 0 10px;
+  color: #888;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* Campos e labels alinhados à esquerda */
+
+.admin-modal .rotulo {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 22px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  margin: 0;
+  color: #444;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.admin-modal .campo,
+.admin-modal input,
+.admin-modal select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #dce5df;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.admin-modal .campo:focus,
+.admin-modal input:focus,
+.admin-modal select:focus {
+  border-color: #145a32;
+  box-shadow: 0 0 0 3px rgba(20, 90, 50, 0.08);
+}
+
+/* Organização dos campos */
+
+.admin-modal .grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.admin-modal .linha-senha {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.admin-modal .flex-1 {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Cabeçalho do modal de detalhes */
+
+.admin-modal-header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 35px;
+  text-align: center;
 }
 
 .admin-modal-header h2 {
   color: #145a32;
   font-size: 21px;
   margin: 0;
+  text-align: center;
 }
 
 .admin-modal-header p {
   color: #888;
   font-size: 12px;
-  margin-top: 7px;
+  margin: 7px 0 0;
 }
 
 .fechar {
+  position: absolute;
+  right: 0;
+  top: -8px;
   border: none;
   background: transparent;
   font-size: 28px;
   color: #777;
 }
 
-.admin-modal form {
-  display: flex;
-  flex-direction: column;
-}
-
-.admin-modal label {
-  color: #444;
-  font-size: 13px;
-  font-weight: 600;
-  margin: 12px 0 7px;
-}
-
-.admin-modal input {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 12px;
-  outline: none;
-  font-family: inherit;
-}
-
-.admin-modal input:focus {
-  border-color: #145a32;
-}
-
-.admin-modal-acoes {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 25px;
-}
-
-.btn-cancelar {
-  padding: 11px 17px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 9px;
-  color: #666;
-  font-weight: 600;
-}
-
-.empresa-selecionada {
-  background: #eff7f1;
-  padding: 13px;
-  border-radius: 9px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 15px;
-}
-
-.empresa-selecionada span,
-.detalhes-grid span {
-  color: #888;
-  font-size: 12px;
-}
-
-.empresa-selecionada strong {
-  color: #145a32;
-}
+/* Detalhes */
 
 .detalhes-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -1392,52 +1493,84 @@ td {
   overflow-wrap: anywhere;
 }
 
+.detalhes-grid span {
+  color: #888;
+  font-size: 12px;
+}
+
 .detalhes-grid strong {
   color: #173d2c;
   font-size: 14px;
 }
 
-@media (max-width: 1000px) {
-  .indicadores {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* Credenciais */
+
+.admin-modal-peq {
+  max-width: 460px;
 }
 
+.credenciais {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f5f8f5;
+  border: 1px solid #e5ece6;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+.credenciais .sub {
+  color: #888;
+  font-size: 12px;
+}
+
+/* Botões */
+
+.admin-modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #edf0ed;
+}
+
+.btn-cancelar {
+  padding: 11px 17px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 9px;
+  color: #666;
+  font-weight: 600;
+}
+
+.admin-modal-acoes .btn {
+  padding: 11px 17px;
+  border-radius: 9px;
+  font-weight: 600;
+}
+
+/* Responsividade */
+
 @media (max-width: 650px) {
-  .admin-wrapper {
-    padding: 25px 15px;
+  .admin-modal {
+    padding: 22px 18px;
+    max-height: 92vh;
   }
 
-  .pagina-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .indicadores {
+  .admin-modal .grade {
     grid-template-columns: 1fr;
   }
 
-  .lista-section {
-    padding: 16px;
-  }
-
-  .lista-header {
-    align-items: flex-start;
+  .admin-modal .linha-senha {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .filtros {
-    flex-direction: column;
-  }
-
-  .filtros select {
+  .admin-modal .linha-senha button {
     width: 100%;
-  }
-
-  .conexao {
-    gap: 12px;
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .admin-modal-acoes {
@@ -1447,5 +1580,10 @@ td {
   .admin-modal-acoes button {
     width: 100%;
   }
+
+  .detalhes-grid {
+    grid-template-columns: 1fr;
+  }
 }
+
 </style>
