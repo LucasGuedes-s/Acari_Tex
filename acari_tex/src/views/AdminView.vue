@@ -619,9 +619,10 @@ export default {
   methods: {
     headersAuth() {
       const token = useAuthStore().pegar_token;
+      console.log(token)
       if (!token) return {};
       return {
-        Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
+        Authorization: token,
       };
     },
 
