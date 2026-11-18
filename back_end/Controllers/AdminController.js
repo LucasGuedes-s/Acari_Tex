@@ -1,6 +1,9 @@
 
 const prisma = require('../config/prisma');
 const Funcionarios = require('../Services/Funcionarios.services');
+const {
+  obterEvolucaoProducao
+} = require('../Services/dashboardProducaoService');
 
 function formatarCNPJ(cnpj) {
   const numeros = String(cnpj || '').replace(/\D/g, '');
@@ -73,38 +76,44 @@ async function listarEstabelecimentos(req, res, next) {
       }
     });
 
-    const resultado = estabelecimentos.map((estabelecimento) => {
-      const atividade = mapaAtividades.get(estabelecimento.cnpj);
+    const resultado = await Promise.all(
+      estabelecimentos.map(async (estabelecimento) => {
+        const atividade = mapaAtividades.get(estabelecimento.cnpj);
 
-      const funcionariosAtivos = estabelecimento.usuarios.filter(
-        (usuario) => usuario.status !== 'inativo'
-      );
+        const funcionariosAtivos = estabelecimento.usuarios.filter(
+          (usuario) => usuario.status !== 'inativo'
+        );
 
-      return {
-        cnpj: estabelecimento.cnpj,
-        nome: estabelecimento.nome,
-        endereco: estabelecimento.endereco,
-        telefone: estabelecimento.telefone,
+        const dadosProducao = await obterEvolucaoProducao(
+          estabelecimento.cnpj,
+          { dias: 7 }
+        );
 
-        quantidade_funcionarios: estabelecimento.usuarios.length,
-        funcionarios_ativos: funcionariosAtivos.length,
+        const eficienciaAtual =
+          dadosProducao.resumo.eficienciaUtilizada ??
+          dadosProducao.resumo.eficienciaReferencia;
 
-        eficiencia_atual:
-          estabelecimento.eficiencia_turma?.eficiencia_percent ?? null,
+        return {
+          cnpj: estabelecimento.cnpj,
+          nome: estabelecimento.nome,
+          endereco: estabelecimento.endereco,
+          telefone: estabelecimento.telefone,
+          quantidade_funcionarios: estabelecimento.usuarios.length,
+          funcionarios_ativos: funcionariosAtivos.length,
 
-        eficiencia_calculada_em:
-          estabelecimento.eficiencia_turma?.calculadoEm ?? null,
+          eficiencia_atual: eficienciaAtual,
+          eficiencia_calculada_em: eficienciaAtual !== null
+            ? new Date()
+            : null,
 
-        // Situação baseada na existência de produção nas últimas 72 horas
-        status: atividade ? 'ativo' : 'inativo',
-        ativo: Boolean(atividade),
-
-        ultima_atividade: atividade?.ultima_atividade ?? null,
-        registros_ultimas_72h: atividade?.registros_periodo ?? 0,
-
-        funcionarios: estabelecimento.usuarios
-      };
-    });
+          status: atividade ? 'ativo' : 'inativo',
+          ativo: Boolean(atividade),
+          ultima_atividade: atividade?.ultima_atividade ?? null,
+          registros_ultimas_72h: atividade?.registros_periodo ?? 0,
+          funcionarios: estabelecimento.usuarios
+        };
+      })
+    );
 
     return res.status(200).json({
       estabelecimentos: resultado
