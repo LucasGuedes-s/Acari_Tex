@@ -12,18 +12,13 @@
             <header class="pagina-header">
             <div>
                 <h1 class="titulo">Controle Interno</h1>
-                <p class="subtitulo">
-                    Gerencie os estabelecimentos e acompanhe o desempenho da plataforma.
-                </p>
             </div>
 
       <div class="header-acoes">
-        <button class="btn btn-sec" :disabled="carregando" @click="carregar(true)">
-          {{ carregando ? "Atualizando..." : "Atualizar" }}
+        <button class="btn-principal btn-add-estabelecimento" @click="abrirCadastro">
+          + 
         </button>
-        <button class="btn-principal" @click="abrirCadastro">
-          + Novo estabelecimento
-        </button>
+        <span class="texto-oculto">Novo Estabelecimento</span>
       </div>
     </header>
 
@@ -926,25 +921,21 @@ export default {
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  margin-bottom: 25px;
+  margin-bottom: 15px;
 }
 
 .titulo {
   color: #0d3927;
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
-  margin: 0;
-}
-
-.subtitulo {
-  color: #777;
-  margin-top: 7px;
+  margin: 0 10;
 }
 
 .header-acoes {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  position: relative;
 }
 
 button {
@@ -961,7 +952,7 @@ button:disabled {
 .btn-principal,
 .btn-secundario {
   padding: 11px 17px;
-  border-radius: 9px;
+  border-radius: 25px;
   font-weight: 600;
   border: none;
 }
@@ -973,6 +964,22 @@ button:disabled {
 
 .btn-principal:hover {
   background: #0d3927;
+}
+
+.texto-oculto {
+  display: none;
+  z-index: 2000;
+  position: absolute;
+  bottom: -15%; 
+  right: -30%;
+  transform: translateX(-50%);
+  background: white;
+  border-radius: 10px;
+  padding: 5px 10px;
+}
+
+.btn-add-estabelecimento:hover + .texto-oculto{
+  display: block;
 }
 
 .btn-secundario {
