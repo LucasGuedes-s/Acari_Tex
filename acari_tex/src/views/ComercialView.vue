@@ -19,10 +19,6 @@
             <div><span>Total de leads</span><strong>{{ leads.length }}</strong></div>
           </div>
           <div class="indicador-card">
-            <div class="indicador-icone azul">📞</div>
-            <div><span>Em negociação</span><strong>{{ leadsEmNegociacao }}</strong></div>
-          </div>
-          <div class="indicador-card">
             <div class="indicador-icone amarelo">🤝</div>
             <div><span>Clientes</span><strong>{{ totalClientes }}</strong></div>
           </div>
@@ -247,6 +243,8 @@ export default {
         await this.carregarLeads();
       } catch (error) {
         console.error('Erro ao cadastrar lead:', error);
+        console.log('Status:', error.response?.status);
+        console.log('Mensagem do backend:', error.response?.data);
         this.erroForm = error.response?.data?.message || 'Não foi possível cadastrar o lead.';
       } finally {
         this.salvando = false;
@@ -340,7 +338,7 @@ button:disabled {
 .btn-principal,
 .btn-secundario {
   padding: 11px 17px;
-  border-radius: 25px;
+  border-radius: 35px;
   font-weight: 600;
   border: none;
 }
@@ -408,7 +406,7 @@ button:disabled {
 
 .indicadores {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 18px;
   margin-bottom: 25px;
 }

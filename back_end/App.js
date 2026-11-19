@@ -45,7 +45,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error("Not allowed by CORS"));
   },
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization","x-api-key"],
   preflightContinue: false,  // importante
   optionsSuccessStatus: 204   // resposta para OPTIONS
@@ -63,7 +63,7 @@ const iniciarSockets = require('./socket')
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   },
 });
 iniciarSockets(io)
@@ -142,7 +142,7 @@ const relatorioProducaoRouter = require('./Routes/relatorioProducaoRoutes.js');
 const analiseProfissionalRouter = require('./Routes/analiseProfissionalRoutes.js');
 const CycleCountRouter = require('./Routes/CycleCount.router.js');
 const routerAdmin = require('./Routes/Admin.router.js');
-
+const comercialRoutes = require('./Routes/Comercial.router.js');
 //ROTAS
 app.get('/teste', (req, res) => {
   res.send('Teste')
@@ -164,7 +164,8 @@ app.use(
   relatorioProducaoRouter,
   analiseProfissionalRouter,
   CycleCountRouter,
-  routerAdmin
+  routerAdmin,
+  comercialRoutes,
 );
 
 // ===== Iniciar servidor =====
