@@ -31,12 +31,12 @@
               <span>Funcionários</span>
             </router-link>
           </div>
-          <div class="list-group-item" @click="toggleSidebar">
+          <!-- <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/eficiencia" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-robot icon"></i>
               <span>Chatbot</span>
             </router-link>
-          </div>
+          </div> -->
           <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/producao-funcionarios" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-clipboard2-plus icon"></i>
@@ -63,12 +63,12 @@
             </router-link>
           </div>
 
-          <div class="list-group-item" @click="toggleSidebar">
+          <!-- <div class="list-group-item" @click="toggleSidebar">
             <router-link to="/cyclecount" class="d-flex align-items-center text-reset" exact-active-class="ativo">
               <i class="bi bi-camera-video icon"></i>
               <span>CycleCount</span>
             </router-link>
-          </div>
+          </div> -->
 
           <!-- <div class="list-group-item" @click="toggleSidebar" v-if="usuario.permissoes === 1 && usuario.funcoes === 'Administrador'">
             <router-link to="/financeiro" class="d-flex align-items-center text-reset" exact-active-class="ativo">
