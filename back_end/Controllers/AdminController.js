@@ -211,14 +211,12 @@ async function cadastrarFuncionario(req, res, next) {
       });
     }
 
-    // A permissão é definida pelo servidor.
-    // O formulário não pode cadastrar um funcionário como administrador.
     const dadosFuncionario = {
       nome: nome.trim(),
       email: email.trim().toLowerCase(),
       idade: Number(idade),
       funcoes: funcoes || funcao,
-      permissao: 'funcionario',
+      permissoes: 1, // 1 = funcionário administrador, 2 = funcionário comum
       fotoUrl: fotoUrl || null
     };
 

@@ -38,6 +38,7 @@ model Usuarios {
   Estabelecimento      Estabelecimento       @relation(fields: [estabelecimentoCnpj], references: [cnpj])
   cycleCountSessions   CycleCountSession[]
   superAdmin           Boolean               @default(false)
+  comercial            Boolean               @default(false)
   ultimoLoginEm        DateTime?
   criadoEm             DateTime              @default(now())
 
@@ -443,4 +444,25 @@ model CycleCountAdjustment {
 
   @@unique([cycleCountEventId])
   @@index([cycleCountEventId])
+}
+
+
+model Leads {
+  id              Int      @id @default(autoincrement())
+  nome            String   @db.VarChar(120)
+  cnpj            String?  @db.VarChar(18)
+  telefone        String?  @db.VarChar(30)
+  endereco        String?  @db.VarChar(255)
+
+  contatoNome     String   @map("contato_nome") @db.VarChar(120)
+  contatoEmail    String?  @map("contato_email") @db.VarChar(191)
+  contatoTelefone String?  @map("contato_telefone") @db.VarChar(30)
+
+  status          String   @default("não contatado") @db.VarChar(40)
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("leads")
 }

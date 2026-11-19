@@ -261,15 +261,21 @@ const routes = [
   {
     path: '/admin',
     name: 'admin',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "admin" */ '../views/AdminView.vue'),
+    component: () => import('../views/AdminView.vue'),
     meta: {
       title: 'Linha Tex',
       requiresSuperAdmin: true
     },
-  }
+  },
+  {
+    path: '/comercial',
+    name: 'comercial',
+    component: () => import('../views/ComercialView.vue'),
+    meta: {
+      title: 'Comercial',
+      requiresComercial: true
+    }
+  },
 ]
 
 const router = createRouter({
@@ -278,14 +284,29 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (!to.meta.requiresSuperAdmin) return true;
-  let u = null;
-  try { 
-    u = JSON.parse(localStorage.getItem('usuario')); 
-  } catch (e) {
-    u = null; // localStorage vazio ou JSON inválido: trata como não autorizado
+  if (!to.meta.requiresSuperAdmin && !to.meta.requiresComercial) {
+    return true;
   }
-  return u?.superAdmin ? true : '/nao-autorizado';
+
+  let u = null;
+
+  try {
+    u = JSON.parse(localStorage.getItem('usuario'));
+  } catch (e) {
+    u = null;
+  }
+
+  if (to.meta.requiresSuperAdmin) {
+    return u?.superAdmin ? true : '/nao-autorizado';
+  }
+
+  if (to.meta.requiresComercial) {
+    return (u?.comercial || u?.superAdmin)
+      ? true
+      : '/nao-autorizado';
+  }
+
+  return true;
 });
 
 export default router

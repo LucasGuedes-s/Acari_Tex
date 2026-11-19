@@ -104,6 +104,21 @@
               <span>Controle Interno</span>
             </router-link>
           </div>
+
+          <div
+            class="list-group-item"
+            v-if="usuario.comercial || usuario.superAdmin"
+            @click="toggleSidebar"
+          >
+            <router-link
+              to="/comercial"
+              class="d-flex align-items-center text-reset"
+              exact-active-class="ativo"
+            >
+              <i class="bi bi-briefcase icon"></i>
+              <span>Comercial</span>
+            </router-link>
+          </div>
         </div>
       </div>
 
