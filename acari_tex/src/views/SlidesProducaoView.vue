@@ -554,7 +554,72 @@
             </div>
           </template>
 
-          <!-- ══════════ 7. EFICIÊNCIA DA FÁBRICA ══════════ -->
+          <!-- ══════════ DESEMPENHO E RANKING POR GRUPO ══════════ -->
+          <template v-else-if="paginaAtual.chave === 'grupos'">
+            <div class="slide-cabecalho">
+              <div>
+                <h2 class="slide-titulo">Desempenho por grupo</h2>
+                <p class="slide-sub">
+                  Peças processadas nas etapas do grupo · eficiência consolidada · pódio por eficiência
+                </p>
+              </div>
+              <span class="selo">{{ formatarNumero(grupos.length) }} grupos</span>
+            </div>
+
+            <div v-if="grupos.length" class="grupos-grade">
+              <article v-for="grupo in grupos" :key="grupo.nome" class="grupo-card">
+                <div class="grupo-topo">
+                  <div>
+                    <span class="grupo-legenda">GRUPO</span>
+                    <h3 class="grupo-nome">{{ grupo.nome }}</h3>
+                  </div>
+                  <span class="grupo-pecas">{{ formatarNumero(grupo.producao) }} <small>peças</small></span>
+                </div>
+
+                <div class="grupo-eficiencia" :class="`faixa-${faixa(grupo.eficiencia)}`">
+                  <strong>{{ formatarPercentual(grupo.eficiencia) }}</strong>
+                  <span>eficiência do grupo</span>
+                </div>
+                <div class="barra barra-grande">
+                  <div
+                    class="barra-preenchida"
+                    :class="`fill-${faixa(grupo.eficiencia)}`"
+                    :style="{ width: Math.min(100, Math.max(0, grupo.eficiencia || 0)) + '%' }"
+                  ></div>
+                </div>
+
+                <div class="grupo-podio-titulo">TOP 3 — EFICIÊNCIA</div>
+                <div v-if="grupo.ranking.length" class="grupo-podio">
+                  <div
+                    v-for="p in grupo.ranking"
+                    :key="p.email"
+                    class="grupo-podio-item"
+                    :class="`grupo-podio-${p.posicao}`"
+                  >
+                    <span class="grupo-medalha">{{ medalha(p.posicao) }}</span>
+                    <span class="grupo-pessoa-avatar">
+                      <img v-if="p.foto" :src="p.foto" :alt="p.nome" />
+                      <span v-else>{{ iniciais(p.nome) }}</span>
+                    </span>
+                    <span class="grupo-pessoa-nome">{{ p.nome }}</span>
+                    <strong :class="`faixa-${faixa(p.eficiencia)}`">{{ formatarPercentual(p.eficiencia) }}</strong>
+                  </div>
+                </div>
+                <p v-else class="grupo-sem-ranking">Sem produção com tempo válido para ranking.</p>
+                <div class="grupo-rodape">{{ formatarNumero(grupo.etapas) }} etapa(s) · {{ formatarNumero(grupo.profissionais) }} profissional(is)</div>
+              </article>
+            </div>
+            <div v-else class="grupo-vazio">Nenhum grupo de etapas cadastrado para a produção.</div>
+
+            <div class="grupo-geral">
+              <div>
+                <span>EFICIÊNCIA GERAL DA TURMA</span>
+                <small>Consolidado oficial de todos os grupos</small>
+              </div>
+              <strong :class="`faixa-${faixa(resumo.eficienciaGeral)}`">{{ formatarPercentual(resumo.eficienciaGeral) }}</strong>
+            </div>
+          </template>
+
           <template v-else>
             <div class="slide-cabecalho">
               <div>
@@ -626,6 +691,14 @@
             {{ pausado ? '▶' : '❚❚' }}
           </button>
           <button class="botao" type="button" title="Próximo slide" @click="proximoSlide">›</button>
+          <button
+            class="botao"
+            type="button"
+            title="Configurações dos slides"
+            @click="abrirConfiguracoes"
+          >
+            ⚙
+          </button>
         </div>
 
         <div class="indicadores">
@@ -644,6 +717,122 @@
           {{ slideAtual + 1 }}/{{ paginas.length }} · {{ pausado ? 'pausado' : 'automático' }}
         </span>
       </footer>
+
+      <!-- MODAL DE PERSONALIZAÇÃO -->
+      <div
+        v-if="modalConfiguracoes"
+        class="modal-config-overlay"
+        @click.self="fecharConfiguracoes"
+      >
+        <section
+          class="modal-config"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-config-slides"
+        >
+          <header class="modal-config-cabecalho">
+            <div>
+              <h2 id="titulo-config-slides">Personalizar apresentação</h2>
+              <p>Escolha quais informações serão exibidas e ajuste o tempo dos slides.</p>
+            </div>
+            <button
+              type="button"
+              class="modal-config-fechar"
+              aria-label="Fechar configurações"
+              @click="fecharConfiguracoes"
+            >
+              ×
+            </button>
+          </header>
+
+          <div class="modal-config-conteudo" v-if="configuracoesRascunho">
+            <div class="config-grupo">
+              <h3>Tempo e quantidade por página</h3>
+
+              <label class="config-campo">
+                <span>Duração de cada slide (segundos)</span>
+                <input
+                  v-model.number="configuracoesRascunho.duracaoSlide"
+                  type="number"
+                  min="5"
+                  max="300"
+                />
+              </label>
+
+              <label class="config-campo">
+                <span>Profissionais por página</span>
+                <input
+                  v-model.number="configuracoesRascunho.profissionaisPorPagina"
+                  type="number"
+                  min="1"
+                  max="20"
+                />
+              </label>
+
+              <label class="config-campo">
+                <span>Ordens de produção por página</span>
+                <input
+                  v-model.number="configuracoesRascunho.opsPorPagina"
+                  type="number"
+                  min="1"
+                  max="20"
+                />
+              </label>
+            </div>
+
+            <div class="config-grupo">
+              <h3>Slides exibidos</h3>
+              <p class="config-ajuda">Desmarque os conteúdos que não devem aparecer na apresentação.</p>
+
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.resumo" />
+                <span>Resumo da produção</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.etapa" />
+                <span>Produção por etapa</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.destaque" />
+                <span>Destaque do dia</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.ranking" />
+                <span>Ranking de profissionais</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.ops" />
+                <span>Ordens de produção</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.grupos" />
+                <span>Desempenho e ranking por grupo</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.eficiencia" />
+                <span>Eficiência da fábrica</span>
+              </label>
+              <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.ociosas" />
+                <span>Etapas sem produção</span>
+              </label>
+            </div>
+
+            <p v-if="erroConfiguracoes" class="config-erro" role="alert">
+              {{ erroConfiguracoes }}
+            </p>
+          </div>
+
+          <footer class="modal-config-acoes">
+            <button type="button" class="config-botao config-botao-secundario" @click="fecharConfiguracoes">
+              Cancelar
+            </button>
+            <button type="button" class="config-botao config-botao-principal" @click="salvarConfiguracoes">
+              Salvar configurações
+            </button>
+          </footer>
+        </section>
+      </div>
     </template>
   </div>
 </template>
@@ -655,13 +844,28 @@ import api from '@/Axios'
 import { useAuthStore } from '@/store/store'
 
 /* ================= CONFIGURAÇÃO ================= */
-const DURACAO_SLIDE_S = 14
-const INTERVALO_ATUALIZACAO_MS = 2 * 60 * 1000
+const configuracoes = ref({
+  duracaoSlide: 14,
+  profissionaisPorPagina: 6,
+  opsPorPagina: 4,
 
-// Paginação: nada é escondido por falta de espaço — o excedente continua
-// na página seguinte, com o mesmo padrão visual.
-const PROFISSIONAIS_POR_PAGINA = 6
-const OPS_POR_PAGINA = 4
+  slides: {
+    resumo: true,
+    etapa: true,
+    destaque: true,
+    ranking: true,
+    ops: true,
+    grupos: true,
+    eficiencia: true,
+    ociosas: true
+  }
+})
+
+const modalConfiguracoes = ref(false)
+const configuracoesRascunho = ref(null)
+const erroConfiguracoes = ref('')
+
+const INTERVALO_ATUALIZACAO_MS = 2 * 60 * 1000
 
 /* ================= ESTADO ================= */
 const carregando = ref(true)
@@ -696,6 +900,78 @@ const etapas = computed(() => {
   const completo = painel.value?.porEtapaCompleto
   if (Array.isArray(completo) && completo.length) return completo
   return porEtapa.value
+})
+
+/**
+ * Consolida as etapas por grupo, preservando a fórmula oficial:
+ * eficiência = soma do tempo aplicado × 100 ÷ soma do tempo trabalhado.
+ * O ranking é calculado com os tempos individuais já enviados pelo backend.
+ */
+const grupos = computed(() => {
+  const mapa = new Map()
+
+  for (const etapa of etapas.value) {
+    const nomeGrupo = String(etapa.grupo || '').trim() || 'Sem grupo'
+    if (!mapa.has(nomeGrupo)) {
+      mapa.set(nomeGrupo, {
+        nome: nomeGrupo,
+        producao: 0,
+        tempoAplicado: 0,
+        tempoTrabalhado: 0,
+        etapas: 0,
+        pessoas: new Map(),
+      })
+    }
+
+    const grupo = mapa.get(nomeGrupo)
+    grupo.producao += Number(etapa.producao) || 0
+    grupo.tempoAplicado += Number(etapa.tempoReferencia) || 0
+    grupo.tempoTrabalhado += Number(etapa.tempoTrabalhado) || 0
+    grupo.etapas += 1
+
+    for (const pessoa of etapa.pessoas || []) {
+      if (!pessoa.email) continue
+      if (!grupo.pessoas.has(pessoa.email)) {
+        grupo.pessoas.set(pessoa.email, {
+          email: pessoa.email,
+          nome: pessoa.nome,
+          foto: pessoa.foto,
+          producao: 0,
+          tempoAplicado: 0,
+          tempoTrabalhado: 0,
+        })
+      }
+      const acumulada = grupo.pessoas.get(pessoa.email)
+      acumulada.producao += Number(pessoa.producao) || 0
+      acumulada.tempoAplicado += Number(pessoa.tempoAplicado) || 0
+      acumulada.tempoTrabalhado += Number(pessoa.tempoTrabalhado) || 0
+    }
+  }
+
+  return [...mapa.values()]
+    .map(grupo => {
+      const ranking = [...grupo.pessoas.values()]
+        .filter(p => p.producao > 0 && p.tempoTrabalhado > 0)
+        .map(p => ({
+          ...p,
+          eficiencia: p.tempoAplicado > 0 ? Number(((p.tempoAplicado * 100) / p.tempoTrabalhado).toFixed(2)) : 0,
+        }))
+        .sort((a, b) => b.eficiencia - a.eficiencia || b.producao - a.producao || a.nome.localeCompare(b.nome, 'pt-BR'))
+        .slice(0, 3)
+        .map((p, indice) => ({ ...p, posicao: indice + 1 }))
+
+      return {
+        nome: grupo.nome,
+        producao: grupo.producao,
+        etapas: grupo.etapas,
+        profissionais: grupo.pessoas.size,
+        eficiencia: grupo.tempoTrabalhado > 0
+          ? Number(((grupo.tempoAplicado * 100) / grupo.tempoTrabalhado).toFixed(2))
+          : 0,
+        ranking,
+      }
+    })
+    .sort((a, b) => b.producao - a.producao || a.nome.localeCompare(b.nome, 'pt-BR'))
 })
 
 /**
@@ -782,8 +1058,9 @@ const ranking = computed(() => profissionais.value.filter(p => p.producao > 0).s
 /** Quebra uma lista em páginas de `tamanho` (mínimo 1 página). */
 function paginar(lista, tamanho) {
   if (!lista.length) return [[]]
+  const quantidadePorPagina = Math.max(1, Math.floor(Number(tamanho) || 1))
   const saida = []
-  for (let i = 0; i < lista.length; i += tamanho) {
+  for (let i = 0; i < lista.length; i += quantidadePorPagina) {
     saida.push(lista.slice(i, i + tamanho))
   }
   return saida
@@ -836,6 +1113,96 @@ function paginasDasEtapas() {
   })
 }
 
+function clonarConfiguracoes(valor) {
+  return JSON.parse(JSON.stringify(valor))
+}
+
+function abrirConfiguracoes() {
+  configuracoesRascunho.value = clonarConfiguracoes(configuracoes.value)
+  erroConfiguracoes.value = ''
+  modalConfiguracoes.value = true
+}
+
+function fecharConfiguracoes() {
+  modalConfiguracoes.value = false
+  configuracoesRascunho.value = null
+  erroConfiguracoes.value = ''
+}
+
+function salvarConfiguracoes() {
+  const rascunho = configuracoesRascunho.value
+  if (!rascunho) return
+
+  const algumSlideAtivo = Object.values(rascunho.slides || {}).some(Boolean)
+  if (!algumSlideAtivo) {
+    erroConfiguracoes.value = 'Ative pelo menos um tipo de slide.'
+    return
+  }
+
+  const novasConfiguracoes = {
+    duracaoSlide: Math.min(300, Math.max(5, Math.round(Number(rascunho.duracaoSlide) || 14))),
+    profissionaisPorPagina: Math.min(20, Math.max(1, Math.round(Number(rascunho.profissionaisPorPagina) || 6))),
+    opsPorPagina: Math.min(20, Math.max(1, Math.round(Number(rascunho.opsPorPagina) || 4))),
+    slides: {
+      resumo: rascunho.slides.resumo !== false,
+      etapa: rascunho.slides.etapa !== false,
+      destaque: rascunho.slides.destaque !== false,
+      ranking: rascunho.slides.ranking !== false,
+      ops: rascunho.slides.ops !== false,
+      grupos: rascunho.slides.grupos !== false,
+      eficiencia: rascunho.slides.eficiencia !== false,
+      ociosas: rascunho.slides.ociosas !== false,
+    },
+  }
+
+  try {
+    const idSlideAtual = paginas.value[slideAtual.value]?.id
+    localStorage.setItem('slidesProducaoConfiguracoes', JSON.stringify(novasConfiguracoes))
+
+    configuracoes.value = novasConfiguracoes
+
+    const novoIndice = paginas.value.findIndex(pagina => pagina.id === idSlideAtual)
+    slideAtual.value = novoIndice >= 0
+      ? novoIndice
+      : Math.min(slideAtual.value, Math.max(0, paginas.value.length - 1))
+
+    reiniciarContador()
+    modalConfiguracoes.value = false
+    configuracoesRascunho.value = null
+    erroConfiguracoes.value = ''
+  } catch (error) {
+    console.error('Erro ao salvar configurações:', error)
+    erroConfiguracoes.value = 'Não foi possível salvar as configurações neste navegador.'
+  }
+}
+
+function carregarConfiguracoes() {
+  try {
+    const salvas = localStorage.getItem('slidesProducaoConfiguracoes')
+    if (!salvas) return
+
+    const dados = JSON.parse(salvas)
+    configuracoes.value = {
+      ...configuracoes.value,
+      ...dados,
+      duracaoSlide: Math.min(300, Math.max(5, Math.round(Number(dados.duracaoSlide) || 14))),
+      profissionaisPorPagina: Math.min(20, Math.max(1, Math.round(Number(dados.profissionaisPorPagina) || 6))),
+      opsPorPagina: Math.min(20, Math.max(1, Math.round(Number(dados.opsPorPagina) || 4))),
+      slides: {
+        ...configuracoes.value.slides,
+        ...(dados.slides || {}),
+      },
+    }
+
+    if (!Object.values(configuracoes.value.slides).some(Boolean)) {
+      configuracoes.value.slides.resumo = true
+    }
+  } catch (error) {
+    console.error('Não foi possível carregar as configurações salvas:', error)
+    localStorage.removeItem('slidesProducaoConfiguracoes')
+  }
+}
+
 /** Lista completa de páginas na ordem de apresentação. */
 const paginas = computed(() => {
   const lista = [{ id: 'resumo', chave: 'resumo', titulo: 'Resumo do dia' }]
@@ -844,7 +1211,7 @@ const paginas = computed(() => {
 
   lista.push({ id: 'destaque', chave: 'destaque', titulo: 'Destaque do dia' })
 
-  paginar(ranking.value, PROFISSIONAIS_POR_PAGINA).forEach((itens, i, todas) => {
+  paginar(ranking.value, configuracoes.value.profissionaisPorPagina).forEach((itens, i, todas) => {
     if (!itens.length) return
     lista.push({
       id: `ranking-${i}`,
@@ -856,7 +1223,7 @@ const paginas = computed(() => {
     })
   })
 
-  paginar(porOp.value, OPS_POR_PAGINA).forEach((itens, i) => {
+  paginar(porOp.value, configuracoes.value.opsPorPagina).forEach((itens, i) => {
     if (!itens.length) return
     lista.push({
       id: `ops-${i}`,
@@ -864,9 +1231,13 @@ const paginas = computed(() => {
       titulo: 'Ordens de produção',
       itens,
       colunas: Math.min(4, Math.max(1, itens.length)),
-      rotuloLinhas: rotuloFaixa(i * OPS_POR_PAGINA, itens.length, porOp.value.length),
+      rotuloLinhas: rotuloFaixa(i * configuracoes.value.opsPorPagina, itens.length, porOp.value.length),
     })
   })
+
+  if (grupos.value.length) {
+    lista.push({ id: 'grupos', chave: 'grupos', titulo: 'Desempenho por grupo' })
+  }
 
   lista.push({ id: 'eficiencia', chave: 'eficiencia', titulo: 'Eficiência da fábrica' })
 
@@ -881,7 +1252,9 @@ const paginas = computed(() => {
     })
   }
 
-  return lista
+  return lista.filter(pagina =>
+    configuracoes.value.slides[pagina.chave] !== false
+  )
 })
 
 const paginaAtual = computed(() => paginas.value[slideAtual.value] || paginas.value[0] || null)
@@ -1099,6 +1472,7 @@ function aoTeclar(evento) {
 
 onMounted(() => {
   carregarPainel()
+  carregarConfiguracoes()
 
   timerRelogio = setInterval(() => {
     agora.value = new Date()
@@ -1108,7 +1482,7 @@ onMounted(() => {
     if (pausado.value || vazio.value || !paginas.value.length) return
 
     decorrido += 1
-    if (decorrido >= DURACAO_SLIDE_S) {
+    if (decorrido >= configuracoes.value.duracaoSlide) {
       decorrido = 0
       proximoSlide()
     }
@@ -2443,6 +2817,183 @@ onUnmounted(() => {
 }
 
 /* ======================================================================
+   MODAL DE CONFIGURAÇÕES
+   ====================================================================== */
+.modal-config-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(7, 25, 16, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.modal-config {
+  width: min(620px, 100%);
+  max-height: min(88vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--verde-linha);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+}
+
+.modal-config-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--verde-linha);
+}
+
+.modal-config-cabecalho h2 {
+  margin: 0;
+  color: var(--verde);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.modal-config-cabecalho p,
+.config-ajuda {
+  margin: 5px 0 0;
+  color: var(--texto-suave);
+  font-size: 0.82rem;
+}
+
+.modal-config-fechar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: var(--verde-claro);
+  color: var(--verde);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-config-conteudo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.config-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.config-grupo h3 {
+  margin: 0;
+  color: var(--verde);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.config-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--texto);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.config-campo input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--verde-linha);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--texto);
+  font: inherit;
+}
+
+.config-opcao {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--texto);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.config-opcao input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--verde-medio);
+}
+
+.config-erro {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--alerta);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.modal-config-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 24px 20px;
+  border-top: 1px solid var(--verde-linha);
+}
+
+.config-botao {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.config-botao-secundario {
+  border-color: var(--verde-linha);
+  background: #fff;
+  color: var(--verde);
+}
+
+.config-botao-principal {
+  background: var(--verde-medio);
+  color: #fff;
+}
+
+.config-botao-principal:hover {
+  background: var(--verde);
+}
+
+@media (max-width: 620px) {
+  .modal-config-conteudo {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-config-cabecalho,
+  .modal-config-conteudo {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .modal-config-acoes {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+
+/* ======================================================================
    UTILITÁRIOS / ANIMAÇÕES
    ====================================================================== */
 .vazio-linha {
@@ -2491,5 +3042,60 @@ onUnmounted(() => {
   .chip-on .ponto {
     animation: none;
   }
+}
+/* ======================================================================
+   SLIDE — DESEMPENHO POR GRUPO
+   ====================================================================== */
+.grupos-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: clamp(10px, 1.1vw, 18px);
+  align-content: start;
+  max-height: calc(100% - 112px);
+  overflow: auto;
+  padding: 2px 3px 8px;
+}
+.grupo-card {
+  min-width: 0;
+  padding: clamp(12px, 1.2vw, 18px);
+  border: 1px solid var(--verde-linha);
+  border-top: 5px solid var(--verde-medio);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--sombra);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.grupo-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.grupo-legenda, .grupo-podio-titulo { color: var(--texto-suave); font-size: .65rem; font-weight: 800; letter-spacing: .12em; }
+.grupo-nome { margin: 2px 0 0; color: var(--texto); font-size: clamp(1rem, 1.5vw, 1.35rem); font-weight: 850; }
+.grupo-pecas { color: var(--verde); font-size: clamp(1.35rem, 2.2vw, 2rem); font-weight: 900; white-space: nowrap; }
+.grupo-pecas small { color: var(--texto-suave); font-size: .65rem; font-weight: 700; }
+.grupo-eficiencia { display: flex; align-items: baseline; gap: 9px; }
+.grupo-eficiencia strong { font-size: clamp(1.8rem, 3vw, 2.8rem); line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+.grupo-eficiencia span { color: var(--texto-suave); font-size: .72rem; font-weight: 700; }
+.grupo-podio-titulo { margin-top: 3px; }
+.grupo-podio { display: flex; flex-direction: column; gap: 6px; }
+.grupo-podio-item { display: grid; grid-template-columns: 26px 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(236, 245, 239, .72); }
+.grupo-podio-1 { background: rgba(246, 224, 164, .38); }
+.grupo-podio-2 { background: rgba(218, 226, 231, .45); }
+.grupo-podio-3 { background: rgba(232, 203, 177, .34); }
+.grupo-medalha { font-size: 1.1rem; text-align: center; }
+.grupo-pessoa-avatar { width: 29px; height: 29px; overflow: hidden; display: grid; place-items: center; border-radius: 50%; background: var(--verde-claro); color: var(--verde); font-size: .68rem; font-weight: 800; }
+.grupo-pessoa-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.grupo-pessoa-nome { overflow: hidden; color: var(--texto); font-size: .78rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.grupo-podio-item strong { font-size: .82rem; font-variant-numeric: tabular-nums; }
+.grupo-sem-ranking { margin: 0; color: var(--texto-suave); font-size: .75rem; }
+.grupo-rodape { margin-top: auto; padding-top: 7px; border-top: 1px solid var(--verde-linha); color: var(--texto-suave); font-size: .68rem; }
+.grupo-geral { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 12px 18px; border-radius: 14px; background: var(--verde); color: #fff; box-shadow: var(--sombra); }
+.grupo-geral div { display: flex; flex-direction: column; gap: 3px; }
+.grupo-geral span { font-size: clamp(.72rem, 1vw, .9rem); font-weight: 900; letter-spacing: .08em; }
+.grupo-geral small { color: rgba(255,255,255,.78); font-size: .68rem; }
+.grupo-geral strong { color: #fff !important; font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 900; font-variant-numeric: tabular-nums; }
+.grupo-vazio { display: grid; min-height: 220px; place-items: center; color: var(--texto-suave); font-weight: 700; }
+@media (max-width: 760px) {
+  .grupos-grade { grid-template-columns: 1fr; max-height: calc(100% - 125px); }
+  .grupo-geral { padding: 10px 12px; }
 }
 </style>
