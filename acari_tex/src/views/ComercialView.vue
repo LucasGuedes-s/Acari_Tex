@@ -116,6 +116,26 @@
           <label class="rotulo">Telefone do contato
             <input v-model.trim="formLead.contato_telefone" class="campo" maxlength="30" />
           </label>
+          <label class="rotulo">Idade do administrador *
+            <input
+              v-model.number="formLead.contato_idade"
+              class="campo"
+              type="number"
+              min="18"
+              max="120"
+              required
+            />
+          </label>
+          <label class="rotulo">Senha inicial do administrador *
+            <input
+              v-model="formLead.senha_administrador"
+              class="campo"
+              type="password"
+              minlength="8"
+              autocomplete="new-password"
+              required
+            />
+          </label>
         </div>
 
         <label class="rotulo">Status inicial
@@ -165,7 +185,7 @@ export default {
       modalLead: false,
       statusDisponiveis: STATUS_LEAD,
       formLead: { nome: '', cnpj: '', telefone: '', endereco: '', contato_nome: '',
-        contato_email: '', contato_telefone: '', status: 'nao_contatado' },
+        contato_email: '', contato_telefone: '', contato_idade: null, senha_administrador: '', status: 'nao_contatado' },
     };
   },
   computed: {
@@ -198,7 +218,7 @@ export default {
   methods: {
     novoFormLead() {
       return { nome: '', cnpj: '', telefone: '', endereco: '', contato_nome: '',
-        contato_email: '', contato_telefone: '', status: 'nao_contatado' };
+        contato_email: '', contato_telefone: '', contato_idade: null, senha_administrador: '', status: 'nao_contatado' };
     },
     headersAuth() {
       const token = useAuthStore().pegar_token;

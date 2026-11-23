@@ -17,7 +17,7 @@ model Usuarios {
   email                String                @id
   senha                String
   foto                 String                @db.VarChar(2048)
-  idade                Int
+  idade                Int?
   funcoes              String?
   identidade           String?
   permissoes           Int?
@@ -457,7 +457,8 @@ model Leads {
   contatoNome     String   @map("contato_nome") @db.VarChar(120)
   contatoEmail    String?  @map("contato_email") @db.VarChar(191)
   contatoTelefone String?  @map("contato_telefone") @db.VarChar(30)
-
+  contatoIdade    Int?
+  senhaAdministradorHash String?
   status          String   @default("não contatado") @db.VarChar(40)
 
   createdAt       DateTime @default(now()) @map("created_at")

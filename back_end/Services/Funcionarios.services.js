@@ -117,15 +117,21 @@ async function postFuncionario(funcionario, cnpj) {
   const cpf = funcionario.cpf?.toString() || null;
   const pis = funcionario.pis?.toString() || null;
 
-  const senha = bcrypt.hashSync(process.env.SENHA, 10);
+  const senhaTexto = funcionario.senha || process.env.SENHA;
 
-  let permissao = 2;
+  if (!senhaTexto) {
+    throw new Error('Senha não informada.');
+  }
 
-  if (
-    funcionario.permissao &&
-    funcionario.permissao !== "funcionario"
-  ) {
-    permissao = 1;
+  const senha = bcrypt.hashSync(senhaTexto, 10);
+
+  // 1 = administrador; 2 = funcionário comum.
+  const permissao = Number(
+    funcionario.permissoes ?? funcionario.permissao ?? 2
+  );
+
+  if (![1, 2].includes(permissao)) {
+    throw new Error('Permissão inválida.');
   }
 
   if(funcionario.fotoUrl === null || funcionario.fotoUrl === undefined){
@@ -146,6 +152,7 @@ async function postFuncionario(funcionario, cnpj) {
       pis,
       pix: funcionario.pix ?? null,
       notas: funcionario.funcoes,
+      telefone: funcionario.telefone ?? null,
 
       // Faz o vínculo com o estabelecimento
       Estabelecimento: {

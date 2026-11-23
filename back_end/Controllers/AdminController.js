@@ -1,6 +1,8 @@
 
 const prisma = require('../config/prisma');
 const Funcionarios = require('../Services/Funcionarios.services');
+const bcrypt = require('bcrypt');
+
 const {
   obterEvolucaoProducao
 } = require('../Services/dashboardProducaoService');
@@ -123,14 +125,50 @@ async function listarEstabelecimentos(req, res, next) {
   }
 }
 
+
 // POST /admin/estabelecimentos
 async function cadastrarEstabelecimento(req, res, next) {
   try {
-    const { nome, cnpj, endereco, telefone } = req.body;
+    const {
+      nome,
+      cnpj,
+      endereco,
+      telefone,
+      gestor
+    } = req.body;
 
+    // Validação dos dados do estabelecimento
     if (!nome || !cnpj) {
       return res.status(400).json({
         message: 'Nome e CNPJ são obrigatórios.'
+      });
+    }
+
+    // Validação dos dados do primeiro usuário
+    if (
+      !gestor?.nome ||
+      !gestor?.email ||
+      !gestor?.idade ||
+      !gestor?.senha
+    ) {
+      return res.status(400).json({
+        message: 'Informe nome, e-mail, idade e senha do administrador.'
+      });
+    }
+
+    const idade = Number(gestor.idade);
+    const email = gestor.email.trim().toLowerCase();
+    const senhaTexto = String(gestor.senha);
+
+    if (!Number.isInteger(idade) || idade < 14 || idade > 100) {
+      return res.status(400).json({
+        message: 'Idade inválida.'
+      });
+    }
+
+    if (senhaTexto.length < 8 || senhaTexto.length > 72) {
+      return res.status(400).json({
+        message: 'A senha deve ter entre 8 e 72 caracteres.'
       });
     }
 
@@ -142,32 +180,72 @@ async function cadastrarEstabelecimento(req, res, next) {
       });
     }
 
-    const existente = await prisma.estabelecimento.findUnique({
-      where: {
-        cnpj: cnpjFormatado
-      }
+    // Verifica se o e-mail já está cadastrado
+    const usuarioExistente = await prisma.usuarios.findUnique({
+      where: { email }
     });
 
-    if (existente) {
+    if (usuarioExistente) {
       return res.status(409).json({
-        message: 'Já existe um estabelecimento cadastrado com esse CNPJ.'
+        message: 'Já existe um usuário com esse e-mail.'
       });
     }
 
-    const estabelecimento = await prisma.estabelecimento.create({
-      data: {
-        nome: nome.trim(),
-        cnpj: cnpjFormatado,
-        endereco: endereco || null,
-        telefone: telefone || null
-      }
+    // Criptografa a senha antes de salvar
+    const senhaHash = await bcrypt.hash(senhaTexto, 10);
+
+    // Cria estabelecimento e administrador na mesma transação
+    const resultado = await prisma.$transaction(async (tx) => {
+      const estabelecimento = await tx.estabelecimento.create({
+        data: {
+          nome: nome.trim(),
+          cnpj: cnpjFormatado,
+          endereco: endereco || null,
+          telefone: telefone || null
+        }
+      });
+
+      const administrador = await tx.usuarios.create({
+        data: {
+          nome: gestor.nome.trim(),
+          email,
+          senha: senhaHash,
+          idade,
+          telefone: gestor.telefone || null,
+          funcoes: 'Administrador',
+          permissoes: 1,
+          foto: 'https://pub-f5850e3c1d5b490ea1e15aacf2014355.r2.dev/uploads/648199935_18057936629679738_8568387996695226498_n.jpg',
+          estabelecimentoCnpj: estabelecimento.cnpj
+        },
+        select: {
+          nome: true,
+          email: true,
+          estabelecimentoCnpj: true,
+          permissoes: true
+        }
+      });
+
+      return {
+        estabelecimento,
+        administrador
+      };
     });
 
     return res.status(201).json({
-      message: 'Estabelecimento cadastrado com sucesso.',
-      estabelecimento
+      message: 'Estabelecimento e administrador cadastrados com sucesso.',
+      estabelecimento: resultado.estabelecimento,
+      administrador: resultado.administrador
     });
+
   } catch (error) {
+    console.error('Erro ao cadastrar estabelecimento:', error);
+
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        message: 'O CNPJ ou e-mail informado já está cadastrado.'
+      });
+    }
+
     next(error);
   }
 }
@@ -182,7 +260,9 @@ async function cadastrarFuncionario(req, res, next) {
       idade,
       funcao,
       funcoes,
-      fotoUrl
+      fotoUrl,
+      senha,
+      telefone
     } = req.body;
 
     if (!cnpj || !nome || !email || !idade || !funcao) {
@@ -217,7 +297,9 @@ async function cadastrarFuncionario(req, res, next) {
       idade: Number(idade),
       funcoes: funcoes || funcao,
       permissoes: 1, // 1 = funcionário administrador, 2 = funcionário comum
-      fotoUrl: fotoUrl || null
+      fotoUrl: fotoUrl || null,
+      senha,
+      telefone
     };
 
     const funcionario = await Funcionarios.postFuncionario(

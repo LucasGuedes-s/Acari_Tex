@@ -692,54 +692,66 @@ export default {
       };
       this.modalEstabelecimento = true;
     },
-
+    
     async salvarEstabelecimento() {
       this.salvando = true;
       this.erroForm = "";
 
       try {
-        const respostaEstabelecimento = await api.post(
+        const resposta = await api.post(
           "/admin/estabelecimentos",
           {
             nome: this.formEstab.nome,
             cnpj: this.formEstab.cnpj,
             telefone: this.formEstab.telefone,
             endereco: this.formEstab.endereco,
+
+            // Dados do primeiro usuário
+            gestor: {
+              nome: this.formEstab.gestor.nome,
+              email: this.formEstab.gestor.email,
+              idade: Number(this.formEstab.gestor.idade),
+              telefone: this.formEstab.gestor.telefone,
+              senha: this.formEstab.gestor.senha
+            }
           },
-          { headers: this.headersAuth() }
+          {
+            headers: this.headersAuth()
+          }
         );
 
-        const estabelecimento =
-          respostaEstabelecimento.data.estabelecimento ||
-          respostaEstabelecimento.data;
+        const estabelecimento = resposta.data.estabelecimento;
+        const administrador = resposta.data.administrador;
 
-        if (!estabelecimento?.cnpj) {
-          throw new Error("O servidor não retornou o CNPJ cadastrado.");
+        if (!estabelecimento?.cnpj || !administrador?.email) {
+          throw new Error(
+            "O servidor não retornou os dados do cadastro."
+          );
         }
 
-        // O backend possui uma rota separada para cadastrar o primeiro usuário.
-        this.formFunc = {
-          cnpj: estabelecimento.cnpj,
-          nome: this.formEstab.gestor.nome,
-          email: this.formEstab.gestor.email,
-          idade: this.formEstab.gestor.idade,
-          telefone: this.formEstab.gestor.telefone,
-          perfil: "gestor",
-          funcoes: "Administrador",
-          senha: this.formEstab.gestor.senha,
+        // Exibe as credenciais do primeiro acesso
+        this.modalEstabelecimento = false;
+
+        this.credenciais = {
+          titulo: "Estabelecimento criado!",
+          estabelecimento: estabelecimento.nome,
+          email: administrador.email,
+          senha: this.formEstab.gestor.senha
         };
 
-        this.estabelecimentoSelecionado = estabelecimento;
-        this.modalEstabelecimento = false;
-        this.modalFuncionario = true;
+        this.modal = "sucesso";
+        this.copiado = false;
 
-        await this.salvarFuncionario(true);
+        await this.carregarEstabelecimentos();
+
       } catch (error) {
         console.error("Erro ao cadastrar estabelecimento:", error);
+
         this.erroForm =
           error.response?.data?.message ||
           error.message ||
           "Não foi possível cadastrar o estabelecimento.";
+
       } finally {
         this.salvando = false;
       }
