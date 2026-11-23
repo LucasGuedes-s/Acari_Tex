@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-//import HomeView from '../views/Login.vue'
 import HomeView from '../views/HomeView.vue'
 const routes = [
   {
@@ -305,8 +304,6 @@ router.beforeEach((to) => {
       ? true
       : '/nao-autorizado';
   }
-
-  return true;
 });
 
 export default router

@@ -162,17 +162,7 @@
 
 <script>
 import SidebarNav from '@/components/Sidebar.vue';
-// import DashboardCard from '@/components/DashboardCard.vue';
-//import GraficoProducaoTotal from '@/components/GraficoProducaoTotal.vue';
-//import GraficoProducaoIndividual from '@/components/GraficoProducaoIndividual.vue';
-//import ProducaoPorPeca from '@/components/ProducaoPorPeca.vue';
-// import GraficoProducaoPecas from '@/components/GraficoProducaoPecas.vue';
-// import GraficoMetaProducao from '@/components/GraficoMetaProducao.vue';
-// import GraficoEvolucaoProducao from '@/components/GraficoEvolucaoProducao.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
-//import GradicoProducaoPorEtapa from '@/components/GraficoProducaoPorEtapa.vue';
-// import GraficoEtapas from '@/components/GraficoEtapas.vue';
-
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import CarregandoTela from '@/components/carregandoTela.vue';
 
@@ -190,18 +180,9 @@ export default {
   components: {
     SidebarNav,
     ProducaoDia,
-    // DashboardCard,
-    // GraficoProducaoTotal,
-    // GraficoProducaoIndividual,
-    // ProducaoPorPeca,
-    // GraficoProducaoPecas,
-    // GraficoMetaProducao,
-    // GraficoEvolucaoProducao,
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
-    //GradicoProducaoPorEtapa,
-    // GraficoEtapas,
   },
   data() {
     return {
