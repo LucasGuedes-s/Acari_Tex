@@ -90,7 +90,6 @@ socket.on("transferir-producao", async (dados, callback) => {
   try {
     const {
       estabelecimento,
-      usuario,
       data,
       opId,
       etapaOrigemId,
@@ -98,7 +97,6 @@ socket.on("transferir-producao", async (dados, callback) => {
       periodo,
       horario,
       funcionarioEmail,
-      motivo,
     } = dados
 
     if (!opId || !etapaOrigemId || !etapaDestinoId) {
@@ -220,22 +218,6 @@ socket.on("transferir-producao", async (dados, callback) => {
         }
 
       }
-
-      // salva histórico (caso crie a tabela)
-      /*
-      await tx.historicoTransferencia.create({
-        data: {
-          usuario,
-          estabelecimento,
-          opId,
-          etapaOrigemId,
-          etapaDestinoId,
-          motivo,
-          data: new Date(),
-        }
-      })
-      */
-
     })
 
     callback({

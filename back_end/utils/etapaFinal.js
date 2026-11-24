@@ -27,4 +27,3 @@ function isEtapaFinal(descricao) {
 }
 
 module.exports = { isEtapaFinal };
-// Se o backend usar ESM: export function isEtapaFinal(descricao) { ... }
