@@ -170,6 +170,91 @@
             </div>
           </template>
 
+          <!-- SLIDE: META DE PRODUÇÃO DO DIA -->
+          <template v-else-if="paginaAtual.chave === 'meta'">
+            <div class="slide-cabecalho">
+              <div>
+                <h2 class="slide-titulo">Meta de produção do dia</h2>
+                <p class="slide-sub">
+                  Acompanhamento das peças finalizadas em relação à referência diária
+                </p>
+              </div>
+
+              <span class="selo selo-meta">
+                {{ referenciaMetaSlide.origem }}
+              </span>
+            </div>
+
+            <div class="meta-slide">
+              <div class="meta-slide-numeros">
+                <div>
+                  <span class="meta-slide-rotulo">Produção finalizada</span>
+                  <strong class="meta-slide-producao">
+                    {{ formatarNumero(finalizacao.pecas) }}
+                  </strong>
+                  <span class="meta-slide-unidade">peças</span>
+                </div>
+
+                <div class="meta-slide-percentual">
+                  <strong>
+                    {{ referenciaMetaSlide.valor
+                      ? percentualAtingimentoSlide + '%'
+                      : '—' }}
+                  </strong>
+                  <span>da meta</span>
+                </div>
+              </div>
+
+              <div
+                v-if="referenciaMetaSlide.valor"
+                class="meta-slide-trilho"
+                role="progressbar"
+                :aria-valuenow="preenchimentoMetaSlide"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <div
+                  class="meta-slide-preenchimento"
+                  :style="{ width: preenchimentoMetaSlide + '%' }"
+                ></div>
+              </div>
+
+              <div v-else class="meta-slide-sem-referencia">
+                Não há meta cadastrada nem histórico de produção suficiente.
+              </div>
+
+              <div class="meta-slide-rodape">
+                <div>
+                  <span>Referência (100%)</span>
+                  <strong>
+                    {{ referenciaMetaSlide.valor
+                      ? formatarNumero(referenciaMetaSlide.valor) + ' peças'
+                      : 'Não disponível' }}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Falta para atingir</span>
+                  <strong>
+                    {{ referenciaMetaSlide.valor
+                      ? formatarNumero(Math.max(
+                          0,
+                          referenciaMetaSlide.valor - finalizacao.pecas
+                        )) + ' peças'
+                      : '—' }}
+                  </strong>
+                </div>
+              </div>
+
+              <p
+                v-if="percentualAtingimentoSlide > 100"
+                class="meta-slide-superada"
+              >
+                Meta superada! A produção ultrapassou a referência diária.
+              </p>
+            </div>
+          </template>
+
           <!-- ══════════ 2. PRODUÇÃO POR ETAPA (uma etapa por slide) ══════════ -->
           <template v-else-if="paginaAtual.chave === 'etapa'">
             <div class="slide-cabecalho">
@@ -789,6 +874,10 @@
                 <span>Resumo da produção</span>
               </label>
               <label class="config-opcao">
+                <input type="checkbox" v-model="configuracoesRascunho.slides.meta" />
+                <span>Meta de produção diária</span>
+              </label>
+              <label class="config-opcao">
                 <input type="checkbox" v-model="configuracoesRascunho.slides.etapa" />
                 <span>Produção por etapa</span>
               </label>
@@ -857,7 +946,8 @@ const configuracoes = ref({
     ops: true,
     grupos: true,
     eficiencia: true,
-    ociosas: true
+    ociosas: true,
+    meta: true
   }
 })
 
@@ -874,6 +964,7 @@ const painel = ref(null)
 const metaDiariaGlobal = ref(null)
 const ultimaAtualizacao = ref(null)
 const socketConectado = ref(false)
+const mediaProducao = ref(null)
 
 const slideAtual = ref(0)
 const pausado = ref(false)
@@ -1145,6 +1236,7 @@ function salvarConfiguracoes() {
     opsPorPagina: Math.min(20, Math.max(1, Math.round(Number(rascunho.opsPorPagina) || 4))),
     slides: {
       resumo: rascunho.slides.resumo !== false,
+      meta: rascunho.slides.meta !== false,
       etapa: rascunho.slides.etapa !== false,
       destaque: rascunho.slides.destaque !== false,
       ranking: rascunho.slides.ranking !== false,
@@ -1206,6 +1298,8 @@ function carregarConfiguracoes() {
 /** Lista completa de páginas na ordem de apresentação. */
 const paginas = computed(() => {
   const lista = [{ id: 'resumo', chave: 'resumo', titulo: 'Resumo do dia' }]
+
+  lista.push({ id: 'meta', chave: 'meta', titulo: 'Meta de produção do dia' })
 
   lista.push(...paginasDasEtapas())
 
@@ -1291,6 +1385,45 @@ const atualizadoHa = computed(() => {
   const minutos = Math.floor(segundos / 60)
   return `há ${minutos} min`
 })
+
+const referenciaMetaSlide = computed(() => {
+  const metaCadastrada = Number(
+    metaDiariaGlobal.value?.meta_diaria || 0
+  )
+
+  if (metaCadastrada > 0) {
+    return {
+      valor: metaCadastrada,
+      origem: 'Meta diária cadastrada',
+    }
+  }
+
+  if (mediaProducao.value > 0) {
+    return {
+      valor: mediaProducao.value,
+      origem: 'Média dos últimos 7 dias com produção',
+    }
+  }
+
+  return {
+    valor: 0,
+    origem: 'Sem meta ou histórico disponível',
+  }
+})
+
+const percentualAtingimentoSlide = computed(() => {
+  const referencia = referenciaMetaSlide.value.valor
+
+  if (!referencia) return 0
+
+  const producao = Number(finalizacao.value.pecas || 0)
+
+  return Math.round((producao / referencia) * 100)
+})
+
+const preenchimentoMetaSlide = computed(() =>
+  Math.min(100, Math.max(0, percentualAtingimentoSlide.value))
+)
 
 /* ================= FORMATAÇÃO ================= */
 function formatarNumero(valor) {
@@ -1411,6 +1544,49 @@ function alternarPausa() {
 }
 
 /* ================= DADOS ================= */
+function obterDataLocalISO(data = new Date()) {
+  const ano = data.getFullYear()
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  const dia = String(data.getDate()).padStart(2, '0')
+
+  return `${ano}-${mes}-${dia}`
+}
+
+async function carregarMediaProducao() {
+  try {
+    const token = useAuthStore().pegar_token
+
+    const resposta = await api.get('/dashboard/producao-evolucao', {
+      params: { dias: 8 },
+      headers: { Authorization: token },
+    })
+
+    const hoje = obterDataLocalISO()
+
+    const historico = (resposta.data?.evolucao || [])
+      .filter(item => {
+        const data = String(item.data).slice(0, 10)
+        return data < hoje && Number(item.quantidadePecas) > 0
+      })
+      .slice(-7)
+
+    if (!historico.length) {
+      mediaProducao.value = null
+      return
+    }
+
+    const total = historico.reduce(
+      (soma, item) => soma + Number(item.quantidadePecas),
+      0
+    )
+
+    mediaProducao.value = Math.round(total / historico.length)
+  } catch (error) {
+    console.error('Erro ao calcular média de produção:', error)
+    mediaProducao.value = null
+  }
+}
+
 async function carregarPainel({ silencioso = false } = {}) {
   try {
     if (!silencioso) carregando.value = true
@@ -1430,9 +1606,11 @@ async function carregarPainel({ silencioso = false } = {}) {
     if (slideAtual.value >= paginas.value.length) slideAtual.value = 0
 
     // Cobre metas cadastradas fora do padrão por OP.
-    if (!Number(resposta.data?.resumo?.metaTotal || 0)) {
-      carregarMetaGlobal()
-    }
+    await Promise.all([
+      carregarMetaGlobal(),
+      carregarMediaProducao(),
+    ])
+
   } catch (err) {
     // Numa atualização silenciosa, mantém o painel no ar com os dados anteriores.
     if (!silencioso || !painel.value) {
@@ -1863,6 +2041,104 @@ onUnmounted(() => {
   font-size: clamp(0.95rem, 1.35vw, 1.25rem);
   line-height: 1.15;
   overflow-wrap: break-word;
+}
+
+/* SLIDE DE META DIÁRIA */
+
+.meta-slide {
+  width: 100%;
+  max-width: 1250px;
+  margin: 55px auto 0;
+  padding: 35px;
+  background: var(--card);
+  border: 1px solid var(--verde-linha);
+  border-radius: 24px;
+  box-shadow: 0 8px 30px rgba(13, 57, 39, 0.06);
+}
+
+.meta-slide-numeros {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 30px;
+  margin-bottom: 35px;
+}
+
+.meta-slide-rotulo,
+.meta-slide-unidade,
+.meta-slide-percentual span {
+  display: block;
+  color: var(--texto-suave);
+}
+
+.meta-slide-producao {
+  display: block;
+  font-size: clamp(48px, 7vw, 90px);
+  color: var(--texto);
+  line-height: 1.1;
+}
+
+.meta-slide-percentual {
+  text-align: right;
+}
+
+.meta-slide-percentual strong {
+  display: block;
+  font-size: clamp(48px, 7vw, 90px);
+  line-height: 1.1;
+  color: var(--verde-medio);
+}
+
+.meta-slide-trilho {
+  width: 100%;
+  height: 42px;
+  overflow: hidden;
+  background: #e7eee9;
+  border-radius: 50px;
+}
+
+.meta-slide-preenchimento {
+  height: 100%;
+  background: linear-gradient(90deg, #145a32, #39a96b);
+  border-radius: 50px;
+  transition: width 0.8s ease;
+}
+
+.meta-slide-rodape {
+  display: flex;
+  justify-content: space-between;
+  gap: 25px;
+  margin-top: 25px;
+}
+
+.meta-slide-rodape div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meta-slide-rodape span {
+  color: var(--texto-suave);
+}
+
+.meta-slide-rodape strong {
+  font-size: 24px;
+  color: var(--texto);
+}
+
+.meta-slide-superada {
+  margin-top: 25px;
+  color: var(--verde-medio);
+  font-weight: 700;
+  text-align: center;
+}
+
+.meta-slide-sem-referencia {
+  padding: 20px;
+  text-align: center;
+  color: var(--texto-suave);
+  background: #f1f4f2;
+  border-radius: 12px;
 }
 
 /* ======================================================================
