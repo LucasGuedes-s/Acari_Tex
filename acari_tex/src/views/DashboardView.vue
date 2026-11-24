@@ -90,8 +90,9 @@
           </div>
 
           <div>
-            <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length"
-              class="mb-4" />
+            <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
+            
+            <GraficoProjecaoProducao ref="evolucaoProducao" class="mb-4" />
 
             <!-- <GraficoMetaProducao :filtro="filtro" class="mb-4" />
 
@@ -165,6 +166,7 @@ import SidebarNav from '@/components/Sidebar.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import CarregandoTela from '@/components/carregandoTela.vue';
+import GraficoProjecaoProducao from '@/components/GraficoProjecaoProducao.vue';
 
 import { useAuthStore } from '@/store/store';
 import { io } from 'socket.io-client';
@@ -183,6 +185,7 @@ export default {
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
+    GraficoProjecaoProducao,
   },
   data() {
     return {
@@ -297,23 +300,37 @@ export default {
 
       this.filtro = hojeFormatado;
     },
+    
     iniciarSocket() {
-      this.socket = io('https://acari-tex.onrender.com');
-
       const cnpj = this.store.pegar_usuario?.cnpj || 'desconhecido';
       this.cnpjSocket = cnpj;
 
-      // Evita handlers duplicados a cada montagem da tela (cada visita à tela
-      // somava um novo listener → o dobro de requisições por evento).
-      if (this._aoAtualizar) this.socket.off(`nova_atualizacao_${cnpj}`, this._aoAtualizar);
+      this.socket = io('https://acari-tex.onrender.com', {
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 3000,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
+      });
 
-      // Rajada de eventos Socket.IO próximos vira UMA única atualização
-      // das três seções (antes: 3 chamadas por evento, sem limite).
-      this._aoAtualizar = agrupar(() => this.atualizarAposEvento(), 700);
-      this.socket.on(`nova_atualizacao_${cnpj}`, this._aoAtualizar);
+      if (this._aoAtualizar) {
+        this.socket.off(`nova_atualizacao_${cnpj}`, this._aoAtualizar);
+      }
 
-      // A tela pode ter sido desmontada (disconnect) e remontada: garante conexão.
-      if (!this.socket.connected) this.socket.connect();
+      this._aoAtualizar = agrupar(
+        () => this.atualizarAposEvento(),
+        700
+      );
+
+      this.socket.on(
+        `nova_atualizacao_${cnpj}`,
+        this._aoAtualizar
+      );
+
+      this.socket.on('connect_error', erro => {
+        console.error('Erro na conexão Socket.IO:', erro.message);
+      });
     },
 
     // Atualização em tempo real. Invalida as requisições em andamento (foram
