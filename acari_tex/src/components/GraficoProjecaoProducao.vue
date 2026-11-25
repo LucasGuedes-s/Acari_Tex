@@ -5,7 +5,8 @@
       <div>
         <h4>Evolução e projeção da produção</h4>
         <p>
-          Produção diária dos últimos 30 dias e estimativa para os próximos 7 dias.
+          Produção diária dos últimos 30 dias e projeção para os próximos 7 dias,
+          considerando a média histórica de cada dia da semana.
         </p>
       </div>
     </div>
@@ -24,7 +25,7 @@
 
     <div v-if="temDados" class="resumo-projecao">
       <div>
-        <span>Média diária do histórico</span>
+        <span>Média diária da projeção</span>
         <strong>{{ formatarNumero(mediaDiaria) }} peças</strong>
       </div>
 
@@ -35,8 +36,8 @@
     </div>
 
     <small class="observacao">
-      A projeção é uma estimativa baseada na média dos últimos 7 dias
-      do histórico, incluindo dias sem produção.
+      A projeção considera a média de produção de cada dia da semana,
+      calculada com base nos últimos 30 dias, incluindo dias sem produção.
     </small>
   </div>
 </template>
@@ -121,21 +122,36 @@ export default {
           return
         }
 
-        // Considera os últimos 7 dias do calendário,
-        // inclusive os dias sem produção.
-        const ultimosSeteDias = historico.slice(-7)
-
-        const somaHistorica = ultimosSeteDias.reduce(
-          (total, dia) => total + Number(dia.quantidadePecas || 0),
-          0
+        // Calcula a média de produção separadamente para cada dia da semana.
+        // getDay(): 0 = domingo, 1 = segunda, ..., 6 = sábado.
+        const producaoPorDiaSemana = Array.from(
+          { length: 7 },
+          () => ({
+            total: 0,
+            quantidadeDias: 0,
+          })
         )
 
-        const media = somaHistorica / ultimosSeteDias.length
+        // Percorre os últimos 30 dias do histórico.
+        historico.forEach(dia => {
+          const data = new Date(`${dia.data}T12:00:00`)
+          const diaSemana = data.getDay()
 
-        mediaDiaria.value = media
-        projecaoTotal.value = media * 7
+          const quantidade = Number(dia.quantidadePecas || 0)
 
-        // Datas futuras.
+          producaoPorDiaSemana[diaSemana].total += quantidade
+          producaoPorDiaSemana[diaSemana].quantidadeDias++
+        })
+
+        // Calcula a média individual de cada dia da semana.
+        const mediasPorDiaSemana = producaoPorDiaSemana.map(dia => {
+          if (dia.quantidadeDias === 0) return 0
+
+          return dia.total / dia.quantidadeDias
+        })
+
+        // Gera os próximos 7 dias e aplica a média correspondente
+        // ao dia da semana de cada data futura.
         const ultimaData = historico[historico.length - 1].data
         const dataBase = new Date(`${ultimaData}T12:00:00`)
 
@@ -145,14 +161,31 @@ export default {
           const data = new Date(dataBase)
           data.setDate(dataBase.getDate() + i)
 
-          diasFuturos.push(dataISO(data))
+          const diaSemana = data.getDay()
+
+          diasFuturos.push({
+            data: dataISO(data),
+            quantidadeProjetada: mediasPorDiaSemana[diaSemana],
+          })
         }
+
+        // Soma as projeções individuais.
+        const totalProjetado = diasFuturos.reduce(
+          (total, dia) => total + dia.quantidadeProjetada,
+          0
+        )
+
+        // Média diária dos próximos 7 dias projetados.
+        mediaDiaria.value = totalProjetado / 7
+        projecaoTotal.value = totalProjetado
 
         const labelsHistorico = historico.map(dia =>
           formatarData(dia.data)
         )
 
-        const labelsFuturos = diasFuturos.map(formatarData)
+        const labelsFuturos = diasFuturos.map(
+          dia => formatarData(dia.data)
+        )
 
         const labels = [...labelsHistorico, ...labelsFuturos]
 
@@ -165,12 +198,13 @@ export default {
         // deixar clara a continuidade entre histórico e estimativa.
         const dadosProjecao = [
           ...Array(historico.length - 1).fill(null),
-          Number(historico[historico.length - 1].quantidadePecas || 0),
-          ...Array(7).fill(media),
-        ]
 
-        mediaDiaria.value = Math.round(media)
-        projecaoTotal.value = Math.round(media * 7)
+          // Último valor real para conectar o histórico à projeção.
+          Number(historico[historico.length - 1].quantidadePecas || 0),
+
+          // Média específica de cada dia da semana futuro.
+          ...diasFuturos.map(dia => dia.quantidadeProjetada),
+        ]
 
         temDados.value = true
         loading.value = false
