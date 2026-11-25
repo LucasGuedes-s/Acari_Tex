@@ -643,19 +643,19 @@
           <template v-else-if="paginaAtual.chave === 'grupos'">
             <div class="slide-cabecalho">
               <div>
-                <h2 class="slide-titulo">Desempenho por grupo</h2>
+                <h2 class="slide-titulo">Desempenho por Ordem de Produção</h2>
                 <p class="slide-sub">
-                  Peças processadas nas etapas do grupo · eficiência consolidada · pódio por eficiência
+                  Os três profissionais com melhor eficiência em cada Ordem de Produção
                 </p>
               </div>
               <span class="selo">{{ formatarNumero(grupos.length) }} grupos</span>
             </div>
 
             <div v-if="grupos.length" class="grupos-grade">
-              <article v-for="grupo in grupos" :key="grupo.nome" class="grupo-card">
+              <article v-for="grupo in grupos" :key="grupo.idOp" class="grupo-card">
                 <div class="grupo-topo">
                   <div>
-                    <span class="grupo-legenda">GRUPO</span>
+                    <span class="grupo-legenda">ORDEM DE PRODUÇÃO</span>
                     <h3 class="grupo-nome">{{ grupo.nome }}</h3>
                   </div>
                   <span class="grupo-pecas">{{ formatarNumero(grupo.producao) }} <small>peças</small></span>
@@ -663,7 +663,7 @@
 
                 <div class="grupo-eficiencia" :class="`faixa-${faixa(grupo.eficiencia)}`">
                   <strong>{{ formatarPercentual(grupo.eficiencia) }}</strong>
-                  <span>eficiência do grupo</span>
+                  <span>Eficiência da OP</span>
                 </div>
                 <div class="barra barra-grande">
                   <div
@@ -673,7 +673,7 @@
                   ></div>
                 </div>
 
-                <div class="grupo-podio-titulo">TOP 3 — EFICIÊNCIA</div>
+                <div class="grupo-podio-titulo">TOP 3 PROFISSIONAIS — EFICIÊNCIA POR ORDEM DE PRODUÇÃO</div>
                 <div v-if="grupo.ranking.length" class="grupo-podio">
                   <div
                     v-for="p in grupo.ranking"
@@ -691,10 +691,10 @@
                   </div>
                 </div>
                 <p v-else class="grupo-sem-ranking">Sem produção com tempo válido para ranking.</p>
-                <div class="grupo-rodape">{{ formatarNumero(grupo.etapas) }} etapa(s) · {{ formatarNumero(grupo.profissionais) }} profissional(is)</div>
+                <div class="grupo-rodape">{{ formatarNumero(grupo.etapas) }} etapa(s) · {{ formatarNumero(grupo.profissionais) }} profissional(is) na OP</div>
               </article>
             </div>
-            <div v-else class="grupo-vazio">Nenhum grupo de etapas cadastrado para a produção.</div>
+            <div v-else class="grupo-vazio">Nenhuma OP cadastrada para a produção.</div>
 
             <div class="grupo-geral">
               <div>
@@ -895,7 +895,7 @@
               </label>
               <label class="config-opcao">
                 <input type="checkbox" v-model="configuracoesRascunho.slides.grupos" />
-                <span>Desempenho e ranking por grupo</span>
+                <span>Desempenho por ordem de produção</span>
               </label>
               <label class="config-opcao">
                 <input type="checkbox" v-model="configuracoesRascunho.slides.eficiencia" />
@@ -998,72 +998,33 @@ const etapas = computed(() => {
  * eficiência = soma do tempo aplicado × 100 ÷ soma do tempo trabalhado.
  * O ranking é calculado com os tempos individuais já enviados pelo backend.
  */
-const grupos = computed(() => {
-  const mapa = new Map()
+/**
+ * Organiza as OPs e utiliza o ranking de profissionais
+ * calculado especificamente para cada ordem pelo backend.
+ *
+ * O ranking geral permanece independente e inalterado.
+ */
+const grupos = computed(() =>
+  porOp.value
+    .map(op => ({
+      idOp: op.idOp,
+      nome: op.descricao || `OP ${op.idOp}`,
+      producao: Number(op.producao) || 0,
+      etapas: Number(op.etapas) || 0,
+      profissionais: Number(op.profissionais) || 0,
+      eficiencia: Number(op.eficiencia) || 0,
 
-  for (const etapa of etapas.value) {
-    const nomeGrupo = String(etapa.grupo || '').trim() || 'Sem grupo'
-    if (!mapa.has(nomeGrupo)) {
-      mapa.set(nomeGrupo, {
-        nome: nomeGrupo,
-        producao: 0,
-        tempoAplicado: 0,
-        tempoTrabalhado: 0,
-        etapas: 0,
-        pessoas: new Map(),
-      })
-    }
-
-    const grupo = mapa.get(nomeGrupo)
-    grupo.producao += Number(etapa.producao) || 0
-    grupo.tempoAplicado += Number(etapa.tempoReferencia) || 0
-    grupo.tempoTrabalhado += Number(etapa.tempoTrabalhado) || 0
-    grupo.etapas += 1
-
-    for (const pessoa of etapa.pessoas || []) {
-      if (!pessoa.email) continue
-      if (!grupo.pessoas.has(pessoa.email)) {
-        grupo.pessoas.set(pessoa.email, {
-          email: pessoa.email,
-          nome: pessoa.nome,
-          foto: pessoa.foto,
-          producao: 0,
-          tempoAplicado: 0,
-          tempoTrabalhado: 0,
-        })
-      }
-      const acumulada = grupo.pessoas.get(pessoa.email)
-      acumulada.producao += Number(pessoa.producao) || 0
-      acumulada.tempoAplicado += Number(pessoa.tempoAplicado) || 0
-      acumulada.tempoTrabalhado += Number(pessoa.tempoTrabalhado) || 0
-    }
-  }
-
-  return [...mapa.values()]
-    .map(grupo => {
-      const ranking = [...grupo.pessoas.values()]
-        .filter(p => p.producao > 0 && p.tempoTrabalhado > 0)
-        .map(p => ({
-          ...p,
-          eficiencia: p.tempoAplicado > 0 ? Number(((p.tempoAplicado * 100) / p.tempoTrabalhado).toFixed(2)) : 0,
-        }))
-        .sort((a, b) => b.eficiencia - a.eficiencia || b.producao - a.producao || a.nome.localeCompare(b.nome, 'pt-BR'))
-        .slice(0, 3)
-        .map((p, indice) => ({ ...p, posicao: indice + 1 }))
-
-      return {
-        nome: grupo.nome,
-        producao: grupo.producao,
-        etapas: grupo.etapas,
-        profissionais: grupo.pessoas.size,
-        eficiencia: grupo.tempoTrabalhado > 0
-          ? Number(((grupo.tempoAplicado * 100) / grupo.tempoTrabalhado).toFixed(2))
-          : 0,
-        ranking,
-      }
-    })
-    .sort((a, b) => b.producao - a.producao || a.nome.localeCompare(b.nome, 'pt-BR'))
-})
+      // Ranking individual da OP, limitado aos três primeiros.
+      ranking: Array.isArray(op.rankingProfissionais)
+        ? op.rankingProfissionais.slice(0, 3)
+        : [],
+    }))
+    .sort(
+      (a, b) =>
+        b.producao - a.producao ||
+        String(a.nome).localeCompare(String(b.nome), 'pt-BR')
+    )
+)
 
 /**
  * Etapas que o slide de produção individual apresenta: SOMENTE quem teve

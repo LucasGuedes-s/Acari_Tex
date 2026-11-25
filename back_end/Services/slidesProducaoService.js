@@ -299,8 +299,17 @@ function situacaoOp({ metaTotal, producaoConcluida, dataEntrega, hoje }) {
  * usa `calcularEficiencia` (a MESMA função da consolidação), com o tempo
  * trabalhado somado do jeito que a consolidação soma por etapa.
  */
-function montarPorOp(ops, detalhes, { opsDetalhe, hoje } = {}) {
+function montarPorOp(
+  ops,
+  detalhes,
+  { opsDetalhe, hoje, funcionarios = [] } = {}
+) {
   const mapa = new Map()
+  const pessoasPorOp = new Map()
+
+  const fotosPorEmail = new Map(
+    funcionarios.map(f => [f.email, f.foto || null])
+  )
 
   for (const item of detalhes || []) {
     if (!item || item.calculado === false) continue
@@ -308,26 +317,36 @@ function montarPorOp(ops, detalhes, { opsDetalhe, hoje } = {}) {
     if (item.op === null || item.op === undefined) continue
 
     if (!mapa.has(item.op)) mapa.set(item.op, new Map())
+
     const etapas = mapa.get(item.op)
     const chave = item.etapa || 'Sem etapa'
 
-    if (!etapas.has(chave)) {
-      etapas.set(chave, {
-        etapa: chave,
-        final: isEtapaFinal(chave),
-        producao: 0,
-        tempoTrabalhado: 0,
-        tempoAplicado: 0,
-        profissionais: new Set(),
-      })
-    }
+    // Acumula o desempenho de cada profissional dentro da OP.
+    if (item.funcionarioEmail) {
+      if (!pessoasPorOp.has(item.op)) {
+        pessoasPorOp.set(item.op, new Map())
+      }
 
-    const etapa = etapas.get(chave)
-    etapa.producao += Number(item.quantidade)
-    etapa.tempoTrabalhado += Number(item.tempoTrabalhado) || 0
-    etapa.tempoAplicado += Number(item.tempoReferencia) || 0
-    if (item.funcionarioEmail) etapa.profissionais.add(item.funcionarioEmail)
-  }
+      const pessoas = pessoasPorOp.get(item.op)
+      const email = item.funcionarioEmail
+
+      if (!pessoas.has(email)) {
+        pessoas.set(email, {
+          email,
+          nome: item.profissional || email,
+          foto: fotosPorEmail.get(email) || null,
+          producao: 0,
+          tempoTrabalhado: 0,
+          tempoAplicado: 0,
+        })
+      }
+
+      const pessoa = pessoas.get(email)
+
+      pessoa.producao += Number(item.quantidade) || 0
+      pessoa.tempoTrabalhado += Number(item.tempoTrabalhado) || 0
+      pessoa.tempoAplicado += Number(item.tempoReferencia) || 0
+    }
 
   return (ops || [])
     .map(op => {
@@ -347,6 +366,31 @@ function montarPorOp(ops, detalhes, { opsDetalhe, hoje } = {}) {
         .sort(
           (a, b) => b.producao - a.producao || a.etapa.localeCompare(b.etapa)
         )
+      
+      const rankingProfissionais = [
+        ...(pessoasPorOp.get(op.idOp)?.values() || [])
+      ]
+        .filter(p => p.producao > 0 && p.tempoTrabalhado > 0)
+        .map(p => ({
+          ...p,
+          tempoTrabalhado: round2(p.tempoTrabalhado),
+          tempoAplicado: round2(p.tempoAplicado),
+          eficiencia: calcularEficiencia({
+            producaoPonderada: p.tempoAplicado,
+            tempoTrabalhado: p.tempoTrabalhado,
+          }),
+        }))
+        .sort(
+          (a, b) =>
+            (b.eficiencia || 0) - (a.eficiencia || 0) ||
+            b.producao - a.producao ||
+            String(a.nome).localeCompare(String(b.nome), 'pt-BR')
+        )
+        .slice(0, 3)
+        .map((p, indice) => ({
+          ...p,
+          posicao: indice + 1,
+        }))
 
       const cadastro = opsDetalhe?.get(op.idOp) || null
       const dataEntrega = normalizarDataEntrega(cadastro?.data_de_entrega)
@@ -384,13 +428,14 @@ function montarPorOp(ops, detalhes, { opsDetalhe, hoje } = {}) {
         percentualMeta:
           op.metaTotal > 0 ? round2((op.producaoConcluida / op.metaTotal) * 100) : null,
         listaEtapas: etapas,
+        rankingProfissionais,
       }
     })
     .sort(
       (a, b) =>
         b.producao - a.producao || String(a.descricao).localeCompare(String(b.descricao))
     )
-}
+}}
 
 /**
  * Peças de cada etapa hora a hora ("08:00 → 100, 09:00 → 34").
@@ -798,6 +843,7 @@ async function obterPainelProducao(cnpj, params) {
   const porOp = montarPorOp(ops, detalhes, {
     opsDetalhe,
     hoje: dateToSP(new Date()),
+    funcionarios,
   })
 
   // Etapas que fazem parte do fluxo das OPs do dia — essas são acompanhadas
