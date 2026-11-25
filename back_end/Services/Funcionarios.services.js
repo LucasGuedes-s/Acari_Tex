@@ -465,7 +465,6 @@ async function moverFuncionario(req) {
       },
     });
   }
-  //console.log("Funcionário movido com sucesso:", resultado);
   return resultado;
 }
 

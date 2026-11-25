@@ -26,7 +26,6 @@ async function getAgulha(id) {
     if (!produto) {
         throw new Error('Produto não encontrado no estoque.');
     }
-    //console.log(produto)
     return produto;
 }
 async function postEstoque(produto){

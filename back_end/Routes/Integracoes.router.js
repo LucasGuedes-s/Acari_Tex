@@ -155,7 +155,6 @@ router.post("/auth/login-cpf", async function(req, res) {
 router.get("/producao/telefone/:telefone/hoje", async function(req, res) {
   try {
     var telefone = req.params.telefone;
-    //console.log("Requisicao producao hoje para telefone:", telefone);
     // 1. USUARIO
     var usuario = await prisma.usuarios.findFirst({
       where: { telefone: telefone },

@@ -95,8 +95,6 @@ async function criarLead(req, res) {
 }
 
 // Atualiza o status do lead
-
-
 async function atualizarStatusLead(req, res) {
   try {
     const id = Number(req.params.id);

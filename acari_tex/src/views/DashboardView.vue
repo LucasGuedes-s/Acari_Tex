@@ -8,31 +8,6 @@
       </div>
 
       <div v-else class="container-fluid my-4 mt-md-0 mt-3">
-        <!-- <section class="row justify-content-center text-center" @click="irPara()">
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-kanban" title="Não iniciadas" :count="pecasNaoIniciadas" class="bg-light-pink" />
-          </div>
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-graph-up-arrow" title="Em andamento" :count="pecasEmProgresso"
-              class="bg-light-blue" />
-          </div>
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-truck" title="Aguardando coleta" :count="pecasColeta" class="bg-green" />
-          </div>
-          <div class="d-block d-md-none col-6 mb-3">
-            <DashboardCard icon="bi-check-circle" title="Concluídas" :count="pecasConcluidas" class="bg-light-green" />
-          </div>
-
-          <DashboardCard class="d-none d-md-block bg-light-pink" icon="bi-kanban" title="Não iniciadas"
-            :count="pecasNaoIniciadas" />
-          <DashboardCard class="d-none d-md-block bg-light-blue" icon="bi-graph-up-arrow" title="Em andamento"
-            :count="pecasEmProgresso" />
-          <DashboardCard class="d-none d-md-block bg-green" icon="bi-truck" title="Aguardando coleta"
-            :count="pecasColeta" />
-          <DashboardCard class="d-none d-md-block bg-light-green" icon="bi-check-circle" title="Concluídas"
-            :count="pecasConcluidas" />
-        </section> -->
-
         <ConteinersDashboard />
 
         <div>

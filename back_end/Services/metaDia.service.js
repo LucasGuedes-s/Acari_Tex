@@ -168,7 +168,7 @@ async function buscarMetaDia({ estabelecimento, data }) {
             },
         },
     })
-    //console.log(JSON.stringify(metaDia.funcionarios, null, 2))
+    
     if (!metaDia) {
         return null
     }

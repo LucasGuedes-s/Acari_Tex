@@ -107,8 +107,6 @@ const MS_DIA = 24 * 60 * 60 * 1000
 // HELPERS DE DATA DA CONSULTA
 // ══════════════════════════════════════════════════════════════════════════════
 
-
-
 /**
  * Período anterior de mesma duração (para a seção de evolução).
  */

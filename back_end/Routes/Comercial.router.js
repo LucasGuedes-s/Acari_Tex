@@ -5,8 +5,7 @@ const jwtMiddleware = require('../middlewares/auth');
 const validarComercialOuSuperAdmin = require('../middlewares/comercialOuSuperAdmin');
 const ComercialController = require('../Controllers/ComercialController');
 
-// Todas as rotas comerciais exigem autenticação
-// e permissão de comercial ou superAdmin.
+// Todas as rotas comerciais exigem autenticação e permissão de comercial ou superAdmin.
 router.use(
   '/comercial',
   jwtMiddleware,

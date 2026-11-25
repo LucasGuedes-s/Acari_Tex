@@ -42,7 +42,6 @@ async function postProduto(req, res, next){
 
     try {
         const produto = req.body.produto;
-        //console.log(produto)
         const produtos = await Cadproduto.postEstoque(produto);
         res.status(200).send({
             message: `Produto cadastrado: ${produtos}`,
@@ -57,8 +56,7 @@ async function editarTecido(req, res, next){
 
     try {
         const produto = req.body.produto;
-        //console.log(produto)
-        const produtos = await //Cadproduto.postEstoque(produto);
+        const produtos = await
         res.status(200).send({
             message: `Produto Alterado: ${produtos}`,
         });

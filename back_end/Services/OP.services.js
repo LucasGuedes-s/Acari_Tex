@@ -89,7 +89,7 @@ async function duplicarOP(opId, dados, user) {
     const opOriginal = await tx.pecasOP.findUnique({
       where: { id_da_op },
       include: {
-        etapas: true, // ✅ CORRETO
+        etapas: true,
       },
     });
 
@@ -134,11 +134,9 @@ async function postProducaoPeca(req, res) {
     const {
       id_da_op,
       id_funcionario,
-      id_funcionario_ajuda = null, // caso alguém esteja ajudando
       id_da_funcao,
       quantidade_pecas,
       hora_registro,
-      tipo = 'normal', // normal | erro | correcao
     } = req.body;
 
     const id_Estabelecimento = req.user.cnpj;
@@ -1115,7 +1113,7 @@ async function getEstatisticasPeca(id) {
           include: { 
             etapa: {
               include: {
-                tempo_referencia: true, // <-- ADICIONADO AQUI: traz os tempos de referência da etapa
+                tempo_referencia: true, // traz os tempos de referência da etapa
               },
             },
           },
@@ -1415,7 +1413,6 @@ async function voltarPeca(req, res) {
 }
 async function getEtapas(req) {
   const cnpj = req.user.cnpj;
-  //console.log("Buscando etapas para estabelecimento:", cnpj);
   const pecasEtapas = await prisma.pecasEtapas.findMany({
     where: {
       peca_op: {
@@ -1654,7 +1651,6 @@ async function criarOuVincularGrupoEtapas(req) {
 
 async function getGruposEtapas(req) {
   const cnpj = req.user.cnpj;
-  //console.log("Buscando grupos de etapas para estabelecimento:", cnpj);
   const grupos = await prisma.grupoEtapas.findMany({
     where: { estabelecimentoCnpj: cnpj },
     include: {
@@ -1708,7 +1704,6 @@ async function getEficiencia(req, res) {
   const minutosDisponiveis = padroesFabrica?.tempo_de_producao
     ? padroesFabrica.tempo_de_producao * 60
     : 480;
-  //const minutosDisponiveis = 540;
 
   const producao100 = (minutosDisponiveis * quantidadePessoas) / tempoPadraoPeca;
   const eficiencia = (quantidadeProduzida / producao100) * 100;

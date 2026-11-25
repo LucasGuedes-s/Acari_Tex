@@ -4,7 +4,6 @@ const Login = require('../Services/User.services');
 async function login(req, res, next){  
     try {
         const login = await Login.loginUser(req.body);
-        // res.setHeader('Authorization', `Bearer ${login.token}`);
         res.status(200).json({ 
             token: `Bearer ${login.token}`,
             usuario: {
@@ -100,5 +99,4 @@ module.exports = {
     enviarNotificacaoParaTodos,
     registrarFaltas,
     getFaltasByFuncionarios
-};
-// enviarNotificacaoParaTodos();   
+};   

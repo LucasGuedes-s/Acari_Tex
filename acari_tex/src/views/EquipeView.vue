@@ -58,13 +58,8 @@
         </div>
 
         <div class="acoes-funcionario">
-          <!-- <button @click="tempodeProducao(funcionario.email)">Ver mais</button> -->
-
           <button class="registro" @click="abrirModalEditar(funcionario)">Editar</button>
           <button class="analisar" @click="verDesempenho(funcionario)">Ver desempenho</button>
-          <!-- <button class="registro" @click="registrarProducao(funcionario.email, funcionario.nome, funcionario.foto)">
-            Registrar Produção
-          </button> -->
         </div>
       </div>
 

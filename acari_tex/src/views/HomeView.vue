@@ -2,10 +2,9 @@
   <section class="landing-root">
     <!-- Botões topo -->
     <div class="top-actions">
-      <!--<button class="btn-outline">Cadastre-se</button> -->
-    <button class="login-btn" @click="$router.push('/login')">
-      Entre
-    </button>
+      <button class="login-btn" @click="$router.push('/login')">
+        Entre
+      </button>
     </div>
 
     <!-- Onda só aparece no desktop -->

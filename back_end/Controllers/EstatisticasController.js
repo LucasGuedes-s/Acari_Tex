@@ -30,7 +30,7 @@ async function estatisticasEquipe(req, usuario, res) {
               where: {
                 estabelecimentoCnpj: cnpj,
                 titulo,
-                etapa: etapa.etapa, // 👈 mesma ideia aqui
+                etapa: etapa.etapa, 
               },
             });
 

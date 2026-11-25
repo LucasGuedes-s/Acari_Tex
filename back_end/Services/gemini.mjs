@@ -11,8 +11,6 @@ console.log("GEMINI_API_KEY:", process.env.GEMINI_API_KEY);
 const MAX_RETRIES = 3;
 
 export async function gerarAnaliseProducao(dadosIA) {
-  // console.log("Iniciando análise de produção com Gemini...");
-  // console.log("Dados para IA:", JSON.stringify(dadosIA, null, 2));
   console.log(dadosIA.cnpj)
   const prompt = `
 Analise os dados de produção considerando eficiência produtiva por funcionário
@@ -43,8 +41,6 @@ Não faça perguntas.
           }
         ]
       });
-      // console.log("✅ Gemini resposta recebida.");
-      // console.log("Resposta Gemini:", response.text);
       await prisma.chatIAResultado.create({
         data: {
           resultado: response.text,

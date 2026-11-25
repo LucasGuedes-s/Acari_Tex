@@ -16,7 +16,6 @@ async function getEstoque() {
 async function getTecido(id) {
     const id_tecido = parseInt(id);
 
-    //console.log('ESTOU AQUI')
     const produto = await prisma.Estoque_Tecidos.findUnique({
         where: {
             id_do_tecido: id_tecido,

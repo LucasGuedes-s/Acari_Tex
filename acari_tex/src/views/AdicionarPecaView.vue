@@ -4,7 +4,6 @@
     <main class="content-wrapper flex-grow-1">
       <carregandoTela v-if="loading" />
       <div v-else class="peca-page">
-<!-- 
         <div class="page-header">
           <div class="header-tag">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -1724,7 +1723,8 @@ label {
 
 @keyframes pdfSpin { to { transform: rotate(360deg); } }
 
-.btn-next[disabled],.btn-success[disabled] {
+.btn-next[disabled],
+.btn-success[disabled] {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;

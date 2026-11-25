@@ -39,7 +39,5 @@ async function enviarEmailAlteracaoSenha(destinatario, nomeUsuario) {
     console.error('Erro ao enviar e-mail:', error);
   }
 }
-// enviarEmailAlteracaoSenha('lucasguedes2908@gmail.com', 'Gilbertinho')
 
-// enviarEmailAlteracaoSenha('dev.gilberth@gmail.com', 'Gilbertinho')
 module.exports = { enviarEmailAlteracaoSenha };
