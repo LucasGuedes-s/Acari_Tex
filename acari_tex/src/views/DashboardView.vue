@@ -67,7 +67,7 @@
           <div>
             <ProducaoDia :filtro="filtro" v-if="producao?.producao?.producaoDia?.funcionarios?.length" class="mb-4" />
             
-            <GraficoProjecaoProducao ref="evolucaoProducao" class="mb-4" />
+            <!-- <GraficoProjecaoProducao ref="evolucaoProducao" class="mb-4" /> -->
 
             <!-- <GraficoMetaProducao :filtro="filtro" class="mb-4" />
 
@@ -141,7 +141,7 @@ import SidebarNav from '@/components/Sidebar.vue';
 import GraficosIntercorrencias from '@/components/GraficosIntercorrencias.vue';
 import ConteinersDashboard from '@/components/ConteinersDashboard.vue';
 import CarregandoTela from '@/components/carregandoTela.vue';
-import GraficoProjecaoProducao from '@/components/GraficoProjecaoProducao.vue';
+// import GraficoProjecaoProducao from '@/components/GraficoProjecaoProducao.vue';
 
 import { useAuthStore } from '@/store/store';
 import { io } from 'socket.io-client';
@@ -160,7 +160,7 @@ export default {
     ConteinersDashboard,
     CarregandoTela,
     GraficosIntercorrencias,
-    GraficoProjecaoProducao,
+    // GraficoProjecaoProducao,
   },
   data() {
     return {
