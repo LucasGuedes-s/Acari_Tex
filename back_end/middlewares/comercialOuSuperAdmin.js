@@ -10,8 +10,10 @@ async function validarComercialOuSuperAdmin(req, res, next) {
         superAdmin: true,
         status: true,
       },
+      // ALTERAÇÕES PERMISSÕES
+      // select: { permissoes: true, status: true, },
     });
-
+    // if !u || (!u.permissoes?.includes(0) && !u.permissoes?.includes(4)) || u.status === 'inativo') {  
     if (
       !u ||
       (!u.comercial && !u.superAdmin) ||

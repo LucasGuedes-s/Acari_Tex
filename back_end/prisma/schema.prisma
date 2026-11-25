@@ -21,6 +21,7 @@ model Usuarios {
   funcoes              String?
   identidade           String?
   permissoes           Int?
+  // permissoes        Permissoes[] @default([2]) // 0 = superadm, 1 = adm-gestor, 2 = funcionario comum, 3 = gerente, 4 = comercial
   cpf                  String?
   pis                  String?
   pix                  String?
