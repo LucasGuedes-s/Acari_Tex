@@ -359,6 +359,7 @@ function montarPorOp(
     }
 
     const etapaOp = etapas.get(etapa)
+    etapaOp.final = etapaOp.final || item.etapaFinal === true
 
     // Consolida os dados de todas as etapas para preservar o detalhamento.
     etapaOp.producao += quantidade
@@ -369,62 +370,68 @@ function montarPorOp(
       etapaOp.profissionais.add(email)
     }
 
-    // Só entram no cálculo final os lançamentos que passaram pela
-    // última etapa da OP e possuem saldo líquido positivo.
+    
+    // Identifica se o lançamento pertence à etapa final da OP.
     const passouPelaEtapaFinal =
       item.etapaFinal === true &&
       Number(item.saldoLiquido) > 0
 
-    if (!passouPelaEtapaFinal) continue
+    // Todos os profissionais com apontamentos válidos na OP entram
+    // no ranking, independentemente da etapa em que trabalharam.
+    if (email) {
+      if (!pessoasPorOp.has(item.op)) {
+        pessoasPorOp.set(item.op, new Map())
+      }
 
-    if (passouPelaEtapaFinal) {
-      if (!totaisFinaisPorOp.has(item.op)) {
-        totaisFinaisPorOp.set(item.op, {
+      const pessoas = pessoasPorOp.get(item.op)
+      const dadosRanking = rankingPorEmail.get(email)
+
+      if (!pessoas.has(email)) {
+        pessoas.set(email, {
+          email,
+          nome: dadosRanking?.nome || item.profissional || email,
+          foto: dadosRanking?.foto || null,
+          posicaoRankingGeral: dadosRanking?.posicao ?? null,
+          producao: 0,
+          producaoFinalizada: 0,
           tempoTrabalhado: 0,
           tempoAplicado: 0,
-          tempoFicha: 0,
-          tempoReferenciaPuro: 0,
         })
       }
 
-      const totalFinal = totaisFinaisPorOp.get(item.op)
+      const pessoa = pessoas.get(email)
 
-      totalFinal.tempoTrabalhado += tempoTrabalhado
-      totalFinal.tempoAplicado += tempoAplicado
-      totalFinal.tempoFicha += Number(item.tempoFicha) || 0
-      totalFinal.tempoReferenciaPuro +=
-        Number(item.tempoReferenciaPuro) || 0
+      // Acumula a participação do profissional em TODAS as etapas.
+      pessoa.producao += quantidade
+      pessoa.tempoTrabalhado += tempoTrabalhado
+      pessoa.tempoAplicado += tempoAplicado
+
+      // Mantém a quantidade finalizada separada.
+      if (passouPelaEtapaFinal) {
+        pessoa.producaoFinalizada += quantidade
+      }
     }
 
-    if (!mapa.has(item.op)) continue
+    // A partir daqui, somente os registros da etapa final entram
+    // nos totais oficiais de eficiência da OP.
+    if (!passouPelaEtapaFinal) continue
 
-    if (!pessoasPorOp.has(item.op)) {
-      pessoasPorOp.set(item.op, new Map())
-    }
-
-    const pessoas = pessoasPorOp.get(item.op)
-
-    if (!email) continue
-
-    const dadosRanking = rankingPorEmail.get(email)
-
-    if (!pessoas.has(email)) {
-      pessoas.set(email, {
-        email,
-        nome: dadosRanking?.nome || item.profissional || email,
-        foto: dadosRanking?.foto || null,
-        posicaoRankingGeral: dadosRanking?.posicao ?? null,
-        producaoFinalizada: 0,
+    if (!totaisFinaisPorOp.has(item.op)) {
+      totaisFinaisPorOp.set(item.op, {
         tempoTrabalhado: 0,
         tempoAplicado: 0,
+        tempoFicha: 0,
+        tempoReferenciaPuro: 0,
       })
     }
 
-    const pessoa = pessoas.get(email)
+    const totalFinal = totaisFinaisPorOp.get(item.op)
 
-    pessoa.producaoFinalizada += quantidade
-    pessoa.tempoTrabalhado += tempoTrabalhado
-    pessoa.tempoAplicado += tempoAplicado
+    totalFinal.tempoTrabalhado += tempoTrabalhado
+    totalFinal.tempoAplicado += tempoAplicado
+    totalFinal.tempoFicha += Number(item.tempoFicha) || 0
+    totalFinal.tempoReferenciaPuro +=
+      Number(item.tempoReferenciaPuro) || 0
   }
 
   return (ops || [])
@@ -450,26 +457,35 @@ function montarPorOp(
             a.etapa.localeCompare(b.etapa, 'pt-BR')
         )
 
-      // Ranking de eficiência calculado exclusivamente na etapa final da OP.
+      
+      // Ranking de todos os profissionais envolvidos na OP.
+      // A eficiência considera os apontamentos de todas as etapas.
       const rankingProfissionais = [
         ...(pessoasPorOp.get(op.idOp)?.values() || []),
       ]
-        .filter(p => p.producaoFinalizada > 0)
-        .map(p => ({
-          ...p,
-          tempoTrabalhado: round2(p.tempoTrabalhado),
-          tempoAplicado: round2(p.tempoAplicado),
-          eficiencia: calcularEficiencia({
-            producaoPonderada: p.tempoAplicado,
-            tempoTrabalhado: p.tempoTrabalhado,
-          }),
-        }))
+        .filter(p => p.producao > 0)
+        .map(p => {
+          const eficiencia =
+            // minutosDisponiveis > 0
+            480 > 0
+              // ? (p.tempoReferenciaPuro / minutosDisponiveis) * 100
+              ? (p.tempoReferenciaPuro / 480) * 100
+              : 0
+
+          return {
+            ...p,
+            tempoTrabalhado: round2(p.tempoTrabalhado),
+            tempoAplicado: round2(p.tempoAplicado),
+            tempoReferenciaPuro: round2(p.tempoReferenciaPuro),
+            eficiencia: Number(eficiencia.toFixed(2)),
+          }
+        })
         .sort(
           (a, b) =>
-            b.eficiencia - a.eficiencia ||
+            (b.eficiencia || 0) - (a.eficiencia || 0) ||
             (a.posicaoRankingGeral ?? Number.MAX_SAFE_INTEGER) -
               (b.posicaoRankingGeral ?? Number.MAX_SAFE_INTEGER) ||
-            b.producaoFinalizada - a.producaoFinalizada ||
+            b.producao - a.producao ||
             String(a.nome).localeCompare(String(b.nome), 'pt-BR')
         )
         .slice(0, 3)
@@ -477,6 +493,7 @@ function montarPorOp(
           ...p,
           posicao: indice + 1,
         }))
+
 
       const cadastro = opsDetalhe?.get(op.idOp) || null
 
@@ -620,6 +637,7 @@ function montarPessoasPorEtapa(detalhes, funcionarios) {
         producao: 0,
         tempoTrabalhado: 0,
         tempoAplicado: 0,
+        tempoReferenciaPuro: 0,
       })
     }
 
@@ -627,6 +645,7 @@ function montarPessoasPorEtapa(detalhes, funcionarios) {
     pessoa.producao += Number(item.quantidade)
     pessoa.tempoTrabalhado += Number(item.tempoTrabalhado) || 0
     pessoa.tempoAplicado += Number(item.tempoReferencia) || 0
+    pessoa.tempoReferenciaPuro += Number(item.tempoReferenciaPuro) || 0
   }
 
   const saida = new Map()
