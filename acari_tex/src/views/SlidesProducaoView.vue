@@ -846,7 +846,148 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { io } from 'socket.io-client'
 import api from '@/Axios'
+import ProducaoDia from '@/components/ProducaoDia.vue';
 import { useAuthStore } from '@/store/store'
+
+const socket = io('https://acari-tex.onrender.com')
+
+/* PRODUÇÃO DIA */
+const eficienciaProducaoDiaPorEmail = ref(new Map())
+const etapasPorId = ref(new Map())
+
+/**
+ * Executa a mesma regra oficial de `ProducaoDia.methods.calcularMetricasFuncionario`
+ * para obter a Eficiência Geral oficial de cada funcionário.
+ */
+function sincronizarEficienciasDoProducaoDia(funcionariosDia = []) {
+  const isFabrica = String(useAuthStore().pegar_usuario?.tipo_de_producao || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .includes('fabrica')
+
+  const contextoProducaoDia = {
+    dataSelecionada: obterDataLocalISO(),
+    isFabrica,
+    etapasPorId: etapasPorId.value,
+    calcularTotalFuncionario: ProducaoDia.methods.calcularTotalFuncionario,
+    resolverTempoOficialLinha: ProducaoDia.methods.resolverTempoOficialLinha,
+    motivoEscolhaOficial: ProducaoDia.methods.motivoEscolhaOficial,
+    extrairTempoRef: ProducaoDia.methods.extrairTempoRef,
+    formatarDecimal: ProducaoDia.methods.formatarDecimal,
+  }
+
+  const mapa = new Map()
+  for (const func of funcionariosDia) {
+    const metricas = ProducaoDia.methods.calcularMetricasFuncionario.call(contextoProducaoDia, func)
+    if (func?.email && metricas) {
+      mapa.set(func.email, {
+        geral: metricas.geral,
+        ficha: metricas.ficha,
+        referencia: metricas.referencia,
+      })
+    }
+  }
+
+  eficienciaProducaoDiaPorEmail.value = mapa
+}
+
+async function carregarDadosProducaoDia() {
+  try {
+    const token = useAuthStore().pegar_token
+    const cnpj = useAuthStore().pegar_usuario?.cnpj
+    const hoje = obterDataLocalISO()
+
+    // 1. Garante o mapa de etapas/peças (igual ao carregarPecas do ProducaoDia)
+    if (!etapasPorId.value.size) {
+      const resPecas = await api.get('/pecas', {
+        headers: { Authorization: token },
+      })
+      const grupos = resPecas.data?.peca || {}
+      const indice = new Map()
+      for (const lista of Object.values(grupos)) {
+        if (!Array.isArray(lista)) continue
+        for (const peca of lista) {
+          for (const etapa of peca.etapas || []) {
+            const idFuncao = etapa.id_da_funcao || etapa.etapa?.id_da_funcao
+            if (!idFuncao) continue
+            if (!indice.has(idFuncao)) indice.set(idFuncao, [])
+            indice.get(idFuncao).push(etapa)
+          }
+        }
+      }
+      etapasPorId.value = indice
+    }
+
+    // 2. Busca os apontamentos do dia via socket (igual ao executarBuscaMetaDia do ProducaoDia)
+    const resposta = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Timeout buscar-meta-dia')), 8000)
+      socket.emit('buscar-meta-dia', { estabelecimento: cnpj, data: hoje }, (res) => {
+        clearTimeout(timer)
+        resolve(res)
+      })
+    })
+
+    if (!resposta?.sucesso || !resposta.metaDia) return
+
+    const funcionariosMontados = (resposta.metaDia.funcionarios || []).map(metaFunc => {
+      const linhas = []
+      for (const producao of metaFunc.producoes || []) {
+        const etapaId = producao.id_da_funcao
+        const opId = producao.id_da_op || null
+        let linha = linhas.find(l => l.etapaId === etapaId && l.opId === opId)
+        if (!linha) {
+          linha = {
+            id: `${metaFunc.funcionarioId}-${etapaId}-${opId || 'sem-op'}`,
+            etapaId,
+            descricao: producao.producao_etapa?.descricao || '',
+            tempoPadrao: producao.producao_etapa?.tempo_padrao || 0,
+            opId,
+            modoTempo: 'padrao',
+            referenciaSelecionadaId: null,
+            registros: {},
+          }
+          linhas.push(linha)
+        }
+        if (producao.hora_registro) {
+          linha.registros[producao.hora_registro] = {
+            quantidade: producao.quantidade_pecas || 0,
+            tempoProduzido: producao.tempo_produzido || 60,
+          }
+        }
+      }
+
+      return {
+        email: metaFunc.funcionarioId,
+        nome: metaFunc.funcionario?.nome || metaFunc.funcionarioId,
+        foto: metaFunc.funcionario?.foto || null,
+        ausencia: metaFunc.ausencia || null,
+        linhas,
+      }
+    })
+
+    // Restaura eventuais escolhas manuais de tempo de referência salvas pelo ProducaoDia
+    for (const func of funcionariosMontados) {
+      for (const linha of func.linhas) {
+        if (!linha.etapaId) continue
+        const chaveLS = `apontamento_tempo_referencia_escolhido::${cnpj}::${hoje}::${func.email}::${linha.opId || 'sem-op'}::${linha.etapaId}`
+        try {
+          const bruto = localStorage.getItem(chaveLS)
+          const escolha = bruto ? JSON.parse(bruto) : null
+          if (escolha && (escolha.modoTempo === 'padrao' || escolha.referenciaSelecionadaId)) {
+            linha.modoTempo = escolha.modoTempo
+            linha.referenciaSelecionadaId = escolha.referenciaSelecionadaId || null
+          }
+        } catch { /* ignora erro de parse */ }
+      }
+    }
+
+    sincronizarEficienciasDoProducaoDia(funcionariosMontados)
+  } catch (err) {
+    console.error('Erro ao sincronizar eficiências do ProducaoDia:', err)
+  }
+}
 
 /* ================= CONFIGURAÇÃO ================= */
 const configuracoes = ref({
@@ -894,7 +1035,6 @@ const nomeEstabelecimento = computed(() => painel.value?.estabelecimento?.nome |
 const resumo = computed(() => painel.value?.resumo || {})
 const porEtapa = computed(() => painel.value?.porEtapa || [])
 const porOp = computed(() => painel.value?.porOp || [])
-const profissionais = computed(() => painel.value?.profissionais || [])
 const destaques = computed(
   () => painel.value?.destaques || { maiorEficiencia: null, naMeta: [], quantidadeNaMeta: 0 }
 )
@@ -922,28 +1062,81 @@ const etapas = computed(() => {
  * O ranking geral permanece independente e inalterado.
  */
 
-const grupos = computed(() =>
-  porOp.value
-    .map(op => ({
-      idOp: op.idOp,
-      nome: op.descricao || `OP ${op.idOp}`,
-      producao: Number(op.producaoConcluida) || 0,
-      etapaFinal: op.etapaFinal || 'Etapa final',
-      etapas: Number(op.etapas) || 0,
-      profissionais: Number(op.profissionais) || 0,
-      eficiencia: Number(op.eficiencia) || 0,
+/** Profissionais com a eficiência oficial calculada pelo ProducaoDia, reordenados */
+const profissionais = computed(() => {
+  const base = painel.value?.profissionais || []
+  const mapa = eficienciaProducaoDiaPorEmail.value
 
-      // Ranking individual da OP, limitado aos três primeiros.
-      ranking: Array.isArray(op.rankingProfissionais)
-        ? op.rankingProfissionais.slice(0, 3)
-        : [],
+  const enriquecidos = base.map(p => {
+    const metricas = mapa.get(p.email)
+    const eficienciaOficial =
+      metricas?.geral != null ? Number(metricas.geral) : Number(p.eficiencia || 0)
+
+    return {
+      ...p,
+      eficiencia: eficienciaOficial,
+      eficienciaTempoReferencia:
+        metricas?.referencia != null
+          ? Number(metricas.referencia)
+          : p.eficienciaTempoReferencia,
+      bateuMeta: eficienciaOficial >= Number(resumo.value.metaHora || 100),
+    }
+  })
+
+  return enriquecidos
+    .sort((a, b) => (b.eficiencia || 0) - (a.eficiencia || 0))
+    .map((p, index) => ({
+      ...p,
+      posicao: index + 1,
     }))
+})
+
+/** 1º lugar do ranking com base na eficiência do ProducaoDia */
+const destaque = computed(() => {
+  return profissionais.value.find(p => p.posicao === 1 && p.producao > 0) || null
+})
+
+/** Demais colocados (do 2º em diante) */
+const ranking = computed(() => profissionais.value.filter(p => p.producao > 0).slice(1))
+
+/** Ranking por OP também atualizado com a eficiência do ProducaoDia */
+const grupos = computed(() => {
+  const mapa = eficienciaProducaoDiaPorEmail.value
+
+  return porOp.value
+    .map(op => {
+      const rankingAtualizado = Array.isArray(op.rankingProfissionais)
+        ? op.rankingProfissionais
+            .map(p => {
+              const metricas = mapa.get(p.email)
+              return {
+                ...p,
+                eficiencia:
+                  metricas?.geral != null ? Number(metricas.geral) : Number(p.eficiencia || 0),
+              }
+            })
+            .sort((a, b) => b.eficiencia - a.eficiencia)
+            .slice(0, 3)
+            .map((p, idx) => ({ ...p, posicao: idx + 1 }))
+        : []
+
+      return {
+        idOp: op.idOp,
+        nome: op.descricao || `OP ${op.idOp}`,
+        producao: Number(op.producaoConcluida) || 0,
+        etapaFinal: op.etapaFinal || 'Etapa final',
+        etapas: Number(op.etapas) || 0,
+        profissionais: Number(op.profissionais) || 0,
+        eficiencia: Number(op.eficiencia) || 0,
+        ranking: rankingAtualizado,
+      }
+    })
     .sort(
       (a, b) =>
         b.producao - a.producao ||
         String(a.nome).localeCompare(String(b.nome), 'pt-BR')
     )
-)
+})
 
 /**
  * Etapas que o slide de produção individual apresenta: SOMENTE quem teve
@@ -995,16 +1188,6 @@ const notaFinalizadas = computed(() => {
   if (Number(finalizacao.value.pecas) > 0) return `etapa final: ${textoEtapaFinal.value}`
   return `sem peça na etapa final (${textoEtapaFinal.value}) até agora`
 })
-
-/** 1º lugar do ranking (só com produção válida). */
-const destaque = computed(() => {
-  const primeiro = destaques.value.maiorEficiencia
-  if (primeiro) return primeiro
-  return profissionais.value.find(p => p.posicao === 1 && p.producao > 0) || null
-})
-
-/** Demais colocados (o 1º já tem slide exclusivo). */
-const ranking = computed(() => profissionais.value.filter(p => p.producao > 0).slice(1))
 
 /* ================= NAVEGAÇÃO / PAGINAÇÃO ================= */
 
@@ -1454,6 +1637,7 @@ async function carregarPainel({ silencioso = false } = {}) {
     await Promise.all([
       carregarMetaGlobal(),
       carregarMediaProducao(),
+      carregarDadosProducaoDia(),
     ])
 
   } catch (err) {
@@ -1478,8 +1662,6 @@ async function carregarMetaGlobal() {
 }
 
 /* ================= CICLO DE VIDA ================= */
-const socket = io('https://acari-tex.onrender.com')
-
 let timerRelogio = null
 let timerSlides = null
 let timerAtualizacao = null
@@ -1517,7 +1699,10 @@ onMounted(() => {
 
   const cnpj = useAuthStore().pegar_usuario?.cnpj
 
-  socket.on('connect', () => (socketConectado.value = true))
+  socket.on('connect', () => {
+    socketConectado.value = true
+    carregarDadosProducaoDia()
+  })
   socket.on('disconnect', () => (socketConectado.value = false))
   socket.on(`nova_atualizacao_${cnpj}`, () => carregarPainel({ silencioso: true }))
 
