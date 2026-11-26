@@ -238,96 +238,77 @@
             </div>
           </template>
 
-          <!-- ══════════ 2. PRODUÇÃO POR ETAPA (uma etapa por slide) ══════════ -->
+          <!-- ══════════ 2. PRODUÇÃO POR ETAPA ══════════ -->
           <template v-else-if="paginaAtual.chave === 'etapa'">
             <div class="slide-cabecalho">
               <div>
                 <h2 class="slide-titulo">Produção por etapa</h2>
                 <p class="slide-sub">
-                  Somente etapas com produção registrada hoje ·
-                  {{ formatarNumero(resumo.pecasApontadas) }} peças processadas no dia
+                  Somente etapas com produção registrada hoje · {{ paginaAtual.rotuloLinhas }}
                 </p>
               </div>
+
               <span class="selo">
-                etapa {{ paginaAtual.indice }} de {{ paginaAtual.total }}
+                {{ paginaAtual.itens.length === 1
+                  ? `etapa ${paginaAtual.indiceInicio} de ${paginaAtual.totalEtapas}`
+                  : `página ${paginaAtual.paginaIndice} de ${paginaAtual.totalPaginas}` }}
               </span>
             </div>
 
-            <div class="etapa-painel">
-              <header class="etapa-topo">
-                <div class="etapa-identidade">
-                  <span class="etapa-rotulo">Etapa em acompanhamento</span>
-                  <h3 class="etapa-nome">{{ paginaAtual.etapa.etapa }}</h3>
-                </div>
+            <div
+              class="grade-etapas"
+              :class="{ 'grade-etapas-unica': paginaAtual.itens.length === 1 }"
+              :style="{ '--colunas': paginaAtual.colunas }"
+            >
+              <article
+                v-for="etapa in paginaAtual.itens"
+                :key="etapa.idEtapa ?? etapa.etapa"
+                class="etapa-card"
+                :class="`borda-${faixa(etapa.eficiencia)}`"
+              >
+                <header class="etapa-card-topo">
+                  <div class="etapa-card-identidade">
+                    <span class="etapa-card-rotulo">Etapa</span>
+                    <h3 class="etapa-card-nome">{{ etapa.etapa }}</h3>
+                  </div>
 
-                <div class="etapa-pecas">
-                  <strong>{{ formatarNumero(paginaAtual.etapa.producao) }}</strong>
-                  <span>peças processadas</span>
-                </div>
-              </header>
-
-              <div class="etapa-corpo">
-                <div class="etapa-dados">
-                  <div
-                    class="etapa-dado etapa-dado-efic"
-                    :class="`faixa-${faixa(paginaAtual.etapa.eficiencia)}`"
+                  <span
+                    class="etapa-card-badge"
+                    :class="`badge-${faixa(etapa.eficiencia)}`"
                   >
-                    <span class="dado-rotulo">Eficiência da etapa</span>
-                    <strong class="dado-valor">
-                      {{ percentualOuTraco(paginaAtual.etapa.eficiencia) }}
+                    {{ percentualOuTraco(etapa.eficiencia) }}
+                  </span>
+                </header>
+
+                <div class="etapa-card-metricas">
+                  <div class="etapa-metrica-bloco">
+                    <span class="etapa-metrica-rotulo">Peças processadas</span>
+                    <strong class="etapa-metrica-valor">
+                      {{ formatarNumero(etapa.producao) }}
                     </strong>
-                    <span class="dado-nota">Σ peças × SAM ÷ tempo trabalhado</span>
                   </div>
 
-                  <div class="etapa-dado">
-                    <span class="dado-rotulo">Tempo padrão por peça</span>
-                    <strong class="dado-valor">
-                      {{ formatarMinutos(paginaAtual.etapa.tempoPadraoUnitario) }}
+                  <div class="etapa-metrica-bloco">
+                    <span class="etapa-metrica-rotulo">Eficiência</span>
+                    <strong
+                      class="etapa-metrica-valor"
+                      :class="`faixa-${faixa(etapa.eficiencia)}`"
+                    >
+                      {{ percentualOuTraco(etapa.eficiencia) }}
                     </strong>
-                    <span class="dado-nota">ficha da etapa (min/peça)</span>
-                  </div>
-
-                  <div class="etapa-dado">
-                    <span class="dado-rotulo">Tempo de referência</span>
-                    <strong class="dado-valor">
-                      {{ formatarMinutos(paginaAtual.etapa.samMedio) }}
-                    </strong>
-                    <span class="dado-nota">SAM aplicado no cálculo (min/peça)</span>
-                  </div>
-
-                  <div class="etapa-dado">
-                    <span class="dado-rotulo">Tempo necessário</span>
-                    <strong class="dado-valor">
-                      {{ formatarHoras(paginaAtual.etapa.tempoAplicado) }}
-                    </strong>
-                    <span class="dado-nota">
-                      {{ formatarNumero(paginaAtual.etapa.producao) }} ×
-                      {{ formatarMinutos(paginaAtual.etapa.samMedio) }}
-                    </span>
-                  </div>
-
-                  <div class="etapa-dado">
-                    <span class="dado-rotulo">Tempo trabalhado</span>
-                    <strong class="dado-valor">
-                      {{ formatarHoras(paginaAtual.etapa.tempoTrabalhado) }}
-                    </strong>
-                    <span class="dado-nota">
-                      apontado por {{ paginaAtual.etapa.profissionais }} profissional(is)
-                    </span>
-                  </div>
-
-                  <div class="etapa-dado">
-                    <span class="dado-rotulo">Participação no dia</span>
-                    <strong class="dado-valor">
-                      {{ formatarPercentual(paginaAtual.etapa.participacao) }}
-                    </strong>
-                    <span class="dado-nota">
-                      {{ paginaAtual.etapa.ops }} OP(s) ·
-                      {{ nomesCadastrados.has(paginaAtual.etapa.etapa) ? 'etapa cadastrada' : 'fora do cadastro' }}
-                    </span>
                   </div>
                 </div>
-              </div>
+
+                <div class="etapa-card-progresso">
+                  <div class="barra barra-grande">
+                    <div
+                      class="barra-preenchida"
+                      :class="`fill-${faixa(etapa.eficiencia)}`"
+                      :style="{ width: `${Math.min(100, Math.max(0, Number(etapa.eficiencia) || 0))}%` }"
+                    ></div>
+                  </div>
+                </div>
+              </article>
             </div>
           </template>
 
@@ -780,6 +761,16 @@
               </label>
 
               <label class="config-campo">
+                <span>Etapas por página</span>
+                <input
+                  v-model.number="configuracoesRascunho.etapasPorPagina"
+                  type="number"
+                  min="1"
+                  max="20"
+                />
+              </label>
+
+              <label class="config-campo">
                 <span>Ordens de produção por página</span>
                 <input
                   v-model.number="configuracoesRascunho.opsPorPagina"
@@ -860,6 +851,7 @@ import { useAuthStore } from '@/store/store'
 /* ================= CONFIGURAÇÃO ================= */
 const configuracoes = ref({
   duracaoSlide: 14,
+  etapasPorPagina: 1,
   profissionaisPorPagina: 6,
   opsPorPagina: 4,
 
@@ -991,10 +983,10 @@ const textoEtapaFinal = computed(() => {
   return finalizacao.value.configurada || 'não identificada'
 })
 
-/** Nomes que existem no cadastro do estabelecimento. */
+/** Nomes que existem no cadastro do estabelecimento. 
 const nomesCadastrados = computed(
   () => new Set(etapas.value.filter(e => e.cadastrada !== false).map(e => e.etapa))
-)
+) */
 
 const notaFinalizadas = computed(() => {
   if (!finalizacao.value.disponivel) {
@@ -1034,17 +1026,29 @@ function rotuloFaixa(inicio, quantidade, total) {
 }
 
 /** Páginas com uma etapa cada, na ordem de produção (já vem do backend). */
+/** Páginas com 1 ou mais etapas, conforme configurado no modal. */
 function paginasDasEtapas() {
   const lista = etapasComProducao.value
+  if (!lista.length) return []
 
-  return lista.map((etapa, i) => ({
-    id: `etapa-${etapa.idEtapa ?? i}`,
-    chave: 'etapa',
-    titulo: `Etapa ${etapa.etapa}`,
-    etapa,
-    indice: i + 1,
-    total: lista.length,
-  }))
+  const porPagina = configuracoes.value.etapasPorPagina
+  const gruposPaginados = paginar(lista, porPagina)
+
+  return gruposPaginados.map((itens, i, todas) => {
+    const inicio = i * porPagina
+    return {
+      id: `etapa-${i}`,
+      chave: 'etapa',
+      titulo: itens.length === 1 ? `Etapa ${itens[0].etapa}` : `Produção por etapa (${i + 1}/${todas.length})`,
+      itens,
+      colunas: itens.length === 1 ? 1 : Math.min(3, Math.max(2, itens.length)),
+      indiceInicio: inicio + 1,
+      totalEtapas: lista.length,
+      paginaIndice: i + 1,
+      totalPaginas: todas.length,
+      rotuloLinhas: rotuloFaixa(inicio, itens.length, lista.length),
+    }
+  })
 }
 
 function clonarConfiguracoes(valor) {
@@ -1075,6 +1079,7 @@ function salvarConfiguracoes() {
 
   const novasConfiguracoes = {
     duracaoSlide: Math.min(300, Math.max(5, Math.round(Number(rascunho.duracaoSlide) || 14))),
+    etapasPorPagina: Math.min(20, Math.max(1, Math.round(Number(rascunho.etapasPorPagina) || 1))),
     profissionaisPorPagina: Math.min(20, Math.max(1, Math.round(Number(rascunho.profissionaisPorPagina) || 6))),
     opsPorPagina: Math.min(20, Math.max(1, Math.round(Number(rascunho.opsPorPagina) || 4))),
     slides: {
@@ -1121,6 +1126,7 @@ function carregarConfiguracoes() {
       ...configuracoes.value,
       ...dados,
       duracaoSlide: Math.min(300, Math.max(5, Math.round(Number(dados.duracaoSlide) || 14))),
+      etapasPorPagina: Math.min(20, Math.max(1, Math.round(Number(dados.etapasPorPagina) || 1))),
       profissionaisPorPagina: Math.min(20, Math.max(1, Math.round(Number(dados.profissionaisPorPagina) || 6))),
       opsPorPagina: Math.min(20, Math.max(1, Math.round(Number(dados.opsPorPagina) || 4))),
       slides: {
@@ -1286,12 +1292,12 @@ function formatarHoras(minutos) {
   return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`
 }
 
-/** SAM médio em minutos/peça. */
+/** SAM médio em minutos/peça. 
 function formatarMinutos(valor) {
   const n = Number(valor)
   if (!Number.isFinite(n) || n <= 0) return '—'
   return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} min`
-}
+} */
 
 /** Percentual que não existe no dia vira "—" (nada é inventado). */
 function percentualOuTraco(valor) {
@@ -2010,217 +2016,142 @@ onUnmounted(() => {
 .kpi-efic.faixa-neutra { border-left-color: #c3d3c9; }
 
 /* ======================================================================
-   SLIDE 2 — PRODUÇÃO POR ETAPA (um slide por etapa)
+   SLIDE 2 — PRODUÇÃO POR ETAPA (1 ou várias etapas por página)
    ====================================================================== */
-.etapa-painel {
+.grade-etapas {
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(8px, 1.2vh, 16px);
-  background: var(--card);
-  border: 1px solid var(--verde-linha);
-  border-radius: 18px;
-  padding: clamp(12px, 1.6vw, 26px);
-  box-shadow: var(--sombra);
+  display: grid;
+  grid-template-columns: repeat(var(--colunas, 3), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: clamp(10px, 1.2vw, 18px);
   overflow: hidden;
 }
 
-.etapa-topo {
+.grade-etapas-unica {
+  grid-template-columns: 1fr;
+}
+
+.etapa-card {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   justify-content: space-between;
-  gap: clamp(12px, 2vw, 32px);
-  padding-bottom: clamp(8px, 1.2vh, 16px);
-  border-bottom: 2px solid var(--verde-linha);
+  gap: clamp(10px, 1.2vh, 18px);
+  background: var(--card);
+  border: 1px solid var(--verde-linha);
+  border-top: 5px solid var(--verde-medio);
+  border-radius: 18px;
+  padding: clamp(14px, 1.6vw, 24px);
+  box-shadow: var(--sombra);
+  min-height: 0;
+  overflow: hidden;
 }
 
-.etapa-identidade {
-  flex: 1;
+.etapa-card.borda-alta { border-top-color: #2e9e63; }
+.etapa-card.borda-media { border-top-color: #c9a06a; }
+.etapa-card.borda-baixa { border-top-color: #d05a4e; }
+.etapa-card.borda-neutra { border-top-color: #c3d3c9; }
+
+.etapa-card-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: clamp(8px, 1vh, 14px);
+  border-bottom: 1px solid var(--verde-linha);
+}
+
+.etapa-card-identidade {
   min-width: 0;
+  flex: 1;
 }
 
-.etapa-rotulo {
+.etapa-card-rotulo {
   display: block;
-  font-size: clamp(0.66rem, 1vw, 0.9rem);
+  font-size: clamp(0.6rem, 0.8vw, 0.78rem);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--texto-suave);
 }
 
-.etapa-nome {
-  margin: 2px 0 0;
-  font-size: clamp(1.6rem, 3.6vw, 3.6rem);
+.etapa-card-nome {
+  margin: 3px 0 0;
+  font-size: clamp(1.1rem, 1.8vw, 1.65rem);
   font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
   color: var(--verde);
-  overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.etapa-pecas {
+/* Destaque maior quando há apenas 1 etapa na página */
+.grade-etapas-unica .etapa-card {
+  padding: clamp(22px, 2.8vw, 40px);
+}
+
+.grade-etapas-unica .etapa-card-nome {
+  font-size: clamp(2rem, 3.8vw, 3.6rem);
+  -webkit-line-clamp: 3;
+}
+
+.etapa-card-badge {
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 0.9;
-}
-
-.etapa-pecas strong {
-  font-size: clamp(3rem, 7vw, 6.5rem);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: clamp(0.75rem, 1vw, 0.95rem);
   font-weight: 800;
-  color: var(--verde-medio);
   font-variant-numeric: tabular-nums;
+  background: var(--verde-claro);
+  color: var(--verde-medio);
 }
 
-.etapa-pecas span {
-  margin-top: 6px;
-  font-size: clamp(0.66rem, 1vw, 0.92rem);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--texto-suave);
-}
+.etapa-card-badge.badge-alta { background: #e6f5ed; color: #145a32; }
+.etapa-card-badge.badge-media { background: #fbf3e6; color: #8a6420; }
+.etapa-card-badge.badge-baixa { background: #fdeceb; color: #b3261e; }
+.etapa-card-badge.badge-neutra { background: #f1f4f2; color: var(--texto-suave); }
 
-.etapa-corpo {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: clamp(10px, 1.4vw, 24px);
-}
-
-.etapa-dados {
-  min-height: 0;
+.etapa-card-metricas {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  /* A eficiência ocupa a primeira linha; os demais indicadores dividem o
-     resto da altura — nada de card pequeno com vazio embaixo. */
-  grid-template-rows: auto repeat(3, minmax(0, 1fr));
-  gap: clamp(8px, 1vw, 16px);
+  gap: clamp(10px, 1.2vw, 18px);
 }
 
-.etapa-dado {
+.etapa-metrica-bloco {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 3px;
+  gap: 4px;
+  padding: clamp(10px, 1.1vw, 16px);
+  border-radius: 14px;
   background: #f7faf8;
   border: 1px solid var(--verde-linha);
-  border-left: 4px solid var(--verde-linha);
-  border-radius: 14px;
-  padding: clamp(8px, 1vw, 16px);
-  min-width: 0;
 }
 
-.etapa-dado-efic {
-  grid-column: 1 / -1;
-  background: #ffffff;
-}
-
-.etapa-dado-efic.faixa-alta { border-left-color: #2e9e63; }
-.etapa-dado-efic.faixa-media { border-left-color: #c9a06a; }
-.etapa-dado-efic.faixa-baixa { border-left-color: #d05a4e; }
-.etapa-dado-efic.faixa-neutra { border-left-color: #c3d3c9; }
-
-.dado-rotulo {
-  font-size: clamp(0.62rem, 0.9vw, 0.86rem);
+.etapa-metrica-rotulo {
+  font-size: clamp(0.6rem, 0.82vw, 0.8rem);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--texto-suave);
 }
 
-.dado-valor {
-  font-size: clamp(1.6rem, 3vw, 3rem);
+.etapa-metrica-valor {
+  font-size: clamp(1.5rem, 2.6vw, 2.5rem);
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
   color: var(--verde);
   font-variant-numeric: tabular-nums;
 }
 
-.etapa-dado-efic .dado-valor {
-  font-size: clamp(2.4rem, 5vw, 4.6rem);
+.grade-etapas-unica .etapa-metrica-valor {
+  font-size: clamp(2.8rem, 5.2vw, 4.8rem);
 }
 
-.dado-nota {
-  font-size: clamp(0.58rem, 0.82vw, 0.8rem);
-  color: var(--texto-suave);
-}
-
-/* Gráfico de produção por horário */
-.etapa-grafico {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(8px, 1vh, 14px);
-  background: #f7faf8;
-  border: 1px solid var(--verde-linha);
-  border-radius: 16px;
-  padding: clamp(10px, 1.2vw, 20px);
-}
-
-.grafico-topo {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.grafico-pico {
-  font-size: clamp(0.62rem, 0.9vw, 0.86rem);
-  font-weight: 700;
-  color: var(--verde-medio);
-}
-
-.grafico-area {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: stretch;
-  gap: clamp(4px, 0.8vw, 14px);
-}
-
-.barra-hora {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.barra-hora-valor {
-  min-height: 1.2em;
-  font-size: clamp(0.7rem, 1.3vw, 1.2rem);
-  font-weight: 800;
-  color: var(--verde);
-  font-variant-numeric: tabular-nums;
-}
-
-.barra-hora-trilho {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  display: flex;
-  align-items: flex-end;
-  background: #f1f6f3;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.barra-hora-preenchida {
-  width: 100%;
-  border-radius: 10px 10px 0 0;
-  background: linear-gradient(180deg, #2e9e63, #145a32);
-  transition: height 0.6s ease;
-}
-
-.barra-hora-rotulo {
-  font-size: clamp(0.62rem, 1vw, 0.95rem);
-  font-weight: 700;
-  color: var(--texto-suave);
+.etapa-card-progresso {
+  margin-top: auto;
 }
 
 /* ======================================================================
