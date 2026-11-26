@@ -30,10 +30,13 @@
 const { PrismaClient } = require('@prisma/client')
 
 const { calcularRelatorio, resolverPeriodo } = require('./relatorioProducaoService')
-const { dateToSP, parseDataUTC, round2, calcularEficiencia } = require('../utils/producaoCalculos')
-// Regra única de "etapa final" (a mesma que gera `producaoConcluida` na
-// consolidação). Usada só para MARCAR a etapa no módulo da OP.
-const { isEtapaFinal } = require('../utils/etapaFinal')
+const {
+  dateToSP,
+  parseDataUTC,
+  round2,
+  calcularEficiencia,
+  montarEtapasFinaisPorOp,
+} = require('../utils/producaoCalculos')
 
 const prisma = new PrismaClient()
 
@@ -299,16 +302,30 @@ function situacaoOp({ metaTotal, producaoConcluida, dataEntrega, hoje }) {
  * usa `calcularEficiencia` (a MESMA função da consolidação), com o tempo
  * trabalhado somado do jeito que a consolidação soma por etapa.
  */
+
 function montarPorOp(
   ops,
   detalhes,
-  { opsDetalhe, hoje, funcionarios = [] } = {}
+  {
+    opsDetalhe,
+    hoje,
+    pecaFinalConfigurada,
+    profissionaisRanking = [],
+  } = {}
 ) {
   const mapa = new Map()
   const pessoasPorOp = new Map()
+  const totaisFinaisPorOp = new Map()
 
-  const fotosPorEmail = new Map(
-    funcionarios.map(f => [f.email, f.foto || null])
+  // Identifica a última etapa de cada OP pela mesma regra dos relatórios.
+  const etapasFinaisPorOp = montarEtapasFinaisPorOp({
+    opsComEtapas: [...(opsDetalhe?.values() || [])],
+    pecaFinalConfigurada,
+  })
+
+  // Usa o ranking geral para recuperar nome, foto e posição do profissional.
+  const rankingPorEmail = new Map(
+    profissionaisRanking.map(p => [p.email, p])
   )
 
   for (const item of detalhes || []) {
@@ -316,41 +333,105 @@ function montarPorOp(
     if (!(Number(item.quantidade) > 0)) continue
     if (item.op === null || item.op === undefined) continue
 
-    if (!mapa.has(item.op)) mapa.set(item.op, new Map())
+    const quantidade = Number(item.quantidade) || 0
+    const tempoTrabalhado = Number(item.tempoTrabalhado) || 0
+    const tempoAplicado = Number(item.tempoReferencia) || 0
+    const etapa = item.etapa || 'Sem etapa'
+    const email = item.funcionarioEmail
+
+    // Inicializa a OP.
+    if (!mapa.has(item.op)) {
+      mapa.set(item.op, new Map())
+    }
 
     const etapas = mapa.get(item.op)
-    const chave = item.etapa || 'Sem etapa'
 
-    // Acumula o desempenho de cada profissional dentro da OP.
-    if (item.funcionarioEmail) {
-      if (!pessoasPorOp.has(item.op)) {
-        pessoasPorOp.set(item.op, new Map())
-      }
+    // Inicializa a etapa dentro da OP.
+    if (!etapas.has(etapa)) {
+      etapas.set(etapa, {
+        etapa,
+        final: item.etapaFinal === true,
+        producao: 0,
+        profissionais: new Set(),
+        tempoTrabalhado: 0,
+        tempoAplicado: 0,
+      })
+    }
 
-      const pessoas = pessoasPorOp.get(item.op)
-      const email = item.funcionarioEmail
+    const etapaOp = etapas.get(etapa)
 
-      if (!pessoas.has(email)) {
-        pessoas.set(email, {
-          email,
-          nome: item.profissional || email,
-          foto: fotosPorEmail.get(email) || null,
-          producao: 0,
+    // Consolida os dados de todas as etapas para preservar o detalhamento.
+    etapaOp.producao += quantidade
+    etapaOp.tempoTrabalhado += tempoTrabalhado
+    etapaOp.tempoAplicado += tempoAplicado
+
+    if (email) {
+      etapaOp.profissionais.add(email)
+    }
+
+    // Só entram no cálculo final os lançamentos que passaram pela
+    // última etapa da OP e possuem saldo líquido positivo.
+    const passouPelaEtapaFinal =
+      item.etapaFinal === true &&
+      Number(item.saldoLiquido) > 0
+
+    if (!passouPelaEtapaFinal) continue
+
+    if (passouPelaEtapaFinal) {
+      if (!totaisFinaisPorOp.has(item.op)) {
+        totaisFinaisPorOp.set(item.op, {
           tempoTrabalhado: 0,
           tempoAplicado: 0,
+          tempoFicha: 0,
+          tempoReferenciaPuro: 0,
         })
       }
 
-      const pessoa = pessoas.get(email)
+      const totalFinal = totaisFinaisPorOp.get(item.op)
 
-      pessoa.producao += Number(item.quantidade) || 0
-      pessoa.tempoTrabalhado += Number(item.tempoTrabalhado) || 0
-      pessoa.tempoAplicado += Number(item.tempoReferencia) || 0
+      totalFinal.tempoTrabalhado += tempoTrabalhado
+      totalFinal.tempoAplicado += tempoAplicado
+      totalFinal.tempoFicha += Number(item.tempoFicha) || 0
+      totalFinal.tempoReferenciaPuro +=
+        Number(item.tempoReferenciaPuro) || 0
     }
+
+    if (!mapa.has(item.op)) continue
+
+    if (!pessoasPorOp.has(item.op)) {
+      pessoasPorOp.set(item.op, new Map())
+    }
+
+    const pessoas = pessoasPorOp.get(item.op)
+
+    if (!email) continue
+
+    const dadosRanking = rankingPorEmail.get(email)
+
+    if (!pessoas.has(email)) {
+      pessoas.set(email, {
+        email,
+        nome: dadosRanking?.nome || item.profissional || email,
+        foto: dadosRanking?.foto || null,
+        posicaoRankingGeral: dadosRanking?.posicao ?? null,
+        producaoFinalizada: 0,
+        tempoTrabalhado: 0,
+        tempoAplicado: 0,
+      })
+    }
+
+    const pessoa = pessoas.get(email)
+
+    pessoa.producaoFinalizada += quantidade
+    pessoa.tempoTrabalhado += tempoTrabalhado
+    pessoa.tempoAplicado += tempoAplicado
+  }
 
   return (ops || [])
     .map(op => {
-      const etapas = [...(mapa.get(op.idOp)?.values() || [])]
+      const dadosEtapas = mapa.get(op.idOp) || new Map()
+
+      const listaEtapas = [...dadosEtapas.values()]
         .map(e => ({
           etapa: e.etapa,
           final: e.final,
@@ -364,13 +445,16 @@ function montarPorOp(
           }),
         }))
         .sort(
-          (a, b) => b.producao - a.producao || a.etapa.localeCompare(b.etapa)
+          (a, b) =>
+            b.producao - a.producao ||
+            a.etapa.localeCompare(b.etapa, 'pt-BR')
         )
-      
+
+      // Ranking de eficiência calculado exclusivamente na etapa final da OP.
       const rankingProfissionais = [
-        ...(pessoasPorOp.get(op.idOp)?.values() || [])
+        ...(pessoasPorOp.get(op.idOp)?.values() || []),
       ]
-        .filter(p => p.producao > 0 && p.tempoTrabalhado > 0)
+        .filter(p => p.producaoFinalizada > 0)
         .map(p => ({
           ...p,
           tempoTrabalhado: round2(p.tempoTrabalhado),
@@ -382,8 +466,10 @@ function montarPorOp(
         }))
         .sort(
           (a, b) =>
-            (b.eficiencia || 0) - (a.eficiencia || 0) ||
-            b.producao - a.producao ||
+            b.eficiencia - a.eficiencia ||
+            (a.posicaoRankingGeral ?? Number.MAX_SAFE_INTEGER) -
+              (b.posicaoRankingGeral ?? Number.MAX_SAFE_INTEGER) ||
+            b.producaoFinalizada - a.producaoFinalizada ||
             String(a.nome).localeCompare(String(b.nome), 'pt-BR')
         )
         .slice(0, 3)
@@ -393,14 +479,41 @@ function montarPorOp(
         }))
 
       const cadastro = opsDetalhe?.get(op.idOp) || null
-      const dataEntrega = normalizarDataEntrega(cadastro?.data_de_entrega)
+
+      const idsEtapasFinais =
+        etapasFinaisPorOp.get(op.idOp) || new Set()
+
       const etapasFluxo = (cadastro?.etapas || [])
         .map(e => ({
           idEtapa: e.id_da_funcao,
           etapa: e.etapa?.descricao || 'Sem etapa',
-          final: isEtapaFinal(e.etapa?.descricao),
+          final: idsEtapasFinais.has(e.id_da_funcao),
         }))
         .sort((a, b) => a.idEtapa - b.idEtapa)
+
+      const etapaFinal =
+        etapasFluxo.find(e => e.final)?.etapa || null
+
+      const totalFinal = totaisFinaisPorOp.get(op.idOp) || {
+        tempoTrabalhado: 0,
+        tempoAplicado: 0,
+        tempoFicha: 0,
+        tempoReferenciaPuro: 0,
+      }
+
+      const tempoTrabalhadoFinal = totalFinal.tempoTrabalhado
+      const tempoAplicadoFinal = totalFinal.tempoAplicado
+      const tempoFichaFinal = totalFinal.tempoFicha
+      const tempoReferenciaFinal = totalFinal.tempoReferenciaPuro
+
+      const eficiencia = calcularEficiencia({
+        producaoPonderada: tempoAplicadoFinal,
+        tempoTrabalhado: tempoTrabalhadoFinal,
+      })
+
+      const dataEntrega = normalizarDataEntrega(
+        cadastro?.data_de_entrega
+      )
 
       return {
         idOp: op.idOp,
@@ -408,34 +521,57 @@ function montarPorOp(
         meta: op.metaTotal || 0,
         quantidadePecas: cadastro?.quantidade_pecas ?? null,
         dataEntrega,
+
         situacao: situacaoOp({
           metaTotal: op.metaTotal,
           producaoConcluida: op.producaoConcluida,
           dataEntrega,
           hoje,
         }),
+
         statusCadastro: cadastro?.status || null,
         etapasFluxo,
+        etapaFinal,
+
         producao: op.producaoRegistrada,
         producaoConcluida: op.producaoConcluida,
+        producaoFinalizada: op.producaoConcluida,
+
         profissionais: op.profissionais,
         etapas: op.etapas,
-        tempoTrabalhado: op.tempoTrabalhado,
-        tempoAplicado: op.tempoReferencia,
-        eficiencia: op.eficienciaTempoAplicado,
-        eficienciaTempoPadrao: op.eficienciaTempoPadrao,
-        eficienciaTempoReferencia: op.eficienciaTempoReferencia,
+
+        tempoTrabalhado: round2(tempoTrabalhadoFinal),
+        tempoAplicado: round2(tempoAplicadoFinal),
+
+        eficiencia,
+
+        eficienciaTempoPadrao: calcularEficiencia({
+          producaoPonderada: tempoFichaFinal,
+          tempoTrabalhado: tempoTrabalhadoFinal,
+        }),
+
+        eficienciaTempoReferencia: calcularEficiencia({
+          producaoPonderada: tempoReferenciaFinal,
+          tempoTrabalhado: tempoTrabalhadoFinal,
+        }),
+
+        eficienciaTempoAplicado: eficiencia,
+
         percentualMeta:
-          op.metaTotal > 0 ? round2((op.producaoConcluida / op.metaTotal) * 100) : null,
-        listaEtapas: etapas,
+          op.metaTotal > 0
+            ? round2((op.producaoConcluida / op.metaTotal) * 100)
+            : null,
+
+        listaEtapas,
         rankingProfissionais,
       }
     })
     .sort(
       (a, b) =>
-        b.producao - a.producao || String(a.descricao).localeCompare(String(b.descricao))
+        b.producaoConcluida - a.producaoConcluida ||
+        String(a.descricao).localeCompare(String(b.descricao), 'pt-BR')
     )
-}}
+}
 
 /**
  * Peças de cada etapa hora a hora ("08:00 → 100, 09:00 → 34").
@@ -841,10 +977,11 @@ async function obterPainelProducao(cnpj, params) {
     ops.map(op => op.idOp)
   )
   const porOp = montarPorOp(ops, detalhes, {
-    opsDetalhe,
-    hoje: dateToSP(new Date()),
-    funcionarios,
-  })
+  opsDetalhe,
+  hoje: dateToSP(new Date()),
+  pecaFinalConfigurada: estabelecimento.peca_final,
+  profissionaisRanking: profissionais,
+})
 
   // Etapas que fazem parte do fluxo das OPs do dia — essas são acompanhadas
   // mesmo que ainda não tenham peça apontada.

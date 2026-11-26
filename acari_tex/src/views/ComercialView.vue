@@ -9,7 +9,7 @@
           <div><h1 class="titulo">Comercial</h1></div>
           <div class="header-acoes">
             <button class="btn-principal btn-add-estabelecimento" @click="abrirCadastro">+</button>
-            <span class="texto-oculto">Novo lead</span>
+            <span class="texto-oculto">Novo Lead</span>
           </div>
         </header>
 
@@ -377,7 +377,7 @@ button:disabled {
   z-index: 2000;
   position: absolute;
   bottom: -15%; 
-  right: -30%;
+  right: 50%;
   transform: translateX(-50%);
   background: white;
   border-radius: 10px;

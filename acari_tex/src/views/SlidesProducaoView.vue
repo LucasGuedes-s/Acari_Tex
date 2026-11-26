@@ -163,9 +163,6 @@
               <div class="info">
                 <span class="info-rotulo">% da meta</span>
                 <strong class="info-valor">{{ percentualMeta }}</strong>
-                <div class="barra">
-                  <div class="barra-preenchida" :style="{ width: percentualMetaBarra + '%' }"></div>
-                </div>
               </div>
             </div>
           </template>
@@ -205,21 +202,7 @@
                 </div>
               </div>
 
-              <div
-                v-if="referenciaMetaSlide.valor"
-                class="meta-slide-trilho"
-                role="progressbar"
-                :aria-valuenow="preenchimentoMetaSlide"
-                aria-valuemin="0"
-                aria-valuemax="100"
-              >
-                <div
-                  class="meta-slide-preenchimento"
-                  :style="{ width: preenchimentoMetaSlide + '%' }"
-                ></div>
-              </div>
-
-              <div v-else class="meta-slide-sem-referencia">
+              <div class="meta-slide-sem-referencia">
                 Não há meta cadastrada nem histórico de produção suficiente.
               </div>
 
@@ -293,13 +276,6 @@
                     <strong class="dado-valor">
                       {{ percentualOuTraco(paginaAtual.etapa.eficiencia) }}
                     </strong>
-                    <div class="barra barra-grande">
-                      <div
-                        class="barra-preenchida"
-                        :class="`fill-${faixa(paginaAtual.etapa.eficiencia)}`"
-                        :style="{ width: Math.min(100, Math.max(2, paginaAtual.etapa.eficiencia || 0)) + '%' }"
-                      ></div>
-                    </div>
                     <span class="dado-nota">Σ peças × SAM ÷ tempo trabalhado</span>
                   </div>
 
@@ -351,35 +327,6 @@
                     </span>
                   </div>
                 </div>
-
-                <div class="etapa-grafico">
-                  <div class="grafico-topo">
-                    <span class="dado-rotulo">Produção por horário</span>
-                    <span v-if="paginaAtual.pico" class="grafico-pico">
-                      pico {{ horaCurta(paginaAtual.pico.hora) }} ·
-                      {{ formatarNumero(paginaAtual.pico.quantidade) }} peças
-                    </span>
-                  </div>
-
-                  <div class="grafico-area">
-                    <div v-for="barra in paginaAtual.barras" :key="barra.hora" class="barra-hora">
-                      <span class="barra-hora-valor">
-                        {{ barra.quantidade ? formatarNumero(barra.quantidade) : '' }}
-                      </span>
-                      <div class="barra-hora-trilho">
-                        <div
-                          class="barra-hora-preenchida"
-                          :style="{ height: barra.altura + '%' }"
-                        ></div>
-                      </div>
-                      <span class="barra-hora-rotulo">{{ horaCurta(barra.hora) }}</span>
-                    </div>
-                  </div>
-
-                  <p v-if="!paginaAtual.barras.length" class="vazio-linha">
-                    Nenhum horário registrado para esta etapa.
-                  </p>
-                </div>
               </div>
             </div>
           </template>
@@ -429,14 +376,6 @@
                   <div class="destaque-eficiencia" :class="`faixa-${faixa(destaque.eficiencia)}`">
                     <strong>{{ formatarPercentual(destaque.eficiencia) }}</strong>
                     <span>eficiência individual</span>
-                  </div>
-
-                  <div class="barra barra-grande">
-                    <div
-                      class="barra-preenchida"
-                      :class="`fill-${faixa(destaque.eficiencia)}`"
-                      :style="{ width: Math.min(100, Math.max(2, destaque.eficiencia)) + '%' }"
-                    ></div>
                   </div>
 
                   <div class="destaque-kpis">
@@ -513,13 +452,6 @@
                   <strong class="prof-efic" :class="`faixa-${faixa(p.eficiencia)}`">
                     {{ formatarPercentual(p.eficiencia) }}
                   </strong>
-                  <div class="barra">
-                    <div
-                      class="barra-preenchida"
-                      :class="`fill-${faixa(p.eficiencia)}`"
-                      :style="{ width: Math.min(100, Math.max(2, p.eficiencia)) + '%' }"
-                    ></div>
-                  </div>
                   <span class="prof-nota">
                     {{ formatarNumero(p.producao) }} peças · {{ formatarHoras(p.tempoNoDia) }}
                   </span>
@@ -568,13 +500,6 @@
                     {{ percentualOuTraco(op.percentualMeta) }}
                   </div>
                   <div class="op-barra-area">
-                    <div class="barra">
-                      <div
-                        class="barra-preenchida"
-                        :class="`fill-${faixa(op.percentualMeta)}`"
-                        :style="{ width: Math.max(2, Math.min(100, op.percentualMeta || 0)) + '%' }"
-                      ></div>
-                    </div>
                     <span class="op-barra-nota">
                       {{ formatarNumero(op.producaoConcluida) }} de
                       {{ formatarNumero(op.meta) }} concluídas
@@ -657,20 +582,20 @@
                   <div>
                     <span class="grupo-legenda">ORDEM DE PRODUÇÃO</span>
                     <h3 class="grupo-nome">{{ grupo.nome }}</h3>
+                    <span class="grupo-legenda">
+                      {{ grupo.etapaFinal }}
+                    </span>
                   </div>
-                  <span class="grupo-pecas">{{ formatarNumero(grupo.producao) }} <small>peças</small></span>
+
+                  <span class="grupo-pecas">
+                    {{ formatarNumero(grupo.producao) }}
+                    <small>peças finalizadas</small>
+                  </span>
                 </div>
 
                 <div class="grupo-eficiencia" :class="`faixa-${faixa(grupo.eficiencia)}`">
                   <strong>{{ formatarPercentual(grupo.eficiencia) }}</strong>
                   <span>Eficiência da OP</span>
-                </div>
-                <div class="barra barra-grande">
-                  <div
-                    class="barra-preenchida"
-                    :class="`fill-${faixa(grupo.eficiencia)}`"
-                    :style="{ width: Math.min(100, Math.max(0, grupo.eficiencia || 0)) + '%' }"
-                  ></div>
                 </div>
 
                 <div class="grupo-podio-titulo">TOP 3 PROFISSIONAIS — EFICIÊNCIA POR ORDEM DE PRODUÇÃO</div>
@@ -1004,12 +929,14 @@ const etapas = computed(() => {
  *
  * O ranking geral permanece independente e inalterado.
  */
+
 const grupos = computed(() =>
   porOp.value
     .map(op => ({
       idOp: op.idOp,
       nome: op.descricao || `OP ${op.idOp}`,
-      producao: Number(op.producao) || 0,
+      producao: Number(op.producaoConcluida) || 0,
+      etapaFinal: op.etapaFinal || 'Etapa final',
       etapas: Number(op.etapas) || 0,
       profissionais: Number(op.profissionais) || 0,
       eficiencia: Number(op.eficiencia) || 0,
@@ -1042,24 +969,6 @@ const etapasOciosas = computed(() =>
  * horário apontado no dia. Se o servidor não mandar `horasDoDia`, deduz das
  * etapas (mesma leitura, só preenchendo o eixo).
  */
-const horasDoDia = computed(() => {
-  const doPainel = painel.value?.horasDoDia
-  if (Array.isArray(doPainel) && doPainel.length) return doPainel
-
-  const horas = new Set()
-  for (const etapa of porEtapa.value) {
-    for (const item of etapa.porHora || []) horas.add(item.hora)
-  }
-
-  const ordenadas = [...horas].sort()
-  if (!ordenadas.length) return []
-
-  const primeira = Number(String(ordenadas[0]).slice(0, 2))
-  const ultima = Number(String(ordenadas[ordenadas.length - 1]).slice(0, 2))
-  const eixo = []
-  for (let h = primeira; h <= ultima; h += 1) eixo.push(`${String(h).padStart(2, '0')}:00`)
-  return eixo
-})
 
 /**
  * Peças finalizadas × processadas. `disponivel: false` quando nenhuma OP do
@@ -1124,45 +1033,18 @@ function rotuloFaixa(inicio, quantidade, total) {
   return `${inicio + 1}–${inicio + quantidade} de ${total}`
 }
 
-/**
- * Barras do gráfico de uma etapa: uma por hora do dia (eixo contínuo) e
- * altura relativa ao pior horário dela. Nenhum valor é recalculado — a
- * quantidade é a que veio da consolidação.
- */
-function barrasDaEtapa(etapa) {
-  const porHora = new Map((etapa.porHora || []).map(h => [h.hora, h.quantidade]))
-  const horas = horasDoDia.value.length ? horasDoDia.value : [...porHora.keys()].sort()
-
-  const valores = horas.map(hora => ({ hora, quantidade: porHora.get(hora) || 0 }))
-  const maximo = valores.reduce((maior, v) => Math.max(maior, v.quantidade), 0)
-
-  return valores.map(v => ({
-    ...v,
-    altura: maximo ? Math.round((v.quantidade / maximo) * 100) : 0,
-  }))
-}
-
-/** Horário de maior volume da etapa (null quando não há produção). */
-function picoDaEtapa(barras) {
-  return barras.reduce((pico, b) => (b.quantidade > (pico?.quantidade || 0) ? b : pico), null)
-}
-
 /** Páginas com uma etapa cada, na ordem de produção (já vem do backend). */
 function paginasDasEtapas() {
   const lista = etapasComProducao.value
-  return lista.map((etapa, i) => {
-    const barras = barrasDaEtapa(etapa)
-    return {
-      id: `etapa-${etapa.idEtapa ?? i}`,
-      chave: 'etapa',
-      titulo: `Etapa ${etapa.etapa}`,
-      etapa,
-      barras,
-      pico: picoDaEtapa(barras),
-      indice: i + 1,
-      total: lista.length,
-    }
-  })
+
+  return lista.map((etapa, i) => ({
+    id: `etapa-${etapa.idEtapa ?? i}`,
+    chave: 'etapa',
+    titulo: `Etapa ${etapa.etapa}`,
+    etapa,
+    indice: i + 1,
+    total: lista.length,
+  }))
 }
 
 function clonarConfiguracoes(valor) {
@@ -1382,10 +1264,6 @@ const percentualAtingimentoSlide = computed(() => {
   return Math.round((producao / referencia) * 100)
 })
 
-const preenchimentoMetaSlide = computed(() =>
-  Math.min(100, Math.max(0, percentualAtingimentoSlide.value))
-)
-
 /* ================= FORMATAÇÃO ================= */
 function formatarNumero(valor) {
   return Number(valor || 0).toLocaleString('pt-BR')
@@ -1471,11 +1349,11 @@ function faixa(valor) {
   return 'baixa'
 }
 
-/** "08:00" → "8h" (leitura rápida na TV). */
+/** "08:00" → "8h" (leitura rápida na TV). 
 function horaCurta(hora) {
   const h = String(hora || '').split(':')[0]
   return h ? `${Number(h)}h` : '—'
-}
+} */
 
 /* ================= NAVEGAÇÃO ================= */
 let decorrido = 0
@@ -2048,14 +1926,6 @@ onUnmounted(() => {
   font-size: clamp(48px, 7vw, 90px);
   line-height: 1.1;
   color: var(--verde-medio);
-}
-
-.meta-slide-trilho {
-  width: 100%;
-  height: 42px;
-  overflow: hidden;
-  background: #e7eee9;
-  border-radius: 50px;
 }
 
 .meta-slide-preenchimento {
