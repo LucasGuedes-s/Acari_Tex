@@ -278,97 +278,13 @@
             </div>
           </template>
 
-          <!-- ══════════ 4. DESTAQUE DO DIA ══════════ -->
-          <template v-else-if="paginaAtual.chave === 'destaque'">
-            <div class="slide-cabecalho">
-              <div>
-                <h2 class="slide-titulo">Destaque do dia</h2>
-                <p class="slide-sub">
-                  Melhor desempenho considerando tempo aplicado ÷ tempo trabalhado
-                  (ficha ou referência, o menor)
-                </p>
-              </div>
-              <span class="selo selo-meta">🏆 1º lugar</span>
-            </div>
-
-            <div v-if="destaque" class="destaque-area">
-              <span class="destaque-foguetes" aria-hidden="true">
-                <i class="foguete f1">🚀</i>
-                <i class="foguete f2">🚀</i>
-                <i class="foguete f3">🚀</i>
-              </span>
-              <span class="destaque-confete" aria-hidden="true">
-                <i></i><i></i><i></i><i></i><i></i><i></i>
-              </span>
-
-              <article class="destaque-card">
-                <div class="destaque-foto-area">
-                  <img
-                    v-if="destaque.foto"
-                    :src="destaque.foto"
-                    class="destaque-foto"
-                    :alt="destaque.nome"
-                  />
-                  <span v-else class="destaque-foto destaque-iniciais">
-                    {{ iniciais(destaque.nome) }}
-                  </span>
-                  <span class="destaque-medalha">🥇</span>
-                  <span class="destaque-posicao">{{ destaque.posicao }}º lugar</span>
-                </div>
-
-                <div class="destaque-info">
-                  <h3 class="destaque-nome">{{ destaque.nome }}</h3>
-                  <span class="destaque-etapas">{{ resumoEtapas(destaque) }}</span>
-
-                  <div class="destaque-eficiencia" :class="`faixa-${faixa(destaque.eficiencia)}`">
-                    <strong>{{ formatarPercentual(destaque.eficiencia) }}</strong>
-                    <span>eficiência individual</span>
-                  </div>
-
-                  <div class="destaque-kpis">
-                    <div class="destaque-kpi">
-                      <strong>{{ formatarNumero(destaque.producao) }}</strong>
-                      <span>peças produzidas</span>
-                    </div>
-                    <div class="destaque-kpi">
-                      <strong>{{ formatarHoras(destaque.tempoNoDia) }}</strong>
-                      <span>tempo trabalhado</span>
-                    </div>
-                    <div class="destaque-kpi">
-                      <strong>{{ destaque.etapasExecutadas }}</strong>
-                      <span>etapas realizadas</span>
-                    </div>
-                    <div class="destaque-kpi">
-                      <strong>{{ formatarPercentual(destaque.eficienciaTempoReferencia) }}</strong>
-                      <span>eficiência por referência</span>
-                    </div>
-                  </div>
-
-                  <ul class="destaque-lista">
-                    <li v-for="etapa in destaque.etapas.slice(0, 4)" :key="etapa.etapa">
-                      <span>{{ etapa.etapa }}</span>
-                      <strong>{{ formatarNumero(etapa.quantidade) }}</strong>
-                    </li>
-                  </ul>
-
-                  <span v-if="destaque.bateuMeta" class="destaque-meta">
-                    META DA HORA BATIDA 🎉
-                  </span>
-                </div>
-              </article>
-            </div>
-
-            <div v-else class="estado-interno">
-              <p>Nenhum profissional com produção válida neste dia.</p>
-              <small>O pódio aparece quando houver apontamento com tempo calculado.</small>
-            </div>
-          </template>
-
-          <!-- ══════════ 5. RANKING DE PROFISSIONAIS ══════════ -->
+          <!-- ══════════ 4. PÓDIO & RANKING DE PROFISSIONAIS ══════════ -->
           <template v-else-if="paginaAtual.chave === 'ranking'">
             <div class="slide-cabecalho">
               <div>
-                <h2 class="slide-titulo">Ranking de profissionais</h2>
+                <h2 class="slide-titulo">
+                  {{ paginaAtual.isPodio ? 'Pódio e ranking do dia' : 'Ranking de profissionais' }}
+                </h2>
                 <p class="slide-sub">
                   Ordenado por eficiência (ficha ou referência, o menor) · meta da hora =
                   {{ resumo.metaHora || 100 }}% · {{ paginaAtual.rotuloLinhas }}
@@ -377,21 +293,128 @@
               <span v-if="destaques.quantidadeNaMeta" class="selo selo-meta">
                 🎉 {{ destaques.quantidadeNaMeta }} bateram a meta
               </span>
+              <span v-else class="selo selo-meta">🏆 Top profissionais</span>
             </div>
 
-            <div class="grade-prof" :style="{ '--colunas': paginaAtual.colunas }">
+            <!-- PÁGINA PRINCIPAL DO PÓDIO (TOP 3 + 4º E 5º ABAIXO) -->
+            <template v-if="paginaAtual.isPodio">
+              <div v-if="podioTop3.length" class="podio-palco-wrap">
+                <!-- Animação de foguetes e confetes da página de destaque -->
+                <span class="destaque-foguetes" aria-hidden="true">
+                  <i class="foguete f1">🚀</i>
+                  <i class="foguete f2">🚀</i>
+                  <i class="foguete f3">🚀</i>
+                  <i class="foguete f4">✨</i>
+                  <i class="foguete f5">🏆</i>
+                </span>
+                <span class="destaque-confete" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </span>
+
+                <!-- PÓDIO TOP 3 (Ordem visual: 2º - 1º - 3º) -->
+                <div class="podio-etapas">
+                  <article
+                    v-for="p in podioOrdenadoVisual"
+                    :key="p.email"
+                    class="podio-coluna"
+                    :class="`lugar-${p.posicao}`"
+                  >
+                    <div class="podio-pessoa">
+                      <div class="podio-avatar-box">
+                        <span v-if="p.posicao === 1" class="podio-coroa" aria-hidden="true">👑</span>
+                        <img
+                          v-if="p.foto"
+                          :src="p.foto"
+                          class="podio-avatar"
+                          :alt="p.nome"
+                        />
+                        <span v-else class="podio-avatar podio-avatar-iniciais">
+                          {{ iniciais(p.nome) }}
+                        </span>
+                        <span class="podio-medalha-badge">{{ medalha(p.posicao) }}</span>
+                      </div>
+
+                      <h3 class="podio-nome" :title="p.nome">{{ p.nome }}</h3>
+                      <span class="podio-etapa-tag">{{ resumoEtapas(p) }}</span>
+
+                      <strong class="podio-efic" :class="`faixa-${faixa(p.eficiencia)}`">
+                        {{ formatarPercentual(p.eficiencia) }}
+                      </strong>
+
+                      <span class="podio-subdados">
+                        {{ formatarNumero(p.producao) }} peças · {{ formatarHoras(p.tempoNoDia) }}
+                      </span>
+
+                      <span v-if="p.bateuMeta" class="podio-meta-chip">
+                        META 1h 🎉
+                      </span>
+                    </div>
+
+                    <div class="podio-degrau">
+                      <span class="podio-degrau-num">{{ p.posicao }}º</span>
+                      <span class="podio-degrau-texto">lugar</span>
+                    </div>
+                  </article>
+                </div>
+
+                <!-- 4º E 5º LUGARES ABAIXO DO PÓDIO -->
+                <div v-if="quartoEQuinto.length" class="podio-pelotao">
+                  <article
+                    v-for="p in quartoEQuinto"
+                    :key="p.email"
+                    class="pelotao-card"
+                    :class="{ 'prof-meta': p.bateuMeta }"
+                  >
+                    <span class="pelotao-pos">{{ p.posicao }}º</span>
+
+                    <div class="pelotao-avatar-wrap">
+                      <img
+                        v-if="p.foto"
+                        :src="p.foto"
+                        class="pelotao-avatar"
+                        :alt="p.nome"
+                      />
+                      <span v-else class="pelotao-avatar pelotao-iniciais">
+                        {{ iniciais(p.nome) }}
+                      </span>
+                    </div>
+
+                    <div class="pelotao-info">
+                      <span class="pelotao-nome">{{ p.nome }}</span>
+                      <span class="pelotao-sub">
+                        {{ formatarNumero(p.producao) }} peças · {{ formatarHoras(p.tempoNoDia) }} · {{ resumoEtapas(p) }}
+                      </span>
+                    </div>
+
+                    <div class="pelotao-direita">
+                      <strong class="pelotao-efic" :class="`faixa-${faixa(p.eficiencia)}`">
+                        {{ formatarPercentual(p.eficiencia) }}
+                      </strong>
+                      <span v-if="p.bateuMeta" class="pelotao-meta">META 1h 🎉</span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div v-else class="estado-interno">
+                <p>Nenhum profissional com produção válida neste dia.</p>
+                <small>O pódio aparece quando houver apontamento com tempo calculado.</small>
+              </div>
+            </template>
+
+            <!-- DEMAIS COLOCADOS (6º EM DIANTE, SE HOUVER) -->
+            <div v-else class="grade-prof" :style="{ '--colunas': paginaAtual.colunas }">
               <article
                 v-for="p in paginaAtual.itens"
                 :key="p.email"
                 class="prof-card"
-                :class="[{ 'prof-meta': p.bateuMeta }, p.posicao <= 3 ? `podio podio-${p.posicao}` : '']"
+                :class="{ 'prof-meta': p.bateuMeta }"
               >
                 <div class="prof-posicao">{{ p.posicao }}º</div>
 
                 <div class="avatar-wrap">
                   <img v-if="p.foto" :src="p.foto" class="avatar-foto" :alt="p.nome" />
                   <span v-else class="avatar-foto avatar-iniciais">{{ iniciais(p.nome) }}</span>
-                  <span v-if="p.posicao <= 3" class="podio-medalha">{{ medalha(p.posicao) }}</span>
                 </div>
 
                 <div class="prof-info">
@@ -717,7 +740,7 @@
               </label>
 
               <label class="config-campo">
-                <span>Profissionais por página</span>
+                <span>Profissionais por página (6º+)</span>
                 <input
                   v-model.number="configuracoesRascunho.profissionaisPorPagina"
                   type="number"
@@ -764,12 +787,8 @@
                 <span>Produção por etapa</span>
               </label>
               <label class="config-opcao">
-                <input type="checkbox" v-model="configuracoesRascunho.slides.destaque" />
-                <span>Destaque do dia</span>
-              </label>
-              <label class="config-opcao">
                 <input type="checkbox" v-model="configuracoesRascunho.slides.ranking" />
-                <span>Ranking de profissionais</span>
+                <span>Pódio e ranking de profissionais</span>
               </label>
               <label class="config-opcao">
                 <input type="checkbox" v-model="configuracoesRascunho.slides.ops" />
@@ -958,7 +977,6 @@ const configuracoes = ref({
   slides: {
     resumo: true,
     etapa: true,
-    destaque: true,
     ranking: true,
     ops: true,
     grupos: true,
@@ -1005,7 +1023,7 @@ const etapas = computed(() => {
   return porEtapa.value
 })
 
-/** Ranking por OP atualizado com a eficiência do ProducaoDia (do Arquivo 2) */
+/** Ranking por OP atualizado com a eficiência do ProducaoDia */
 const grupos = computed(() => {
   const mapa = eficienciaProducaoDiaPorEmail.value
 
@@ -1074,15 +1092,47 @@ const notaFinalizadas = computed(() => {
   return `sem peça na etapa final (${textoEtapaFinal.value}) até agora`
 })
 
-/** 1º lugar do ranking (do Arquivo 1 — payload oficial do backend) */
-const destaque = computed(() => {
-  const primeiro = destaques.value.maiorEficiencia
-  if (primeiro) return primeiro
-  return profissionais.value.find(p => p.posicao === 1 && p.producao > 0) || null
+/** Lista ordenada de profissionais com produção válida (1º, 2º, 3º, 4º, 5º...) */
+const profissionaisOrdenados = computed(() => {
+  const mapa = eficienciaProducaoDiaPorEmail.value
+
+  return profissionais.value
+    .filter(p => Number(p.producao) > 0)
+    .map(p => {
+      const metricas = mapa.get(p.email)
+      return {
+        ...p,
+        eficiencia:
+          metricas?.geral != null ? Number(metricas.geral) : Number(p.eficiencia || 0),
+      }
+    })
+    .sort(
+      (a, b) =>
+        b.eficiencia - a.eficiencia ||
+        Number(b.producao || 0) - Number(a.producao || 0)
+    )
+    .map((p, idx) => ({
+      ...p,
+      posicao: idx + 1,
+    }))
 })
 
-/** Demais colocados (do Arquivo 1 — payload oficial do backend) */
-const ranking = computed(() => profissionais.value.filter(p => p.producao > 0).slice(1))
+/** Top 3 do pódio */
+const podioTop3 = computed(() => profissionaisOrdenados.value.slice(0, 3))
+
+/** Ordem visual do pódio clássico: 2º à esquerda, 1º no centro, 3º à direita */
+const podioOrdenadoVisual = computed(() => {
+  const top = podioTop3.value
+  if (top.length <= 1) return top
+  if (top.length === 2) return [top[1], top[0]]
+  return [top[1], top[0], top[2]]
+})
+
+/** 4º e 5º colocados exibidos logo abaixo do pódio */
+const quartoEQuinto = computed(() => profissionaisOrdenados.value.slice(3, 5))
+
+/** Demais colocados (6º em diante, caso haja mais de 5 profissionais) */
+const rankingRestante = computed(() => profissionaisOrdenados.value.slice(5))
 
 /* ================= NAVEGAÇÃO / PAGINAÇÃO ================= */
 function paginar(lista, tamanho) {
@@ -1160,7 +1210,6 @@ function salvarConfiguracoes() {
       resumo: rascunho.slides.resumo !== false,
       meta: rascunho.slides.meta !== false,
       etapa: rascunho.slides.etapa !== false,
-      destaque: rascunho.slides.destaque !== false,
       ranking: rascunho.slides.ranking !== false,
       ops: rascunho.slides.ops !== false,
       grupos: rascunho.slides.grupos !== false,
@@ -1196,6 +1245,12 @@ function carregarConfiguracoes() {
     if (!salvas) return
 
     const dados = JSON.parse(salvas)
+    const slidesSalvos = dados.slides || {}
+    const rankingAtivo =
+      slidesSalvos.ranking !== undefined || slidesSalvos.destaque !== undefined
+        ? slidesSalvos.ranking !== false || slidesSalvos.destaque !== false
+        : true
+
     configuracoes.value = {
       ...configuracoes.value,
       ...dados,
@@ -1205,7 +1260,8 @@ function carregarConfiguracoes() {
       opsPorPagina: Math.min(20, Math.max(1, Math.round(Number(dados.opsPorPagina) || 4))),
       slides: {
         ...configuracoes.value.slides,
-        ...(dados.slides || {}),
+        ...slidesSalvos,
+        ranking: rankingAtivo,
       },
     }
 
@@ -1225,19 +1281,35 @@ const paginas = computed(() => {
 
   lista.push(...paginasDasEtapas())
 
-  lista.push({ id: 'destaque', chave: 'destaque', titulo: 'Destaque do dia' })
-
-  paginar(ranking.value, configuracoes.value.profissionaisPorPagina).forEach((itens, i, todas) => {
-    if (!itens.length) return
-    lista.push({
-      id: `ranking-${i}`,
-      chave: 'ranking',
-      titulo: 'Ranking de profissionais',
-      itens,
-      colunas: Math.min(3, Math.max(1, itens.length)),
-      rotuloLinhas: todas.length > 1 ? `página ${i + 1} de ${todas.length}` : 'demais colocados',
-    })
+  // Slide unificado: Pódio (Top 3) + 4º e 5º colocados
+  lista.push({
+    id: 'ranking-podio',
+    chave: 'ranking',
+    isPodio: true,
+    titulo: 'Pódio e ranking de profissionais',
+    rotuloLinhas:
+      profissionaisOrdenados.value.length > 5
+        ? `top 5 de ${profissionaisOrdenados.value.length} profissionais`
+        : `${profissionaisOrdenados.value.length} profissional(is) no dia`,
   })
+
+  // Páginas adicionais apenas se houver 6º lugar em diante
+  if (rankingRestante.value.length) {
+    paginar(rankingRestante.value, configuracoes.value.profissionaisPorPagina).forEach((itens, i) => {
+      if (!itens.length) return
+      const inicioPosicao = 6 + i * configuracoes.value.profissionaisPorPagina
+      const fimPosicao = inicioPosicao + itens.length - 1
+      lista.push({
+        id: `ranking-${i}`,
+        chave: 'ranking',
+        isPodio: false,
+        titulo: 'Ranking de profissionais',
+        itens,
+        colunas: Math.min(3, Math.max(1, itens.length)),
+        rotuloLinhas: `${inicioPosicao}º ao ${fimPosicao}º lugar`,
+      })
+    })
+  }
 
   paginar(porOp.value, configuracoes.value.opsPorPagina).forEach((itens, i) => {
     if (!itens.length) return
@@ -2200,194 +2272,326 @@ onUnmounted(() => {
 }
 
 /* ======================================================================
-   SLIDE 4 — DESTAQUE DO DIA
+   SLIDE UNIFICADO — PÓDIO (TOP 3) + 4º E 5º LUGARES
    ====================================================================== */
-.destaque-area {
+.podio-palco-wrap {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: stretch;
-  justify-content: center;
-  overflow: hidden;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: clamp(10px, 1.3vh, 18px);
+  padding: clamp(12px, 1.5vh, 22px) clamp(14px, 1.8vw, 28px);
   border-radius: 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #eff7f2 55%, #e3f1e8 100%);
+  background: linear-gradient(155deg, #ffffff 0%, #eff7f2 58%, #e4f2e9 100%);
   border: 1px solid #cfe4d9;
+  overflow: hidden;
 }
 
-.destaque-card {
+.podio-etapas {
   position: relative;
   z-index: 2;
-  width: 100%;
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(180px, 320px) 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: clamp(10px, 1.4vw, 24px);
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.podio-coluna {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: clamp(14px, 2vw, 34px);
-  padding: clamp(14px, 2vw, 34px);
-}
-
-.destaque-foto-area {
-  position: relative;
-  justify-self: center;
-  width: 100%;
-  max-width: 300px;
-  aspect-ratio: 1;
-}
-
-.destaque-foto {
-  width: 100%;
+  justify-content: flex-end;
+  min-width: 0;
   height: 100%;
+}
+
+.podio-pessoa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: clamp(2px, 0.45vh, 6px);
+  padding: 0 6px clamp(8px, 1vh, 14px);
+  width: 100%;
+  min-width: 0;
+}
+
+.podio-avatar-box {
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.podio-coroa {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(1.3rem, 2.1vw, 1.9rem);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.16));
+  animation: medalha-pop 2.2s ease-in-out infinite;
+  z-index: 2;
+}
+
+.podio-avatar {
+  width: clamp(64px, 6.8vw, 96px);
+  height: clamp(64px, 6.8vw, 96px);
   border-radius: 50%;
   object-fit: cover;
-  border: 6px solid #ffffff;
-  box-shadow: 0 6px 24px rgba(13, 57, 39, 0.18);
+  border: 4px solid #ffffff;
+  box-shadow: 0 6px 18px rgba(13, 57, 39, 0.16);
+  background: var(--verde-claro);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--verde-claro);
 }
 
-.destaque-iniciais {
-  font-size: clamp(2rem, 5vw, 4rem);
+.lugar-1 .podio-avatar {
+  width: clamp(82px, 8.6vw, 122px);
+  height: clamp(82px, 8.6vw, 122px);
+  border-width: 5px;
+  border-color: #f3d266;
+  box-shadow: 0 8px 26px rgba(212, 165, 32, 0.32);
+}
+
+.lugar-2 .podio-avatar {
+  border-color: #cfd8dc;
+}
+
+.lugar-3 .podio-avatar {
+  border-color: #deb487;
+}
+
+.podio-avatar-iniciais {
+  font-size: clamp(1.2rem, 1.9vw, 1.75rem);
   font-weight: 800;
   color: var(--verde-medio);
 }
 
-.destaque-medalha {
-  position: absolute;
-  top: -10px;
-  right: -6px;
-  font-size: clamp(1.6rem, 3vw, 2.6rem);
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.18));
-  animation: medalha-pop 2.4s ease-in-out infinite;
+.lugar-1 .podio-avatar-iniciais {
+  font-size: clamp(1.5rem, 2.3vw, 2.1rem);
 }
 
-.destaque-posicao {
+.podio-medalha-badge {
   position: absolute;
-  bottom: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--verde);
-  color: #fff;
-  padding: 4px 14px;
-  border-radius: 999px;
-  font-size: clamp(0.6rem, 0.9vw, 0.82rem);
+  bottom: -4px;
+  right: -6px;
+  font-size: clamp(1.25rem, 1.9vw, 1.75rem);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  animation: medalha-pop 2.6s ease-in-out infinite;
+}
+
+.podio-nome {
+  margin: 0;
+  font-size: clamp(0.95rem, 1.35vw, 1.3rem);
   font-weight: 800;
+  color: var(--verde);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.destaque-info {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(6px, 0.9vh, 12px);
-  min-width: 0;
+.lugar-1 .podio-nome {
+  font-size: clamp(1.15rem, 1.65vw, 1.55rem);
 }
 
-.destaque-nome {
-  margin: 0;
-  font-size: clamp(1.4rem, 2.9vw, 2.8rem);
-  font-weight: 800;
-  color: var(--verde);
-  line-height: 1.05;
+.podio-etapa-tag {
+  font-size: clamp(0.62rem, 0.8vw, 0.76rem);
+  color: var(--texto-suave);
+  font-weight: 600;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.destaque-etapas {
-  font-size: clamp(0.72rem, 1vw, 0.92rem);
+.podio-efic {
+  font-size: clamp(1.45rem, 2.4vw, 2.2rem);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.lugar-1 .podio-efic {
+  font-size: clamp(1.85rem, 3.1vw, 2.85rem);
+}
+
+.podio-subdados {
+  font-size: clamp(0.62rem, 0.82vw, 0.78rem);
   color: var(--texto-suave);
   font-weight: 600;
 }
 
-.destaque-eficiencia {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.destaque-eficiencia strong {
-  font-size: clamp(2.4rem, 5.2vw, 5rem);
+.podio-meta-chip {
+  background: #fdf5e3;
+  color: #8a6420;
+  border: 1px solid #f0dcad;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: clamp(0.55rem, 0.72vw, 0.68rem);
   font-weight: 800;
-  line-height: 0.95;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
 }
 
-.destaque-eficiencia span {
-  font-size: clamp(0.62rem, 0.9vw, 0.85rem);
-  color: var(--texto-suave);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.destaque-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: clamp(6px, 0.8vw, 12px);
-}
-
-.destaque-kpi {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid #dbeae2;
-  border-radius: 12px;
-  padding: clamp(6px, 0.8vw, 12px);
+/* Degraus do pódio */
+.podio-degrau {
+  width: 100%;
+  border-radius: 16px 16px 6px 6px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(13, 57, 39, 0.14);
 }
 
-.destaque-kpi strong {
-  font-size: clamp(1rem, 1.7vw, 1.6rem);
+.lugar-1 .podio-degrau {
+  height: clamp(74px, 11vh, 118px);
+  background: linear-gradient(180deg, #e5b83b 0%, #c4921c 100%);
+  border: 1px solid #f5d678;
+}
+
+.lugar-2 .podio-degrau {
+  height: clamp(54px, 8vh, 86px);
+  background: linear-gradient(180deg, #8fa2ad 0%, #6d808b 100%);
+  border: 1px solid #c5d1d8;
+}
+
+.lugar-3 .podio-degrau {
+  height: clamp(42px, 6.2vh, 66px);
+  background: linear-gradient(180deg, #c68652 0%, #9e6334 100%);
+  border: 1px solid #e2b086;
+}
+
+.podio-degrau-num {
+  font-size: clamp(1.2rem, 2vw, 1.85rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.podio-degrau-texto {
+  font-size: clamp(0.55rem, 0.72vw, 0.68rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+/* 4º e 5º colocados abaixo do pódio */
+.podio-pelotao {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(8px, 1.1vw, 16px);
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.pelotao-card {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.1vw, 16px);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--verde-linha);
+  border-radius: 14px;
+  padding: clamp(8px, 1vh, 13px) clamp(12px, 1.3vw, 18px);
+  box-shadow: var(--sombra);
+  min-width: 0;
+}
+
+.pelotao-pos {
+  flex-shrink: 0;
+  width: clamp(32px, 2.8vw, 42px);
+  height: clamp(32px, 2.8vw, 42px);
+  border-radius: 10px;
+  background: var(--verde-claro);
+  color: var(--verde);
+  display: grid;
+  place-items: center;
+  font-size: clamp(0.85rem, 1.15vw, 1.05rem);
+  font-weight: 900;
+}
+
+.pelotao-avatar-wrap {
+  flex-shrink: 0;
+}
+
+.pelotao-avatar {
+  width: clamp(38px, 3.6vw, 50px);
+  height: clamp(38px, 3.6vw, 50px);
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--verde-linha);
+  background: var(--verde-claro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pelotao-iniciais {
+  font-weight: 800;
+  color: var(--verde-medio);
+  font-size: clamp(0.8rem, 1vw, 0.95rem);
+}
+
+.pelotao-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pelotao-nome {
+  font-size: clamp(0.85rem, 1.15vw, 1.05rem);
   font-weight: 800;
   color: var(--verde);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pelotao-sub {
+  font-size: clamp(0.6rem, 0.78vw, 0.74rem);
+  color: var(--texto-suave);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pelotao-direita {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.pelotao-efic {
+  font-size: clamp(1.1rem, 1.65vw, 1.5rem);
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
 
-.destaque-kpi span {
-  font-size: clamp(0.52rem, 0.72vw, 0.7rem);
-  color: var(--texto-suave);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-
-.destaque-lista {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.destaque-lista li {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  background: #ffffff;
-  border: 1px solid #dbeae2;
-  border-radius: 999px;
-  padding: 3px 12px;
-  font-size: clamp(0.58rem, 0.82vw, 0.8rem);
-  color: var(--texto-suave);
-}
-
-.destaque-lista strong {
-  color: var(--verde);
-  font-weight: 800;
-}
-
-.destaque-meta {
-  align-self: flex-start;
+.pelotao-meta {
   background: #fdf5e3;
   color: #8a6420;
   border-radius: 999px;
-  padding: 4px 14px;
-  font-size: clamp(0.6rem, 0.9vw, 0.82rem);
+  padding: 1px 8px;
+  font-size: clamp(0.5rem, 0.66vw, 0.62rem);
   font-weight: 800;
-  letter-spacing: 0.04em;
 }
 
+/* Animação de emojis e confetes */
 .destaque-foguetes,
 .destaque-confete {
   position: absolute;
@@ -2405,9 +2609,11 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-.foguete.f1 { left: 8%; animation-delay: 0.2s; }
-.foguete.f2 { left: 22%; animation-delay: 1.8s; }
-.foguete.f3 { left: 88%; animation-delay: 3.1s; }
+.foguete.f1 { left: 6%; animation-delay: 0.2s; }
+.foguete.f2 { left: 20%; animation-delay: 1.8s; }
+.foguete.f3 { left: 82%; animation-delay: 2.9s; }
+.foguete.f4 { left: 93%; animation-delay: 1.1s; }
+.foguete.f5 { left: 48%; animation-delay: 3.7s; }
 
 .destaque-confete i {
   position: absolute;
@@ -2419,15 +2625,17 @@ onUnmounted(() => {
   animation: confete-subir 6s linear infinite;
 }
 
-.destaque-confete i:nth-child(1) { left: 14%; background: #2e9e63; animation-delay: 0.4s; }
-.destaque-confete i:nth-child(2) { left: 32%; background: #d9b26a; animation-delay: 2.1s; }
-.destaque-confete i:nth-child(3) { left: 50%; background: #6aa84f; animation-delay: 3.6s; }
-.destaque-confete i:nth-child(4) { left: 66%; background: #a8763e; animation-delay: 1.2s; }
-.destaque-confete i:nth-child(5) { left: 79%; background: #3f8f7a; animation-delay: 4.4s; }
-.destaque-confete i:nth-child(6) { left: 92%; background: #2e9e63; animation-delay: 5.4s; }
+.destaque-confete i:nth-child(1) { left: 10%; background: #2e9e63; animation-delay: 0.4s; }
+.destaque-confete i:nth-child(2) { left: 26%; background: #d9b26a; animation-delay: 2.1s; }
+.destaque-confete i:nth-child(3) { left: 42%; background: #6aa84f; animation-delay: 3.6s; }
+.destaque-confete i:nth-child(4) { left: 58%; background: #a8763e; animation-delay: 1.2s; }
+.destaque-confete i:nth-child(5) { left: 74%; background: #3f8f7a; animation-delay: 4.4s; }
+.destaque-confete i:nth-child(6) { left: 89%; background: #2e9e63; animation-delay: 5.4s; }
+.destaque-confete i:nth-child(7) { left: 16%; background: #e5b83b; animation-delay: 2.8s; }
+.destaque-confete i:nth-child(8) { left: 68%; background: #e5b83b; animation-delay: 0.9s; }
 
 /* ======================================================================
-   SLIDE 5 — RANKING
+   DEMAIS COLOCADOS DO RANKING (6º EM DIANTE)
    ====================================================================== */
 .grade-prof {
   flex: 1;
@@ -2457,10 +2665,6 @@ onUnmounted(() => {
   background: #f6fbf8;
   border-color: #bfe3ce;
 }
-
-.podio-1 { border-color: #e0c46a; box-shadow: 0 0 0 2px rgba(224, 196, 106, 0.35), var(--sombra); }
-.podio-2 { border-color: #c8d0d4; box-shadow: 0 0 0 2px rgba(200, 208, 212, 0.4), var(--sombra); }
-.podio-3 { border-color: #d8b48a; box-shadow: 0 0 0 2px rgba(216, 180, 138, 0.35), var(--sombra); }
 
 .prof-posicao {
   position: absolute;
@@ -2492,15 +2696,6 @@ onUnmounted(() => {
   font-weight: 800;
   color: var(--verde-medio);
   font-size: clamp(0.85rem, 1.2vw, 1.15rem);
-}
-
-.podio-medalha {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  font-size: clamp(0.9rem, 1.4vw, 1.35rem);
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
-  animation: medalha-pop 2.8s ease-in-out infinite;
 }
 
 .prof-info {
@@ -3117,8 +3312,8 @@ onUnmounted(() => {
   .slide,
   .foguete,
   .destaque-confete i,
-  .destaque-medalha,
-  .podio-medalha,
+  .podio-medalha-badge,
+  .podio-coroa,
   .chip-on .ponto {
     animation: none;
   }
@@ -3178,5 +3373,6 @@ onUnmounted(() => {
 @media (max-width: 760px) {
   .grupos-grade { grid-template-columns: 1fr; max-height: calc(100% - 125px); }
   .grupo-geral { padding: 10px 12px; }
+  .podio-pelotao { grid-template-columns: 1fr; }
 }
 </style>
