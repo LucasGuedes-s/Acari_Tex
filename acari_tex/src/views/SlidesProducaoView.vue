@@ -3,40 +3,6 @@
   ======================================================================
   Painel industrial de produção — apresentação automática em slides para
   TV/monitor de fábrica do Linha Tex.
-
-  ── DE ONDE VÊM OS NÚMEROS ──────────────────────────────────────────
-  Esta tela NÃO calcula nada. Todos os indicadores vêm prontos de
-  `GET /producao/painel` (back_end/Services/slidesProducaoService.js),
-  que usa a consolidação oficial:
-      relatorioProducaoService.calcularRelatorio()
-        → utils/producaoCalculos.js   (backend, fonte única)
-        → espelha acari_tex/src/utils/calculosProducao.js
-              Eficiência = Σ(quantidade × SAM) × 100 ÷ tempo trabalhado
-              SAM = MENOR tempo válido entre padrão da etapa e
-                    referência do profissional (OP/etapa → etapa → padrão)
-
-  O que a tela faz é apenas ORGANIZAR/PAGINAR o que já veio pronto:
-    • `porEtapa` traz SOMENTE as etapas com produção no dia;
-    • `horasDoDia` é o eixo contínuo de horas do gráfico por etapa;
-    • `finalizacao` separa peça FINALIZADA (só etapa final) de peça
-      processada (soma das etapas);
-    • `porEtapaCompleto` já traz TODAS as etapas cadastradas, inclusive as
-      que não tiveram apontamento no dia (zero de verdade);
-    • ranking já vem ordenado por eficiência (nunca por peças).
-
-  ── SLIDES (a quantidade cresce sozinha conforme os dados) ───────────
-    1    Resumo do dia         (peças finalizadas × peças processadas)
-    2..n Produção por etapa     (UM slide por etapa COM produção, com
-                                 gráfico de produção por horário)
-    n    Destaque do dia        (1º lugar do ranking)
-    n..  Ranking de profissionais (demais colocados, paginado)
-    n..  Ordens de produção     (cards, paginados)
-    n    Eficiência da fábrica  (os três critérios oficiais)
-    n    Etapas sem produção    (cadastro que ficou em zero no dia)
-
-  Peça FINALIZADA ≠ peça processada: o total de finalizadas vem de
-  `finalizacao` (só a etapa final da OP); a soma das etapas aparece
-  separada, identificada como produção intermediária.
 -->
 
 <template>
@@ -846,19 +812,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { io } from 'socket.io-client'
 import api from '@/Axios'
-import ProducaoDia from '@/components/ProducaoDia.vue';
+import ProducaoDia from '@/components/ProducaoDia.vue'
 import { useAuthStore } from '@/store/store'
 
 const socket = io('https://acari-tex.onrender.com')
 
-/* PRODUÇÃO DIA */
+/* ================= PRODUÇÃO DIA (usado exclusivamente para o ranking por OP) ================= */
 const eficienciaProducaoDiaPorEmail = ref(new Map())
 const etapasPorId = ref(new Map())
 
-/**
- * Executa a mesma regra oficial de `ProducaoDia.methods.calcularMetricasFuncionario`
- * para obter a Eficiência Geral oficial de cada funcionário.
- */
 function sincronizarEficienciasDoProducaoDia(funcionariosDia = []) {
   const isFabrica = String(useAuthStore().pegar_usuario?.tipo_de_producao || '')
     .normalize('NFD')
@@ -899,7 +861,6 @@ async function carregarDadosProducaoDia() {
     const cnpj = useAuthStore().pegar_usuario?.cnpj
     const hoje = obterDataLocalISO()
 
-    // 1. Garante o mapa de etapas/peças (igual ao carregarPecas do ProducaoDia)
     if (!etapasPorId.value.size) {
       const resPecas = await api.get('/pecas', {
         headers: { Authorization: token },
@@ -920,7 +881,6 @@ async function carregarDadosProducaoDia() {
       etapasPorId.value = indice
     }
 
-    // 2. Busca os apontamentos do dia via socket (igual ao executarBuscaMetaDia do ProducaoDia)
     const resposta = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Timeout buscar-meta-dia')), 8000)
       socket.emit('buscar-meta-dia', { estabelecimento: cnpj, data: hoje }, (res) => {
@@ -967,7 +927,6 @@ async function carregarDadosProducaoDia() {
       }
     })
 
-    // Restaura eventuais escolhas manuais de tempo de referência salvas pelo ProducaoDia
     for (const func of funcionariosMontados) {
       for (const linha of func.linhas) {
         if (!linha.etapaId) continue
@@ -1035,71 +994,18 @@ const nomeEstabelecimento = computed(() => painel.value?.estabelecimento?.nome |
 const resumo = computed(() => painel.value?.resumo || {})
 const porEtapa = computed(() => painel.value?.porEtapa || [])
 const porOp = computed(() => painel.value?.porOp || [])
+const profissionais = computed(() => painel.value?.profissionais || [])
 const destaques = computed(
   () => painel.value?.destaques || { maiorEficiencia: null, naMeta: [], quantidadeNaMeta: 0 }
 )
 
-/**
- * TODAS as etapas cadastradas, com zero quando não houve apontamento.
- * `porEtapaCompleto` só existe no payload novo; o fallback mantém a tela de
- * pé com um servidor antigo (só as etapas COM produção).
- */
 const etapas = computed(() => {
   const completo = painel.value?.porEtapaCompleto
   if (Array.isArray(completo) && completo.length) return completo
   return porEtapa.value
 })
 
-/**
- * Consolida as etapas por grupo, preservando a fórmula oficial:
- * eficiência = soma do tempo aplicado × 100 ÷ soma do tempo trabalhado.
- * O ranking é calculado com os tempos individuais já enviados pelo backend.
- */
-/**
- * Organiza as OPs e utiliza o ranking de profissionais
- * calculado especificamente para cada ordem pelo backend.
- *
- * O ranking geral permanece independente e inalterado.
- */
-
-/** Profissionais com a eficiência oficial calculada pelo ProducaoDia, reordenados */
-const profissionais = computed(() => {
-  const base = painel.value?.profissionais || []
-  const mapa = eficienciaProducaoDiaPorEmail.value
-
-  const enriquecidos = base.map(p => {
-    const metricas = mapa.get(p.email)
-    const eficienciaOficial =
-      metricas?.geral != null ? Number(metricas.geral) : Number(p.eficiencia || 0)
-
-    return {
-      ...p,
-      eficiencia: eficienciaOficial,
-      eficienciaTempoReferencia:
-        metricas?.referencia != null
-          ? Number(metricas.referencia)
-          : p.eficienciaTempoReferencia,
-      bateuMeta: eficienciaOficial >= Number(resumo.value.metaHora || 100),
-    }
-  })
-
-  return enriquecidos
-    .sort((a, b) => (b.eficiencia || 0) - (a.eficiencia || 0))
-    .map((p, index) => ({
-      ...p,
-      posicao: index + 1,
-    }))
-})
-
-/** 1º lugar do ranking com base na eficiência do ProducaoDia */
-const destaque = computed(() => {
-  return profissionais.value.find(p => p.posicao === 1 && p.producao > 0) || null
-})
-
-/** Demais colocados (do 2º em diante) */
-const ranking = computed(() => profissionais.value.filter(p => p.producao > 0).slice(1))
-
-/** Ranking por OP também atualizado com a eficiência do ProducaoDia */
+/** Ranking por OP atualizado com a eficiência do ProducaoDia (do Arquivo 2) */
 const grupos = computed(() => {
   const mapa = eficienciaProducaoDiaPorEmail.value
 
@@ -1138,27 +1044,12 @@ const grupos = computed(() => {
     )
 })
 
-/**
- * Etapas que o slide de produção individual apresenta: SOMENTE quem teve
- * produção no dia. Zero não vira slide (vai para a página de ociosas).
- */
 const etapasComProducao = computed(() => porEtapa.value.filter(e => Number(e.producao) > 0))
 
-/** Todo o resto do cadastro: aparece numa página própria, com zero. */
 const etapasOciosas = computed(() =>
   etapas.value.filter(e => !(Number(e.producao) > 0) && !e.emUsoNoDia)
 )
 
-/**
- * Eixo de horas do gráfico por etapa: contínuo, do primeiro ao último
- * horário apontado no dia. Se o servidor não mandar `horasDoDia`, deduz das
- * etapas (mesma leitura, só preenchendo o eixo).
- */
-
-/**
- * Peças finalizadas × processadas. `disponivel: false` quando nenhuma OP do
- * dia tem etapa final identificável — aí o painel não mostra número.
- */
 const finalizacao = computed(
   () =>
     painel.value?.finalizacao || {
@@ -1169,17 +1060,11 @@ const finalizacao = computed(
     }
 )
 
-/** Nome(s) da etapa que fecha a peça, para o resumo e o aviso do KPI. */
 const textoEtapaFinal = computed(() => {
   const nomes = (finalizacao.value.etapasFinais || []).map(e => e.etapa)
   if (nomes.length) return nomes.join(' · ')
   return finalizacao.value.configurada || 'não identificada'
 })
-
-/** Nomes que existem no cadastro do estabelecimento. 
-const nomesCadastrados = computed(
-  () => new Set(etapas.value.filter(e => e.cadastrada !== false).map(e => e.etapa))
-) */
 
 const notaFinalizadas = computed(() => {
   if (!finalizacao.value.disponivel) {
@@ -1189,9 +1074,17 @@ const notaFinalizadas = computed(() => {
   return `sem peça na etapa final (${textoEtapaFinal.value}) até agora`
 })
 
-/* ================= NAVEGAÇÃO / PAGINAÇÃO ================= */
+/** 1º lugar do ranking (do Arquivo 1 — payload oficial do backend) */
+const destaque = computed(() => {
+  const primeiro = destaques.value.maiorEficiencia
+  if (primeiro) return primeiro
+  return profissionais.value.find(p => p.posicao === 1 && p.producao > 0) || null
+})
 
-/** Quebra uma lista em páginas de `tamanho` (mínimo 1 página). */
+/** Demais colocados (do Arquivo 1 — payload oficial do backend) */
+const ranking = computed(() => profissionais.value.filter(p => p.producao > 0).slice(1))
+
+/* ================= NAVEGAÇÃO / PAGINAÇÃO ================= */
 function paginar(lista, tamanho) {
   if (!lista.length) return [[]]
   const quantidadePorPagina = Math.max(1, Math.floor(Number(tamanho) || 1))
@@ -1208,8 +1101,6 @@ function rotuloFaixa(inicio, quantidade, total) {
   return `${inicio + 1}–${inicio + quantidade} de ${total}`
 }
 
-/** Páginas com uma etapa cada, na ordem de produção (já vem do backend). */
-/** Páginas com 1 ou mais etapas, conforme configurado no modal. */
 function paginasDasEtapas() {
   const lista = etapasComProducao.value
   if (!lista.length) return []
@@ -1327,7 +1218,6 @@ function carregarConfiguracoes() {
   }
 }
 
-/** Lista completa de páginas na ordem de apresentação. */
 const paginas = computed(() => {
   const lista = [{ id: 'resumo', chave: 'resumo', titulo: 'Resumo do dia' }]
 
@@ -1367,8 +1257,6 @@ const paginas = computed(() => {
 
   lista.push({ id: 'eficiencia', chave: 'eficiencia', titulo: 'Eficiência da fábrica' })
 
-  // Nenhuma etapa cadastrada fica de fora: as que hoje não produziram e não
-  // estão no fluxo de nenhuma OP aparecem nesta página, com zero.
   if (etapasOciosas.value.length) {
     lista.push({
       id: 'ociosas',
@@ -1465,7 +1353,6 @@ function formatarPercentual(valor) {
   return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 }
 
-/** Tempo de UMA pessoa: nunca passa da jornada do dia. */
 function formatarHoras(minutos) {
   const total = Math.round(Number(minutos) || 0)
   if (!total) return '0h'
@@ -1475,21 +1362,12 @@ function formatarHoras(minutos) {
   return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`
 }
 
-/** SAM médio em minutos/peça. 
-function formatarMinutos(valor) {
-  const n = Number(valor)
-  if (!Number.isFinite(n) || n <= 0) return '—'
-  return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} min`
-} */
-
-/** Percentual que não existe no dia vira "—" (nada é inventado). */
 function percentualOuTraco(valor) {
   const n = Number(valor)
   if (!Number.isFinite(n) || n <= 0) return '—'
   return formatarPercentual(n)
 }
 
-/** "2026-03-10" → "10/03". */
 function formatarData(iso) {
   const texto = String(iso || '')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return '—'
@@ -1504,7 +1382,6 @@ function rotuloSituacao(situacao) {
 
 const MEDALHAS = ['🥇', '🥈', '🥉']
 
-/** Medalha do pódio do ranking (1º, 2º, 3º). */
 function medalha(posicao) {
   return MEDALHAS[Number(posicao) - 1] || ''
 }
@@ -1519,7 +1396,6 @@ function iniciais(nome) {
   return `${partes[0][0]}${partes[partes.length - 1][0]}`.toUpperCase()
 }
 
-/** Etapas de um profissional, resumidas para caber no card. */
 function resumoEtapas(p) {
   const lista = p?.etapas || []
   if (!lista.length) return 'sem etapa registrada'
@@ -1528,7 +1404,6 @@ function resumoEtapas(p) {
   return `${primeira.etapa} +${lista.length - 1} etapa(s)`
 }
 
-/** Faixa de cor do indicador (mesma leitura do restante do sistema). */
 function faixa(valor) {
   if (valor === null || valor === undefined) return 'neutra'
   const n = Number(valor)
@@ -1537,12 +1412,6 @@ function faixa(valor) {
   if (n >= 65) return 'media'
   return 'baixa'
 }
-
-/** "08:00" → "8h" (leitura rápida na TV). 
-function horaCurta(hora) {
-  const h = String(hora || '').split(':')[0]
-  return h ? `${Number(h)}h` : '—'
-} */
 
 /* ================= NAVEGAÇÃO ================= */
 let decorrido = 0
@@ -1629,19 +1498,14 @@ async function carregarPainel({ silencioso = false } = {}) {
     ultimaAtualizacao.value = new Date()
     carregando.value = false
 
-    // A quantidade de páginas muda com os dados: se a página atual deixou de
-    // existir, volta para a primeira em vez de ficar num índice vazio.
     if (slideAtual.value >= paginas.value.length) slideAtual.value = 0
 
-    // Cobre metas cadastradas fora do padrão por OP.
     await Promise.all([
       carregarMetaGlobal(),
       carregarMediaProducao(),
       carregarDadosProducaoDia(),
     ])
-
   } catch (err) {
-    // Numa atualização silenciosa, mantém o painel no ar com os dados anteriores.
     if (!silencioso || !painel.value) {
       erro.value = err?.response?.data?.mensagem || err.message || 'Erro ao carregar dados.'
     }
@@ -1996,7 +1860,6 @@ onUnmounted(() => {
   border-left-width: 5px;
 }
 
-/* Peça finalizada é o número que interessa na TV: ganha destaque próprio. */
 .kpi-final {
   background: linear-gradient(150deg, #ffffff 0%, #eef7f1 100%);
 }
@@ -2066,7 +1929,6 @@ onUnmounted(() => {
   color: var(--texto-suave);
 }
 
-/* Nome da etapa final pode ser comprido: quebra em vez de cortar. */
 .info-etapa-final {
   font-size: clamp(0.95rem, 1.35vw, 1.25rem);
   line-height: 1.15;
@@ -2074,7 +1936,6 @@ onUnmounted(() => {
 }
 
 /* SLIDE DE META DIÁRIA */
-
 .meta-slide {
   width: 100%;
   max-width: 1250px;
@@ -2201,7 +2062,7 @@ onUnmounted(() => {
 .kpi-efic.faixa-neutra { border-left-color: #c3d3c9; }
 
 /* ======================================================================
-   SLIDE 2 — PRODUÇÃO POR ETAPA (1 ou várias etapas por página)
+   SLIDE 2 — PRODUÇÃO POR ETAPA
    ====================================================================== */
 .grade-etapas {
   flex: 1;
@@ -2273,7 +2134,6 @@ onUnmounted(() => {
   -webkit-box-orient: vertical;
 }
 
-/* Destaque maior quando há apenas 1 etapa na página */
 .grade-etapas-unica .etapa-card {
   padding: clamp(22px, 2.8vw, 40px);
 }
@@ -2528,7 +2388,6 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
 }
 
-/* Foguetes e confete do destaque */
 .destaque-foguetes,
 .destaque-confete {
   position: absolute;
@@ -2815,8 +2674,6 @@ onUnmounted(() => {
   color: var(--alerta);
 }
 
-/* Poucas OPs = card largo: as etapas se espalham em colunas em vez de virar
-   uma lista comprida de largura total. */
 .op-etapas {
   flex: 1;
   min-height: 0;
@@ -3266,6 +3123,7 @@ onUnmounted(() => {
     animation: none;
   }
 }
+
 /* ======================================================================
    SLIDE — DESEMPENHO POR GRUPO
    ====================================================================== */
