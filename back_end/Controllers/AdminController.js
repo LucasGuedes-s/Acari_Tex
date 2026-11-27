@@ -21,15 +21,16 @@ function formatarCNPJ(cnpj) {
 }
 
 // GET /admin/estabelecimentos
+// GET /admin/estabelecimentos
 async function listarEstabelecimentos(req, res, next) {
   try {
-    // Janela de atividade: últimas 72 horas
     const agora = new Date();
+
+    // Janela de atividade: últimas 72 horas
     const limite72Horas = new Date(
       agora.getTime() - 72 * 60 * 60 * 1000
     );
 
-    // Busca a última produção registrada em cada estabelecimento
     const atividades = await prisma.producao.groupBy({
       by: ['id_Estabelecimento'],
       where: {
@@ -46,7 +47,6 @@ async function listarEstabelecimentos(req, res, next) {
       }
     });
 
-    // Mapa para localizar rapidamente a atividade de cada CNPJ
     const mapaAtividades = new Map(
       atividades.map((atividade) => [
         atividade.id_Estabelecimento,
@@ -65,12 +65,6 @@ async function listarEstabelecimentos(req, res, next) {
             email: true,
             status: true
           }
-        },
-        eficiencia_turma: {
-          select: {
-            eficiencia_percent: true,
-            calculadoEm: true
-          }
         }
       },
       orderBy: {
@@ -78,53 +72,111 @@ async function listarEstabelecimentos(req, res, next) {
       }
     });
 
-    const resultado = await Promise.all(
-      estabelecimentos.map(async (estabelecimento) => {
-        const atividade = mapaAtividades.get(estabelecimento.cnpj);
+    // Limita os cálculos simultâneos para evitar sobrecarregar o banco.
+    const LIMITE_CONCORRENCIA = 3;
+    const resultado = new Array(estabelecimentos.length);
 
-        const funcionariosAtivos = estabelecimento.usuarios.filter(
-          (usuario) => usuario.status !== 'inativo'
-        );
+    let indice = 0;
 
-        const dadosProducao = await obterEvolucaoProducao(
-          estabelecimento.cnpj,
-          { dias: 7 }
-        );
+    async function processarEstabelecimentos() {
+      while (indice < estabelecimentos.length) {
+        const posicao = indice++;
+        const estabelecimento = estabelecimentos[posicao];
 
-        const eficienciaAtual =
-          dadosProducao.resumo.eficienciaUtilizada ??
-          dadosProducao.resumo.eficienciaReferencia;
+        try {
+          // Mantém a mesma fonte de cálculo do dashboard.
+          const dadosProducao = await obterEvolucaoProducao(
+            estabelecimento.cnpj,
+            { dias: 30 }
+          );
 
-        return {
-          cnpj: estabelecimento.cnpj,
-          nome: estabelecimento.nome,
-          endereco: estabelecimento.endereco,
-          telefone: estabelecimento.telefone,
-          quantidade_funcionarios: estabelecimento.usuarios.length,
-          funcionarios_ativos: funcionariosAtivos.length,
+          const eficienciaAtual =
+            dadosProducao.resumo.eficienciaUtilizada ??
+            dadosProducao.resumo.eficienciaReferencia;
+            
+          const atividade = mapaAtividades.get(estabelecimento.cnpj);
 
-          eficiencia_atual: eficienciaAtual,
-          eficiencia_calculada_em: eficienciaAtual !== null
-            ? new Date()
-            : null,
+          const funcionariosAtivos = estabelecimento.usuarios.filter(
+            (usuario) => usuario.status !== 'inativo'
+          );
 
-          status: atividade ? 'ativo' : 'inativo',
-          ativo: Boolean(atividade),
-          ultima_atividade: atividade?.ultima_atividade ?? null,
-          registros_ultimas_72h: atividade?.registros_periodo ?? 0,
-          funcionarios: estabelecimento.usuarios
-        };
-      })
+          resultado[posicao] = {
+            cnpj: estabelecimento.cnpj,
+            nome: estabelecimento.nome,
+            endereco: estabelecimento.endereco,
+            telefone: estabelecimento.telefone,
+
+            quantidade_funcionarios: estabelecimento.usuarios.length,
+            funcionarios_ativos: funcionariosAtivos.length,
+
+            eficiencia_atual: eficienciaAtual,
+            eficiencia_calculada_em: eficienciaAtual !== null
+              ? agora
+              : null,
+
+            status: atividade ? 'ativo' : 'inativo',
+            ativo: Boolean(atividade),
+            ultima_atividade: atividade?.ultima_atividade ?? null,
+            registros_ultimas_72h: atividade?.registros_periodo ?? 0,
+
+            funcionarios: estabelecimento.usuarios
+          };
+        } catch (erro) {
+          console.error(
+            `Erro ao calcular eficiência do estabelecimento ${estabelecimento.cnpj}:`,
+            erro
+          );
+
+          const atividade = mapaAtividades.get(estabelecimento.cnpj);
+
+          const funcionariosAtivos = estabelecimento.usuarios.filter(
+            (usuario) => usuario.status !== 'inativo'
+          );
+
+          resultado[posicao] = {
+            cnpj: estabelecimento.cnpj,
+            nome: estabelecimento.nome,
+            endereco: estabelecimento.endereco,
+            telefone: estabelecimento.telefone,
+
+            quantidade_funcionarios: estabelecimento.usuarios.length,
+            funcionarios_ativos: funcionariosAtivos.length,
+
+            eficiencia_atual: null,
+            eficiencia_calculada_em: null,
+
+            status: atividade ? 'ativo' : 'inativo',
+            ativo: Boolean(atividade),
+            ultima_atividade: atividade?.ultima_atividade ?? null,
+            registros_ultimas_72h: atividade?.registros_periodo ?? 0,
+
+            funcionarios: estabelecimento.usuarios
+          };
+        }
+      }
+    }
+
+    await Promise.all(
+      Array.from(
+        {
+          length: Math.min(
+            LIMITE_CONCORRENCIA,
+            estabelecimentos.length
+          )
+        },
+        () => processarEstabelecimentos()
+      )
     );
 
     return res.status(200).json({
       estabelecimentos: resultado
     });
+
   } catch (error) {
+    console.error('Erro ao listar estabelecimentos:', error);
     next(error);
   }
 }
-
 
 // POST /admin/estabelecimentos
 async function cadastrarEstabelecimento(req, res, next) {
