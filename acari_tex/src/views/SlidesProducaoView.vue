@@ -563,8 +563,8 @@
                   </span>
                 </div>
 
-                <div class="grupo-eficiencia" :class="`faixa-${faixa(grupo.eficiencia)}`">
-                  <strong>{{ formatarPercentual(grupo.eficiencia) }}</strong>
+                <div class="grupo-eficiencia" :class="`faixa-${faixa(grupo.eficienciaFicha)}`">
+                  <strong>{{ formatarPercentual(grupo.eficienciaFicha) }}</strong>
                   <span>Eficiência da OP</span>
                 </div>
 
@@ -594,9 +594,9 @@
             <div class="grupo-geral">
               <div>
                 <span>EFICIÊNCIA GERAL DA TURMA</span>
-                <small>Consolidado oficial de todos os grupos</small>
+                <small>Eficiência Geral (oficial), igual ao dashboard</small>
               </div>
-              <strong :class="`faixa-${faixa(resumo.eficienciaGeral)}`">{{ formatarPercentual(resumo.eficienciaGeral) }}</strong>
+              <strong :class="`faixa-${faixa(eficienciaGeralTurma)}`">{{ formatarPercentual(eficienciaGeralTurma) }}</strong>
             </div>
           </template>
 
@@ -758,16 +758,6 @@
                   max="20"
                 />
               </label>
-
-              <label class="config-campo">
-                <span>Ordens de produção por página</span>
-                <input
-                  v-model.number="configuracoesRascunho.opsPorPagina"
-                  type="number"
-                  min="1"
-                  max="20"
-                />
-              </label>
             </div>
 
             <div class="config-grupo">
@@ -791,20 +781,8 @@
                 <span>Pódio e ranking de profissionais</span>
               </label>
               <label class="config-opcao">
-                <input type="checkbox" v-model="configuracoesRascunho.slides.ops" />
-                <span>Ordens de produção</span>
-              </label>
-              <label class="config-opcao">
                 <input type="checkbox" v-model="configuracoesRascunho.slides.grupos" />
                 <span>Desempenho por ordem de produção</span>
-              </label>
-              <label class="config-opcao">
-                <input type="checkbox" v-model="configuracoesRascunho.slides.eficiencia" />
-                <span>Eficiência da fábrica</span>
-              </label>
-              <label class="config-opcao">
-                <input type="checkbox" v-model="configuracoesRascunho.slides.ociosas" />
-                <span>Etapas sem produção</span>
               </label>
             </div>
 
@@ -833,12 +811,16 @@ import { io } from 'socket.io-client'
 import api from '@/Axios'
 import ProducaoDia from '@/components/ProducaoDia.vue'
 import { useAuthStore } from '@/store/store'
+import { agruparProducaoPorOp, resumoConsolidadoOp } from '@/utils/producaoCompartilhada'
 
 const socket = io('https://acari-tex.onrender.com')
 
 /* ================= PRODUÇÃO DIA (usado exclusivamente para o ranking por OP) ================= */
 const eficienciaProducaoDiaPorEmail = ref(new Map())
 const etapasPorId = ref(new Map())
+const funcionariosProducaoDia = ref([])
+const ehFabrica = ref(false)
+const validoNum = n => Number.isFinite(Number(n)) && Number(n) > 0
 
 function sincronizarEficienciasDoProducaoDia(funcionariosDia = []) {
   const isFabrica = String(useAuthStore().pegar_usuario?.tipo_de_producao || '')
@@ -867,10 +849,15 @@ function sincronizarEficienciasDoProducaoDia(funcionariosDia = []) {
         geral: metricas.geral,
         ficha: metricas.ficha,
         referencia: metricas.referencia,
+        producao: metricas.producao,
+        tempoRegistrado: metricas.tempoRegistrado,
+        totais: metricas.totais,
       })
     }
   }
 
+  ehFabrica.value = isFabrica
+  funcionariosProducaoDia.value = funcionariosDia
   eficienciaProducaoDiaPorEmail.value = mapa
 }
 
@@ -978,10 +965,7 @@ const configuracoes = ref({
     resumo: true,
     etapa: true,
     ranking: true,
-    ops: true,
     grupos: true,
-    eficiencia: true,
-    ociosas: true,
     meta: true
   }
 })
@@ -1017,15 +1001,49 @@ const destaques = computed(
   () => painel.value?.destaques || { maiorEficiencia: null, naMeta: [], quantidadeNaMeta: 0 }
 )
 
-const etapas = computed(() => {
-  const completo = painel.value?.porEtapaCompleto
-  if (Array.isArray(completo) && completo.length) return completo
-  return porEtapa.value
+/** Eficiência Geral (oficial) da turma — mesma fórmula do dashboard:
+ *  Σ tempo escolhido ÷ Σ tempo registrado × 100 */
+const eficienciaGeralTurma = computed(() => {
+  let usado = 0
+  let registrado = 0
+  for (const m of eficienciaProducaoDiaPorEmail.value.values()) {
+    if (!(m.producao > 0)) continue
+    if (m.totais?.usado != null && validoNum(m.tempoRegistrado)) {
+      usado += m.totais.usado
+      registrado += m.tempoRegistrado
+    }
+  }
+  return registrado > 0 ? Math.round((usado / registrado) * 10000) / 100 : null
+})
+
+/** Eficiência Ficha/Referência por OP — mesma fonte dos cards de OP do dashboard */
+const eficienciasOpDashboard = computed(() => {
+  const mapa = new Map()
+  if (!funcionariosProducaoDia.value.length || !etapasPorId.value.size) return mapa
+
+  const brutos = agruparProducaoPorOp(
+    funcionariosProducaoDia.value,
+    etapasPorId.value,
+    obterDataLocalISO()
+  ).filter(g => g.producao > 0)
+
+  for (const g of brutos) {
+    const r = resumoConsolidadoOp(g)
+    const refFallback = !validoNum(r.eficienciaReferencia) || !validoNum(r.tempoReferenciaTotal)
+    mapa.set(String(g.opId), {
+      eficienciaFicha: r.eficienciaFicha,
+      eficienciaReferencia:
+        refFallback && validoNum(r.eficienciaFicha) ? r.eficienciaFicha : r.eficienciaReferencia,
+      refFallback: refFallback && validoNum(r.eficienciaFicha),
+    })
+  }
+  return mapa
 })
 
 /** Ranking por OP atualizado com a eficiência do ProducaoDia */
 const grupos = computed(() => {
   const mapa = eficienciaProducaoDiaPorEmail.value
+  const eficienciasOp = eficienciasOpDashboard.value
 
   return porOp.value
     .map(op => {
@@ -1051,7 +1069,9 @@ const grupos = computed(() => {
         etapaFinal: op.etapaFinal || 'Etapa final',
         etapas: Number(op.etapas) || 0,
         profissionais: Number(op.profissionais) || 0,
-        eficiencia: Number(op.eficiencia) || 0,
+        eficienciaFicha: eficienciasOp.get(String(op.idOp))?.eficienciaFicha ?? null,
+        eficienciaReferencia: eficienciasOp.get(String(op.idOp))?.eficienciaReferencia ?? null,
+        refFallback: eficienciasOp.get(String(op.idOp))?.refFallback ?? false,
         ranking: rankingAtualizado,
       }
     })
@@ -1063,10 +1083,6 @@ const grupos = computed(() => {
 })
 
 const etapasComProducao = computed(() => porEtapa.value.filter(e => Number(e.producao) > 0))
-
-const etapasOciosas = computed(() =>
-  etapas.value.filter(e => !(Number(e.producao) > 0) && !e.emUsoNoDia)
-)
 
 const finalizacao = computed(
   () =>
@@ -1211,10 +1227,7 @@ function salvarConfiguracoes() {
       meta: rascunho.slides.meta !== false,
       etapa: rascunho.slides.etapa !== false,
       ranking: rascunho.slides.ranking !== false,
-      ops: rascunho.slides.ops !== false,
       grupos: rascunho.slides.grupos !== false,
-      eficiencia: rascunho.slides.eficiencia !== false,
-      ociosas: rascunho.slides.ociosas !== false,
     },
   }
 
@@ -1311,31 +1324,8 @@ const paginas = computed(() => {
     })
   }
 
-  paginar(porOp.value, configuracoes.value.opsPorPagina).forEach((itens, i) => {
-    if (!itens.length) return
-    lista.push({
-      id: `ops-${i}`,
-      chave: 'ops',
-      titulo: 'Ordens de produção',
-      itens,
-      colunas: Math.min(4, Math.max(1, itens.length)),
-      rotuloLinhas: rotuloFaixa(i * configuracoes.value.opsPorPagina, itens.length, porOp.value.length),
-    })
-  })
-
   if (grupos.value.length) {
     lista.push({ id: 'grupos', chave: 'grupos', titulo: 'Desempenho por grupo' })
-  }
-
-  lista.push({ id: 'eficiencia', chave: 'eficiencia', titulo: 'Eficiência da fábrica' })
-
-  if (etapasOciosas.value.length) {
-    lista.push({
-      id: 'ociosas',
-      chave: 'ociosas',
-      titulo: 'Etapas sem produção hoje',
-      itens: etapasOciosas.value,
-    })
   }
 
   return lista.filter(pagina =>
