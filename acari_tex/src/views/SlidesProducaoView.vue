@@ -168,7 +168,21 @@
                 </div>
               </div>
 
-              <div class="meta-slide-sem-referencia">
+              
+              <!-- Barra de progresso: aparece quando existe meta ou média histórica -->
+              <div v-if="referenciaMetaSlide.valor > 0" class="meta-slide-progresso">
+                <div class="meta-slide-barra">
+                  <div
+                    class="meta-slide-preenchimento"
+                    :style="{
+                      width: `${Math.min(100, Math.max(0, percentualAtingimentoSlide))}%`
+                    }"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Mensagem somente quando não existe referência -->
+              <div v-else class="meta-slide-sem-referencia">
                 Não há meta cadastrada nem histórico de produção suficiente.
               </div>
 
@@ -1998,6 +2012,29 @@ onUnmounted(() => {
 }
 
 /* SLIDE DE META DIÁRIA */
+
+.meta-slide-progresso {
+  width: 100%;
+  margin: 20px 0 30px;
+}
+
+.meta-slide-barra {
+  width: 100%;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 50px;
+  background: #e8efea;
+  border: 1px solid var(--verde-linha);
+}
+
+.meta-slide-preenchimento {
+  height: 100%;
+  min-width: 0;
+  background: linear-gradient(90deg, #145a32, #39a96b);
+  border-radius: 50px;
+  transition: width 0.8s ease;
+}
+
 .meta-slide {
   width: 100%;
   max-width: 1250px;
